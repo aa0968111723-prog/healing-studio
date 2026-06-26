@@ -127,6 +127,7 @@ import {
 } from "@/lib/send-to-studio";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { FEATURE_EXPORT_CHAIN } from "@/config/featureFlags";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -1660,14 +1661,26 @@ const GenerationTaskRow = memo(function GenerationTaskRow({
         <div className="w-3 h-3 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin shrink-0" />
       )}
       {task.status === "completed" && task.resultUrl && (
-        <a
-          href={task.resultUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-2xs text-emerald-700 hover:underline shrink-0"
-        >
-          查看成品
-        </a>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <a
+            href={task.resultUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-2xs text-emerald-700 hover:underline"
+          >
+            預覽
+          </a>
+          {FEATURE_EXPORT_CHAIN && (
+            <a
+              href={task.resultUrl}
+              download={`segment-${task.segmentIndex + 1}-${task.modality}`}
+              className="text-2xs text-blue-700 hover:underline"
+              title="下載到本機"
+            >
+              下載
+            </a>
+          )}
+        </div>
       )}
       {task.status === "failed" && onRetry && (
         <button
@@ -1705,12 +1718,16 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
   ) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [showDownloadBanner, setShowDownloadBanner] = useState(false);
   const completed = tasks.filter(t => t.status === "completed").length;
   const failed = tasks.filter(t => t.status === "failed").length;
   const processing = tasks.filter(t => t.status === "processing").length;
   const pending = tasks.filter(t => t.status === "pending").length;
   const allDone =
     tasks.length > 0 && completed + failed === tasks.length;
+  const completedMediaTasks = FEATURE_EXPORT_CHAIN
+    ? tasks.filter(t => t.status === "completed" && t.resultUrl)
+    : [];
 
   if (tasks.length === 0) return null;
 
@@ -1726,6 +1743,18 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
           {failed > 0 ? ` · ${failed} 失敗` : ""}
         </span>
         <div className="ml-auto flex items-center gap-1">
+          {FEATURE_EXPORT_CHAIN && allDone && completedMediaTasks.length > 0 && (
+            <button
+              onClick={() => setShowDownloadBanner(c => !c)}
+              className={cn(
+                "p-1 rounded hover:bg-muted/40",
+                showDownloadBanner ? "text-blue-600" : "text-muted-foreground"
+              )}
+              title="下載全部素材"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             onClick={() => setCollapsed(c => !c)}
             className="p-1 rounded hover:bg-muted/40"
@@ -1761,6 +1790,44 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
             ))}
           </div>
         </ScrollArea>
+      )}
+      {FEATURE_EXPORT_CHAIN && showDownloadBanner && completedMediaTasks.length > 0 && (
+        <div className="border-t border-border/40 p-2 space-y-1 max-h-[24vh] overflow-y-auto">
+          <p className="text-2xs text-muted-foreground font-medium mb-1.5">
+            已完成素材 ({completedMediaTasks.length} 項)
+          </p>
+          {completedMediaTasks.map(t => (
+            <div
+              key={`dl-${t.segmentId}-${t.modality}`}
+              className="flex items-center gap-2 text-xs"
+            >
+              <span className="text-muted-foreground shrink-0 font-medium">
+                #{t.segmentIndex + 1}
+              </span>
+              <span className="text-2xs text-muted-foreground shrink-0 uppercase tracking-wide">
+                {t.modality}
+              </span>
+              <span className="flex-1 truncate text-muted-foreground text-2xs">
+                {t.prompt.slice(0, 35)}
+              </span>
+              <a
+                href={t.resultUrl!}
+                download={`segment-${t.segmentIndex + 1}-${t.modality}`}
+                className="text-2xs text-blue-700 hover:underline shrink-0"
+              >
+                下載
+              </a>
+              <a
+                href={t.resultUrl!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-2xs text-muted-foreground hover:text-foreground shrink-0"
+              >
+                ↗
+              </a>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -146,6 +146,15 @@ export const ENABLE_AIDV_CHROME: boolean =
 export const ORB_SMILEY_ONLY: boolean =
   readRuntimeOverride("orbsmileyonly") ?? readFlag("VITE_ORB_SMILEY_ONLY", true);
 
+/**
+ * Export Chain 開關（AIDV-237）：在導演台批次生成面板加入「下載素材」按鈕
+ * 和批次匯出清單。預設 ON；關閉退路：
+ *   ① 全站：部署環境設 `VITE_FEATURE_EXPORT_CHAIN=0`（Railway），重新部署。
+ *   ② 單一瀏覽器：網址 `?exportchain=0`（存 localStorage）。
+ */
+export const FEATURE_EXPORT_CHAIN: boolean =
+  readRuntimeOverride("exportchain") ?? readFlag("VITE_FEATURE_EXPORT_CHAIN", true);
+
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
   ENABLE_4SHELL,
@@ -153,6 +162,7 @@ export const FEATURE_FLAGS = {
   SHELL_LEARN,
   ENABLE_AIDV_CHROME,
   ORB_SMILEY_ONLY,
+  FEATURE_EXPORT_CHAIN,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
