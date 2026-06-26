@@ -1,10 +1,15 @@
 /**
  * emailService.ts — Email notification service
  *
- * Handles sending transactional emails for password reset, email verification,
- * and security notifications.
+ * Uses nodemailer SMTP when SMTP_HOST is configured (any provider: SendGrid,
+ * AWS SES, Gmail, Mailgun, etc.). Falls back to console.log in local/demo mode.
+ *
+ * SendGrid quick-start:
+ *   SMTP_HOST=smtp.sendgrid.net  SMTP_PORT=587  SMTP_USER=apikey
+ *   SMTP_PASS=<API Key>  SMTP_FROM=noreply@healing-studio.app
  */
 
+import nodemailer from "nodemailer";
 import { ENV } from "../../_core/env";
 import { logger } from "../../_core/logger";
 
@@ -22,29 +27,37 @@ export interface EmailOptions {
   text?: string;
 }
 
-/**
- * Email service interface
- */
 export class EmailService {
   private isConfigured: boolean;
+  private transporter: nodemailer.Transporter | null = null;
 
   constructor() {
-    // Check if email service is configured (placeholder for now)
-    this.isConfigured = false; // Will be true when SMTP/service is configured
+    this.isConfigured = !!ENV.smtpHost;
+
+    if (this.isConfigured) {
+      this.transporter = nodemailer.createTransport({
+        host: ENV.smtpHost,
+        port: parseInt(ENV.smtpPort, 10),
+        secure: ENV.smtpSecure === "true",
+        auth: ENV.smtpUser
+          ? { user: ENV.smtpUser, pass: ENV.smtpPass }
+          : undefined,
+      });
+      logger.info("[EmailService] SMTP configured", {
+        host: ENV.smtpHost,
+        port: ENV.smtpPort,
+      });
+    }
   }
 
-  /**
-   * Send an email
-   */
   async send(options: EmailOptions): Promise<void> {
-    if (!this.isConfigured) {
-      // In development/demo mode, just log the email
+    if (!this.isConfigured || !this.transporter) {
       logger.info("[EmailService] Email would be sent (not configured)", {
         to: options.to,
         subject: options.subject,
       });
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log("📧 Email Preview (not sent - service not configured)");
+      console.log("📧 Email Preview (not sent - SMTP_HOST not configured)");
       console.log(`To: ${options.to}`);
       console.log(`Subject: ${options.subject}`);
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -53,17 +66,29 @@ export class EmailService {
       return;
     }
 
-    // TODO: Implement actual email sending with SMTP/SendGrid/AWS SES
-    // For now, just log
-    logger.info("[EmailService] Sending email", {
-      to: options.to,
-      subject: options.subject,
-    });
+    try {
+      const info = await this.transporter.sendMail({
+        from: ENV.smtpFrom,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+      logger.info("[EmailService] Email sent", {
+        to: options.to,
+        subject: options.subject,
+        messageId: info.messageId,
+      });
+    } catch (err) {
+      logger.error("[EmailService] Failed to send email", {
+        to: options.to,
+        subject: options.subject,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
   }
 
-  /**
-   * Send password reset email
-   */
   async sendPasswordReset(email: string, resetToken: string): Promise<void> {
     const resetUrl = `${this.getBaseUrl()}/reset-password?token=${resetToken}`;
 
@@ -131,9 +156,6 @@ ${resetUrl}
     });
   }
 
-  /**
-   * Send password changed confirmation
-   */
   async sendPasswordChanged(email: string, name?: string): Promise<void> {
     const html = `
       <!DOCTYPE html>
@@ -193,9 +215,6 @@ ${resetUrl}
     });
   }
 
-  /**
-   * Send email verification token
-   */
   async sendEmailVerification(email: string, token: string, newEmail: string): Promise<void> {
     const verifyUrl = `${this.getBaseUrl()}/verify-email?token=${token}`;
 
@@ -260,15 +279,10 @@ ${verifyUrl}
     });
   }
 
-  /**
-   * Get base URL for links in emails
-   */
   private getBaseUrl(): string {
-    // In production, use the actual domain
-    // For now, use localhost or environment variable
-    return ENV.isProduction
-      ? "https://healing-studio.app"  // TODO: Update with actual domain
-      : "http://localhost:5173";
+    return ENV.baseUrl || (ENV.isProduction
+      ? "https://healing-studio.app"
+      : "http://localhost:5173");
   }
 }
 

@@ -26,6 +26,14 @@ export const ENV = {
   // ── 管理員信箱清單 ────────────────────────────────────────
   adminEmails: serverEnv.ADMIN_EMAILS,
 
+  // ── 郵件發送 SMTP（AIDV-434）────────────────────────────
+  smtpHost: serverEnv.SMTP_HOST,
+  smtpPort: serverEnv.SMTP_PORT,
+  smtpSecure: serverEnv.SMTP_SECURE,
+  smtpUser: serverEnv.SMTP_USER,
+  smtpPass: serverEnv.SMTP_PASS,
+  smtpFrom: serverEnv.SMTP_FROM,
+
   // ── Google Cloud / Vertex AI ──────────────────────────────
   gcpProjectId: serverEnv.GOOGLE_CLOUD_PROJECT_ID,
   gcsBucketName: serverEnv.GCS_BUCKET_NAME,
