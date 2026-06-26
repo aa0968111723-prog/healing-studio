@@ -4443,3 +4443,44 @@ export const sceneCompositions = mysqlTable(
 
 export type SceneCompositionRow = typeof sceneCompositions.$inferSelect;
 export type InsertSceneComposition = typeof sceneCompositions.$inferInsert;
+
+// ─── Skill Registry (Wave S S-4 / AIDV-129) ────────────────────────────────
+
+export const skillRegistry = mysqlTable(
+  "skill_registry",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    /** Globally unique skill manifest id (e.g. "storyboard.breakdown"). */
+    skillId: varchar("skillId", { length: 128 }).notNull(),
+    /** Pinned semver version at install time. */
+    version: varchar("version", { length: 32 }).notNull(),
+    /** Display name from the manifest. */
+    name: varchar("name", { length: 255 }).notNull(),
+    /** Trust tier: determines default permission ceiling. */
+    trust: mysqlEnum("trust", ["official", "reviewed", "community"])
+      .notNull()
+      .default("community"),
+    /** Connector IDs explicitly approved by Admin. */
+    grantedConnectors: json("grantedConnectors").$type<string[]>(),
+    /** Whether Admin has approved materials access (read/write creative data). */
+    grantedMaterials: boolean("grantedMaterials").notNull().default(false),
+    /** Whether Admin has approved cross-project access. */
+    grantedCrossProject: boolean("grantedCrossProject").notNull().default(false),
+    /** Active or disabled; disabled skills are rejected at dispatch time. */
+    status: mysqlEnum("status", ["active", "disabled"]).notNull().default("active"),
+    /** userId who installed this skill; null for built-in official skills. */
+    installedBy: int("installedBy"),
+    /** Manifest source URL or file path; null for official skills. */
+    source: varchar("source", { length: 512 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    skillIdUnique: uniqueIndex("skill_registry_skillId_uk").on(table.skillId),
+    trustIdx: index("skill_registry_trust_idx").on(table.trust),
+    statusIdx: index("skill_registry_status_idx").on(table.status),
+  })
+);
+
+export type SkillRegistryEntry = typeof skillRegistry.$inferSelect;
+export type InsertSkillRegistryEntry = typeof skillRegistry.$inferInsert;

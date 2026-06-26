@@ -63,6 +63,8 @@ const PENDING_BLOCK = [
   "0082_data_source_expiry",
   // AIDV-126 S-1：Skill 契約欄位（skillId/skillVersion/inputSnapshot/permissionSnapshot）。
   "0084_skill_step_columns",
+  // AIDV-129 S-4：Skill 註冊表（三級信任 + 權限放行）。
+  "0085_skill_registry",
 ];
 
 function readSql(tag: string): string {

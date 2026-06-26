@@ -624,6 +624,13 @@
       "when": 1779050000099,
       "tag": "0084_skill_step_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "5",
+      "when": 1782456021100,
+      "tag": "0085_skill_registry",
+      "breakpoints": true
     }
   ]
 }
