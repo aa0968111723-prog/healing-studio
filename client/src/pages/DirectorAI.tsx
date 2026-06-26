@@ -69,6 +69,8 @@ import {
   Package,
   Globe2,
   RefreshCw,
+  Undo2,
+  History,
 } from "lucide-react";
 import { GlassCard } from "@/components/ZenCoPilot";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
@@ -2461,6 +2463,12 @@ export default function DirectorAI() {
     number | null
   >(null);
   const [importedSegments, setImportedSegments] = useState<ScriptSegment[]>([]);
+  // AIDV-227: 版本歷程 — 最多保留 10 個分鏡快照，供「復原」使用
+  const [segmentUndoStack, setSegmentUndoStack] = useState<Array<{
+    segments: ScriptSegment[];
+    timestamp: string;
+    description: string;
+  }>>([]);
   const [importedTitle, setImportedTitle] = useState("");
   const [selectedSegmentIdx, setSelectedSegmentIdx] = useState<number | null>(
     null
@@ -2742,6 +2750,7 @@ export default function DirectorAI() {
   });
   const importScriptMut = trpc.director.importScript.useMutation({
     onSuccess: data => {
+      pushUndoSnapshot("匯入新腳本前");
       setImportedSegments(data.segments);
       setImportedTitle(data.title);
       if (data.segments.length > 0) {
@@ -3062,6 +3071,12 @@ export default function DirectorAI() {
     generationTasksRef.current = generationTasks;
   }, [generationTasks]);
 
+  // AIDV-227: ref for latest segments so async callbacks can snapshot before overwrite
+  const importedSegmentsRef = useRef<ScriptSegment[]>(importedSegments);
+  useEffect(() => {
+    importedSegmentsRef.current = importedSegments;
+  }, [importedSegments]);
+
   const handleRetryGenerationTask = useCallback(
     (
       segmentId: string,
@@ -3354,6 +3369,7 @@ export default function DirectorAI() {
         // ── 腳本分析模式：還原分鏡 + 總覽並切換到 script tab ──
         if (data.mode === "script-analysis") {
           if (Array.isArray(data.importedSegments)) {
+            pushUndoSnapshot("載入會話前");
             setImportedSegments(data.importedSegments);
           }
           if (typeof data.importedTitle === "string") {
@@ -3704,6 +3720,7 @@ export default function DirectorAI() {
         setCurrentPlanningId(parsed.currentPlanningId);
       }
       if (session.linkedScript?.segments?.length) {
+        pushUndoSnapshot("載入規劃會話前");
         setImportedSegments(session.linkedScript.segments);
         setImportedTitle(session.linkedScript.title);
         setSelectedSegmentIdx(0);
@@ -3753,6 +3770,7 @@ export default function DirectorAI() {
         // 把附在 session 上的腳本分鏡塞回「腳本分析」分頁，讓貼過的劇本與
         // AI 生成的分鏡跟著規劃一起回來。
         if (data.linkedScript?.segments?.length) {
+          pushUndoSnapshot("載入規劃前");
           setImportedSegments(data.linkedScript.segments);
           setImportedTitle(data.linkedScript.title);
           setSelectedSegmentIdx(0);
@@ -3876,6 +3894,27 @@ export default function DirectorAI() {
     },
     [importedSegments, batchGenerationOptions, regenerateSegMut]
   );
+
+  // AIDV-227: 版本歷程 — 快照當前分鏡到 undo stack（最多 10 個）
+  const pushUndoSnapshot = useCallback((description: string) => {
+    const current = importedSegmentsRef.current;
+    if (current.length === 0) return;
+    setSegmentUndoStack(prev => [
+      { segments: current, timestamp: new Date().toISOString(), description },
+      ...prev,
+    ].slice(0, 10));
+  }, []);
+
+  // AIDV-227: 復原到上一個分鏡快照
+  const handleUndoSegments = useCallback(() => {
+    setSegmentUndoStack(prev => {
+      if (prev.length === 0) return prev;
+      const [last, ...rest] = prev;
+      setImportedSegments(last.segments);
+      toast.success(`已復原至「${last.description}」（${last.segments.length} 個分鏡）`);
+      return rest;
+    });
+  }, []);
 
   const handleBatchCostar = useCallback(() => {
     const segmentsWithoutCostar = importedSegments.filter(s => !s.costar);
@@ -4843,6 +4882,7 @@ export default function DirectorAI() {
               <ScriptGeneratePanel
                 personality={personality}
                 onGenerated={data => {
+                  pushUndoSnapshot("腳本生成前");
                   setImportedSegments(data.segments as ScriptSegment[]);
                   setImportedTitle(data.title);
                   if (data.segments.length > 0) {
@@ -5128,9 +5168,21 @@ export default function DirectorAI() {
                   className={cn("shrink-0", isMobile ? "w-full" : "w-[280px]")}
                 >
                   <GlassCard hover={false} className="space-y-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      分鏡列表
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        分鏡列表
+                      </h4>
+                      {segmentUndoStack.length > 0 && (
+                        <button
+                          onClick={handleUndoSegments}
+                          className="flex items-center gap-1 text-2xs px-1.5 py-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+                          title={`復原至「${segmentUndoStack[0]?.description}」（${segmentUndoStack[0]?.segments.length} 段）`}
+                        >
+                          <Undo2 className="w-3 h-3" />
+                          復原 ({segmentUndoStack.length})
+                        </button>
+                      )}
+                    </div>
                     <ScrollArea
                       className={
                         isMobile ? "max-h-[200px]" : "h-[calc(100vh-420px)]"
