@@ -176,6 +176,8 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     soundEnabled: settings.soundEnabled,
     desktopNotif: settings.desktopNotif,
   });
+  // AIDV-519: track jobs that already received an SSE error toast to suppress duplicate polling toast
+  const sseErrorShownRef = useRef<Set<number>>(new Set());
   useEffect(() => {
     notifyPrefsRef.current = {
       soundEnabled: settings.soundEnabled,
@@ -348,11 +350,15 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
           } else if (result.status === "failed" && prev !== "failed") {
             const meta = result.resultJson as Record<string, unknown> | null;
             const label = (meta?.label as string) || "任務";
-            toast.error(`❌ ${label} 失敗`, {
-              description: result.errorMessage || "請重試",
-            });
+            // AIDV-519: skip toast if SSE already showed it (avoids duplicate)
+            if (!sseErrorShownRef.current.has(jobId)) {
+              toast.error(`❌ ${label} 失敗`, {
+                description: result.errorMessage || "請重試",
+              });
+              const prefs = notifyPrefsRef.current;
+              if (prefs.soundEnabled) playCompletionTone(false);
+            }
             const prefs = notifyPrefsRef.current;
-            if (prefs.soundEnabled) playCompletionTone(false);
             if (prefs.desktopNotif && document.visibilityState !== "visible") {
               sendDesktopNotification({
                 title: `${label} 失敗`,
@@ -361,6 +367,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 onClick: () => setDrawerOpen(true),
               });
             }
+            sseErrorShownRef.current.delete(jobId);
             activeJobsQuery.refetch();
           }
           prevStatusRef.current[jobId] = result.status;
@@ -414,6 +421,14 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
             // AIDV-431：cache preview_url immediately before DB refetch completes
             if (event.type === "complete" && event.preview_url) {
               setPreviewUrlsByJobId(prev => ({ ...prev, [jobId]: event.preview_url! }));
+            }
+            // AIDV-519：SSE error → show immediate actionable toast before DB round-trip completes.
+            // Mark the jobId so the subsequent polling toast doesn't duplicate.
+            if (event.type === "error" && event.message) {
+              sseErrorShownRef.current.add(jobId);
+              toast.error("生成失敗", { description: event.message });
+              const prefs = notifyPrefsRef.current;
+              if (prefs.soundEnabled) playCompletionTone(false);
             }
             // 立即觸發 activeJobs 重抓 + checkStudioJob 同步狀態
             void activeJobsQuery.refetch();

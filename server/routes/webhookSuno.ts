@@ -207,7 +207,7 @@ sunoWebhookRouter.post(
         // Suno 回呼未帶 audio URL → 使用者沒成品,退回 chargeForFalTask 預扣的點數
         // （proStudio.generateMusicSuno 已將 costPoints 寫入 resultJson）。
         void refundJobIfBilled(jobId);
-        generationBus.emit(jobId, { type: "error", message: errorMessage });
+        generationBus.emit(jobId, { type: "error", message: errorMessage, provider: "suno", retryable: false });
         return;
       }
 

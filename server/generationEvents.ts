@@ -26,7 +26,7 @@ export type GenerationEvent =
   | ({ type: "thought-update"; node: ThoughtNodeEvent } & GenerationEventBase)
   | ({ type: "progress"; progress: number; message: string } & GenerationEventBase)
   | ({ type: "complete"; thoughtChain: ThoughtNodeEvent[]; preview_url?: string } & GenerationEventBase)
-  | ({ type: "error"; message: string } & GenerationEventBase)
+  | ({ type: "error"; message: string; provider?: string; retryable?: boolean } & GenerationEventBase)
   | ({
       type: "step_complete";
       taskId: string;
@@ -35,10 +35,18 @@ export type GenerationEvent =
       at: number;
     } & GenerationEventBase)
   | ({
-      type: "task_done" | "task_failed";
+      type: "task_done";
       taskId: string;
       userId: number;
       at: number;
+    } & GenerationEventBase)
+  | ({
+      type: "task_failed";
+      taskId: string;
+      userId: number;
+      at: number;
+      failureReason?: string;
+      errorCode?: string;
     } & GenerationEventBase)
   | ({
       // DEF-AG1 Step Reflection telemetry: emitted whenever the
