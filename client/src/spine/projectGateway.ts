@@ -396,6 +396,7 @@ function assembleProject(
       variant: Number(sh.gen?.variant ?? 0),
     },
     prompt: sh.prompt,
+    assetUrl: sh.assetUrl ?? undefined,
   }));
 
   const noteList: Note[] = noteRows.map((n: any): Note => ({
