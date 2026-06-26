@@ -422,12 +422,26 @@ async function startServer() {
   app.use(requestTraceMiddleware);
 
   // ── Security headers ─────────────────────────────────────────────────────
+  // AIDV-313: helmet with DENY frame-guard + Permissions-Policy.
+  // CSP kept disabled (requires full CDN allowlist audit before enforcement).
+  // CORS wildcard stays on CDN-proxy-download route only — intentional for
+  // public media delivery; tRPC/auth routes share same origin so no CORS needed.
   app.use(
     helmet({
-      contentSecurityPolicy: false, // CSP managed separately (inline scripts, CDNs)
+      contentSecurityPolicy: false, // CSP audit pending (AIDV-283/313)
       crossOriginEmbedderPolicy: false, // Allow cross-origin media assets
+      frameguard: { action: "deny" }, // X-Frame-Options: DENY (upgraded from SAMEORIGIN)
     })
   );
+  // Permissions-Policy: disable browser features not used by healing-studio.
+  // Helmet 8.x does not set this header by default; added manually (AIDV-313).
+  app.use((_req, res, next) => {
+    res.setHeader(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), payment=()"
+    );
+    next();
+  });
 
   // ── Gzip/Brotli compression (60-80% smaller text/JSON responses) ────────
   app.use(compression({ threshold: 1024 }));
