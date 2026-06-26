@@ -91,6 +91,7 @@ import {
 } from "@/contexts/PageAgentContext";
 import { useEnsureCompatibleModel } from "@/hooks/useEnsureCompatibleModel";
 import { useGenerationTask } from "@/hooks/useGenerationTask";
+import { useAutoSavePrompt } from "@/hooks/useAutoSavePrompt";
 import {
   FEATURE_LABELS,
   getModelCapability,
@@ -617,6 +618,8 @@ export default function Studio() {
       activeModality as "image" | "video" | "audio" | "voice"
     ];
 
+  const { trySave: autoSavePrompt } = useAutoSavePrompt({ sourceWorkflow: "video" });
+
   // ── Mutation ──
   const utils = trpc.useUtils();
   // ── Async submit mutation (背景任務模式，不阻塞 UI) ──
@@ -625,12 +628,17 @@ export default function Studio() {
       setAIState("generating");
       notifyGenStart();
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       // submitMultimodalAsync 在伺服器端已建立 background_job 記錄（routers.ts
       // submitMultimodalAsync 內 db.createBackgroundJob），這裡僅需 invalidate
       // activeJobs 讓 BackgroundTasksDrawer 立刻撈到新任務，避免再呼叫
       // submitTask → submitStudioJob 造成同一任務插入第二筆 job 列。
       utils.generate.activeJobs.invalidate();
+      autoSavePrompt({
+        title: data.label || "生成",
+        content: variables.prompt || "",
+        modelHint: data.modelId,
+      });
       setAIState("idle");
       notifyGenDone();
       toast.success(`${data.label} 已提交背景執行`, {
