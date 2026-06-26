@@ -173,7 +173,7 @@ class GenerationEventBus {
   emit(jobId: number, event: GenerationEvent) {
     const orbTraceId = event.orbTraceId ?? getOrbTraceId() ?? undefined;
     const channel = `job:${jobId}`;
-    const richEvent = { ...event, orbTraceId };
+    const richEvent = orbTraceId !== undefined ? { ...event, orbTraceId } : { ...event };
     const seq = this.getOrCreateBuf(channel).push(richEvent);
     // Attach seq as non-enumerable so JSON.stringify and toEqual in tests ignore
     // it, while sseRoute.ts can still read it for the SSE `id:` field.

@@ -742,6 +742,10 @@ function TextToVideoTab() {
     "16:9"
   );
   const [klingCfg, setKlingCfg] = useState(0.5);
+  const [klingStyle, setKlingStyle] = useState<"cinematic" | "documentary" | "advertising" | "anime" | "minimal" | "">("");
+  const [klingPacing, setKlingPacing] = useState<"fast" | "normal" | "slow" | "">("");
+  const [klingTransition, setKlingTransition] = useState<"fade" | "cut" | "slide" | "none" | "">("");
+  const [klingColorGrade, setKlingColorGrade] = useState<"warm" | "cool" | "high-contrast" | "cinematic-lut" | "natural" | "">("");
   const [klingResult, setKlingResult] = useState<VideoResult | null>(null);
 
   // ─ Wan
@@ -900,6 +904,7 @@ function TextToVideoTab() {
       }
       if (cmd.type === "reset") {
         setKlingPrompt(""); setKlingNeg(""); setKlingDuration("5"); setKlingAspect("16:9"); setKlingCfg(0.5);
+        setKlingStyle(""); setKlingPacing(""); setKlingTransition(""); setKlingColorGrade("");
         setWanPrompt(""); setWanNeg(""); setWanRes("720p"); setWanFrames(81);
         setMmPrompt(""); setMmOptimize(true);
         setVeoPrompt(""); setVeoAspect("16:9"); setVeoAudio(true);
@@ -930,6 +935,12 @@ function TextToVideoTab() {
         duration: klingDuration,
         aspectRatio: klingAspect,
         cfgScale: klingCfg,
+        directorConfig: (klingStyle || klingPacing || klingTransition || klingColorGrade) ? {
+          style: klingStyle || undefined,
+          pacing: klingPacing || undefined,
+          transition: klingTransition || undefined,
+          colorGrade: klingColorGrade || undefined,
+        } : undefined,
       });
       setKlingResult(r);
       registerBgTask(r, "video", "Kling 文生影", klingPrompt);
@@ -1161,6 +1172,70 @@ function TextToVideoTab() {
               onValueChange={([v]) => setKlingCfg(v)}
               className="mt-2"
             />
+          </div>
+          {/* AI Director 風格參數 (AIDV-274) */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">視覺風格</Label>
+              <Select value={klingStyle} onValueChange={v => setKlingStyle(v as typeof klingStyle)}>
+                <SelectTrigger className="mt-1 text-xs h-8">
+                  <SelectValue placeholder="預設" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">預設</SelectItem>
+                  <SelectItem value="cinematic">電影感</SelectItem>
+                  <SelectItem value="documentary">紀錄片</SelectItem>
+                  <SelectItem value="advertising">廣告風</SelectItem>
+                  <SelectItem value="anime">動漫</SelectItem>
+                  <SelectItem value="minimal">極簡</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">節奏</Label>
+              <Select value={klingPacing} onValueChange={v => setKlingPacing(v as typeof klingPacing)}>
+                <SelectTrigger className="mt-1 text-xs h-8">
+                  <SelectValue placeholder="預設" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">預設</SelectItem>
+                  <SelectItem value="fast">快節奏</SelectItem>
+                  <SelectItem value="normal">均衡</SelectItem>
+                  <SelectItem value="slow">舒緩</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">轉場偏好</Label>
+              <Select value={klingTransition} onValueChange={v => setKlingTransition(v as typeof klingTransition)}>
+                <SelectTrigger className="mt-1 text-xs h-8">
+                  <SelectValue placeholder="預設" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">預設</SelectItem>
+                  <SelectItem value="fade">淡入淡出</SelectItem>
+                  <SelectItem value="cut">閃切</SelectItem>
+                  <SelectItem value="slide">滑動</SelectItem>
+                  <SelectItem value="none">無轉場</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">色調</Label>
+              <Select value={klingColorGrade} onValueChange={v => setKlingColorGrade(v as typeof klingColorGrade)}>
+                <SelectTrigger className="mt-1 text-xs h-8">
+                  <SelectValue placeholder="預設" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">預設</SelectItem>
+                  <SelectItem value="warm">暖色</SelectItem>
+                  <SelectItem value="cool">冷色</SelectItem>
+                  <SelectItem value="high-contrast">高對比</SelectItem>
+                  <SelectItem value="cinematic-lut">電影感 LUT</SelectItem>
+                  <SelectItem value="natural">自然</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <Button
             onClick={runKling}

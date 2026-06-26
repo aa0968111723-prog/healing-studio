@@ -491,18 +491,58 @@ export const videoStudioRouter = router({
         cfgScale: z.number().min(0).max(1).default(0.5),
         /** 動態強度 — 0=靜態畫面, 1=高動態，預設 0.5 均衡 */
         motionIntensity: z.number().min(0).max(1).optional(),
+        /** AI Director 風格參數 — style/pacing/transition/colorGrade */
+        directorConfig: z.object({
+          style: z.enum(["cinematic", "documentary", "advertising", "anime", "minimal"]).optional(),
+          pacing: z.enum(["fast", "normal", "slow"]).optional(),
+          transition: z.enum(["fade", "cut", "slide", "none"]).optional(),
+          colorGrade: z.enum(["warm", "cool", "high-contrast", "cinematic-lut", "natural"]).optional(),
+        }).optional(),
       })
     )
     .mutation(async ({ input }) => {
+      const STYLE_PROMPTS: Record<string, string> = {
+        cinematic: "cinematic film style, dramatic lighting, shallow depth of field",
+        documentary: "documentary style, natural lighting, handheld feel",
+        advertising: "commercial advertising style, bright vibrant colors, dynamic modern look",
+        anime: "anime animation style, vivid colors, expressive motion",
+        minimal: "minimal clean style, negative space, soft tones, elegant simplicity",
+      };
+      const COLOR_PROMPTS: Record<string, string> = {
+        warm: "warm golden color tones",
+        cool: "cool blue color tones",
+        "high-contrast": "high contrast bold colors",
+        "cinematic-lut": "cinematic color grading, film look",
+      };
+      const TRANSITION_PROMPTS: Record<string, string> = {
+        fade: "smooth fade transitions",
+        cut: "sharp cut editing style",
+        slide: "slide transition style",
+      };
+      const PACING_MOTION: Record<string, number> = { fast: 0.85, normal: 0.5, slow: 0.25 };
+
+      const dc = input.directorConfig;
+      const promptSuffixes: string[] = [];
+      if (dc?.style && STYLE_PROMPTS[dc.style]) promptSuffixes.push(STYLE_PROMPTS[dc.style]);
+      if (dc?.colorGrade && COLOR_PROMPTS[dc.colorGrade]) promptSuffixes.push(COLOR_PROMPTS[dc.colorGrade]);
+      if (dc?.transition && TRANSITION_PROMPTS[dc.transition]) promptSuffixes.push(TRANSITION_PROMPTS[dc.transition]);
+      const augmentedPrompt = promptSuffixes.length > 0
+        ? `${input.prompt}, ${promptSuffixes.join(", ")}`
+        : input.prompt;
+
+      const effectiveMotion = dc?.pacing
+        ? PACING_MOTION[dc.pacing]
+        : input.motionIntensity;
+
       const payload: Record<string, unknown> = {
-        prompt: input.prompt,
+        prompt: augmentedPrompt,
         duration: input.duration,
         aspect_ratio: input.aspectRatio,
         cfg_scale: input.cfgScale,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
-      if (input.motionIntensity !== undefined)
-        payload.motion_intensity = input.motionIntensity;
+      if (effectiveMotion !== undefined)
+        payload.motion_intensity = effectiveMotion;
 
       const resolved = resolveModelOrThrow(
         "fal-ai/kling-video/v2.1/standard/text-to-video"
