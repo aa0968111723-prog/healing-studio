@@ -50,6 +50,7 @@ function ShotCard({ shot }: { shot: Shot }) {
       id: shot.id, no: shot.no, title: shot.title, route: shot.route,
       seed: shot.seed, approved: shot.approval === "approved", stale: shot.stale,
       status: gen.status, provider: gen.provider, variant: gen.variant,
+      assetUrl: gen.assetUrl,
     };
     return (
       <AidvKit>
@@ -72,7 +73,27 @@ function ShotCard({ shot }: { shot: Shot }) {
       <div className="relative flex h-24 items-center justify-center bg-muted">
         {gen.status === "done" && (
           <>
-            <div className="absolute inset-0" style={{ background: frameStyle(shot.seed, gen.variant) }} />
+            {gen.assetUrl ? (
+              /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(gen.assetUrl) ? (
+                <video
+                  key={gen.assetUrl}
+                  src={gen.assetUrl}
+                  muted
+                  autoPlay
+                  loop
+                  playsInline
+                  className={cn("absolute inset-0 h-full w-full object-cover", shot.stale && "grayscale-[.4] brightness-95")}
+                />
+              ) : (
+                <img
+                  src={gen.assetUrl}
+                  alt={shot.title}
+                  className={cn("absolute inset-0 h-full w-full object-cover", shot.stale && "grayscale-[.4] brightness-95")}
+                />
+              )
+            ) : (
+              <div className="absolute inset-0" style={{ background: frameStyle(shot.seed, gen.variant) }} />
+            )}
             <span className="absolute bottom-1 left-1 rounded bg-black/50 px-1.5 py-0.5 font-mono text-[9px] text-white">
               seed {shot.seed} · {gen.provider}
             </span>
