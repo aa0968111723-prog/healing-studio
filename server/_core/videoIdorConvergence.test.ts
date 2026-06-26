@@ -104,15 +104,21 @@ describe("getBackgroundJobByRequestId DB helper (AIDV-244)", () => {
   });
 });
 
-// ── 5. videoProject router 不存在（AIDV-243 已確認無此 router 故無 IDOR 面）──
-describe("videoProject router 不存在（AIDV-243 範圍確認）", () => {
-  it("routers/ 目錄沒有獨立 videoProject router 檔案", () => {
+// ── 5. videoProject router 若存在必須有 IDOR 防護（AIDV-252 新增後更新）──
+describe("videoProject router IDOR 防護（AIDV-252 新增）", () => {
+  it("videoProject router 若存在，get/update 必須有 userId 比對 + FORBIDDEN guard", () => {
     const { readdirSync } = require("fs");
     const routerFiles = readdirSync(resolve(SERVER_SRC, "routers")) as string[];
     const hasVideoProject = routerFiles.some(
       (f: string) => f.toLowerCase().includes("videoproject")
     );
-    expect(hasVideoProject).toBe(false);
+    if (hasVideoProject) {
+      const src = readFile("routers/videoProject.ts");
+      expect(src).toContain("row.userId !== ctx.user.id");
+      expect(src).toContain('"FORBIDDEN"');
+    }
+    // 不管有無獨立 router，IDOR 面都已覆蓋（有 router → 守門已驗；無 router → 無面）
+    expect(true).toBe(true);
   });
 
   it("worldStoryboard router 有 ownership 守門（world-based 資源同等效果）", () => {
