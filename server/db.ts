@@ -2940,6 +2940,39 @@ export async function getCreativeProjectsByUser(
     .orderBy(desc(creativeProjects.updatedAt));
 }
 
+// AIDV-314: cursor-based paginated variant. Cursor = last seen row id.
+// Ordered by id DESC (stable; uses primary key index with cp_userId_idx).
+export async function getCreativeProjectsByUserPaginated(
+  userId: number,
+  opts: {
+    cursor?: number;
+    limit: number;
+    search?: string;
+    status?: "concept" | "production" | "review" | "complete";
+  }
+): Promise<CreativeProject[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions: ReturnType<typeof eq>[] = [
+    eq(creativeProjects.userId, userId),
+  ];
+  if (opts.cursor) {
+    conditions.push(lt(creativeProjects.id, opts.cursor));
+  }
+  if (opts.search) {
+    conditions.push(like(creativeProjects.title, `%${opts.search}%`));
+  }
+  if (opts.status) {
+    conditions.push(eq(creativeProjects.status, opts.status));
+  }
+  return db
+    .select()
+    .from(creativeProjects)
+    .where(and(...conditions))
+    .orderBy(desc(creativeProjects.id))
+    .limit(opts.limit);
+}
+
 export async function updateCreativeProject(
   id: number,
   data: Partial<InsertCreativeProject>

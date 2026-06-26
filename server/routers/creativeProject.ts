@@ -76,6 +76,32 @@ export const creativeProjectRouter = router({
     return rows.map(rowToData);
   }),
 
+  // AIDV-314: cursor 分頁版本（cursor = 上次最後一筆 id；limit 預設 20 / 最大 50）
+  // 適合 /video 列表無限捲動；原有 list 保持不變供 WorldContext selector 使用。
+  listPaginated: protectedProcedure
+    .input(
+      z.object({
+        cursor: z.number().int().positive().optional(),
+        limit: z.number().min(1).max(50).default(20),
+        search: z.string().max(200).optional(),
+        status: projectStatusSchema.optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const rows = await db.getCreativeProjectsByUserPaginated(ctx.user.id, {
+        cursor: input.cursor,
+        limit: input.limit + 1,
+        search: input.search,
+        status: input.status,
+      });
+      const hasNextPage = rows.length > input.limit;
+      const projects = rows.slice(0, input.limit).map(rowToData);
+      return {
+        projects,
+        nextCursor: hasNextPage ? (projects[projects.length - 1]?.id ?? null) : null,
+      };
+    }),
+
   /** 取得單一創作專案（含關聯的世界觀摘要，方便前端一次取齊） */
   get: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
