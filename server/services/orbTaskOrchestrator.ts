@@ -41,7 +41,7 @@ import {
 import { orbTaskStore as defaultOrbTaskStore } from "./orbTaskStore";
 import type { OrbTaskStore } from "./orbTaskStore";
 import type { AgentPreferences } from "../../shared/agent-preferences";
-import { emitGenerationEvent } from "../generationEvents";
+import { dualEmitForUser } from "../generationEvents";
 import { recordOrbMemory } from "./orbMemory";
 import {
   classifyOrbStepError,
@@ -402,7 +402,7 @@ export async function executeCurrentStepTools(
     // breaks the orchestration tick.
     if (!reflection.ok) {
       try {
-        emitGenerationEvent({
+        dualEmitForUser(input.userId, {
           type: "step_verifier_failed",
           taskId: input.task.taskId,
           stepId: step.id,
@@ -680,7 +680,7 @@ export async function runOrbTaskToCompletion(
     }
 
     if (task.status === "done") {
-      emitGenerationEvent({
+      dualEmitForUser(input.userId, {
         type: "task_done",
         taskId: input.taskId,
         userId: input.userId,
@@ -698,7 +698,7 @@ export async function runOrbTaskToCompletion(
       };
     }
     if (task.status === "failed") {
-      emitGenerationEvent({
+      dualEmitForUser(input.userId, {
         type: "task_failed",
         taskId: input.taskId,
         userId: input.userId,
@@ -995,7 +995,7 @@ export async function runOrbTaskToCompletion(
       flushNewFsmEvents();
     }
     if (recovery_action) recordRecoveryMetric(recovery_action, true);
-    emitGenerationEvent({
+    dualEmitForUser(input.userId, {
       type: "step_complete",
       taskId: input.taskId,
       stepId: step.id,
@@ -1007,7 +1007,7 @@ export async function runOrbTaskToCompletion(
   // Loop fell out of maxIterations without reaching a terminal state.
   const finalTask = store.get(input.taskId, input.userId, clock());
   if (finalTask?.status === "done") {
-    emitGenerationEvent({
+    dualEmitForUser(input.userId, {
       type: "task_done",
       taskId: input.taskId,
       userId: input.userId,
@@ -1025,7 +1025,7 @@ export async function runOrbTaskToCompletion(
     };
   }
   if (finalTask?.status === "failed") {
-    emitGenerationEvent({
+    dualEmitForUser(input.userId, {
       type: "task_failed",
       taskId: input.taskId,
       userId: input.userId,
