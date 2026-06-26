@@ -38,7 +38,8 @@ import {
   stopBraveLearnFetcherCron,
 } from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
-import { closeDb, runMigrations, isMigrationFailClosed } from "../db";
+import { closeDb, runMigrations, isMigrationFailClosed, checkDrizzleHealth } from "../db";
+import { validateEnvConfig } from "../lib/config-check";
 import { falWebhookRouter } from "../routes/webhookFal";
 import { sunoWebhookRouter } from "../routes/webhookSuno";
 import { replicateWebhookRouter } from "../routes/webhookReplicate";
@@ -324,6 +325,8 @@ async function startServer() {
   // 正式環境若 JWT_SECRET（或別名 AUTH_SECRET）缺失／太弱會在此 throw，
   // 讓部署「響亮地」失敗，而不是先啟動再用弱密鑰簽 1 年 token。
   assertJwtSecretReady();
+  // AIDV-261：棄用環境變數警告（不 throw，只 warn）。
+  validateEnvConfig();
   // AIDV-58（H3）：錯誤追蹤接線——依 serverEnv.SENTRY_DSN env-gated。
   // 未設 DSN（最常見）→ 完全 no-op，不報錯、不阻塞開機；@sentry/node 缺席亦安全降級。
   await initErrorTracking();
@@ -419,12 +422,26 @@ async function startServer() {
   app.use(requestTraceMiddleware);
 
   // ── Security headers ─────────────────────────────────────────────────────
+  // AIDV-313: helmet with DENY frame-guard + Permissions-Policy.
+  // CSP kept disabled (requires full CDN allowlist audit before enforcement).
+  // CORS wildcard stays on CDN-proxy-download route only — intentional for
+  // public media delivery; tRPC/auth routes share same origin so no CORS needed.
   app.use(
     helmet({
-      contentSecurityPolicy: false, // CSP managed separately (inline scripts, CDNs)
+      contentSecurityPolicy: false, // CSP audit pending (AIDV-283/313)
       crossOriginEmbedderPolicy: false, // Allow cross-origin media assets
+      frameguard: { action: "deny" }, // X-Frame-Options: DENY (upgraded from SAMEORIGIN)
     })
   );
+  // Permissions-Policy: disable browser features not used by healing-studio.
+  // Helmet 8.x does not set this header by default; added manually (AIDV-313).
+  app.use((_req, res, next) => {
+    res.setHeader(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), payment=()"
+    );
+    next();
+  });
 
   // ── Gzip/Brotli compression (60-80% smaller text/JSON responses) ────────
   app.use(compression({ threshold: 1024 }));
@@ -674,16 +691,52 @@ async function startServer() {
   // ── Plain HTTP healthcheck (Railway uses this path to verify container is up) ──
   // Must respond within the healthcheck window (typically 5m on Railway)
   //
-  // AIDV-58（維運鏡審查）：此端點無 auth、對整個網際網路可見，故只回最小存活訊號。
-  // 不再外洩 DB 內部狀態（manager.lastError / failureCount / circuitOpen，原始 DB 錯誤字串
-  // 可能含 host/driver/連線細節）與 drizzle poolStats（active/idle/queued/total 連線數），
-  // 也不外洩具體 storage backend 類型——只回布林（是否已設定後端）。
-  // 詳細 dbHealth 移到 admin-only 的 /api/health/detail（與 /api/metrics 同源守門）。
-  app.get("/api/health", (_req, res) => {
-    // storage:boolean — 「是否已設定後端」而非具體類型（s3/gcs/manus）。
-    // 'none' = 生產未設定任何雲端儲存；dev 預設 'local' 仍視為已設定。
+  // AIDV-58（維運鏡審查）：此端點無 auth、對整個網際網路可見。
+  // 不外洩 DB 錯誤字串（可能含 host/port/driver 細節）、poolStats、具體 storage 類型。
+  // 詳細 dbHealth 在 admin-only 的 /api/health/detail（與 /api/metrics 同源守門）。
+  //
+  // AIDV-261：升級為雙重探測（DB + JWT auth），DB 停機時回 HTTP 503。
+  // UptimeRobot 已設定偵測 503；Railway 的容器存活判定可接受 503 或依 body.ok。
+  app.get("/api/health", async (_req, res) => {
+    // storage:boolean — 「是否已設定後端」而非具體類型。
     const storageConfigured = detectStorageBackend() !== "none";
-    res.json({ ok: true, ts: Date.now(), storage: storageConfigured });
+
+    // Demo mode（無 DATABASE_URL）：跳過 DB 探測，直接回 200 OK。
+    if (!process.env.DATABASE_URL) {
+      return res.json({ ok: true, status: "ok", ts: Date.now(), storage: storageConfigured });
+    }
+
+    // 探測 1：DB ping（3 秒超時，避免長時間阻塞 health 回應）
+    const dbStart = Date.now();
+    const dbOk = await Promise.race([
+      checkDrizzleHealth().catch(() => false),
+      new Promise<boolean>(resolve => setTimeout(() => resolve(false), 3000)),
+    ]);
+    const dbLatencyMs = Date.now() - dbStart;
+
+    // 探測 2：Auth 服務可用性（JWT_SECRET 必須存在且有效長度）
+    const jwtSecret = process.env.JWT_SECRET ?? "";
+    const authOk = jwtSecret.length >= 16;
+
+    const allOk = dbOk && authOk;
+
+    // 不外洩原始錯誤訊息（可能含連線細節），只回狀態布林。
+    const body = {
+      ok: allOk,
+      status: allOk ? "ok" : "down",
+      ts: Date.now(),
+      storage: storageConfigured,
+      checks: {
+        db: dbOk
+          ? { status: "ok", latencyMs: dbLatencyMs }
+          : { status: "down" },
+        auth: authOk
+          ? { status: "ok" }
+          : { status: "down" },
+      },
+    };
+
+    res.status(allOk ? 200 : 503).json(body);
   });
 
   // ── Performance metrics endpoint（AIDV-58 H3：admin-only）────────────────

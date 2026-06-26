@@ -1601,6 +1601,43 @@ export async function getUsageLogsByUser(userId: number, limit = 50) {
     .limit(limit);
 }
 
+export async function getRecentApiEventsForModel(
+  userId: number,
+  modelId: string,
+  windowSec: number
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      provider: apiUsageLogs.apiProvider,
+      endpoint: apiUsageLogs.model,
+      status: apiUsageLogs.responseStatus,
+      costUsd: apiUsageLogs.estimatedCostUsd,
+      latencyMs: apiUsageLogs.durationMs,
+      userId: apiUsageLogs.userId,
+      createdAt: apiUsageLogs.createdAt,
+    })
+    .from(apiUsageLogs)
+    .where(
+      and(
+        eq(apiUsageLogs.userId, userId),
+        eq(apiUsageLogs.model, modelId),
+        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${windowSec} SECOND)`
+      )
+    )
+    .orderBy(asc(apiUsageLogs.createdAt));
+  return rows.map(r => ({
+    provider: r.provider,
+    endpoint: r.endpoint ?? modelId,
+    status: r.status as "success" | "failed" | "timeout" | "blocked",
+    costUsd: parseFloat(r.costUsd as unknown as string || "0"),
+    latencyMs: r.latencyMs ?? undefined,
+    userId: r.userId,
+    createdAt: r.createdAt,
+  }));
+}
+
 export async function getAllUsageLogs(limit = 100) {
   const db = await getDb();
   if (!db) return [];
@@ -2903,16 +2940,54 @@ export async function getCreativeProjectsByUser(
     .orderBy(desc(creativeProjects.updatedAt));
 }
 
+// AIDV-314: cursor-based paginated variant. Cursor = last seen row id.
+// Ordered by id DESC (stable; uses primary key index with cp_userId_idx).
+export async function getCreativeProjectsByUserPaginated(
+  userId: number,
+  opts: {
+    cursor?: number;
+    limit: number;
+    search?: string;
+    status?: "concept" | "production" | "review" | "complete";
+  }
+): Promise<CreativeProject[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions: ReturnType<typeof eq>[] = [
+    eq(creativeProjects.userId, userId),
+  ];
+  if (opts.cursor) {
+    conditions.push(lt(creativeProjects.id, opts.cursor));
+  }
+  if (opts.search) {
+    conditions.push(like(creativeProjects.title, `%${opts.search}%`));
+  }
+  if (opts.status) {
+    conditions.push(eq(creativeProjects.status, opts.status));
+  }
+  return db
+    .select()
+    .from(creativeProjects)
+    .where(and(...conditions))
+    .orderBy(desc(creativeProjects.id))
+    .limit(opts.limit);
+}
+
 export async function updateCreativeProject(
   id: number,
-  data: Partial<InsertCreativeProject>
-) {
+  data: Partial<InsertCreativeProject>,
+  opts?: { expectedVersion?: number }
+): Promise<{ updated: boolean }> {
   const db = await getDb();
-  if (!db) return;
-  await db
-    .update(creativeProjects)
-    .set(data)
-    .where(eq(creativeProjects.id, id));
+  if (!db) return { updated: false };
+  const setData = { ...data, version: sql`\`version\` + 1` };
+  const whereClause =
+    opts?.expectedVersion !== undefined
+      ? and(eq(creativeProjects.id, id), eq(creativeProjects.version, opts.expectedVersion))
+      : eq(creativeProjects.id, id);
+  const result = await db.update(creativeProjects).set(setData).where(whereClause);
+  const affected = (result as unknown as { affectedRows: number }).affectedRows;
+  return { updated: affected > 0 };
 }
 
 export async function deleteCreativeProject(id: number) {

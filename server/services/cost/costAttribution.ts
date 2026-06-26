@@ -87,6 +87,8 @@ export interface UsageAttributionInput {
   projectId?: number | string | null;
   /** 歸屬到的 workflow / run（拿不到誠實留空）。 */
   workflowId?: number | string | null;
+  /** AIDV-130：歸屬到的 Skill（格式 skillId@version，拿不到誠實留空）。 */
+  skillId?: string | null;
   provider?: string | null;
   model?: string | null;
   /** 成本數字來源："provider"＝上游真實計費；"catalog"＝目錄真實單位價後援。稽核用。 */
@@ -146,7 +148,7 @@ export function buildAttributionEntries(
     type: LedgerAccountType;
     id: string | number;
     suffix: string;
-    extraMeta: { projectId?: string; workflowId?: string };
+    extraMeta: { projectId?: string; workflowId?: string; skillId?: string };
   }> = [];
 
   // member：必有。
@@ -178,7 +180,18 @@ export function buildAttributionEntries(
     });
   }
 
-  // 每個維度都把 projectId/workflowId（若有）一併寫進 meta，方便彙總查詢交叉維度。
+  // skill：AIDV-130，拿得到才有（格式 skillId@version）。
+  if (input.skillId != null && String(input.skillId).trim() !== "") {
+    const sid = String(input.skillId).trim();
+    dims.push({
+      type: "skill",
+      id: sid,
+      suffix: "skill",
+      extraMeta: { skillId: sid },
+    });
+  }
+
+  // 每個維度都把 projectId/workflowId/skillId（若有）一併寫進 meta，方便彙總查詢交叉維度。
   const sharedDimMeta = {
     projectId:
       input.projectId != null && String(input.projectId).trim() !== ""
@@ -187,6 +200,10 @@ export function buildAttributionEntries(
     workflowId:
       input.workflowId != null && String(input.workflowId).trim() !== ""
         ? String(input.workflowId).trim()
+        : null,
+    skillId:
+      input.skillId != null && String(input.skillId).trim() !== ""
+        ? String(input.skillId).trim()
         : null,
   };
 
@@ -433,7 +450,7 @@ export interface AttributionSummaryRow {
 export function summarizeAttribution(
   rows: LedgerRowForSummary[],
   rate: number,
-  dimension?: "project" | "member" | "workflow"
+  dimension?: "project" | "member" | "workflow" | "skill"
 ): AttributionSummaryRow[] {
   const acc = new Map<string, AttributionSummaryRow>();
   for (const r of rows) {
@@ -444,7 +461,13 @@ export function summarizeAttribution(
     const id = r.accountKey.slice(sep + 1);
     if (dimension && type !== dimension) continue;
     // expense:ai-cost 等對手科目不是歸屬維度，略過。
-    if (type !== "project" && type !== "member" && type !== "workflow") continue;
+    if (
+      type !== "project" &&
+      type !== "member" &&
+      type !== "workflow" &&
+      type !== "skill"
+    )
+      continue;
 
     const usd = Number(r.amount);
     if (!Number.isFinite(usd) || usd < 0) continue;

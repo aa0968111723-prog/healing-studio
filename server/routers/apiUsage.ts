@@ -344,45 +344,52 @@ export const apiUsageRouter = router({
         ? [input.provider]
         : [...AI_PROVIDERS];
 
-      const result = await Promise.all(
-        providers.map(async provider => {
-          // Latest snapshot
-          const [latestSnapshot] = await db
-            .select()
-            .from(providerSnapshots)
-            .where(eq(providerSnapshots.provider, provider))
-            .orderBy(desc(providerSnapshots.snapshotAt))
-            .limit(1);
+      // 1 query: latest snapshot per provider (subquery pattern, same as `overview`)
+      const snapshots = await db
+        .select()
+        .from(providerSnapshots)
+        .where(
+          sql`(${providerSnapshots.provider}, ${providerSnapshots.snapshotAt}) IN (
+            SELECT provider, MAX(snapshot_at) FROM ${providerSnapshots} GROUP BY provider
+          )`
+        );
+      const snapshotMap = new Map(snapshots.map(s => [s.provider, s]));
 
-          // Recent daily costs
-          const conditions = [eq(costAggregations.provider, provider)];
-          if (input?.startDate) conditions.push(gte(costAggregations.date, new Date(input.startDate)));
-          if (input?.endDate) conditions.push(lte(costAggregations.date, new Date(input.endDate)));
-          if (input?.endpoint) conditions.push(eq(costAggregations.endpoint, input.endpoint));
+      // 2 query: all daily costs in one pass, GROUP BY provider+date, slice per provider in JS
+      const costConditions: ReturnType<typeof eq>[] = [];
+      if (input?.provider) costConditions.push(eq(costAggregations.provider, input.provider));
+      if (input?.startDate) costConditions.push(gte(costAggregations.date, new Date(input.startDate)));
+      if (input?.endDate) costConditions.push(lte(costAggregations.date, new Date(input.endDate)));
+      if (input?.endpoint) costConditions.push(eq(costAggregations.endpoint, input.endpoint));
 
-          const recentCosts = await db
-            .select({
-              date: costAggregations.date,
-              callCount: sql<number>`SUM(${costAggregations.callCount})`,
-              totalCostUsd: sql<number>`SUM(${costAggregations.totalCostUsd})`,
-            })
-            .from(costAggregations)
-            .where(and(...conditions))
-            .groupBy(costAggregations.date)
-            .orderBy(desc(costAggregations.date))
-            .limit(30);
-
-          return {
-            provider,
-            latestSnapshot: latestSnapshot ?? null,
-            recentCosts: recentCosts.map(c => ({
-              date: c.date,
-              callCount: Number(c.callCount),
-              totalCostUsd: Number(c.totalCostUsd),
-            })),
-          };
+      const allCosts = await db
+        .select({
+          provider: costAggregations.provider,
+          date: costAggregations.date,
+          callCount: sql<number>`SUM(${costAggregations.callCount})`,
+          totalCostUsd: sql<number>`SUM(${costAggregations.totalCostUsd})`,
         })
-      );
+        .from(costAggregations)
+        .where(costConditions.length > 0 ? and(...costConditions) : undefined)
+        .groupBy(costAggregations.provider, costAggregations.date)
+        .orderBy(costAggregations.provider, desc(costAggregations.date));
+
+      const costMap = new Map<string, typeof allCosts>();
+      for (const row of allCosts) {
+        const list = costMap.get(row.provider) ?? [];
+        list.push(row);
+        costMap.set(row.provider, list);
+      }
+
+      const result = providers.map(provider => ({
+        provider,
+        latestSnapshot: snapshotMap.get(provider) ?? null,
+        recentCosts: (costMap.get(provider) ?? []).slice(0, 30).map(c => ({
+          date: c.date,
+          callCount: Number(c.callCount),
+          totalCostUsd: Number(c.totalCostUsd),
+        })),
+      }));
 
       return { providers: result };
     }),

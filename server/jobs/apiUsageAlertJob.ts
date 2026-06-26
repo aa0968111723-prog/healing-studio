@@ -252,6 +252,12 @@ async function runAlertChecks(): Promise<void> {
 // ─── Cron Lifecycle ──────────────────────────────────────────────────────────
 
 export function initApiUsageAlertCron(): void {
+  const flagRaw = serverEnv.ENABLE_BUDGET_ALERTS ?? "true";
+  const enabled = !["false", "0", "off", "no"].includes(flagRaw.trim().toLowerCase());
+  if (!enabled) {
+    console.log("[ApiUsageAlert] ENABLE_BUDGET_ALERTS=false → alert cron disabled (alertConfigs preserved)");
+    return;
+  }
   if (cronTask) return;
   console.log("[ApiUsageAlert] Initializing cron (every 15 min)");
   cronTask = cron.schedule("*/15 * * * *", () => {

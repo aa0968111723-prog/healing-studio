@@ -520,6 +520,14 @@ export async function runPostGenForJob(jobId: number): Promise<boolean> {
   const costCredits =
     typeof costPointsRaw === "number" ? costPointsRaw : undefined;
 
+  const VALID_RELATIONS = ["derived", "variant", "rewrite", "extended"] as const;
+  type Relation = typeof VALID_RELATIONS[number];
+  const relationRaw = meta.relation as string | undefined;
+  const relation: Relation | undefined =
+    relationRaw && (VALID_RELATIONS as readonly string[]).includes(relationRaw)
+      ? (relationRaw as Relation)
+      : undefined;
+
   await doPostGenComplete({
     userId: job.userId,
     modality: studioType as PostGenModality,
@@ -530,6 +538,7 @@ export async function runPostGenForJob(jobId: number): Promise<boolean> {
     sourceStudio,
     costCredits,
     backgroundJobId: jobId,
+    relation,
   });
 
   // 寫旗標。失敗時不重試 — 若 doPostGenComplete 已成功插入，重複呼叫的

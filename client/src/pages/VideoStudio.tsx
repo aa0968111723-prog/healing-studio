@@ -645,7 +645,7 @@ function AsyncVideoPoller({
         const s = (query.state.data as any)?.status;
         return s === "COMPLETED" || s === "FAILED" ? false : 3000;
       },
-      refetchIntervalInBackground: true,
+      refetchIntervalInBackground: false,
       retry: 5,
     }
   );

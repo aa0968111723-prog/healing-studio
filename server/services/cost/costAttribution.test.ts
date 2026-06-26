@@ -41,6 +41,7 @@ interface LedgerRow {
   provider?: string | null;
   model?: string | null;
   costSource?: string | null;
+  skillId?: string | null;
 }
 
 interface OutboxRow {
@@ -540,6 +541,111 @@ describe("匯率凍結 — enqueue 當下凍進 payload，drain 重放用之", (
     );
     const debit = db._ledger.find(l => l.accountKey === "member:2");
     expect(debit?.exchangeRate).toBe("28.000000");
+  });
+});
+
+// ─── AIDV-130 skill 成本歸屬維度 ─────────────────────────────────────────────
+
+describe("AIDV-130 skill 維度 — buildAttributionEntries + summarizeAttribution", () => {
+  it("skillId 拿得到 → 產 skill:xxx 維度分錄（四維 member+project+workflow+skill）", () => {
+    const entries = buildAttributionEntries(
+      {
+        costUsd: "0.20",
+        userId: 10,
+        projectId: "p9",
+        workflowId: "wf-5",
+        skillId: "translate@1.0.0",
+        provider: "openai",
+        model: "gpt-4o",
+        idempotencyKey: "aue:sk1",
+      },
+      32
+    );
+    const accounts = entries.map(e => e.fromAccount).sort();
+    expect(accounts).toEqual([
+      "member:10",
+      "project:p9",
+      "skill:translate@1.0.0",
+      "workflow:wf-5",
+    ]);
+    // 各維度冪等子鍵互不撞
+    const keys = entries.map(e => e.idempotencyKey).sort();
+    expect(keys).toEqual([
+      "aue:sk1:member",
+      "aue:sk1:project",
+      "aue:sk1:skill",
+      "aue:sk1:workflow",
+    ]);
+    // skill 維度也帶正確的共享 meta（skillId, projectId, workflowId）
+    const skillEntry = entries.find(e => e.fromAccount.startsWith("skill:"));
+    expect(skillEntry?.meta?.skillId).toBe("translate@1.0.0");
+    expect(skillEntry?.meta?.projectId).toBe("p9");
+  });
+
+  it("skillId 缺 → 不產 skill 維度（誠實留空，僅 member）", () => {
+    const entries = buildAttributionEntries(
+      { costUsd: "0.05", userId: 11, idempotencyKey: "aue:sk2" },
+      32
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0].fromAccount).toBe("member:11");
+    expect(entries.some(e => e.fromAccount.startsWith("skill:"))).toBe(false);
+  });
+
+  it("summarizeAttribution — skill 維度可彙總、可獨立過濾", () => {
+    const rows: LedgerRowForSummary[] = [
+      {
+        accountKey: "skill:translate@1.0.0",
+        entryType: "debit",
+        amount: "0.20",
+        amountTwd: "6.4",
+      },
+      {
+        accountKey: "skill:translate@1.0.0",
+        entryType: "debit",
+        amount: "0.10",
+        amountTwd: "3.2",
+      },
+      { accountKey: "member:10", entryType: "debit", amount: "0.20", amountTwd: "6.4" },
+    ];
+    // 全維度彙總：skill + member 都出現
+    const all = summarizeAttribution(rows, 32);
+    const skillRow = all.find(r => r.type === "skill");
+    expect(skillRow?.id).toBe("translate@1.0.0");
+    expect(skillRow?.costUsd).toBeCloseTo(0.3, 6);
+    expect(skillRow?.costTwd).toBeCloseTo(9.6, 4);
+    expect(skillRow?.entries).toBe(2);
+
+    // 只要 skill 維度
+    const onlySkill = summarizeAttribution(rows, 32, "skill");
+    expect(onlySkill).toHaveLength(1);
+    expect(onlySkill[0].type).toBe("skill");
+
+    // 只要 member 維度不含 skill
+    const onlyMember = summarizeAttribution(rows, 32, "member");
+    expect(onlyMember).toHaveLength(1);
+    expect(onlyMember[0].type).toBe("member");
+  });
+
+  it("postAttributedCost — skillId 維度落帳進 ledger", async () => {
+    const db = makeFakeDb();
+    await postAttributedCost(
+      db,
+      {
+        costUsd: "0.20",
+        userId: 12,
+        skillId: "summarize@2.1.0",
+        idempotencyKey: "aue:sk3",
+      },
+      32
+    );
+    // member + skill 兩維 × 2 腳 = 4 列
+    expect(db._ledger).toHaveLength(4);
+    const skillDebit = db._ledger.find(
+      l => l.accountKey === "skill:summarize@2.1.0"
+    );
+    expect(skillDebit?.entryType).toBe("debit");
+    expect(skillDebit?.amountTwd).toBe("6.4000");
   });
 });
 

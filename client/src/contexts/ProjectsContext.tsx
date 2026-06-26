@@ -225,6 +225,7 @@ export function RealProjectsProvider({ children }: { children: ReactNode }) {
           metadata: input.metadata as Record<string, unknown> | undefined,
           createdAt: now,
           updatedAt: now,
+          version: 0,
         },
       ]);
       return { previous };

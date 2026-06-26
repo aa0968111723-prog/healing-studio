@@ -278,7 +278,7 @@ function AsyncAudioPoller({
         const s = (query.state.data as any)?.status;
         return s === "COMPLETED" || s === "FAILED" ? false : 3000;
       },
-      refetchIntervalInBackground: true,
+      refetchIntervalInBackground: false,
       retry: 5,
     }
   );
@@ -1139,7 +1139,7 @@ function MusicTab() {
         const s = (query.state.data as any)?.status;
         return s === "COMPLETED" || s === "completed" ? false : 5000;
       },
-      refetchIntervalInBackground: true,
+      refetchIntervalInBackground: false,
       retry: 5,
     }
   );
@@ -3848,7 +3848,7 @@ function AvatarVideoTab() {
         const s = (query.state.data as any)?.status;
         return s === "COMPLETED" || s === "FAILED" ? false : 3000;
       },
-      refetchIntervalInBackground: true,
+      refetchIntervalInBackground: false,
       retry: 5,
     }
   );

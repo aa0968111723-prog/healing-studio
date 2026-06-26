@@ -2313,7 +2313,7 @@ export default function OrbCreationStage({
         const s = (q.state.data as { status?: string } | undefined)?.status;
         return s === "COMPLETED" || s === "FAILED" ? false : 3000;
       },
-      refetchIntervalInBackground: true,
+      refetchIntervalInBackground: false,
       retry: 5,
     }
   );
@@ -2352,7 +2352,7 @@ export default function OrbCreationStage({
         const s = (q.state.data as { status?: string } | undefined)?.status;
         return s === "COMPLETED" || s === "FAILED" ? false : 3000;
       },
-      refetchIntervalInBackground: true,
+      refetchIntervalInBackground: false,
       retry: 5,
     }
   );

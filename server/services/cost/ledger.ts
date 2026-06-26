@@ -50,7 +50,7 @@ export function hashIdempotencyKey(prefix: string, composite: string): string {
 }
 
 /** 帳戶鍵維度（科目維度）。雙分錄正式科目定義待 Bruce 拍板，先存自由字串鍵。 */
-export type LedgerAccountType = "project" | "member" | "workflow";
+export type LedgerAccountType = "project" | "member" | "workflow" | "skill";
 /** 借（消耗成本）/ 貸（退款沖銷）。 */
 export type LedgerEntryType = "debit" | "credit";
 /** hold 生命週期狀態。 */
@@ -142,6 +142,8 @@ export interface PostEntryInput {
 export interface LedgerEntryMeta {
   projectId?: string | null;
   workflowId?: string | null;
+  /** AIDV-130：Skill 維度（格式 skillId@version），拿不到留 null。 */
+  skillId?: string | null;
   /** 原始幣別（amount 的幣別），預設 "USD"。 */
   sourceCurrency?: string | null;
   /** 落帳當下凍結的 TWD/USD 匯率。 */
@@ -169,6 +171,7 @@ interface InsertLedgerInput {
   // AIDV-14 歸屬 + 稽核欄位（可選，不傳則 undefined＝drizzle 用欄位 default/null）。
   projectId?: string | null;
   workflowId?: string | null;
+  skillId?: string | null;
   sourceCurrency?: string | null;
   exchangeRate?: string | null;
   amountTwd?: string | null;
@@ -375,6 +378,9 @@ export function normalizeLedgerMeta(
   }
   if (meta.workflowId != null && String(meta.workflowId).trim() !== "") {
     out.workflowId = String(meta.workflowId).trim();
+  }
+  if (meta.skillId != null && String(meta.skillId).trim() !== "") {
+    out.skillId = String(meta.skillId).trim();
   }
   if (meta.sourceCurrency != null && String(meta.sourceCurrency).trim() !== "") {
     out.sourceCurrency = String(meta.sourceCurrency).trim().toUpperCase();

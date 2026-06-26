@@ -45,6 +45,9 @@ const createInputSchema = z.object({
 const updateInputSchema = z.object({
   id: z.number().int().positive(),
   patch: createInputSchema.partial(),
+  /** AIDV-316 樂觀鎖：攜帶呼叫方讀到的 version，後端做原子 WHERE id=? AND version=?；
+   *  version 不符時回傳 CONFLICT(409)；省略時退化為無版本檢查（向下相容）。 */
+  expectedVersion: z.number().int().nonnegative().optional(),
 });
 
 function rowToData(row: CreativeProject) {
@@ -66,6 +69,7 @@ function rowToData(row: CreativeProject) {
         : undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    version: row.version,
   };
 }
 
@@ -75,6 +79,32 @@ export const creativeProjectRouter = router({
     const rows = await db.getCreativeProjectsByUser(ctx.user.id);
     return rows.map(rowToData);
   }),
+
+  // AIDV-314: cursor 分頁版本（cursor = 上次最後一筆 id；limit 預設 20 / 最大 50）
+  // 適合 /video 列表無限捲動；原有 list 保持不變供 WorldContext selector 使用。
+  listPaginated: protectedProcedure
+    .input(
+      z.object({
+        cursor: z.number().int().positive().optional(),
+        limit: z.number().min(1).max(50).default(20),
+        search: z.string().max(200).optional(),
+        status: projectStatusSchema.optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const rows = await db.getCreativeProjectsByUserPaginated(ctx.user.id, {
+        cursor: input.cursor,
+        limit: input.limit + 1,
+        search: input.search,
+        status: input.status,
+      });
+      const hasNextPage = rows.length > input.limit;
+      const projects = rows.slice(0, input.limit).map(rowToData);
+      return {
+        projects,
+        nextCursor: hasNextPage ? (projects[projects.length - 1]?.id ?? null) : null,
+      };
+    }),
 
   /** 取得單一創作專案（含關聯的世界觀摘要，方便前端一次取齊） */
   get: protectedProcedure
@@ -187,27 +217,38 @@ export const creativeProjectRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       const p = input.patch;
-      await db.updateCreativeProject(input.id, {
-        ...(p.title !== undefined ? { title: p.title } : {}),
-        ...(p.description !== undefined ? { description: p.description } : {}),
-        ...(p.directorSessionId !== undefined
-          ? { directorSessionId: p.directorSessionId }
-          : {}),
-        ...(p.worldFrameworkId !== undefined
-          ? { worldFrameworkId: p.worldFrameworkId }
-          : {}),
-        ...(p.worldStoryboardId !== undefined
-          ? { worldStoryboardId: p.worldStoryboardId }
-          : {}),
-        ...(p.worldviewId !== undefined ? { worldviewId: p.worldviewId } : {}),
-        ...(p.scriptId !== undefined ? { scriptId: p.scriptId } : {}),
-        ...(p.status !== undefined ? { status: p.status } : {}),
-        ...(p.coverImageUrl !== undefined
-          ? { coverImageUrl: p.coverImageUrl }
-          : {}),
-        ...(p.tags !== undefined ? { tags: p.tags } : {}),
-        ...(p.metadata !== undefined ? { metadata: p.metadata } : {}),
-      });
+      const { updated } = await db.updateCreativeProject(
+        input.id,
+        {
+          ...(p.title !== undefined ? { title: p.title } : {}),
+          ...(p.description !== undefined ? { description: p.description } : {}),
+          ...(p.directorSessionId !== undefined
+            ? { directorSessionId: p.directorSessionId }
+            : {}),
+          ...(p.worldFrameworkId !== undefined
+            ? { worldFrameworkId: p.worldFrameworkId }
+            : {}),
+          ...(p.worldStoryboardId !== undefined
+            ? { worldStoryboardId: p.worldStoryboardId }
+            : {}),
+          ...(p.worldviewId !== undefined ? { worldviewId: p.worldviewId } : {}),
+          ...(p.scriptId !== undefined ? { scriptId: p.scriptId } : {}),
+          ...(p.status !== undefined ? { status: p.status } : {}),
+          ...(p.coverImageUrl !== undefined
+            ? { coverImageUrl: p.coverImageUrl }
+            : {}),
+          ...(p.tags !== undefined ? { tags: p.tags } : {}),
+          ...(p.metadata !== undefined ? { metadata: p.metadata } : {}),
+        },
+        { expectedVersion: input.expectedVersion }
+      );
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "版本衝突：專案已被其他代理更新，請重新載入後重試（optimistic lock AIDV-316）",
+        });
+      }
       recordAuditEvent({
         actorUserId: ctx.user.id,
         actorRole: ctx.user.role,

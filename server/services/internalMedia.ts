@@ -1,6 +1,7 @@
 import { storagePut } from "../storage";
 import { serverEnv } from "../_core/env.validated";
 import { assertSafeExternalUrl, SsrfBlockedError } from "../_core/ssrfGuard";
+import { assertSafeMediaBytes } from "./fileValidation";
 
 type PersistOptions = {
   category: "image" | "video" | "audio" | "voice" | "binary";
@@ -72,6 +73,8 @@ export async function persistExternalMediaUrl(
   if (!resp.ok) throw new Error(`下載外部媒體失敗（${resp.status}）`);
   const arrayBuffer = await resp.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
+  // AIDV-315: block markup/executables disguised as media (defence-in-depth after SSRF guard).
+  await assertSafeMediaBytes(buffer);
   const contentType =
     resp.headers.get("content-type") || "application/octet-stream";
   const ext = inferExtension(contentType, url, options.category);

@@ -401,9 +401,12 @@ const coreSchema = z.object({
   // ALERT_SLACK_WEBHOOK：Slack incoming webhook URL，每 15 分鐘 cron 觸發
   // ALERT_EMAIL_RECIPIENTS：逗號分隔，目前 cron 只實作 Slack；保留欄位以便未來擴充
   // AI_MONTHLY_BUDGET_USD：當月 AI 預算（美金），預設 500；用於 budget alert
+  // ENABLE_BUDGET_ALERTS（AIDV-189）：預設 ON；設為 "false"/"0"/"off"/"no" 停止告警
+  //   cron 啟動（保留 alertConfigs DB 設定不清除）。退路 = 旗標 OFF 停發告警。
   ALERT_SLACK_WEBHOOK: z.string().optional().default(""),
   ALERT_EMAIL_RECIPIENTS: z.string().optional().default(""),
   AI_MONTHLY_BUDGET_USD: z.string().optional().default("500"),
+  ENABLE_BUDGET_ALERTS: z.string().optional().default("true"),
 
   // ── 效能調節（皆為純數字字串，下游 parseInt 後使用）─────────
   // CACHE_TTL_SECONDS：LRU 快取預設 TTL（秒），cache.ts 的 DEFAULT_TTL_SECONDS
