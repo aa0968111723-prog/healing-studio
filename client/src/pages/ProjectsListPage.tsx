@@ -14,11 +14,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   PROJECT_STATUS_LABELS,
   PROJECT_TYPE_LABELS,
   type Project,
 } from "@/types/projects";
-import { ArrowRight, FolderOpen, FolderPlus } from "lucide-react";
+import { ArrowRight, Copy, FolderOpen, FolderPlus, MoreVertical } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 function formatUpdatedAt(iso: string): string {
   const d = new Date(iso);
@@ -33,6 +40,15 @@ function formatUpdatedAt(iso: string): string {
 export default function ProjectsListPage() {
   const { projects, setActiveProjectId, isLoading, error } = useProjects();
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+
+  const duplicateMutation = trpc.creativeProject.duplicate.useMutation({
+    onSuccess: (data) => {
+      utils.creativeProject.list.invalidate();
+      setActiveProjectId(data.id);
+      setLocation(`/projects/${data.id}`);
+    },
+  });
 
   const continueProject = (project: Project) => {
     // 樂觀臨時列（負數 id）沒有真實路由可去 —— 等 refetch 換上真列再導。
@@ -95,7 +111,7 @@ export default function ProjectsListPage() {
             <li key={project.id} data-testid={`project-card-${project.id}`}>
               <article className="flex h-full flex-col gap-3 rounded-xl border border-border/40 bg-card/40 p-4">
                 <header className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <h3 className="truncate text-base font-semibold">
                       {project.title}
                     </h3>
@@ -104,9 +120,33 @@ export default function ProjectsListPage() {
                       {PROJECT_STATUS_LABELS[project.status]}
                     </p>
                   </div>
-                  <Badge variant="outline" className="shrink-0 text-[10px]">
-                    {PROJECT_STATUS_LABELS[project.status]}
-                  </Badge>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Badge variant="outline" className="text-[10px]">
+                      {PROJECT_STATUS_LABELS[project.status]}
+                    </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6"
+                          aria-label="專案選項"
+                          disabled={project.isPending}
+                        >
+                          <MoreVertical className="size-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onSelect={() => duplicateMutation.mutate({ id: project.id })}
+                          disabled={duplicateMutation.isPending}
+                        >
+                          <Copy className="mr-2 size-3.5" />
+                          複製專案
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </header>
 
                 <div className="space-y-1.5">
