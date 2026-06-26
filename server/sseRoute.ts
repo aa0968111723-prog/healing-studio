@@ -9,7 +9,7 @@
  */
 
 import { Router, Request, Response } from "express";
-import { generationBus, type GenerationEvent } from "./generationEvents";
+import { generationBus, type GenerationEvent, type SubscribeOpts } from "./generationEvents";
 import { authenticateRequest, isDemoMode } from "./_core/googleAuth";
 import { getBackgroundJob, getFineTunedModel } from "./db";
 import { serverEnv } from "./_core/env.validated";
@@ -104,17 +104,15 @@ function openGenerationStream(req: Request, res: Response, jobId: number): void 
     "X-Accel-Buffering": "no", // Disable nginx buffering
   });
 
-  // Per-connection monotonic event sequence for Last-Event-ID reconnect support (AIDV-291).
-  // Clients reconnecting with Last-Event-ID header can detect how many events they missed;
-  // with the in-memory bus we cannot replay missed events (that requires AIDV-13 persistence),
-  // but the id field lets clients know their reconnect point.
-  let eventSeq = 0;
-  const lastEventId = parseInt(req.header("last-event-id") ?? "0", 10) || 0;
+  // AIDV-291 + AIDV-140: Last-Event-ID reconnect + ring buffer replay.
+  // sinceSeq=0 on first connect (replay nothing); on reconnect the browser
+  // sends the highest `id:` it received, and we replay buffered events after
+  // that seq so the client catches up without polling.
+  const sinceSeq = parseInt(req.header("last-event-id") ?? "0", 10) || 0;
 
-  // Send initial connection event
+  // Send initial connection event (no `id:` — first real bus event sets lastEventId)
   const orbTraceId = req.header("x-orb-trace-id") || req.header("x-trace-id") || null;
-  eventSeq += 1;
-  res.write(`id: ${eventSeq}\ndata: ${JSON.stringify({ type: "connected", jobId, orbTraceId, resumedFrom: lastEventId || undefined })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: "connected", jobId, orbTraceId, resumedFrom: sinceSeq || undefined })}\n\n`);
 
   // Cleanup helper — ensures timers and subscriptions are released exactly once
   let cleaned = false;
@@ -126,14 +124,19 @@ function openGenerationStream(req: Request, res: Response, jobId: number): void 
     unsubscribe();
   };
 
-  // Subscribe to generation events for this job
+  // Subscribe to generation events for this job, replaying any buffered events
+  // emitted after sinceSeq (handles late subscribers and reconnects).
+  const subscribeOpts: SubscribeOpts = { replay: true, sinceSeq };
   const unsubscribe = generationBus.subscribe(
     jobId,
     (event: GenerationEvent) => {
       // Guard against writing to an already-closed response
       if (cleaned) return;
-      eventSeq += 1;
-      res.write(`id: ${eventSeq}\ndata: ${JSON.stringify(event)}\n\n`);
+      // _seq is attached as a non-enumerable property by the bus — use it for
+      // the SSE `id:` field so browsers can reconnect with Last-Event-ID.
+      const { _seq, ...eventData } = event as GenerationEvent & { _seq?: number };
+      const idLine = _seq != null ? `id: ${_seq}\n` : "";
+      res.write(`${idLine}data: ${JSON.stringify(eventData)}\n\n`);
 
       // Close connection after complete or error
       if (event.type === "complete" || event.type === "error") {
@@ -144,7 +147,8 @@ function openGenerationStream(req: Request, res: Response, jobId: number): void 
           res.end();
         }, 500);
       }
-    }
+    },
+    subscribeOpts
   );
 
   // Heartbeat to keep connection alive
@@ -218,11 +222,8 @@ function openTrainingStream(req: Request, res: Response, modelId: number): void 
     "X-Accel-Buffering": "no",
   });
 
-  let eventSeq = 0;
-  const lastEventId = parseInt(req.header("last-event-id") ?? "0", 10) || 0;
-
-  eventSeq += 1;
-  res.write(`id: ${eventSeq}\ndata: ${JSON.stringify({ type: "connected", modelId, resumedFrom: lastEventId || undefined })}\n\n`);
+  const sinceSeq = parseInt(req.header("last-event-id") ?? "0", 10) || 0;
+  res.write(`data: ${JSON.stringify({ type: "connected", modelId, resumedFrom: sinceSeq || undefined })}\n\n`);
 
   let cleaned = false;
   const cleanup = () => {
@@ -233,12 +234,14 @@ function openTrainingStream(req: Request, res: Response, modelId: number): void 
     unsubscribe();
   };
 
+  const subscribeOpts: SubscribeOpts = { replay: true, sinceSeq };
   const unsubscribe = generationBus.subscribeTraining(
     modelId,
     (event: GenerationEvent) => {
       if (cleaned) return;
-      eventSeq += 1;
-      res.write(`id: ${eventSeq}\ndata: ${JSON.stringify(event)}\n\n`);
+      const { _seq, ...eventData } = event as GenerationEvent & { _seq?: number };
+      const idLine = _seq != null ? `id: ${_seq}\n` : "";
+      res.write(`${idLine}data: ${JSON.stringify(eventData)}\n\n`);
       if (event.type === "complete" || event.type === "error") {
         clearInterval(heartbeat);
         unsubscribe();
@@ -247,7 +250,8 @@ function openTrainingStream(req: Request, res: Response, modelId: number): void 
           res.end();
         }, 500);
       }
-    }
+    },
+    subscribeOpts
   );
 
   const heartbeat = setInterval(() => {

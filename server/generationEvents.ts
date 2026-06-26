@@ -9,6 +9,44 @@
 import { EventEmitter } from "events";
 import { getOrbTraceId } from "./_core/logger";
 
+// ─── SSE replay ring buffer ──────────────────────────────────────────────────
+// Bounded per-channel buffer so late subscribers (client connects after
+// "complete" was emitted) and reconnecting clients (Last-Event-ID) can catch
+// up without BullMQ or any external store.
+
+const RING_MAX = 64;
+const RING_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+type BufferedEntry = { seq: number; event: GenerationEvent; ts: number };
+
+class ChannelBuffer {
+  private items: BufferedEntry[] = [];
+  private _seq = 0;
+
+  push(event: GenerationEvent): number {
+    this._seq += 1;
+    this.items.push({ seq: this._seq, event, ts: Date.now() });
+    if (this.items.length > RING_MAX) this.items.shift();
+    return this._seq;
+  }
+
+  since(sinceSeq: number): BufferedEntry[] {
+    const cutoff = Date.now() - RING_TTL_MS;
+    return this.items.filter(e => e.seq > sinceSeq && e.ts >= cutoff);
+  }
+
+  clear() {
+    this.items = [];
+  }
+}
+
+export interface SubscribeOpts {
+  /** Replay buffered events emitted after `sinceSeq` before registering the live listener. */
+  replay?: boolean;
+  /** Last stable seq the caller has seen; replay starts from seq > sinceSeq. */
+  sinceSeq?: number;
+}
+
 export type ThoughtNodeEvent = {
   id: string;
   label: string;
@@ -115,33 +153,70 @@ export type GenerationEvent =
 
 class GenerationEventBus {
   private emitter = new EventEmitter();
+  private buffers = new Map<string, ChannelBuffer>();
 
   constructor() {
     // Allow many listeners (one per active SSE connection)
     this.emitter.setMaxListeners(100);
   }
 
+  private getOrCreateBuf(channel: string): ChannelBuffer {
+    let buf = this.buffers.get(channel);
+    if (!buf) {
+      buf = new ChannelBuffer();
+      this.buffers.set(channel, buf);
+    }
+    return buf;
+  }
+
   /** Emit an event for a specific job */
   emit(jobId: number, event: GenerationEvent) {
     const orbTraceId = event.orbTraceId ?? getOrbTraceId() ?? undefined;
-    this.emitter.emit(`job:${jobId}`, { ...event, orbTraceId });
+    const channel = `job:${jobId}`;
+    const richEvent = { ...event, orbTraceId };
+    const seq = this.getOrCreateBuf(channel).push(richEvent);
+    // Attach seq as non-enumerable so JSON.stringify and toEqual in tests ignore
+    // it, while sseRoute.ts can still read it for the SSE `id:` field.
+    Object.defineProperty(richEvent, "_seq", { value: seq, enumerable: false });
+    this.emitter.emit(channel, richEvent);
   }
 
   /** Subscribe to events for a specific job. Returns unsubscribe function. */
   subscribe(
     jobId: number,
-    listener: (event: GenerationEvent) => void
+    listener: (event: GenerationEvent) => void,
+    opts?: SubscribeOpts
   ): () => void {
     const channel = `job:${jobId}`;
+
+    if (opts?.replay) {
+      const buf = this.buffers.get(channel);
+      if (buf) {
+        const past = buf.since(opts.sinceSeq ?? 0);
+        // Delay via microtask so caller can save the unsubscribe ref before
+        // replayed events fire, avoiding a potential early-unsubscribe TDZ.
+        queueMicrotask(() => {
+          for (const { seq, event } of past) {
+            const replayEvent = { ...event };
+            Object.defineProperty(replayEvent, "_seq", { value: seq, enumerable: false });
+            listener(replayEvent as GenerationEvent);
+          }
+        });
+      }
+    }
+
     this.emitter.on(channel, listener);
     return () => {
       this.emitter.removeListener(channel, listener);
     };
   }
 
-  /** Clean up all listeners for a job (call after generation completes) */
+  /** Clean up all listeners and buffer for a job (call after generation completes) */
   cleanup(jobId: number) {
-    this.emitter.removeAllListeners(`job:${jobId}`);
+    const channel = `job:${jobId}`;
+    this.emitter.removeAllListeners(channel);
+    this.buffers.get(channel)?.clear();
+    this.buffers.delete(channel);
   }
 
   // ─── 模型訓練專用通道 ────────────────────────────────────────────────────
@@ -149,14 +224,34 @@ class GenerationEventBus {
   // 用獨立 model-training:<modelId> channel 避免與 generation 混在一起。
 
   emitTraining(modelId: number, event: GenerationEvent) {
-    this.emitter.emit(`model-training:${modelId}`, event);
+    const channel = `model-training:${modelId}`;
+    const seq = this.getOrCreateBuf(channel).push(event);
+    const richEvent = { ...event };
+    Object.defineProperty(richEvent, "_seq", { value: seq, enumerable: false });
+    this.emitter.emit(channel, richEvent);
   }
 
   subscribeTraining(
     modelId: number,
-    listener: (event: GenerationEvent) => void
+    listener: (event: GenerationEvent) => void,
+    opts?: SubscribeOpts
   ): () => void {
     const channel = `model-training:${modelId}`;
+
+    if (opts?.replay) {
+      const buf = this.buffers.get(channel);
+      if (buf) {
+        const past = buf.since(opts.sinceSeq ?? 0);
+        queueMicrotask(() => {
+          for (const { seq, event } of past) {
+            const replayEvent = { ...event };
+            Object.defineProperty(replayEvent, "_seq", { value: seq, enumerable: false });
+            listener(replayEvent as GenerationEvent);
+          }
+        });
+      }
+    }
+
     this.emitter.on(channel, listener);
     return () => {
       this.emitter.removeListener(channel, listener);
@@ -164,7 +259,10 @@ class GenerationEventBus {
   }
 
   cleanupTraining(modelId: number) {
-    this.emitter.removeAllListeners(`model-training:${modelId}`);
+    const channel = `model-training:${modelId}`;
+    this.emitter.removeAllListeners(channel);
+    this.buffers.get(channel)?.clear();
+    this.buffers.delete(channel);
   }
 }
 
