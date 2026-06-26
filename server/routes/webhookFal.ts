@@ -284,7 +284,7 @@ falWebhookRouter.post(
         // circuit → 資產永遠不入庫。修這條後 ImageStudio / VideoStudio /
         // ProStudio 三條 studio 的成品都會自動進使用者的「我的資產」。
         void runPostGenForJob(jobId);
-        generationBus.emit(jobId, { type: "complete", thoughtChain: [] });
+        generationBus.emit(jobId, { type: "complete", thoughtChain: [], preview_url: resultUrl });
         console.log(
           `[WebhookFal] ✅ Job ${jobId} completed. orbTraceId=${orbTraceId} Result URLs saved.`
         );

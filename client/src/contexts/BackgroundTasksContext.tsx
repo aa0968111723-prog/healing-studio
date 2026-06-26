@@ -156,6 +156,8 @@ interface BackgroundTasksContextValue {
   setDrawerOpen: (open: boolean) => void;
   /** SSE 即時推送是否正常連線（false = 降級到 5s 輪詢） */
   sseConnected: boolean;
+  /** Preview URLs captured from SSE complete events, keyed by jobId — available immediately, before DB refetch */
+  previewUrls: Record<number, string>;
 }
 
 const BackgroundTasksContext =
@@ -187,6 +189,9 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
   // AIDV-353：SSE 連線狀態。false = 降級到 REST polling（5 秒輪詢已常態啟動）。
   const [sseConnected, setSseConnected] = useState(true);
   const sseDisconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // AIDV-431：從 SSE complete 事件即時取得 preview_url，無需等 DB refetch。
+  const [previewUrlsByJobId, setPreviewUrlsByJobId] = useState<Record<number, string>>({});
 
   // ─── 查詢所有活躍任務 ──────────────────────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
@@ -403,8 +408,13 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
           const event = JSON.parse(ev.data) as {
             type: string;
             message?: string;
+            preview_url?: string;
           };
           if (event.type === "complete" || event.type === "error") {
+            // AIDV-431：cache preview_url immediately before DB refetch completes
+            if (event.type === "complete" && event.preview_url) {
+              setPreviewUrlsByJobId(prev => ({ ...prev, [jobId]: event.preview_url! }));
+            }
             // 立即觸發 activeJobs 重抓 + checkStudioJob 同步狀態
             void activeJobsQuery.refetch();
             void utils.generate.checkStudioJob.fetch({ jobId });
@@ -507,8 +517,9 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
       drawerOpen,
       setDrawerOpen,
       sseConnected,
+      previewUrls: previewUrlsByJobId,
     }),
-    [tasks, activeCount, submitTask, drawerOpen, sseConnected]
+    [tasks, activeCount, submitTask, drawerOpen, sseConnected, previewUrlsByJobId]
   );
 
   return (

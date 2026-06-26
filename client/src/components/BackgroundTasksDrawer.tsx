@@ -83,9 +83,13 @@ function formatTime(iso?: string) {
 
 // ─── Task Row ─────────────────────────────────────────────────────────────────
 
-function TaskRow({ task }: { task: BackgroundTask }) {
+function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: string }) {
   const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.processing;
   const resultUrl = task.resultUrl;
+  // AIDV-431: prefer SSE-immediate preview_url, fall back to DB resultUrl
+  const videoPreviewUrl = previewUrl || resultUrl;
+  const isCompletedVideo =
+    task.status === "completed" && task.studioType === "video";
 
   const handleOpenResult = useCallback(() => {
     if (resultUrl) {
@@ -94,53 +98,73 @@ function TaskRow({ task }: { task: BackgroundTask }) {
   }, [resultUrl]);
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/50 transition-colors">
-      {/* Icon */}
-      <div className={`flex-shrink-0 ${cfg.className}`}>
-        {STUDIO_ICON[task.studioType] ?? STUDIO_ICON.image}
-      </div>
-
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium truncate">
-          {task.label ||
-            `${STUDIO_LABEL[task.studioType] ?? task.studioType} 生成`}
-        </p>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          <span
-            className={`flex items-center gap-1 text-[10px] ${cfg.className}`}
-          >
-            {cfg.icon}
-            {cfg.label}
-          </span>
-          {task.createdAt && (
-            <span className="text-[10px] text-muted-foreground">
-              {formatTime(task.createdAt)}
-            </span>
-          )}
+    <div className="rounded-lg hover:bg-accent/50 transition-colors">
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        {/* Icon */}
+        <div className={`flex-shrink-0 ${cfg.className}`}>
+          {STUDIO_ICON[task.studioType] ?? STUDIO_ICON.image}
         </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium truncate">
+            {task.label ||
+              `${STUDIO_LABEL[task.studioType] ?? task.studioType} 生成`}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span
+              className={`flex items-center gap-1 text-[10px] ${cfg.className}`}
+            >
+              {cfg.icon}
+              {cfg.label}
+            </span>
+            {task.createdAt && (
+              <span className="text-[10px] text-muted-foreground">
+                {formatTime(task.createdAt)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Result link (non-video or as additional open button) */}
+        {task.status === "completed" && resultUrl && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 flex-shrink-0"
+            onClick={handleOpenResult}
+            title="在新分頁開啟"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Button>
+        )}
+
+        {/* Progress bar for processing */}
+        {task.status === "processing" && (
+          <div className="w-8 h-1 rounded-full bg-muted overflow-hidden flex-shrink-0">
+            <div
+              className="h-full bg-primary rounded-full animate-pulse"
+              style={{ width: "60%" }}
+            />
+          </div>
+        )}
       </div>
 
-      {/* Result link */}
-      {task.status === "completed" && resultUrl && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 flex-shrink-0"
-          onClick={handleOpenResult}
-          title="查看結果"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-        </Button>
-      )}
-
-      {/* Progress bar for processing */}
-      {task.status === "processing" && (
-        <div className="w-8 h-1 rounded-full bg-muted overflow-hidden flex-shrink-0">
-          <div
-            className="h-full bg-primary rounded-full animate-pulse"
-            style={{ width: "60%" }}
-          />
+      {/* AIDV-431: inline video preview for completed video jobs */}
+      {isCompletedVideo && (
+        <div className="px-3 pb-2.5">
+          {videoPreviewUrl ? (
+            <video
+              src={videoPreviewUrl}
+              controls
+              preload="metadata"
+              className="w-full rounded-md max-h-40 bg-black"
+            />
+          ) : (
+            <p className="text-[10px] text-muted-foreground italic">
+              Preview unavailable — export to view
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -150,7 +174,7 @@ function TaskRow({ task }: { task: BackgroundTask }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BackgroundTasksDrawer() {
-  const { tasks, activeCount, drawerOpen, setDrawerOpen } =
+  const { tasks, activeCount, drawerOpen, setDrawerOpen, previewUrls } =
     useBackgroundTasks();
 
   // 不顯示 badge 如果沒有任何任務
@@ -214,7 +238,7 @@ export default function BackgroundTasksDrawer() {
                     進行中 ({activeTasks.length})
                   </p>
                   {activeTasks.map(t => (
-                    <TaskRow key={t.jobId} task={t} />
+                    <TaskRow key={t.jobId} task={t} previewUrl={previewUrls[t.jobId]} />
                   ))}
                 </div>
               )}
@@ -226,7 +250,7 @@ export default function BackgroundTasksDrawer() {
                     最近完成 ({completedTasks.length})
                   </p>
                   {completedTasks.map(t => (
-                    <TaskRow key={t.jobId} task={t} />
+                    <TaskRow key={t.jobId} task={t} previewUrl={previewUrls[t.jobId]} />
                   ))}
                 </div>
               )}
