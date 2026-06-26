@@ -3495,6 +3495,81 @@ export const worldStoryboards = mysqlTable(
 export type WorldStoryboard = typeof worldStoryboards.$inferSelect;
 export type InsertWorldStoryboard = typeof worldStoryboards.$inferInsert;
 
+// ─── Timeline Frames（時間軸圖幀） ─────────────────────────────────────────
+// migration: drizzle/0064_timeline_frames_and_compositions.sql
+// 與 world_storyboards 多對一；一致性檢查結果存 consistency_check_json
+export const timelineFrames = mysqlTable(
+  "timeline_frames",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    storyboardId: int("storyboard_id").notNull(),
+    sceneId: varchar("scene_id", { length: 64 }).notNull(),
+    userId: int("user_id").notNull(),
+    timeOffsetSec: decimal("time_offset_sec", { precision: 10, scale: 2 }).notNull(),
+    imageUrl: varchar("image_url", { length: 2048 }).notNull(),
+    frameType: mysqlEnum("frame_type", [
+      "keyframe",
+      "concept_art",
+      "reference",
+      "storyboard_sketch",
+      "final_render",
+    ])
+      .notNull()
+      .default("keyframe"),
+    title: varchar("title", { length: 255 }),
+    description: text("description"),
+    tagsJson: json("tags").$type<string[]>(),
+    consistencyCheckJson: json("consistency_check_json").$type<
+      Record<string, unknown>
+    >(),
+    uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    storyboardIdx: index("tf_storyboard_idx").on(table.storyboardId),
+    sceneIdx: index("tf_scene_idx").on(table.sceneId),
+    userIdx: index("tf_user_idx").on(table.userId),
+  })
+);
+
+export type TimelineFrameRow = typeof timelineFrames.$inferSelect;
+export type InsertTimelineFrame = typeof timelineFrames.$inferInsert;
+
+// ─── Scene Compositions（多角色多場景構圖） ────────────────────────────────
+// migration: drizzle/0064_timeline_frames_and_compositions.sql
+// elements_json 存合成元素陣列；ai_suggestions_json 存 AI 構圖建議
+export const sceneCompositions = mysqlTable(
+  "scene_compositions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    worldId: int("world_id").notNull(),
+    storyboardId: int("storyboard_id"),
+    userId: int("user_id").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    description: text("description"),
+    canvasWidth: int("canvas_width").notNull().default(1920),
+    canvasHeight: int("canvas_height").notNull().default(1080),
+    backgroundSceneId: varchar("background_scene_id", { length: 64 }),
+    backgroundImageUrl: varchar("background_image_url", { length: 2048 }),
+    elementsJson: json("elements_json")
+      .$type<Array<Record<string, unknown>>>()
+      .notNull(),
+    aiSuggestionsJson: json("ai_suggestions_json").$type<
+      Array<Record<string, unknown>>
+    >(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    worldIdx: index("sc_world_idx").on(table.worldId),
+    storyboardIdx: index("sc_storyboard_idx").on(table.storyboardId),
+    userIdx: index("sc_user_idx").on(table.userId),
+  })
+);
+
+export type SceneCompositionRow = typeof sceneCompositions.$inferSelect;
+export type InsertSceneComposition = typeof sceneCompositions.$inferInsert;
+
 // ─── Creative Projects（創作專案）─────────────────────────────────────────
 // 把 Director session + Worldbuilding framework + World Storyboard 三者綁定
 // 成一個有意義的創作單位，讓全站光球與各 Studio 頁面可以共享上下文。
