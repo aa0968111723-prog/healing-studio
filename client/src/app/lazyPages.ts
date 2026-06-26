@@ -44,3 +44,5 @@ export const SocialCockpit = lazy(() => import("@/pages/social/SocialCockpitPage
 export const SocialStudio = lazy(() => import("@/pages/social/SocialStudioPage"));
 export const SocialBrand = lazy(() => import("@/pages/social/SocialBrandPage"));
 export const SocialPublish = lazy(() => import("@/pages/social/SocialPublishPage"));
+// AIDV-96 U-6：九步旅程全流程頁（S1–S9 視覺實裝）。
+export const SocialJourney = lazy(() => import("@/pages/social/SocialJourneyPage"));

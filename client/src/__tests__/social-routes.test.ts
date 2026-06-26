@@ -18,13 +18,13 @@ import { SHELL_SOCIAL } from "@/config/featureFlags";
 import { createPosting } from "@/adapters/posting";
 
 describe("/social 路由收編", () => {
-  it("social 恰有 4 條 canonical sub-route", () => {
-    expect(SHELL_SUBROUTES.social).toHaveLength(4);
+  it("social 恰有 5 條 canonical sub-route（含 AIDV-96 /social/journey）", () => {
+    expect(SHELL_SUBROUTES.social).toHaveLength(5);
   });
 
-  it("index = /social；其餘為 studio/brand/publish", () => {
+  it("index = /social；其餘為 studio/brand/publish/journey", () => {
     const paths = SHELL_SUBROUTES.social.map((r) => r.path);
-    expect(paths).toEqual(["/social", "/social/studio", "/social/brand", "/social/publish"]);
+    expect(paths).toEqual(["/social", "/social/studio", "/social/brand", "/social/publish", "/social/journey"]);
     const index = SHELL_SUBROUTES.social.find((r) => r.index);
     expect(index?.path).toBe("/social");
   });
@@ -33,12 +33,13 @@ describe("/social 路由收編", () => {
     for (const r of SHELL_SUBROUTES.social) expect(r.component).toBeDefined();
   });
 
-  it("allShellCanonicalPaths 含 social 掛載點與 sub-routes", () => {
+  it("allShellCanonicalPaths 含 social 掛載點與 sub-routes（含 /social/journey）", () => {
     const all = allShellCanonicalPaths();
     expect(all).toContain("/social");
     expect(all).toContain("/social/studio");
     expect(all).toContain("/social/brand");
     expect(all).toContain("/social/publish");
+    expect(all).toContain("/social/journey");
   });
 });
 
@@ -54,7 +55,7 @@ describe("greenfield · 零路由遺失（加法）", () => {
     expect(SHELL_INTERNAL_REDIRECTS.social).toEqual([]);
   });
 
-  it("不改其他 shell：video=10 / learn=8 / settings=5", () => {
+  it("不改其他 shell：video=10 / learn=8 / settings=5（social 從 4 升 5，加法不破壞其他殼）", () => {
     expect(SHELL_SUBROUTES.video).toHaveLength(10);
     expect(SHELL_SUBROUTES.learn).toHaveLength(8);
     expect(SHELL_SUBROUTES.settings).toHaveLength(5);
