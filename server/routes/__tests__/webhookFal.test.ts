@@ -163,8 +163,8 @@ describe("webhookFal /api/webhook/fal", () => {
     // 也要把萃取到的 imageUrl 補上 + 統一鍵名 resultUrl
     expect(resultJson.imageUrl).toBe("https://fal.media/x.png");
     expect(resultJson.resultUrl).toBe("https://fal.media/x.png");
-    // SSE 事件
-    expect(events).toEqual([{ type: "complete", thoughtChain: [] }]);
+    // SSE 事件（generationBus.emit 會注入 orbTraceId；AIDV-431 加入 preview_url）
+    expect(events).toEqual([expect.objectContaining({ type: "complete", thoughtChain: [], preview_url: "https://fal.media/x.png" })]);
     // 後置動作（資產庫/歷史/監控）必須被觸發 — 這是這次修復的核心
     expect(runPostGenForJobMock).toHaveBeenCalledWith(42);
     unsubscribe();
@@ -347,8 +347,8 @@ describe("webhookFal /api/webhook/fal", () => {
     expect(resultJson.modelId).toBe(
       "fal-ai/kling-video/v2.1/pro/image-to-video"
     );
-    // SSE complete 事件
-    expect(events).toEqual([{ type: "complete", thoughtChain: [] }]);
+    // SSE complete 事件（generationBus.emit 注入 orbTraceId；AIDV-431 加 preview_url）
+    expect(events).toEqual([expect.objectContaining({ type: "complete", thoughtChain: [], preview_url: "https://fal.media/files/abc/out.mp4" })]);
     expect(runPostGenForJobMock).toHaveBeenCalledWith(99);
     unsubscribe();
     server.close();
