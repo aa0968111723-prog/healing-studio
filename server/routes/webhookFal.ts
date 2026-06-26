@@ -27,6 +27,7 @@ import {
   verifyWebhookToken,
   isWebhookTokenEnforced,
 } from "../_core/webhookTokens";
+import { verifyFalEd25519 } from "../services/falJwks";
 
 export const falWebhookRouter = Router();
 
@@ -41,22 +42,42 @@ function isFalWebhookFailClosed(): boolean {
   return true;
 }
 
-// ─── Webhook 簽名驗證（可選，HMAC-SHA256 共享密鑰）─────────────────────────
-// 注意：fal.ai 官方 webhook 用 Ed25519 + JWKS（見 https://fal.ai/docs/private-serverless-models/webhooks）。
-// 本函式驗證的是「自家共用 HMAC 機密」(FAL_WEBHOOK_SECRET) — 適合在 fal.ai
-// 與本服務之間放一層 proxy / 自家 enqueue 服務時使用。原生 fal Ed25519 驗證
-// 應在另外一條路徑做 (TODO: 補完整 Ed25519 驗證 with caching)。
+// ─── Webhook 簽名驗證（AIDV-458：Ed25519 先行 + HMAC-SHA256 備援）──────────
+// 驗章流程（優先序）：
+//   1. 若 x-fal-signature 不是 HMAC 格式（不以 "sha256=" 開頭）→ 嘗試 Ed25519 JWKS
+//      - JWKS 驗通 → 通過；驗失敗（偽造簽章）→ 拒絕（401）
+//      - JWKS endpoint 無法連線 → 降級到步驟 2
+//   2. HMAC-SHA256 備援（FAL_WEBHOOK_SECRET；prod 未設時 fail-closed）
 //
-// 重要：必須使用 req.rawBody（由 _core/index.ts 的 express.json verify 鉤子保留）
-// 而非 JSON.stringify(req.body)，因為 JSON.stringify 不保證鍵序與 whitespace
-// 與原始位元組相同，HMAC 會失敗。
-function verifyFalSignature(req: Request): boolean {
+// 重要：必須使用 req.rawBody（由 _core/index.ts 的 express.json verify 鉤子保留）；
+// 缺 rawBody 時只在實際需要驗章才拒絕（無 secret + dev = 仍放行，維持本機行為）。
+async function verifyFalSignature(req: Request): Promise<boolean> {
+  const signature = req.headers["x-fal-signature"] as string | undefined;
+  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+
+  // ── Step 1：Ed25519 先行（AIDV-458）──────────────────────────────────────
+  // 若簽章不是 HMAC 格式（"sha256=..."），視為 Ed25519 Base64 簽章。
+  if (signature && !signature.startsWith("sha256=")) {
+    if (!rawBody || rawBody.length === 0) {
+      console.warn("[WebhookFal] 缺少 rawBody，無法驗 Ed25519 — 拒絕（fail-closed）。");
+      return false;
+    }
+    const result = await verifyFalEd25519(rawBody, signature);
+    if (result === true) return true;
+    if (result === false) {
+      console.warn("[WebhookFal] Ed25519 signature invalid — 拒絕（401）。");
+      return false;
+    }
+    // result === null: JWKS 無法連線 → 繼續到 HMAC 備援
+    console.warn("[WebhookFal] JWKS unavailable — falling back to HMAC.");
+  }
+
+  // ── Step 2：HMAC-SHA256 備援 ─────────────────────────────────────────────
   const secret = serverEnv.FAL_WEBHOOK_SECRET;
   if (!secret) {
     // AIDV-158：未設共享密鑰時不再無條件放行（舊的 fail-open footgun）。
     //  - production + fail-closed ON（預設）→ 拒絕（無法驗章＝不信任）。
     //  - 非 production，或旗標明確關閉 → 維持 skip，讓本機/自測無密鑰也能跑。
-    // 註：prod 已設 FAL_WEBHOOK_SECRET，此分支在 prod 不會觸發，故不影響現狀。
     if (serverEnv.NODE_ENV === "production" && isFalWebhookFailClosed()) {
       console.warn(
         "[WebhookFal] FAL_WEBHOOK_SECRET 未設定（production）— fail-closed 拒絕。"
@@ -66,16 +87,11 @@ function verifyFalSignature(req: Request): boolean {
     return true;
   }
 
-  const signature = req.headers["x-fal-signature"] as string | undefined;
   if (!signature) return false;
 
-  // HMAC 必須對「上游簽章時的原始位元組」計算。express.json 的 verify 鉤子把原始
-  // buffer 掛在 req.rawBody；缺它時不可退回 JSON.stringify(req.body)（鍵序/空白會
-  // 與原始位元組不同，算出的 HMAC 必錯）— 直接 fail-closed 拒絕。
-  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
   if (!rawBody || rawBody.length === 0) {
     console.warn(
-      "[WebhookFal] 缺少 rawBody，無法驗證簽章 — 拒絕（fail-closed）。"
+      "[WebhookFal] 缺少 rawBody，無法驗 HMAC — 拒絕（fail-closed）。"
     );
     return false;
   }
@@ -85,7 +101,6 @@ function verifyFalSignature(req: Request): boolean {
     .digest("hex");
   const expectedHeader = `sha256=${expected}`;
 
-  // 長度不一致時直接 false，避免 timingSafeEqual 因長度不同直接 throw
   if (signature.length !== expectedHeader.length) return false;
   return crypto.timingSafeEqual(
     Buffer.from(signature),
@@ -131,9 +146,9 @@ function verifyFalWebhookToken(req: Request): boolean {
 falWebhookRouter.post(
   "/api/webhook/fal",
   async (req: Request, res: Response) => {
-    // ── 認證閘門（同步，在回 200 之前；失敗回 4xx 且絕不碰 DB）──────────────
-    // 1a. 簽章驗證（自家 HMAC 共享密鑰；prod 未設密鑰時 fail-closed）。
-    if (!verifyFalSignature(req)) {
+    // ── 認證閘門（在回 200 之前；失敗回 4xx 且絕不碰 DB）────────────────────
+    // 1a. 簽章驗證（Ed25519 先行 + HMAC 備援；prod 未設密鑰時 fail-closed）。
+    if (!await verifyFalSignature(req)) {
       res.status(401).json({ error: "invalid signature" });
       return;
     }

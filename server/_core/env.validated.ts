@@ -430,6 +430,18 @@ const coreSchema = z.object({
   //   明確 "true"/"1"/"on"/"yes"  → 一律 fail-closed（連 dev 也拒絕，方便 staging 演練）。
   STRIPE_WEBHOOK_FAIL_CLOSED: z.string().optional().default(""),
 
+  // ── 郵件發送 SMTP（AIDV-434）────────────────────────────────
+  // 任意 SMTP 服務商皆可：SendGrid smtp.sendgrid.net / AWS SES / Gmail / Mailgun。
+  // SendGrid 設法：SMTP_HOST=smtp.sendgrid.net SMTP_PORT=587 SMTP_USER=apikey
+  //               SMTP_PASS=<SendGrid API Key> SMTP_FROM=noreply@healing-studio.app
+  // 未設 SMTP_HOST → 維持 console.log 假發送（本機/demo 行為不變）。
+  SMTP_HOST: z.string().optional().default(""),
+  SMTP_PORT: z.string().optional().default("587"),
+  SMTP_SECURE: z.string().optional().default("false"),
+  SMTP_USER: z.string().optional().default(""),
+  SMTP_PASS: z.string().optional().default(""),
+  SMTP_FROM: z.string().optional().default("Healing Studio <noreply@healing-studio.app>"),
+
   // ── 向後相容：Manus Forge API（遷移完成後可移除）─────────
   VITE_APP_ID: z.string().optional().default(""),
   OAUTH_SERVER_URL: z.string().optional().default(""),

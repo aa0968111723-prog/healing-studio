@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 describe("site-wide points billing audit", () => {
   it("multimodal flow stores actual estimated points in generation history", async () => {
-    const routersPath = path.resolve(process.cwd(), "server/routers.ts");
+    // generate router was extracted to server/routers/generate.ts
+    const routersPath = path.resolve(process.cwd(), "server/routers/generate.ts");
     const source = await fs.readFile(routersPath, "utf8");
 
     expect(source).toContain("const _genEstimate = estimatePoints");

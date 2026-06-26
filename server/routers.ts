@@ -76,7 +76,7 @@ import { agentModelPicksRouter } from "./routers/agentModelPicksRouter";
 import { orbCapabilitiesRouter } from "./routers/orbCapabilitiesRouter";
 import { orbProxyRouter } from "./routers/orbProxyRouter";
 import { orbConversationsRouter } from "./routers/orbConversationsRouter";
-import { adminRouter } from "./routers/adminRouter";
+import { adminRouter as adminEvalRouter } from "./routers/adminRouter";
 import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
 import { agentCapabilityRouter } from "./routers/agentCapabilityRouter";
 import { modelWishesRouter } from "./routers/modelWishesRouter";
@@ -325,7 +325,7 @@ export const appRouter = router({
   agentCapability: agentCapabilityRouter,
   modelWishes: modelWishesRouter,
   orchestrationRuns: orchestrationRunsRouter,
-  adminEval: adminRouter,
+  adminEval: adminEvalRouter,
 
   // ─── Orb Agent Observability ─────────────────────────────────────────────
   orbTraces: orbTracesRouter,
