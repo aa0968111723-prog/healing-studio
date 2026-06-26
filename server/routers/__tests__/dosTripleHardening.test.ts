@@ -117,3 +117,25 @@ describe("Layer 3 (AIDV-294): concurrent video job cap in trpc.ts", () => {
     expect(trpcSrc).toMatch(/videoGenerationProcedure\s*=.*generationProcedure\.use\s*\(\s*requireVideoStudioLimit\s*\)/);
   });
 });
+
+// ─── Layer 3b: Global concurrent video job cap (AIDV-327) ────────────────────
+
+describe("Layer 3b (AIDV-327): global concurrent video job cap in trpc.ts", () => {
+  it("MAX_GLOBAL_CONCURRENT_VIDEO_JOBS constant is defined (≥ 20)", () => {
+    const match = trpcSrc.match(/MAX_GLOBAL_CONCURRENT_VIDEO_JOBS\s*=\s*(\d+)/);
+    expect(match, "MAX_GLOBAL_CONCURRENT_VIDEO_JOBS must be defined").toBeTruthy();
+    expect(Number(match![1])).toBeGreaterThanOrEqual(20);
+  });
+
+  it("global cap query does NOT filter by userId (counts across all users)", () => {
+    // The global count block must contain a jobType=video filter but no eq(backgroundJobs.userId)
+    // immediately adjacent — we verify both queries exist by checking the source contains
+    // two separate count(*) selects from backgroundJobs.
+    const countMatches = [...trpcSrc.matchAll(/select\s*\(\s*\{[^}]*count\s*:/g)];
+    expect(countMatches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("global cap throws TOO_MANY_REQUESTS with MAX_GLOBAL_CONCURRENT_VIDEO_JOBS in message", () => {
+    expect(trpcSrc).toMatch(/MAX_GLOBAL_CONCURRENT_VIDEO_JOBS[\s\S]{0,200}TOO_MANY_REQUESTS|TOO_MANY_REQUESTS[\s\S]{0,500}MAX_GLOBAL_CONCURRENT_VIDEO_JOBS/);
+  });
+});

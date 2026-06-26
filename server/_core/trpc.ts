@@ -173,7 +173,9 @@ export const generationProcedure = brainProcedure.use(requireGenerationLimit);
 // AIDV-242: Video Studio generation limits — per-hour + per-day on top of shared 5/min.
 // GPU cost per call ($0.05–$0.5) is far higher than text/image, so tighter hourly/daily caps.
 // AIDV-294: Concurrent active job cap — prevents a single user from queuing unbounded GPU tasks.
+// AIDV-327: Global concurrent cap across all users — prevents cluster-wide GPU exhaustion.
 const MAX_CONCURRENT_VIDEO_JOBS = 5;
+const MAX_GLOBAL_CONCURRENT_VIDEO_JOBS = 20;
 const requireVideoStudioLimit = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   checkTrpcRateLimit(ctx.user.id, { limit: 50, windowMs: 60 * 60_000, label: "videoStudio:hr" });
@@ -195,6 +197,23 @@ const requireVideoStudioLimit = t.middleware(async ({ ctx, next }) => {
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",
         message: `最多同時進行 ${MAX_CONCURRENT_VIDEO_JOBS} 個影片生成任務，請等待現有任務完成後再試`,
+      });
+    }
+
+    // AIDV-327: Global cap — guards against cluster-wide GPU exhaustion when many users hit generate simultaneously.
+    const [globalRow] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(backgroundJobs)
+      .where(
+        and(
+          eq(backgroundJobs.jobType, "video"),
+          inArray(backgroundJobs.status, ["queued", "processing"])
+        )
+      );
+    if ((globalRow?.count ?? 0) >= MAX_GLOBAL_CONCURRENT_VIDEO_JOBS) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: `系統影片生成任務已達上限（${MAX_GLOBAL_CONCURRENT_VIDEO_JOBS} 個），請稍後再試`,
       });
     }
   }

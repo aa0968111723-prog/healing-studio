@@ -3243,5 +3243,14 @@ export const aiRouter = router({
       }),
   }),
 
+  codeTask: router({
+    approve: brainProcedure
+      .input(z.object({ codeTaskId: z.string().min(1).max(72) }))
+      .mutation(({ input }) => approveCodeTask(input.codeTaskId)),
+    cancel: brainProcedure
+      .input(z.object({ codeTaskId: z.string().min(1).max(72), reason: z.string().max(240).optional() }))
+      .mutation(({ input }) => cancelCodeTask(input.codeTaskId, input.reason)),
+  }),
+
   orbMemory: orbMemoryRouter,
 });

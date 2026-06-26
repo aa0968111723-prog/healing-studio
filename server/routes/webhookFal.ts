@@ -28,6 +28,7 @@ import {
   isWebhookTokenEnforced,
 } from "../_core/webhookTokens";
 import { verifyFalEd25519 } from "../services/falJwks";
+import { dispatchWebhookEvent } from "../services/webhookDispatcher";
 
 export const falWebhookRouter = Router();
 
@@ -265,6 +266,7 @@ falWebhookRouter.post(
           });
           // 拿不到結果 URL → 使用者沒成品,退回 submitMultimodalAsync 預扣的點數。
           void refundJobIfBilled(jobId);
+          void dispatchWebhookEvent(job.userId, "video.failed", { jobId, error: errMsg });
           generationBus.emit(jobId, { type: "error", message: errMsg });
           console.warn(
             `[WebhookFal] ⚠️  Job ${jobId} completed but no URL extracted. orbTraceId=${orbTraceId} rawPayload=${JSON.stringify(localizedData.rawPayload ?? {}).slice(0, 400)}`
@@ -299,6 +301,12 @@ falWebhookRouter.post(
         // circuit → 資產永遠不入庫。修這條後 ImageStudio / VideoStudio /
         // ProStudio 三條 studio 的成品都會自動進使用者的「我的資產」。
         void runPostGenForJob(jobId);
+        void dispatchWebhookEvent(job.userId, "video.completed", {
+          jobId,
+          resultUrl,
+          videoUrl: extracted.video_url,
+          imageUrl: extracted.image_url,
+        });
         generationBus.emit(jobId, { type: "complete", thoughtChain: [], preview_url: resultUrl });
         console.log(
           `[WebhookFal] ✅ Job ${jobId} completed. orbTraceId=${orbTraceId} Result URLs saved.`
@@ -314,6 +322,10 @@ falWebhookRouter.post(
         // fal.ai 回 ERROR → 退回 submitMultimodalAsync 預扣的點數
         // （與 checkStudioJob FAILED 路徑對稱,refunded 旗標確保只退一次）。
         void refundJobIfBilled(jobId);
+        void dispatchWebhookEvent(job.userId, "video.failed", {
+          jobId,
+          error: errorMessage,
+        });
         generationBus.emit(jobId, { type: "error", message: errorMessage });
         console.error(
           `[WebhookFal] ❌ Job ${jobId} failed: ${payload.error} orbTraceId=${orbTraceId}`

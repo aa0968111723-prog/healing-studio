@@ -42,6 +42,7 @@ import { proStudioRouter } from "./routers/proStudio";
 import { imageStudioRouter } from "./routers/imageStudio";
 import { videoStudioRouter } from "./routers/videoStudio";
 import { videoProjectRouter } from "./routers/videoProject";
+import { webhookRouter } from "./routers/webhook";
 import { exportRouter } from "./routers/export";
 import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
@@ -307,6 +308,7 @@ export const appRouter = router({
   imageStudio: imageStudioRouter,
   videoStudio: videoStudioRouter,
   videoProject: videoProjectRouter,
+  webhook: webhookRouter,
   export: exportRouter,
   learnHub: learnHubRouter,
   loraTrainer: loraTrainerRouter,
@@ -498,6 +500,9 @@ export const appRouter = router({
   // ─── User Dashboard ───────────────────────────────────────────────────────
 
   dashboard: dashboardRouter,
+
+  // ─── Orb Memory（持久化使用者記憶，PageAgent 寫入）────────────────────────
+  orbMemory: orbMemoryRouter,
 
   // ─── LangSmith 深度整合（AI 監控儀表板）─────────────────────────────────────
   langsmith: langsmithRouter,

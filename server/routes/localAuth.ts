@@ -48,6 +48,9 @@ function buildRegisterRateLimiter() {
 // How many recent per-email failures within the lockout window block the account
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_WINDOW_MINUTES = 15;
+// AIDV-264: IP-only scan guard — blocks an IP doing brute-force across many emails
+const IP_MAX_FAILED = 20;
+const IP_WINDOW_MINUTES = 1;
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -129,6 +132,7 @@ function getAccessTokenLifetimeMs(): number {
 interface LoginHistoryGateway {
   getFailedAttemptsByEmail(email: string, withinMinutes: number): Promise<number>;
   getFailedAttemptsByEmailAndIp(email: string, ipAddress: string, withinMinutes: number): Promise<number>;
+  getFailedAttemptsByIp(ipAddress: string, withinMinutes: number): Promise<number>;
   recordLoginAttempt(attempt: { userId: number; email?: string; success: boolean; ipAddress?: string; userAgent?: string; failureReason?: string }): Promise<void>;
 }
 
@@ -245,6 +249,25 @@ export function createLocalAuthRouter(
     const email = normalizeEmail(parsed.data.email);
     const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress;
     const userAgent = req.headers["user-agent"];
+
+    // ── IP-only scan guard (AIDV-264) ─────────────────────────────────────
+    // Block IPs that spam many different emails in a short window (scanning).
+    // DB errors → fail-open (never lock out on infrastructure failure).
+    try {
+      if (ipAddress) {
+        const ipFailures = await history.getFailedAttemptsByIp(ipAddress, IP_WINDOW_MINUTES);
+        if (ipFailures >= IP_MAX_FAILED) {
+          res.status(429).json({
+            error: "Too many login attempts from this IP. Please try again later.",
+            errorCode: "IP_RATE_LIMITED",
+            retryAfterMinutes: IP_WINDOW_MINUTES,
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      logger.warn("[LocalAuth] Could not check IP failed attempts (DB unavailable), proceeding", { err });
+    }
 
     // ── Per-email-AND-IP brute-force check (AIDV-264) ────────────────────
     // Key by (email, IP) so a remote attacker cannot lock out the victim's

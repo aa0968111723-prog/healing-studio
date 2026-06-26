@@ -12,6 +12,7 @@ const mockFacade = {
 const mockHistory = {
   getFailedAttemptsByEmail: vi.fn().mockResolvedValue(0),
   getFailedAttemptsByEmailAndIp: vi.fn().mockResolvedValue(0),
+  getFailedAttemptsByIp: vi.fn().mockResolvedValue(0),
   recordLoginAttempt: vi.fn().mockResolvedValue(undefined),
 };
 
@@ -23,6 +24,7 @@ afterEach(async () => {
   mockFacade.findUserByEmail.mockReset();
   mockHistory.getFailedAttemptsByEmail.mockReset().mockResolvedValue(0);
   mockHistory.getFailedAttemptsByEmailAndIp.mockReset().mockResolvedValue(0);
+  mockHistory.getFailedAttemptsByIp.mockReset().mockResolvedValue(0);
   mockHistory.recordLoginAttempt.mockReset().mockResolvedValue(undefined);
   if (closeServer) {
     await closeServer();
@@ -285,7 +287,8 @@ describe("localAuth routes", () => {
   });
 
   it("proceeds normally when history DB is unavailable during login", async () => {
-    // Simulate DB failure in the brute-force check (AIDV-264: IP-scoped method is called first)
+    // Both IP-only and email+IP checks fail-open on DB errors (AIDV-264)
+    mockHistory.getFailedAttemptsByIp.mockRejectedValueOnce(new Error("DB down"));
     mockHistory.getFailedAttemptsByEmailAndIp.mockRejectedValueOnce(new Error("DB down"));
     mockFacade.loginWithPassword.mockResolvedValueOnce({
       token: "jwt-token",
@@ -302,5 +305,22 @@ describe("localAuth routes", () => {
 
     // DB failure in brute-force check should not block the login
     expect(res.status).toBe(200);
+  });
+
+  it("blocks an IP that exceeds the scan-rate limit across many emails (AIDV-264)", async () => {
+    // 20+ failures from same IP in 1 minute → IP_RATE_LIMITED regardless of email
+    mockHistory.getFailedAttemptsByIp.mockResolvedValueOnce(20);
+
+    const base = await startTestServer();
+    const res = await fetch(`${base}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "any@example.com", password: "AnyPass1!" }),
+    });
+
+    expect(res.status).toBe(429);
+    const payload = await res.json();
+    expect(payload.errorCode).toBe("IP_RATE_LIMITED");
+    expect(mockFacade.loginWithPassword).not.toHaveBeenCalled();
   });
 });

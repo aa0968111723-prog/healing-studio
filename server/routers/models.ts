@@ -155,7 +155,7 @@ export const modelsRouter = router({
 
       try {
         const { getReplicateClient } =
-          await import("./services/replicateClient.js");
+          await import("../services/replicateClient.js");
         const replicate = getReplicateClient();
         const prediction = (await replicate.predictions.get(
           predictionId
@@ -250,7 +250,7 @@ export const modelsRouter = router({
         resultJson: { modelId: input.modelId, modelName: model.name },
       });
 
-      import("./services/loraTrainer").then(({ runLoraTrainingJob }) => {
+      import("../services/loraTrainer").then(({ runLoraTrainingJob }) => {
         runLoraTrainingJob({
           userId: ctx.user.id,
           modelId: input.modelId,
@@ -448,7 +448,7 @@ export const modelsRouter = router({
             `[FalTrainer] FAL_API_KEY not set — model ${modelId} will remain queued`
           );
         } else if (totalDataCount >= 1) {
-          import("./services/falTrainer").then(
+          import("../services/falTrainer").then(
             ({ runFalTrainingJob, resolveFalTrainingModel }) => {
               const resolvedFalModel =
                 input.falModelId || resolveFalTrainingModel(input.modelType);
@@ -481,7 +481,7 @@ export const modelsRouter = router({
             `[LoraTrainer] REPLICATE_API_TOKEN not set — model ${modelId} will remain queued`
           );
         } else if (imageUrls.length >= 3) {
-          import("./services/loraTrainer").then(({ runLoraTrainingJob }) => {
+          import("../services/loraTrainer").then(({ runLoraTrainingJob }) => {
             runLoraTrainingJob({
               userId: ctx.user.id,
               modelId,
