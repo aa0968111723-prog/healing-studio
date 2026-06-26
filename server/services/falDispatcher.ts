@@ -25,6 +25,7 @@ import {
 import { FAL_QUEUE_BASE } from "../_core/providerFacade";
 import { calculateActualCost, estimatePoints, getModelPricing } from "./modelPricing";
 import { deductCredits, reconcileCredits } from "./orbCostGuard";
+import { getRecentApiEventsForModel } from "../db";
 import { recordSpecialistInteraction } from "./specializedAgentMemoryStore";
 import { serverEnv } from "../_core/env.validated";
 import type { AgentRole } from "../../shared/orb-agent-roles";
@@ -305,6 +306,30 @@ export async function dispatchFalTask(
       pointsBreakdown: "0 (未呼叫：精靈無此模型權限)",
       error: `精靈 "${spirit}" 沒有呼叫模型 "${modelId}" 的權限（不在該精靈的允許類別內）`,
     };
+  }
+
+  // ── Step 0.5: 重試風暴防護 (AIDV-436 Phase A) ──
+  if (input.userId) {
+    const RETRY_STORM_THRESHOLD = 3;
+    const WINDOW_SEC = 60;
+    const recentEvents = await getRecentApiEventsForModel(
+      input.userId,
+      modelId,
+      WINDOW_SEC
+    );
+    if (recentEvents.length >= RETRY_STORM_THRESHOLD) {
+      return {
+        success: false,
+        modelId,
+        modelLabel: modelId,
+        category,
+        data: {},
+        durationMs: 0,
+        pointsDeducted: 0,
+        pointsBreakdown: "0（重試過快，請稍候再試）",
+        error: `重試過快：過去 ${WINDOW_SEC} 秒內已呼叫 ${recentEvents.length} 次。請稍候再試。`,
+      };
+    }
   }
 
   // ── Step 1: 驗證模型存在 ──

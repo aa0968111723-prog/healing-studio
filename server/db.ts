@@ -1601,6 +1601,43 @@ export async function getUsageLogsByUser(userId: number, limit = 50) {
     .limit(limit);
 }
 
+export async function getRecentApiEventsForModel(
+  userId: number,
+  modelId: string,
+  windowSec: number
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      provider: apiUsageLogs.apiProvider,
+      endpoint: apiUsageLogs.model,
+      status: apiUsageLogs.responseStatus,
+      costUsd: apiUsageLogs.estimatedCostUsd,
+      latencyMs: apiUsageLogs.durationMs,
+      userId: apiUsageLogs.userId,
+      createdAt: apiUsageLogs.createdAt,
+    })
+    .from(apiUsageLogs)
+    .where(
+      and(
+        eq(apiUsageLogs.userId, userId),
+        eq(apiUsageLogs.model, modelId),
+        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${windowSec} SECOND)`
+      )
+    )
+    .orderBy(asc(apiUsageLogs.createdAt));
+  return rows.map(r => ({
+    provider: r.provider,
+    endpoint: r.endpoint ?? modelId,
+    status: r.status as "success" | "failed" | "timeout" | "blocked",
+    costUsd: parseFloat(r.costUsd as unknown as string || "0"),
+    latencyMs: r.latencyMs ?? undefined,
+    userId: r.userId,
+    createdAt: r.createdAt,
+  }));
+}
+
 export async function getAllUsageLogs(limit = 100) {
   const db = await getDb();
   if (!db) return [];
