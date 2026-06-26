@@ -23,7 +23,7 @@ export const videoProjectRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const id = await db.createVideoProject({
-        userId: ctx.session.userId,
+        userId: ctx.user.id,
         title: input.title,
         aspectRatio: input.aspectRatio,
         creativeProjectId: input.creativeProjectId ?? null,
@@ -38,7 +38,7 @@ export const videoProjectRouter = router({
     .query(async ({ ctx, input }) => {
       const row = await db.getVideoProject(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
-      if (row.userId !== ctx.session.userId)
+      if (row.userId !== ctx.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
       return { id: row.id, title: row.title, aspectRatio: row.aspectRatio };
     }),
@@ -54,7 +54,7 @@ export const videoProjectRouter = router({
     .mutation(async ({ ctx, input }) => {
       const row = await db.getVideoProject(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
-      if (row.userId !== ctx.session.userId)
+      if (row.userId !== ctx.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
       const patch: Record<string, unknown> = {};
       if (input.aspectRatio) patch.aspectRatio = input.aspectRatio;
@@ -64,7 +64,7 @@ export const videoProjectRouter = router({
     }),
 
   list: protectedProcedure.query(async ({ ctx }) => {
-    const rows = await db.getVideoProjectsByUser(ctx.session.userId);
+    const rows = await db.getVideoProjectsByUser(ctx.user.id);
     return rows.map(r => ({
       id: r.id,
       title: r.title,

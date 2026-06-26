@@ -24,7 +24,7 @@ interface Option {
   value: AspectRatio;
   label: string;
   desc: string;
-  icon: React.ElementType;
+  icon: React.ComponentType<{ className?: string }>;
   preview: string;
 }
 
