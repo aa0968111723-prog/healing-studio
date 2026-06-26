@@ -27,60 +27,65 @@ const PROBE_CONFIG: Record<string, ProbeConfig> = {
   fal: {
     url: "https://queue.fal.run/fal-ai/flux/requests",
     method: "GET",
-    headers: () =>
-      serverEnv.FAL_API_KEY
-        ? { Authorization: `Key ${serverEnv.FAL_API_KEY}` }
-        : {},
+    headers: () => {
+      const h: Record<string, string> = {};
+      if (serverEnv.FAL_API_KEY) h.Authorization = `Key ${serverEnv.FAL_API_KEY}`;
+      return h;
+    },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.FAL_API_KEY),
   },
   elevenlabs: {
     url: "https://api.elevenlabs.io/v1/user",
     method: "GET",
-    headers: () =>
-      serverEnv.ELEVENLABS_API_KEY
-        ? { "xi-api-key": serverEnv.ELEVENLABS_API_KEY }
-        : {},
+    headers: () => {
+      const h: Record<string, string> = {};
+      if (serverEnv.ELEVENLABS_API_KEY) h["xi-api-key"] = serverEnv.ELEVENLABS_API_KEY;
+      return h;
+    },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.ELEVENLABS_API_KEY),
   },
   replicate: {
     url: "https://api.replicate.com/v1/models",
     method: "GET",
-    headers: () =>
-      serverEnv.REPLICATE_API_TOKEN
-        ? { Authorization: `Bearer ${serverEnv.REPLICATE_API_TOKEN}` }
-        : {},
+    headers: () => {
+      const h: Record<string, string> = {};
+      if (serverEnv.REPLICATE_API_TOKEN) h.Authorization = `Bearer ${serverEnv.REPLICATE_API_TOKEN}`;
+      return h;
+    },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.REPLICATE_API_TOKEN),
   },
   anthropic: {
     url: "https://api.anthropic.com/v1/models",
     method: "GET",
-    headers: () =>
-      serverEnv.ANTHROPIC_API_KEY
-        ? {
-            "x-api-key": serverEnv.ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-          }
-        : {},
+    headers: () => {
+      const h: Record<string, string> = {};
+      if (serverEnv.ANTHROPIC_API_KEY) {
+        h["x-api-key"] = serverEnv.ANTHROPIC_API_KEY;
+        h["anthropic-version"] = "2023-06-01";
+      }
+      return h;
+    },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.ANTHROPIC_API_KEY),
   },
   gemini: {
     url: "https://generativelanguage.googleapis.com/v1beta/models",
     method: "GET",
-    headers: () => ({}),
+    headers: () => ({} as Record<string, string>),
     requiresKey: false,
     hasKey: () => true,
   },
   openrouter: {
     url: "https://openrouter.ai/api/v1/models",
     method: "GET",
-    headers: () =>
-      serverEnv.OPENROUTER_API_KEY
-        ? { Authorization: `Bearer ${serverEnv.OPENROUTER_API_KEY}` }
-        : {},
+    headers: () => {
+      const h: Record<string, string> = {};
+      if (serverEnv.OPENROUTER_API_KEY) h.Authorization = `Bearer ${serverEnv.OPENROUTER_API_KEY}`;
+      return h;
+    },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.OPENROUTER_API_KEY),
   },
