@@ -231,6 +231,27 @@ export class LoginHistoryService extends BaseRepository {
   }
 
   /**
+   * Get failed login attempts from a specific IP — AIDV-264 IP-only lockout.
+   * Blocks IPs doing brute-force scans across many different emails.
+   * Index: lh_ip_createdAt_idx (migration 0092).
+   */
+  async getFailedAttemptsByIp(
+    ipAddress: string,
+    withinMinutes: number = 1
+  ): Promise<number> {
+    const rows = await this.db.query<RowDataPacket[]>(
+      `SELECT COUNT(*) as count
+       FROM login_history
+       WHERE ipAddress = ?
+         AND success = false
+         AND createdAt > DATE_SUB(NOW(), INTERVAL ? MINUTE)`,
+      [ipAddress, withinMinutes]
+    );
+
+    return rows[0]?.count || 0;
+  }
+
+  /**
    * Clean up old login history (keep last 90 days)
    */
   async cleanupOldHistory(daysToKeep: number = 90): Promise<number> {

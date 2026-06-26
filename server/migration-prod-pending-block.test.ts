@@ -79,6 +79,8 @@ const PENDING_BLOCK = [
   "0091_video_project_version",
   // AIDV-253：project_snapshots 表 — 版本歷程 + 複製來源（information_schema 守門）。
   "0092_project_snapshots",
+  // AIDV-264：IP 維度登入失敗加速索引 — 同一 IP 1 分鐘 20 次失敗即封鎖。
+  "0094_login_history_ip_idx",
 ];
 
 function readSql(tag: string): string {
