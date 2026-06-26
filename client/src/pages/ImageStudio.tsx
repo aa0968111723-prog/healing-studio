@@ -84,6 +84,7 @@ import { readImageStudioHandoff } from "@/components/home/OrbCreationStage";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
+import { useGenerationTask } from "@/hooks/useGenerationTask";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
 import {
   useRegisterPageAgent,
@@ -2908,7 +2909,13 @@ export default function ImageStudio() {
 
   // ── Tab / Model ──
   const [activeTab, setActiveTab] = useState<StudioTab>("t2i");
-  const [selectedModelId, setSelectedModelId] = useState("nanoBanana2");
+  const {
+    selectedModelId: selectedModelIdRaw,
+    setSelectedModelId,
+    isGenerating,
+    setIsGenerating,
+  } = useGenerationTask({ initialModelId: "nanoBanana2" });
+  const selectedModelId = selectedModelIdRaw ?? "nanoBanana2";
 
   // ── Common ──
   const [prompt, setPrompt] = useState("");
@@ -2996,7 +3003,6 @@ export default function ImageStudio() {
     extras?: Record<string, string | null>;
   } | null>(null);
   const [resultPose, setResultPose] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
 
   /**
    * 回到導演 AI：把目前 prompt + 第一張結果圖打包進 sessionStorage["directorReturn"]
