@@ -27,10 +27,10 @@ class ResizeObserverStub { observe() {} unobserve() {} disconnect() {} }
 import { LoraCharactersBody } from "./LoraCharacters";
 
 const CHARS = [
-  { id: "c1", name: "小明", emoji: "🧑", loraStatus: "已完成" },
+  { id: "c1", name: "小明", emoji: "🧑", loraStatus: "已完成", linkedModelId: 1 },
   { id: "c2", name: "小華", emoji: "👧", loraStatus: "未訓練" },
 ];
-const MODELS = [{ id: 1, name: "小明 LoRA", modelType: "flux-lora", status: "ready", triggerWord: "xiaoming" }];
+const MODELS = [{ id: 1, name: "小明 LoRA", modelType: "flux-lora", status: "ready", triggerWord: "xiaoming", trainedLoraUrl: "https://example.com/lora.safetensors" }];
 
 beforeEach(() => {
   h.spine.project = { characters: CHARS };
@@ -52,6 +52,7 @@ describe("LoraCharacters（I-7 / AIDV-85 唯讀 Phase 1）", () => {
 
   it("linkedModelId 推得『已就緒』（即使 loraStatus 仍未訓練）— Codex review 修正", () => {
     h.spine.project = { characters: [{ id: "c9", name: "阿明", emoji: "🧒", loraStatus: "未訓練", linkedModelId: 9 }] };
+    h.models.data = [{ id: 9, name: "阿明 LoRA", modelType: "flux-lora", status: "ready", triggerWord: "aming", trainedLoraUrl: "https://example.com/lora-9.safetensors" }];
     render(<LoraCharactersBody />);
     expect(screen.getByText("LoRA 已就緒")).toBeTruthy();
     expect(screen.queryByText(/可訓練 LoRA/)).toBeNull();
@@ -61,7 +62,7 @@ describe("LoraCharacters（I-7 / AIDV-85 唯讀 Phase 1）", () => {
     render(<LoraCharactersBody />);
     expect(screen.getByText("小明 LoRA")).toBeTruthy();
     expect(screen.getByText("可用")).toBeTruthy();
-    expect(screen.getByText("xiaoming")).toBeTruthy();
+    expect(screen.getAllByText("xiaoming").length).toBeGreaterThan(0);
   });
 
   it("無角色 → 提示", () => {
