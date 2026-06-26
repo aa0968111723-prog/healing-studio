@@ -845,9 +845,19 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
           <p className="text-xs text-muted-foreground">登入後才能管理自動排程。</p>
         )}
         {isAuthenticated && jobsQuery.isLoading && (
-          <p className="text-xs text-muted-foreground">載入中...</p>
+          <div role="status" aria-label="載入中" className="space-y-2">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="h-10 rounded-xl bg-muted/30 motion-safe:animate-pulse" />
+            ))}
+          </div>
         )}
-        {isAuthenticated && !jobsQuery.isLoading && jobs.length === 0 && (
+        {isAuthenticated && jobsQuery.isError && (
+          <div role="alert" className="flex items-center gap-2">
+            <p className="text-xs text-destructive/80 flex-1">排程載入失敗</p>
+            <button type="button" className="text-xs underline text-muted-foreground" onClick={() => jobsQuery.refetch()}>重試</button>
+          </div>
+        )}
+        {isAuthenticated && !jobsQuery.isLoading && !jobsQuery.isError && jobs.length === 0 && (
           <p className="text-xs text-muted-foreground">
             還沒有排程。下面挑個範本，10 秒就能設好第一個。
           </p>

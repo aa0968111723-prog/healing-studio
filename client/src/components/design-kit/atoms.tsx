@@ -157,7 +157,7 @@ export function Dot({
         DOT_SIZE[size],
         TONE_FG[tone],
         ring && cn("ring-2", TONE_RING[tone]),
-        pulse && "animate-pulse",
+        pulse && "motion-safe:animate-pulse",
         className,
       )}
     />

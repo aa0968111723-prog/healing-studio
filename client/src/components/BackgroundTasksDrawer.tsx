@@ -131,11 +131,11 @@ function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: stri
           <Button
             variant="ghost"
             size="icon"
+            aria-label="在新分頁開啟結果"
             className="h-7 w-7 flex-shrink-0"
             onClick={handleOpenResult}
-            title="在新分頁開啟"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
+            <ExternalLink className="w-3.5 h-3.5" aria-hidden />
           </Button>
         )}
 

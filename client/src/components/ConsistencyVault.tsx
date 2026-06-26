@@ -692,13 +692,14 @@ export function VaultDropzone({
           <Button
             variant="outline"
             size="icon"
+            aria-label="清除參考圖"
             className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-card/80 hover:bg-card shadow-sm"
             onClick={e => {
               e.stopPropagation();
               onClear();
             }}
           >
-            <X className="w-3 h-3" />
+            <X className="w-3 h-3" aria-hidden />
           </Button>
           <div className="absolute bottom-1.5 left-1.5">
             <span

@@ -37,7 +37,7 @@ function PackGateSummary({ ready, partial, blocked }: { ready: number; partial: 
   };
   return (
     <AidvKit>
-      <Card className="overflow-hidden border-[var(--gold-soft)] bg-[linear-gradient(160deg,var(--gold-tint),var(--surface-3))]" role="status" aria-label="初剪確認門">
+      <Card className="overflow-hidden border-[var(--gold-soft)] bg-[linear-gradient(160deg,var(--gold-tint),var(--surface-3))]" role="status" aria-live="polite" aria-label="初剪確認門">
         <div className="flex items-center gap-2 px-[14px] py-[10px] text-[12.5px] font-semibold text-[var(--gold-deep)] border-b border-[rgba(200,146,47,.22)]">
           <Package className="size-4" aria-hidden /> 確認門 · 初剪打包就緒度
         </div>

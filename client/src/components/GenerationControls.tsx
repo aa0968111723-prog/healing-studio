@@ -167,33 +167,33 @@ export function GenerationControls({
           <button
             type="button"
             disabled={!seedSupported}
+            aria-label="隨機產生一組種子碼"
             onClick={() => {
               const next = Math.floor(Math.random() * 2_147_483_647);
               onSeedChange(String(next));
             }}
-            title="隨機產生一組種子碼"
             className="px-2 h-9 rounded-md border border-border/50 bg-background hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Dices className="w-3.5 h-3.5" />
+            <Dices className="w-3.5 h-3.5" aria-hidden />
           </button>
           {showReuseLast && (
             <button
               type="button"
+              aria-label={`沿用上次種子碼：${lastSeed}`}
               onClick={() => onSeedChange(lastSeed!)}
-              title={`沿用上次：${lastSeed}`}
               className="px-2 h-9 rounded-md border border-border/50 bg-background hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3.5 h-3.5" aria-hidden />
             </button>
           )}
           {seed && seedSupported && (
             <button
               type="button"
+              aria-label="清空種子碼（恢復隨機）"
               onClick={() => onSeedChange("")}
-              title="清空（恢復隨機）"
               className="px-2 h-9 rounded-md border border-border/50 bg-background hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" aria-hidden />
             </button>
           )}
         </div>

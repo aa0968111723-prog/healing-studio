@@ -197,7 +197,7 @@ export function ScriptCanvas({ onGuided }: { onGuided: () => void }) {
       {result && (
         ENABLE_VIDEO_GATE_KIT ? (
           <AidvKit>
-            <DkCard className="overflow-hidden border-[var(--gold-soft)] bg-[linear-gradient(160deg,var(--gold-tint),var(--surface-3))]" role="status" aria-label="腳本生成結果">
+            <DkCard className="overflow-hidden border-[var(--gold-soft)] bg-[linear-gradient(160deg,var(--gold-tint),var(--surface-3))]" role="status" aria-live="polite" aria-label="腳本生成結果">
               <div className="flex items-center gap-2 px-[14px] py-[10px] text-[12.5px] font-semibold text-[var(--gold-deep)] border-b border-[rgba(200,146,47,.22)]">
                 <FileText className="size-4" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{result.title}</span>

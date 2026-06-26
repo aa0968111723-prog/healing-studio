@@ -67,13 +67,14 @@ export function PromptCompilerPreview({
         <Button
           variant="ghost"
           size="icon"
+          aria-label={copied ? "已複製" : "複製"}
           className="h-6 w-6"
           onClick={handleCopy}
         >
           {copied ? (
-            <Check className="h-3 w-3 text-green-500" />
+            <Check className="h-3 w-3 text-green-500" aria-hidden />
           ) : (
-            <Copy className="h-3 w-3 text-foreground/50" />
+            <Copy className="h-3 w-3 text-foreground/50" aria-hidden />
           )}
         </Button>
       </div>

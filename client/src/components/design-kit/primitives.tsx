@@ -87,7 +87,7 @@ export const Meter = ({ pct }: { pct: number }) => (
 
 /* ---------------- Spinner ---------------- */
 export const Spinner = () =>
-  <div className="w-[42px] h-[42px] rounded-full border-[3px] border-[var(--line)] border-t-[var(--clay)] animate-spin" />;
+  <div className="w-[42px] h-[42px] rounded-full border-[3px] border-[var(--line)] border-t-[var(--clay)] motion-safe:animate-spin" />;
 
 /* ---------------- Card ---------------- */
 export const Card = ({ pad, hover, className, ...p }: React.HTMLAttributes<HTMLDivElement> & { pad?: boolean; hover?: boolean }) => (
