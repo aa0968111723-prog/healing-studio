@@ -21,6 +21,10 @@ export default defineConfig({
     // directives switch individual tests (e.g. React hook tests under
     // tests/unit/client/) to a DOM environment.
     environment: "node",
+    deps: {
+      // file-type@19 is ESM-only; inline it so vitest can transform it.
+      inline: [/file-type/],
+    },
     include: [
       "client/src/**/*.test.ts",
       "client/src/**/*.spec.ts",
