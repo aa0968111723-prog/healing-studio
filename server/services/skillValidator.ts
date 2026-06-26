@@ -84,7 +84,7 @@ export function instantiateSkillStep(
   grantedPerms: SkillPermissions,
 ): InstantiateResult {
   const missingRequired = Object.entries(manifest.inputs)
-    .filter(([, typeAnnotation]) => !typeAnnotation.endsWith("?"))
+    .filter(([, typeAnnotation]) => !(typeAnnotation as string).endsWith("?"))
     .map(([key]) => key)
     .filter(key => !(key in inputs));
 

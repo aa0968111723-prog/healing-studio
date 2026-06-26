@@ -97,10 +97,10 @@ export async function seedOfficialSkills(): Promise<void> {
           },
         });
     } catch (err) {
-      logger.warn({ err, skillId: manifest.id }, "skillRegistryService: failed to seed official skill");
+      logger.warn("skillRegistryService: failed to seed official skill", { err, skillId: manifest.id });
     }
   }
-  logger.info({ count: OFFICIAL_SKILLS.size }, "skillRegistryService: official skills seeded");
+  logger.info("skillRegistryService: official skills seeded", { count: OFFICIAL_SKILLS.size });
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
@@ -338,8 +338,8 @@ export async function upgradeSkill(input: UpgradeSkillInput): Promise<UpgradeRes
       })
       .where(eq(skillRegistry.skillId, input.skillId));
     logger.warn(
-      { skillId: input.skillId, reason: upgradeCheck.reason },
-      "skillRegistryService: upgrade blocked — permission escalation, needs re-audit"
+      "skillRegistryService: upgrade blocked — permission escalation, needs re-audit",
+      { skillId: input.skillId, reason: upgradeCheck.reason }
     );
     return { ok: true, reauditRequired: true, reason: upgradeCheck.reason! };
   }
@@ -354,6 +354,6 @@ export async function upgradeSkill(input: UpgradeSkillInput): Promise<UpgradeRes
     })
     .where(eq(skillRegistry.skillId, input.skillId));
 
-  logger.info({ skillId: input.skillId, version: input.newManifest.version }, "skillRegistryService: skill upgraded");
+  logger.info("skillRegistryService: skill upgraded", { skillId: input.skillId, version: input.newManifest.version });
   return { ok: true, reauditRequired: false };
 }

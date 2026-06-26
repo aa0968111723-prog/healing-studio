@@ -142,7 +142,7 @@ export class SkillOrchestrator {
     const stepResults: StepResult[] = [];
     let overallStatus: OrchestrationStatus = "running";
 
-    logger.info({ executionId, preset: preset.id }, "SkillOrchestrator: started");
+    logger.info("SkillOrchestrator: started", { executionId, preset: preset.id });
 
     try {
       for (let i = 0; i < preset.steps.length; i++) {
@@ -203,7 +203,7 @@ export class SkillOrchestrator {
       overallStatus = "completed";
     } catch (err) {
       overallStatus = "failed";
-      logger.error({ executionId, err }, "SkillOrchestrator: execution failed");
+      logger.error("SkillOrchestrator: execution failed", { executionId, err });
     }
 
     const result: OrchestrationResult = {
@@ -215,7 +215,7 @@ export class SkillOrchestrator {
       durationMs: Date.now() - startTime,
     };
 
-    logger.info({ executionId, status: overallStatus, durationMs: result.durationMs }, "SkillOrchestrator: finished");
+    logger.info("SkillOrchestrator: finished", { executionId, status: overallStatus, durationMs: result.durationMs });
     return result;
   }
 
@@ -338,7 +338,7 @@ export class SkillOrchestrator {
       const entry = await getSkillEntry(skillId);
       if (!entry) return null;
       if (entry.status === "disabled") {
-        logger.warn({ skillId }, "SkillOrchestrator: external skill is disabled (possible re-audit pending)");
+        logger.warn("SkillOrchestrator: external skill is disabled (possible re-audit pending)", { skillId });
         return null;
       }
       // Reconstruct a minimal SkillManifest from the registry entry so the
@@ -387,7 +387,7 @@ export class SkillOrchestrator {
 
     // kind=declarative: no arbitrary code — assemble prompt context only.
     // Full provider dispatch wired in AIDV-24 (BYOMCP/Wave 4).
-    logger.info({ skillId: manifest.id }, "SkillOrchestrator: declarative external skill executed (provider dispatch deferred to BYOMCP)");
+    logger.info("SkillOrchestrator: declarative external skill executed (provider dispatch deferred to BYOMCP)", { skillId: manifest.id });
     return { skillId: manifest.id, inputs, kind: "declarative", dispatched: false };
   }
 
@@ -400,6 +400,7 @@ export class SkillOrchestrator {
   ): Promise<void> {
     // Structured audit log — AIDV-13 full DB persistence deferred to execution table integration.
     logger.info(
+      "SkillOrchestrator: step completed",
       {
         executionId,
         stepIndex,
@@ -408,8 +409,7 @@ export class SkillOrchestrator {
         inputKeys: Object.keys(instance.inputSnapshot),
         permissionSnapshot: instance.permissionSnapshot,
         outputType: Array.isArray(output) ? "array" : typeof output,
-      },
-      "SkillOrchestrator: step completed"
+      }
     );
 
     // AIDV-130 S-5: enqueue skill cost attribution (fire-and-forget, best-effort).
@@ -435,7 +435,7 @@ export class SkillOrchestrator {
         refId: `${instance.skillId}@${executionId}`,
       });
     } catch (err) {
-      logger.warn({ err, executionId, stepIndex }, "SkillOrchestrator: cost attribution enqueue failed");
+      logger.warn("SkillOrchestrator: cost attribution enqueue failed", { err, executionId, stepIndex });
     }
   }
 }

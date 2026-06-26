@@ -115,7 +115,7 @@ export function runSandboxedSkill(
       msg.includes("Execution timed out") ||
       msg.includes("Script execution timed out")
     ) {
-      logger.warn({ timeoutMs }, "skillSandbox: execution timed out");
+      logger.warn("skillSandbox: execution timed out", { timeoutMs });
       throw new SandboxViolation(
         `Sandboxed skill timed out after ${timeoutMs}ms`,
         "timeout"
@@ -123,11 +123,11 @@ export function runSandboxedSkill(
     }
 
     if (msg.includes("sandbox policy")) {
-      logger.warn({ msg }, "skillSandbox: policy violation");
+      logger.warn("skillSandbox: policy violation", { msg });
       throw new SandboxViolation(msg, "policy");
     }
 
-    logger.warn({ err: msg }, "skillSandbox: runtime error");
+    logger.warn("skillSandbox: runtime error", { err: msg });
     throw new SandboxViolation(`Sandboxed skill runtime error: ${msg}`, "runtime");
   }
 

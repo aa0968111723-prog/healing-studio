@@ -277,7 +277,7 @@ Return exactly:
       // LLM-backed question generation
       let generatedQuestion = "您想要做什麼？請告訴我更多細節。";
       let generatedType: QuestionType = "choice";
-      let generatedOptions = intentLog.detectedIntents.map(intent => ({
+      let generatedOptions: Array<{ value: string; label: string; description?: string }> = intentLog.detectedIntents.map(intent => ({
         value: intent.intent,
         label: intent.intent,
         description: `相關度: ${(intent.confidence * 100).toFixed(0)}%`,

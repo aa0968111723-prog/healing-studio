@@ -49,16 +49,16 @@ export const SkillManifestSchema = z.object({
    *   "text" | "int" | "int?" | "ShotJSON[]" | ...
    * Trailing "?" marks a field as optional.
    */
-  inputs: z.record(z.string()).default({}),
+  inputs: z.record(z.string(), z.string()).default({}),
   /**
    * Declared output fields. Same type annotation syntax as inputs.
    * e.g. { "shots": "ShotJSON[]", "summary": "text" }
    */
-  outputs: z.record(z.string()).default({}),
+  outputs: z.record(z.string(), z.string()).default({}),
   /** Model/API providers this skill is allowed to invoke (e.g. "fal", "gemini"). */
   providers: z.array(z.string()).default([]),
   /** Permissions requested. Default = all false / empty = zero internal data access. */
-  permissions: SkillPermissionsSchema.default({}),
+  permissions: SkillPermissionsSchema.default({ connectors: [], materials: false, crossProject: false }),
   /** Cost attribution: "workflow" bills the parent workflow; "skill" bills at skill level. */
   cost: z.object({
     attributeTo: CostAttributionSchema,

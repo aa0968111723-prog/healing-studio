@@ -36,7 +36,7 @@ export function VideoCockpit() {
     state: {
       modality: "video-cockpit",
       hasProject: !!p,
-      projectTitle: p?.title ?? null,
+      projectTitle: p?.name ?? null,
       shotCount: p?.shots.length ?? 0,
       characterCount: p?.characters.length ?? 0,
       loading: spine.loading,
