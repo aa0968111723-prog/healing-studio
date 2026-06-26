@@ -1146,6 +1146,9 @@ ${persona.proactiveHint}
   analyzeScriptOverview: aiChatProcedure
     .input(
       z.object({
+        projectId: z.number().optional(),
+        // AIDV-205: accept raw script string (frontend GuidedJourney path)
+        script: z.string().optional(),
         segments: z.array(
           z.object({
             index: z.number(),
@@ -1161,10 +1164,12 @@ ${persona.proactiveHint}
             characters: z.array(z.string()).optional(),
             locations: z.array(z.string()).optional(),
           })
-        ),
+        ).optional(),
         personality: z
           .enum(["calm", "creative", "technical"])
           .default("creative"),
+      }).refine(d => d.script || (d.segments && d.segments.length > 0), {
+        message: "script or segments required",
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1172,14 +1177,38 @@ ${persona.proactiveHint}
         PERSONALITY_PROMPTS[input.personality] ?? PERSONALITY_PROMPTS.creative;
       const director = ctx.brain.getBrain("director");
 
-      const segmentSummaries = input.segments
+      // AIDV-205: when only a raw script string is supplied, split it into
+      // minimal segments so the existing analysis prompt stays unchanged.
+      const segments =
+        input.segments && input.segments.length > 0
+          ? input.segments
+          : (input.script ?? "")
+              .split(/\n{2,}/)
+              .map(p => p.trim())
+              .filter(p => p.length > 0)
+              .map((text, i) => ({
+                index: i,
+                storyboard: {
+                  sceneHeading: `場景 ${i + 1}`,
+                  visualDescription: text,
+                  dialogue: "",
+                  soundDesign: "",
+                  cameraDirection: "",
+                  duration: "00:00:05",
+                  mood: "neutral",
+                },
+                characters: [] as string[],
+                locations: [] as string[],
+              }));
+
+      const segmentSummaries = segments
         .map(
           seg =>
             `#${seg.index + 1} ${seg.storyboard.sceneHeading} | ${seg.storyboard.mood} | ${seg.storyboard.duration} | 角色：${(seg.characters ?? []).join(",")} | 地點：${(seg.locations ?? []).join(",")}`
         )
         .join("\n");
 
-      const totalDurationSec = input.segments.reduce(
+      const totalDurationSec = segments.reduce(
         (sum, seg) => sum + parseDurationToSeconds(seg.storyboard.duration),
         0
       );
@@ -1205,7 +1234,7 @@ ${persona.proactiveHint}
 ${segmentSummaries}
 </user_segments>
 
-總時長估算：${totalMin}分${totalSec}秒 / 共 ${input.segments.length} 個分鏡
+總時長估算：${totalMin}分${totalSec}秒 / 共 ${segments.length} 個分鏡
 
 請提供：
 1. themes: 作品的核心主題（2-4 個）
@@ -1289,14 +1318,14 @@ ${segmentSummaries}
       if (parsedOverview && typeof parsedOverview === "object") {
         return {
           totalDuration: `${totalMin}分${totalSec}秒`,
-          segmentCount: input.segments.length,
+          segmentCount: segments.length,
           ...(parsedOverview as Record<string, unknown>),
         } as ScriptOverview;
       }
       {
         return {
           totalDuration: `${totalMin}分${totalSec}秒`,
-          segmentCount: input.segments.length,
+          segmentCount: segments.length,
           themes: [],
           characters: [],
           locations: [],
