@@ -2845,8 +2845,8 @@ export default function DirectorAI() {
     onError: e => toast.error("CO-STAR 生成失敗：" + e.message),
   });
 
-  // Batch CO-STAR generation
-  const batchCostarMut = trpc.director.batchGenerateCostar.useMutation({
+  // Batch CO-STAR generation (AIDV-50: uses batchGenerateWithSession for session tracking)
+  const batchCostarMut = trpc.director.batchGenerateWithSession.useMutation({
     onSuccess: data => {
       const results = data.results ?? {};
       setImportedSegments(prev =>

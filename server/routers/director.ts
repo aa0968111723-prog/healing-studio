@@ -55,6 +55,12 @@ import {
 } from "../services/director/scriptGenerationService";
 import { summarizeFrameworkForPrompt } from "../../shared/worldbuilding-types";
 import {
+  canTransitionSession,
+  SESSION_STATUSES,
+  SEGMENT_STATUSES,
+} from "../../shared/video-state-machines";
+import type { VideoSessionStatus } from "../../shared/video-state-machines";
+import {
   discussPlanningPhase,
   analyzeEmotionalDepth,
 } from "../services/director/planningService";
@@ -1148,6 +1154,273 @@ ${persona.proactiveHint}
           resultMap[segId] = r as Record<string, string>;
         }
       }
+      return { results: resultMap };
+    }),
+
+  /**
+   * AIDV-50: Batch generate CO-STAR with videoSession state machine tracking.
+   *
+   * Drop-in replacement for batchGenerateCostar. When storyboardId is provided
+   * the procedure transitions the session (planning → in_progress → completed /
+   * failed) and records per-segment job status + voiceAssetId / musicAssetId in
+   * jobsJson. Without storyboardId it falls back to plain CO-STAR generation
+   * identical to batchGenerateCostar.
+   */
+  batchGenerateWithSession: brainProcedure
+    .input(
+      z.object({
+        segments: z.array(
+          z.object({
+            id: z.string(),
+            index: z.number(),
+            rawText: z.string(),
+            storyboard: z.object({
+              sceneHeading: z.string(),
+              visualDescription: z.string(),
+              dialogue: z.string(),
+              soundDesign: z.string(),
+              cameraDirection: z.string(),
+              duration: z.string(),
+              mood: z.string(),
+            }),
+            voiceAssetId: z.string().optional(),
+            musicAssetId: z.string().optional(),
+          })
+        ),
+        personality: z
+          .enum(["calm", "creative", "technical"])
+          .default("creative"),
+        storyboardId: z.number().int().positive().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { storyboardId } = input;
+
+      // ── Session state machine: transition to in_progress ─────────────────
+      let existingJobs: Record<string, Record<string, unknown>> = {};
+      if (storyboardId !== undefined) {
+        const row = await db.getWorldStoryboard(storyboardId);
+        if (!row || row.userId !== ctx.user.id) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "分鏡不存在或無權存取",
+          });
+        }
+        const currentStatus = (row.productionStatus ??
+          "planning") as VideoSessionStatus;
+        if (!canTransitionSession(currentStatus, "in_progress")) {
+          throw new TRPCError({
+            code: "UNPROCESSABLE_CONTENT",
+            message: `非法 session 狀態轉移：${currentStatus} → in_progress`,
+          });
+        }
+        existingJobs = (row.jobsJson ?? {}) as Record<
+          string,
+          Record<string, unknown>
+        >;
+        for (const seg of input.segments) {
+          existingJobs[seg.id] = {
+            ...(existingJobs[seg.id] ?? {}),
+            status: "queued" as (typeof SEGMENT_STATUSES)[number],
+            voiceAssetId: seg.voiceAssetId,
+            musicAssetId: seg.musicAssetId,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        await db.updateWorldStoryboard(storyboardId, {
+          productionStatus: "in_progress",
+          jobsJson: existingJobs,
+        });
+      }
+
+      // ── LLM CO-STAR generation (identical to batchGenerateCostar) ────────
+      const persona =
+        PERSONALITY_PROMPTS[input.personality] ?? PERSONALITY_PROMPTS.creative;
+      const fullPrompt = buildDirectorSystemPrompt(input.personality);
+      const director = ctx.brain.getBrain("director");
+
+      const segmentsList = input.segments
+        .map(
+          seg =>
+            `【分鏡 #${seg.index + 1}】\n場景：${seg.storyboard.sceneHeading}\n視覺：${seg.storyboard.visualDescription}\n對白：${seg.storyboard.dialogue}\n音效：${seg.storyboard.soundDesign}\n鏡頭：${seg.storyboard.cameraDirection}\n時長：${seg.storyboard.duration}\n氛圍：${seg.storyboard.mood}\n原文：${seg.rawText.slice(0, 300)}`
+        )
+        .join("\n\n---\n\n");
+
+      let llmResults: unknown[] = [];
+      let llmError: Error | null = null;
+      try {
+        const result = await withTimeout(
+          invokeLLM({
+            runName: "director-batch-costar-session",
+            model: director.model,
+            temperature: director.temperature,
+            topP: director.topP,
+            systemPrompt: director.systemPrompt,
+            messages: [
+              {
+                role: "system",
+                content: `${fullPrompt}
+
+你需要為以下所有分鏡段落批次生成 CO-STAR 腳本結構。
+每個分鏡的 CO-STAR 應相互連貫，確保整體敘事流暢。
+
+${segmentsList}
+
+${persona.proactiveHint}
+
+生成要求：
+1. 每段 visualPrompt 必須是高品質英文提示詞
+2. 每段 audioScript 必須是繁體中文語音腳本
+3. 注意段落之間的情緒遞進和視覺風格統一`,
+              },
+              {
+                role: "user",
+                content: `請為以上 ${input.segments.length} 個分鏡批次生成 CO-STAR 腳本。`,
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "batch_costar",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    results: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          segmentId: { type: "string" },
+                          context: { type: "string" },
+                          situation: { type: "string" },
+                          task: { type: "string" },
+                          action: { type: "string" },
+                          result: { type: "string" },
+                          visualPrompt: { type: "string" },
+                          audioScript: { type: "string" },
+                          musicVibe: { type: "string" },
+                          proactiveQuestion: { type: "string" },
+                        },
+                        required: [
+                          "segmentId",
+                          "context",
+                          "situation",
+                          "task",
+                          "action",
+                          "result",
+                          "visualPrompt",
+                          "audioScript",
+                          "musicVibe",
+                          "proactiveQuestion",
+                        ],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ["results"],
+                  additionalProperties: false,
+                },
+              },
+            },
+            maxTokens: 8192,
+          }),
+          120_000,
+          "批次 CO-STAR 生成（含 session 追蹤）"
+        );
+        const parsed = extractMessageJson(
+          result.choices[0]?.message?.content
+        ) as { results?: unknown } | null;
+        llmResults = Array.isArray(parsed?.results) ? parsed!.results : [];
+      } catch (err) {
+        llmError = err instanceof Error ? err : new Error(String(err));
+      }
+
+      // ── Build resultMap + persist segment job states ──────────────────────
+      const resultMap: Record<string, Record<string, string>> = {};
+
+      if (storyboardId !== undefined) {
+        const updatedJobs = { ...existingJobs };
+
+        if (llmError) {
+          for (const seg of input.segments) {
+            updatedJobs[seg.id] = {
+              ...(updatedJobs[seg.id] ?? {}),
+              status: "failed" as (typeof SEGMENT_STATUSES)[number],
+              error: llmError.message,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          await db.updateWorldStoryboard(storyboardId, {
+            productionStatus: "failed",
+            jobsJson: updatedJobs,
+          });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `批次生成失敗：${llmError.message}`,
+          });
+        }
+
+        for (let i = 0; i < llmResults.length; i++) {
+          const r = llmResults[i] as {
+            segmentId?: string;
+            [key: string]: unknown;
+          };
+          const segId =
+            r.segmentId ||
+            (i < input.segments.length ? input.segments[i].id : undefined);
+          if (segId) {
+            resultMap[segId] = r as Record<string, string>;
+            const seg = input.segments.find(s => s.id === segId);
+            updatedJobs[segId] = {
+              ...(updatedJobs[segId] ?? {}),
+              status: "success" as (typeof SEGMENT_STATUSES)[number],
+              costar: r,
+              voiceAssetId: seg?.voiceAssetId,
+              musicAssetId: seg?.musicAssetId,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+        }
+        // Segments the LLM skipped → mark failed
+        for (const seg of input.segments) {
+          if (!resultMap[seg.id]) {
+            updatedJobs[seg.id] = {
+              ...(updatedJobs[seg.id] ?? {}),
+              status: "failed" as (typeof SEGMENT_STATUSES)[number],
+              error: "LLM 未回傳此分鏡結果",
+              updatedAt: new Date().toISOString(),
+            };
+          }
+        }
+
+        const anyFailed = input.segments.some(
+          s => updatedJobs[s.id]?.status === "failed"
+        );
+        await db.updateWorldStoryboard(storyboardId, {
+          productionStatus: anyFailed ? "failed" : "completed",
+          jobsJson: updatedJobs,
+        });
+      } else {
+        // No session tracking — same as batchGenerateCostar
+        for (let i = 0; i < llmResults.length; i++) {
+          const r = llmResults[i] as {
+            segmentId?: string;
+            [key: string]: unknown;
+          };
+          const segId =
+            r.segmentId ||
+            (i < input.segments.length ? input.segments[i].id : undefined);
+          if (segId) resultMap[segId] = r as Record<string, string>;
+        }
+        if (llmError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `批次生成失敗：${llmError.message}`,
+          });
+        }
+      }
+
       return { results: resultMap };
     }),
 
