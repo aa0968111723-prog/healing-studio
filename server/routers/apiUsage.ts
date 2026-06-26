@@ -27,6 +27,7 @@ import {
 import { getTwdPerUsd } from "../services/cost/costAttribution";
 import { TRPCError } from "@trpc/server";
 import { serverEnv } from "../_core/env.validated";
+import { isEngineAvailable } from "../_core/llmRouter";
 import {
   summarizeByCategory,
   summarizeByEndpoint,
@@ -225,12 +226,20 @@ export const apiUsageRouter = router({
     return { mediaProviders, textLlmProviders };
   }),
 
-  /** 給一般創作者（非 admin）查文字 LLM 是否在線的輕量端點。 */
+  /** 給一般創作者（非 admin）查文字 LLM 是否在線的輕量端點。
+   *  AIDV-204: 同時考慮斷路器狀態（circuit breaker）才能反映真實健康度。
+   *  openrouter 斷路 → degraded；兩者都斷或都未設定 → offline。
+   */
   textLlmStatus: protectedProcedure.query(() => {
     const orConfigured = typeof serverEnv.OPENROUTER_API_KEY === "string" && serverEnv.OPENROUTER_API_KEY.trim().length > 0;
     const anConfigured = typeof serverEnv.ANTHROPIC_API_KEY === "string" && serverEnv.ANTHROPIC_API_KEY.trim().length > 0;
+    // Circuit-breaker-aware: key configured AND engine not in OPEN circuit state
+    const orHealthy = orConfigured && isEngineAvailable("openrouter");
+    const anHealthy = anConfigured && isEngineAvailable("anthropic");
     const status: "online" | "degraded" | "offline" =
-      orConfigured ? "online" : anConfigured ? "degraded" : "offline";
+      orHealthy ? "online"
+      : anHealthy ? "degraded"
+      : "offline";
     return { status, openrouter: orConfigured, anthropic: anConfigured };
   }),
 

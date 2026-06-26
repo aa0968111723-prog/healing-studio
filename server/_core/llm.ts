@@ -1691,7 +1691,10 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const engineConfigs: EngineConfig[] = [primaryConfig];
 
   // 允許降級的情境：auto、未指定、或 preferEngine（偏好但可降級）
-  const allowFallback = !engine || engine === "auto" || !!preferEngine;
+  // AIDV-204: ENABLE_LLM_FALLBACK=false 強制單供應商模式（退路旗標）
+  const fallbackEnabled =
+    (serverEnv.ENABLE_LLM_FALLBACK ?? "true") !== "false";
+  const allowFallback = fallbackEnabled && (!engine || engine === "auto" || !!preferEngine);
   if (allowFallback) {
     // latencyAware：根據 EMA 延遲對 fallback 排序，最快的引擎優先試
     engineConfigs.push(
