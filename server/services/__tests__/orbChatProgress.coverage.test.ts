@@ -43,8 +43,10 @@ const ALL_STAGES: OrbChatProgressStage[] = [
 
 describe("OrbChatProgressStage 與 router 同步", () => {
   const repoRoot = path.resolve(__dirname, "../../..");
+  // ai.chat handler was extracted to server/routers/ai.ts; emitOrbChatProgress
+  // calls live there, not in the top-level routers.ts aggregator.
   const routersSrc = readFileSync(
-    path.join(repoRoot, "server/routers.ts"),
+    path.join(repoRoot, "server/routers/ai.ts"),
     "utf8"
   );
 

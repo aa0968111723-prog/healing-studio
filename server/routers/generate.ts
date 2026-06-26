@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, protectedProcedure, brainProcedure } from "../_core/trpc";
 import { isDemoMode } from "../_core/googleAuth";
 import * as db from "../db";
 import {
@@ -10,12 +10,17 @@ import {
 } from "../_core/llm";
 import { serverEnv } from "../_core/env.validated";
 import { isFlagEnabled } from "../_core/flags";
-import { ensureFalApiKeyConfigured } from "../_core/apiGuards";
+import {
+  ensureFalApiKeyConfigured,
+  isGeminiEngine,
+  ensureGeminiApiKeyConfigured,
+} from "../_core/apiGuards";
 import { featureFlags } from "../_core/featureFlags";
 import { storagePut } from "../storage";
 import { TRPCError } from "@trpc/server";
 import { generationBus } from "../generationEvents";
 import { buildMemoryContext, upsertMemory } from "../services/ragMemory";
+import { guardCreativeMemoryContext } from "../services/security/ragInjectionGuard";
 import { getGeminiMediaClient } from "../services/geminiMedia";
 import { localizeResultUrls, persistExternalMediaUrl } from "../services/internalMedia";
 import { eq } from "drizzle-orm";
@@ -54,6 +59,7 @@ import {
   compileElitePrompt,
 } from "./_generateHelpers";
 import { withTimeout } from "../services/director/templates";
+import { signWebhookToken } from "../_core/webhookTokens";
 
 const isDev = process.env.NODE_ENV !== "production";
 // eslint-disable-next-line no-console
@@ -2174,10 +2180,10 @@ export const generateRouter = router({
         //   裸 fetch 會 404 → 過去 checkStudioJob 拿到 404 直接 return job,
         //   讓任務卡在 "processing" 直到 30 分鐘超時。
         const { falQueueFetchWithPrefixFallback } = await import(
-          "./services/falQueueClient"
+          "../services/falQueueClient"
         );
         const { extractFalMediaUrl } = await import(
-          "./services/falQueueAwaiter"
+          "../services/falQueueAwaiter"
         );
 
         const statusRes = await falQueueFetchWithPrefixFallback(
@@ -2312,7 +2318,7 @@ export const generateRouter = router({
   activeJobs: protectedProcedure.query(async ({ ctx }) => {
     const database = await getDb();
     if (!database) return [];
-    const { backgroundJobs } = await import("../drizzle/schema");
+    const { backgroundJobs } = await import("../../drizzle/schema");
     const { eq, and, or, gte, desc } = await import("drizzle-orm");
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
     return database

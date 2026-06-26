@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 describe("auto credit policy wiring", () => {
   it("admin router exposes auto credit policy endpoints", async () => {
-    const routersPath = path.resolve(process.cwd(), "server/routers.ts");
+    const routersPath = path.resolve(process.cwd(), "server/routers/admin.ts");
     const source = await fs.readFile(routersPath, "utf8");
 
     // 自動給點調整由「組長以上」可動（leaderOrAdminProcedure），admin 仍涵蓋

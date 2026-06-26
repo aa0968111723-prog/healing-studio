@@ -300,7 +300,8 @@ describe("SQL pattern correctness", () => {
 
   it("routers.ts uses deductUserPoints in prepareJob (model-based billing)", async () => {
     const fs = await import("fs");
-    const source = fs.readFileSync("server/routers.ts", "utf-8");
+    // generate router was extracted to server/routers/generate.ts
+    const source = fs.readFileSync("server/routers/generate.ts", "utf-8");
 
     // prepareJob should call deductUserPoints (not the legacy deductUserQuota)
     const prepareJobSection = source.substring(

@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 describe("Director override wiring", () => {
   it("prepareJob should normalize overrideEngine before model selection", () => {
-    const source = readFileSync(resolve(process.cwd(), "server/routers.ts"), "utf8");
+    const source = readFileSync(resolve(process.cwd(), "server/routers/generate.ts"), "utf8");
     const prepareSection = source.substring(
       source.indexOf("prepareJob: protectedProcedure"),
       source.indexOf("submitMultimodalAsync: protectedProcedure")
@@ -15,7 +15,7 @@ describe("Director override wiring", () => {
   });
 
   it("submitMultimodalAsync should support overrideModelId and normalize it", () => {
-    const source = readFileSync(resolve(process.cwd(), "server/routers.ts"), "utf8");
+    const source = readFileSync(resolve(process.cwd(), "server/routers/generate.ts"), "utf8");
     const asyncSection = source.substring(
       source.indexOf("submitMultimodalAsync: protectedProcedure")
     );

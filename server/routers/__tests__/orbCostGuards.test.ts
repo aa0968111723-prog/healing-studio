@@ -21,7 +21,7 @@ import { describe, expect, it } from "vitest";
 const repoRoot = path.resolve(__dirname, "../../..");
 
 const routersSrc = readFileSync(
-  path.join(repoRoot, "server/routers.ts"),
+  path.join(repoRoot, "server/routers/ai.ts"),
   "utf8"
 );
 

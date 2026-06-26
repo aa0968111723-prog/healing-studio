@@ -303,6 +303,34 @@ describe("brainPipeline graph builder", () => {
       "account", // AIDV-63：帳號刪除/資料匯出（GDPR），純 CRUD，不觸發 AI
       "workflow", // AIDV-43：使用者工作流步驟 CRUD — 純資料持久化，不觸發 AI
       "videoProject", // AIDV-252：影片格式選擇 CRUD — 純資料持久化，不觸發 AI
+      // ─── 純資料/基礎設施 routers（無直接 AI provider 觸發）────────────────────
+      "auth", // JWT / session 認證，純基礎設施
+      "credits", // 積分查詢 CRUD，純資料持久化
+      "accountant", // 財務報表聚合查詢，純資料
+      "assets", // 資產庫 CRUD，純資料持久化
+      "models", // 模型清單查詢，純 CRUD
+      "directorPreferences", // 導演偏好設定 CRUD
+      "notes", // 筆記 CRUD，純資料持久化
+      "schedule", // 排程 CRUD，純資料持久化
+      "drive", // 雲端磁碟 CRUD，純資料持久化
+      "feedback", // 意見回饋 CRUD，純資料持久化
+      "vault", // 保險箱 CRUD，純資料持久化
+      "history", // 生成歷史查詢，純資料持久化
+      "plans", // 訂閱方案查詢，純 CRUD
+      "customBlocks", // 自訂積木 CRUD，純資料持久化
+      "blockCombos", // 積木組合 CRUD，純資料持久化
+      "profile", // 使用者個人資料 CRUD
+      "settings", // 設定 CRUD，純資料持久化
+      "dashboard", // 儀表板資料聚合查詢，純資料
+      "admin", // 管理後台查詢（users/logs/keys）；AI 部分由 adminEval 代表
+      "orbTraces", // orb 追蹤觀測 CRUD，不直接觸發 AI provider
+      // ─── AI-capable routers（目前由 studio/brain 等專屬 router 在 graph 呈現）──
+      "generate", // 核心生成管線（fal.ai/Gemini）；生成流向由 imageStudio/proStudio/videoStudio 在 graph 呈現
+      "ai", // Orb AI chat（多 LLM）；流向由 brain/director 在 graph 呈現
+      "studio", // 工作室基礎 CRUD；AI 流向由 imageStudio/proStudio/videoStudio 呈現
+      "musicSpecialist", // 音樂 AI（Suno）；待 ROUTER_TO_PROVIDERS 補齊後移除此豁免
+      "evaluate", // AI 評估（LLM judge）；待 ROUTER_TO_PROVIDERS 補齊後移除此豁免
+      "orbGuide", // Orb 引導內容（靜態 + 輕度 LLM）；待確認 provider 後補齊
     ]);
 
     const inGraph = new Set(
