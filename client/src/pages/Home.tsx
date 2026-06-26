@@ -1439,6 +1439,52 @@ ${profileSnippet}`;
             </motion.div>
             )}
 
+            <motion.div
+              className="mx-auto max-w-3xl mb-6 sm:mb-10 px-2"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.75, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <div
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 mb-4 sm:mb-5 text-[11px] sm:text-xs tracking-wide"
+                style={{
+                  background: s.featureBg,
+                  border: `1px solid ${s.cardBorder}`,
+                }}
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${s.textSecondary}`} />
+                <span className={`transition-colors duration-1000 ${s.textSecondary}`}>
+                  Healing Studio · Creative OS
+                </span>
+              </div>
+
+              <h1 className={`text-[30px] sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.15] transition-colors duration-1000 ${s.textPrimary}`}>
+                把靈感變成作品，
+                <span className="block mt-2 sm:mt-3 text-base sm:text-2xl lg:text-3xl font-normal opacity-90">
+                  用更輕鬆、有呼吸感的創作流程開始今天
+                </span>
+              </h1>
+
+              <p className={`mt-4 sm:mt-5 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed transition-colors duration-1000 ${s.textMuted}`}>
+                單一入口串起圖片、影片與導演 AI，從草稿到成片更專注、更有節奏。
+              </p>
+
+              <div className="mt-4 sm:mt-6 flex flex-wrap justify-center gap-2 sm:gap-2.5">
+                {['圖片生成','影片分鏡','導演協作'].map((item) => (
+                  <span
+                    key={item}
+                    className={`rounded-full px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs transition-colors duration-1000 ${s.textSecondary}`}
+                    style={{
+                      background: s.cardBg,
+                      border: `1px solid ${s.cardBorder}`,
+                    }}
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+
             {/* Phase 2c: 首頁瘦身 — 只留一顆 CTA「進入創作作業系統」直接導到
                 /create（CreationHub 已承接快速開始 / 繼續上次專案 / 直接問光球
                 三大區塊）。 */}
