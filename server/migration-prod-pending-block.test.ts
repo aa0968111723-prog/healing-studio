@@ -61,6 +61,8 @@ const PENDING_BLOCK = [
   "0081_user_workflows",
   // AIDV-68 補登記：data_source_connections 到期欄位，登記後 when 在 0081 之後。
   "0082_data_source_expiry",
+  // AIDV-126 S-1：Skill 契約欄位（skillId/skillVersion/inputSnapshot/permissionSnapshot）。
+  "0084_skill_step_columns",
 ];
 
 function readSql(tag: string): string {

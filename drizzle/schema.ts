@@ -3155,6 +3155,14 @@ export const orbWorkflowStepExecutions = mysqlTable(
     startedAt: timestamp("startedAt"),
     completedAt: timestamp("completedAt"),
     durationSeconds: int("durationSeconds"),
+    /** Skill manifest id backing this step (null for non-Skill steps). AIDV-126. */
+    skillId: varchar("skillId", { length: 128 }),
+    /** Pinned skill version (semver). Null for non-Skill steps. */
+    skillVersion: varchar("skillVersion", { length: 32 }),
+    /** Input values snapshot at execution time (audit trail). */
+    inputSnapshot: json("inputSnapshot").$type<Record<string, unknown>>(),
+    /** Effective permissions granted to this skill instance. */
+    permissionSnapshot: json("permissionSnapshot").$type<Record<string, unknown>>(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
@@ -3165,6 +3173,7 @@ export const orbWorkflowStepExecutions = mysqlTable(
     execIdx: index("orb_workflow_step_exec_idx").on(table.executionId),
     statusIdx: index("orb_workflow_step_status_idx").on(table.status),
     spiritIdx: index("orb_workflow_step_spirit_idx").on(table.spiritId),
+    skillIdx: index("orb_workflow_step_skill_idx").on(table.skillId),
   })
 );
 

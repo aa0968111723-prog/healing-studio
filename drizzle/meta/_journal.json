@@ -617,6 +617,13 @@
       "when": 1779050000098,
       "tag": "0082_data_source_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "5",
+      "when": 1779050000099,
+      "tag": "0084_skill_step_columns",
+      "breakpoints": true
     }
   ]
 }
