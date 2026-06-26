@@ -75,6 +75,8 @@ const PENDING_BLOCK = [
   "0089_creative_project_version",
   // AIDV-66 M3：R2 物件層快照 — r2_object_catalog + catalog cron。
   "0090_r2_object_catalog",
+  // AIDV-241：video_projects 樂觀鎖 CAS — version 欄位 + 409 Conflict 防協作覆蓋。
+  "0091_video_project_version",
 ];
 
 function readSql(tag: string): string {
