@@ -35,7 +35,7 @@ export const DEFAULT_WORKFLOW: WorkflowStep[] = [
   { id: "asset", name: "多模態素材", required: true, enabled: true, canvasMode: "asset" },
   { id: "rough", name: "打包初剪", required: false, enabled: true, canvasMode: "rough-cut" },
   { id: "gate", name: "確認修改", required: true, enabled: true, canvasMode: "shot" },
-  { id: "done", name: "完成專案", required: true, enabled: true, canvasMode: "chat" },
+  { id: "done", name: "完成專案", required: true, enabled: true, canvasMode: "complete" },
 ];
 
 /**

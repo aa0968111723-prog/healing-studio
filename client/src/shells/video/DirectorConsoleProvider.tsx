@@ -31,7 +31,8 @@ export type CanvasMode =
   | "asset" // 2-3 多模態素材生成（generation seam → fal）
   | "rough-cut" // 2-4 初剪打包（S4：時間軸總覽 + 未核准 banner + zip_export 估算）
   | "voice" // 2-5 配音 / 環境音（proStudio.qwenTTS / elevenLabsTTS / soundEffects）
-  | "music"; // 2-6 配樂（proStudio.textToMusic）
+  | "music" // 2-6 配樂（proStudio.textToMusic）
+  | "complete"; // AIDV-282 成片交付（線上播放器 + 下載 + 分段縮圖）
 
 /** 抽屜（split-view / drawer 疊層，不整頁離場）。 */
 export type DrawerId =

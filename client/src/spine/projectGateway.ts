@@ -467,6 +467,8 @@ function assembleProject(
     worldStyle: buildWorldStylePrefix(world) || undefined,
     // I-3（AIDV-81）：連結世界觀 id，供「劇本→自動分鏡骨架」當 seedSkeleton 的 worldId。
     worldFrameworkId: base.worldFrameworkId ?? null,
+    // AIDV-282：成片 URL（background_jobs.zip_export 完成後由後端回填；null 表示組合中）。
+    outputUrl: base.outputUrl ?? null,
     updatedAt: base.updatedAt ? new Date(base.updatedAt).getTime() : Date.now(),
   };
   // 伺服器尚無 packet → 本地即時編一份，避免左欄空白。
