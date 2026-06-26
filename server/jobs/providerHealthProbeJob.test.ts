@@ -21,6 +21,7 @@ vi.mock("../_core/env.validated.js", () => ({
     REPLICATE_API_TOKEN: "",
     ANTHROPIC_API_KEY: "test-anthropic-key",
     OPENROUTER_API_KEY: "",
+    SUPABASE_URL: "",
   },
 }));
 

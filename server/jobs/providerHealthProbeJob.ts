@@ -89,6 +89,13 @@ const PROBE_CONFIG: Record<string, ProbeConfig> = {
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.OPENROUTER_API_KEY),
   },
+  supabase_auth: {
+    url: `${serverEnv.SUPABASE_URL}/auth/v1/health`,
+    method: "GET",
+    headers: () => ({} as Record<string, string>),
+    requiresKey: true,
+    hasKey: () => Boolean(serverEnv.SUPABASE_URL),
+  },
 };
 
 const PROBE_TIMEOUT_MS = 8_000;
