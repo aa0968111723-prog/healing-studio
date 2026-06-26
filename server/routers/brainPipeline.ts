@@ -590,6 +590,13 @@ const ROUTER_TO_PROVIDERS: Array<{
     providers: [],
     files: ["server/routers/orchestrationRunsRouter.ts"],
   },
+  {
+    id: "router:apiKey",
+    label: "apiKey（程式化 API 金鑰管理）",
+    description: "AIDV-276：建立 / 列出 / 撤銷 aidv_<key> 格式 API 金鑰（SHA-256 儲存）",
+    providers: [],
+    files: ["server/routers/apiKeyRouter.ts"],
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -907,6 +914,42 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     method: "GET",
     path: "/api/video-output",
     files: ["server/routes/videoOutputRoute.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:agents-status",
+    label: "GET /api/agents/status",
+    description: "AIDV-334 多代理監控：回傳所有代理的即時狀態快照（auth required）",
+    method: "GET",
+    path: "/api/agents/status",
+    files: ["server/routes/agentStatusRoute.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:agents-metrics",
+    label: "GET /api/agents/metrics",
+    description: "AIDV-334 多代理監控：Prometheus text format 代理指標（admin required）",
+    method: "GET",
+    path: "/api/agents/metrics",
+    files: ["server/routes/agentStatusRoute.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:agents-heartbeat",
+    label: "GET /api/agents/heartbeat",
+    description: "AIDV-334 多代理監控：SSE 串流，每 30s 廣播代理狀態快照（auth required）",
+    method: "GET",
+    path: "/api/agents/heartbeat",
+    files: ["server/routes/agentStatusRoute.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:v1-videos",
+    label: "POST/GET /api/v1/videos",
+    description: "AIDV-276 程式化 API：建立 / 取得影片專案；Bearer aidv_<key> 鑑權",
+    method: "POST",
+    path: "/api/v1/videos",
+    files: ["server/routes/v1.ts"],
     downstream: ["db:main"],
   },
 ];
