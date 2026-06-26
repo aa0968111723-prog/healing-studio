@@ -4525,6 +4525,7 @@ export const videoProjects = mysqlTable(
     aspectRatio: mysqlEnum("aspect_ratio", ["16:9", "9:16", "1:1"])
       .notNull()
       .default("16:9"),
+    version: int("version").notNull().default(0),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
