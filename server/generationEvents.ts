@@ -85,6 +85,24 @@ export type GenerationEvent =
         | "max_iterations";
       durationMs: number;
       at: number;
+    } & GenerationEventBase)
+  | ({
+      // AIDV-495: 意圖剛入佇列（createIntent 建完 orchestration run 後立即發）。
+      // 讓前端 intent card 立刻進入「已排入」狀態而非停在空白。
+      type: "task_queued";
+      runId: number;
+      userId: number;
+      intent: string;
+      at: number;
+    } & GenerationEventBase)
+  | ({
+      // AIDV-495: fal.ai queue.submit 成功後發出（拿到 request_id 即代表
+      // 任務已被 fal 接受並開始排隊/計算），讓前端進入「生成中」狀態。
+      type: "task_in_progress";
+      requestId: string;
+      userId: number;
+      modelId: string;
+      at: number;
     } & GenerationEventBase);
 
 class GenerationEventBus {

@@ -24,6 +24,7 @@ import {
   type CommanderKind,
 } from "./contracts";
 import type { OrchestrationRun } from "../../../drizzle/schema";
+import { dualEmitForUser } from "../../generationEvents";
 
 function toIso(value: Date | string | null | undefined): string {
   if (!value) return new Date(0).toISOString();
@@ -102,6 +103,20 @@ export async function createIntent(
     // 理論上剛寫入就讀不到極罕見；用 not_found 讓 router 轉成可理解錯誤。
     throw new CommanderAccessError("not_found", "建立後讀取 run 失敗");
   }
+
+  // AIDV-495: 意圖入佇列後立即廣播，讓創作者端 SSE 進入「已排入」狀態。
+  try {
+    dualEmitForUser(input.userId, {
+      type: "task_queued",
+      runId: id,
+      userId: input.userId,
+      intent: input.intent,
+      at: Date.now(),
+    });
+  } catch (_) {
+    // fire-and-forget — SSE emit 失敗不能讓 createIntent 失敗
+  }
+
   return toView(row);
 }
 
