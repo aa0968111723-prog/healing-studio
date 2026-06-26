@@ -1,0 +1,9 @@
+# Supabase local dev and CLI configuration.
+# See https://supabase.com/docs/guides/cli/config for reference.
+
+[functions.agent-heartbeat]
+# AIDV-428: enforce JWT verification at the Supabase gateway layer.
+# pg_cron must supply Authorization: Bearer <service_role_key> or
+# x-agent-secret: <AGENT_SECRET> header — unauthenticated invocations are
+# rejected before the function code even runs.
+verify_jwt = true

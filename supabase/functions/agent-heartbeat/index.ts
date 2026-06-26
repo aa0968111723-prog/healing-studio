@@ -1,5 +1,6 @@
 // AIDV-392: Structured JSON logging + request tracing for agent-heartbeat
 // AIDV-420: verify_jwt: true — all requests (incl. GET) now require auth; remove GET bypass
+// AIDV-428: export handler for testability; verify_jwt=true now enforced via config.toml
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { log, makeRequestId, timedQuery } from "./_shared/logger.ts";
@@ -10,7 +11,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
-Deno.serve(async (req: Request) => {
+export async function handler(req: Request): Promise<Response> {
   const requestId = makeRequestId(req);
 
   if (req.method === 'OPTIONS') {
@@ -120,4 +121,6 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-});
+}
+
+Deno.serve(handler);
