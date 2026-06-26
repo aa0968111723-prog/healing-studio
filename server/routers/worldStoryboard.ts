@@ -20,6 +20,12 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import {
+  canTransitionSegment,
+  canTransitionSession,
+  SEGMENT_STATUSES,
+  SESSION_STATUSES,
+} from "../../shared/video-state-machines";
+import {
   worldStoryboardInputSchema,
   planAnimationPipeline,
   seedStoryboardSkeleton,
@@ -309,13 +315,7 @@ export const worldStoryboardRouter = router({
       z.object({
         id: z.number().int().positive(),
         stepId: z.string().min(1).max(128),
-        status: z.enum([
-          "queued",
-          "running",
-          "success",
-          "failed",
-          "skipped",
-        ]),
+        status: z.enum(SEGMENT_STATUSES),
         output: z.unknown().optional(),
         error: z.string().max(2000).optional(),
       })
@@ -327,6 +327,17 @@ export const worldStoryboardRouter = router({
       }
       const existingJobs =
         (row.jobsJson ?? {}) as Record<string, Record<string, unknown>>;
+      const currentStatus = existingJobs[input.stepId]?.status as
+        | (typeof SEGMENT_STATUSES)[number]
+        | undefined;
+
+      if (currentStatus !== undefined && !canTransitionSegment(currentStatus, input.status)) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: `非法狀態轉移：${currentStatus} → ${input.status}`,
+        });
+      }
+
       existingJobs[input.stepId] = {
         ...(existingJobs[input.stepId] ?? {}),
         status: input.status,
@@ -338,6 +349,34 @@ export const worldStoryboardRouter = router({
         jobsJson: existingJobs,
       });
       return { ok: true };
+    }),
+
+  /** AIDV-44: 更新整個影片 session 的生產狀態（狀態機驗證）。 */
+  updateSessionStatus: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        status: z.enum(SESSION_STATUSES),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const row = await db.getWorldStoryboard(input.id);
+      if (!row || row.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const currentStatus = (row.productionStatus ?? "planning") as (typeof SESSION_STATUSES)[number];
+
+      if (!canTransitionSession(currentStatus, input.status)) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: `非法 session 狀態轉移：${currentStatus} → ${input.status}`,
+        });
+      }
+
+      await db.updateWorldStoryboard(input.id, {
+        productionStatus: input.status,
+      });
+      return { ok: true, status: input.status };
     }),
 
   /** 把分鏡壓成 LLM-friendly 純文字（給 review / 對白生成 / 編劇潤稿用） */
