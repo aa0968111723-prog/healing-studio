@@ -35,6 +35,7 @@
  */
 
 import { z } from "zod";
+import { safeExternalUrl, safeExternalUrlOptional } from "../utils/validateSafeUrl";
 import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { signWebhookToken, signFalWebhookNonce } from "../_core/webhookTokens";
@@ -518,7 +519,7 @@ export const proStudioRouter = router({
         duration: z.number().min(1).max(300).optional(), // 秒數（非 Sonauto 模型用）
         // DEF-S1：Stable Audio 支援 negative_prompt（其他音樂模型會忽略）
         negativePrompt: z.string().max(500).optional(),
-        referenceAudioUrl: z.string().url().max(2000).optional(),
+        referenceAudioUrl: safeExternalUrlOptional,
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
           .optional(),
@@ -886,7 +887,7 @@ export const proStudioRouter = router({
       z.object({
         text: z.string().min(1).max(5000),
         voice: z.string().optional(), // 預訓練語音名稱，如 "Vivian"
-        speaker_voice_embedding_file_url: z.string().url().optional(), // 從 qwenCloneVoice 取得
+        speaker_voice_embedding_file_url: safeExternalUrlOptional, // 從 qwenCloneVoice 取得
         reference_text: z.string().optional(),
         language: z
           .enum([
@@ -946,7 +947,7 @@ export const proStudioRouter = router({
   qwenCloneVoice: brainProcedure
     .input(
       z.object({
-        audio_url: z.string().url(), // 參考音訊 URL（3-30秒）
+        audio_url: safeExternalUrl, // 參考音訊 URL（3-30秒）
         reference_text: z.string().optional(), // 參考音訊的文字（可提升品質）
       })
     )
@@ -973,7 +974,7 @@ export const proStudioRouter = router({
   qwenCloneAndSpeak: brainProcedure
     .input(
       z.object({
-        audio_url: z.string().url(),
+        audio_url: safeExternalUrl,
         text: z.string().min(1).max(5000),
         reference_text: z.string().optional(),
         language: z
@@ -1123,7 +1124,7 @@ export const proStudioRouter = router({
   elevenLabsVoiceClone: brainProcedure
     .input(
       z.object({
-        audio_url: z.string().url(),
+        audio_url: safeExternalUrl,
         name: z.string().min(1).max(100),
         description: z.string().max(500).optional(),
         labels: z.record(z.string(), z.string()).optional(),
@@ -1168,7 +1169,7 @@ export const proStudioRouter = router({
   klingCreateVoice: brainProcedure
     .input(
       z.object({
-        audio_url: z.string().url(),
+        audio_url: safeExternalUrl,
         name: z.string().min(1).max(100),
       })
     )
@@ -1203,7 +1204,7 @@ export const proStudioRouter = router({
   demucs: brainProcedure
     .input(
       z.object({
-        audio_url: z.string().url(),
+        audio_url: safeExternalUrl,
         model: z
           .enum([
             "htdemucs",
@@ -1265,7 +1266,7 @@ export const proStudioRouter = router({
   audioIsolation: brainProcedure
     .input(
       z.object({
-        audio_url: z.string().url(),
+        audio_url: safeExternalUrl,
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1295,7 +1296,7 @@ export const proStudioRouter = router({
   mergeAudios: brainProcedure
     .input(
       z.object({
-        audio_urls: z.array(z.string().url()).min(2).max(10),
+        audio_urls: z.array(safeExternalUrl).min(2).max(10),
         merge_strategy: z
           .enum(["concatenate", "mix"])
           .optional()
@@ -1325,7 +1326,7 @@ export const proStudioRouter = router({
   voiceChanger: brainProcedure
     .input(
       z.object({
-        audio_url: z.string().url(),
+        audio_url: safeExternalUrl,
         voice_id: z.string(),
         remove_background_noise: z.boolean().optional().default(false),
       })
@@ -1372,7 +1373,7 @@ export const proStudioRouter = router({
   speechToText: brainProcedure
     .input(
       z.object({
-        audio_url: z.string().url(),
+        audio_url: safeExternalUrl,
         acceleration: z
           .enum(["none", "low", "medium", "high"])
           .optional()
@@ -1408,8 +1409,8 @@ export const proStudioRouter = router({
   speechToVideo: brainProcedure
     .input(
       z.object({
-        image_url: z.string().url(),
-        audio_url: z.string().url(),
+        image_url: safeExternalUrl,
+        audio_url: safeExternalUrl,
         prompt: z.string().optional(),
         num_frames: z.number().min(16).max(200).optional(),
       })
@@ -1439,8 +1440,8 @@ export const proStudioRouter = router({
   echoMimic: brainProcedure
     .input(
       z.object({
-        image_url: z.string().url(),
-        audio_url: z.string().url().optional(),
+        image_url: safeExternalUrl,
+        audio_url: safeExternalUrlOptional,
         text: z.string().optional(),
         pose_style: z.number().min(0).max(45).optional().default(0),
       })
@@ -1467,8 +1468,8 @@ export const proStudioRouter = router({
   stableAvatar: brainProcedure
     .input(
       z.object({
-        image_url: z.string().url(),
-        audio_url: z.string().url(),
+        image_url: safeExternalUrl,
+        audio_url: safeExternalUrl,
         // Live audit (2026-05-03): fal's stable-avatar requires `prompt`.
         // Submitting without it returns
         // 422 'Field required: body.prompt' on every call. Default to a
@@ -1498,8 +1499,8 @@ export const proStudioRouter = router({
   dubbing: brainProcedure
     .input(
       z.object({
-        video_url: z.string().url().optional(),
-        audio_url: z.string().url().optional(),
+        video_url: safeExternalUrlOptional,
+        audio_url: safeExternalUrlOptional,
         source_language: z.string().optional().default("zh"),
         target_language: z.string().min(1),
         num_speakers: z.number().min(1).max(10).optional(),
@@ -1537,8 +1538,8 @@ export const proStudioRouter = router({
   longcatAvatar: brainProcedure
     .input(
       z.object({
-        image_url: z.string().url(),
-        audio_url: z.string().url(),
+        image_url: safeExternalUrl,
+        audio_url: safeExternalUrl,
         prompt: z.string().optional(),
       })
     )
@@ -1568,9 +1569,9 @@ export const proStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
-        audio_url: z.string().url(),
-        image_url: z.string().url().optional(),
-        lora_url: z.string().url().optional(),
+        audio_url: safeExternalUrl,
+        image_url: safeExternalUrlOptional,
+        lora_url: safeExternalUrlOptional,
         num_frames: z.number().min(8).max(257).optional().default(121),
         resolution: z.enum(["480p", "720p"]).optional().default("720p"),
       })

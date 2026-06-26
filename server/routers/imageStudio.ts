@@ -38,6 +38,7 @@
  */
 
 import { z } from "zod";
+import { safeExternalUrl, safeExternalUrlOptional } from "../utils/validateSafeUrl";
 import { generationProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { FAL_QUEUE_BASE, FAL_RUN_BASE } from "../_core/providerFacade";
@@ -380,7 +381,7 @@ export const imageStudioRouter = router({
       z.object({
         prompt: z.string().min(1).max(4000),
         aspect_ratio: z.enum(ASPECT_RATIOS).optional().default("auto"),
-        image_urls: z.array(z.string().url()).max(14).optional(),
+        image_urls: z.array(safeExternalUrl).max(14).optional(),
         num_images: z.number().min(1).max(4).optional().default(1),
       })
     )
@@ -414,7 +415,7 @@ export const imageStudioRouter = router({
       z.object({
         prompt: z.string().min(1).max(4000),
         aspect_ratio: z.enum(ASPECT_RATIOS).optional().default("auto"),
-        image_urls: z.array(z.string().url()).max(14).optional(),
+        image_urls: z.array(safeExternalUrl).max(14).optional(),
         num_images: z.number().min(1).max(4).optional().default(1),
       })
     )
@@ -517,8 +518,8 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        image_url: z.string().url(),
-        image_urls: z.array(z.string().url()).max(13).optional(), // 額外參考圖
+        image_url: safeExternalUrl,
+        image_urls: z.array(safeExternalUrl).max(13).optional(), // 額外參考圖
         aspect_ratio: z.string().optional().default("auto"),
         num_images: z.number().min(1).max(4).optional().default(1),
       })
@@ -553,8 +554,8 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        image_url: z.string().url(),
-        image_urls: z.array(z.string().url()).max(13).optional(),
+        image_url: safeExternalUrl,
+        image_urls: z.array(safeExternalUrl).max(13).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -578,7 +579,7 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        image_url: z.string().url(),
+        image_url: safeExternalUrl,
         strength: z.number().min(0).max(1).optional().default(0.8),
         negative_prompt: z.string().optional(),
         num_images: z.number().min(1).max(4).optional().default(1),
@@ -614,7 +615,7 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        image_url: z.string().url(),
+        image_url: safeExternalUrl,
         strength: z.number().min(0).max(1).optional().default(0.8),
         negative_prompt: z.string().optional(),
         num_images: z.number().min(1).max(4).optional().default(1),
@@ -650,7 +651,7 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        image_url: z.string().url(),
+        image_url: safeExternalUrl,
       })
     )
     .mutation(async ({ input }) => {
@@ -677,8 +678,8 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        image_url: z.string().url(),
-        mask_url: z.string().url().optional(),
+        image_url: safeExternalUrl,
+        mask_url: safeExternalUrlOptional,
         size: z
           .enum(["auto", "1024x1024", "1536x1024", "1024x1536"])
           .optional()
@@ -714,7 +715,7 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        image_url: z.string().url(),
+        image_url: safeExternalUrl,
         guidance_scale: z.number().min(1).max(30).optional().default(3.5),
         num_inference_steps: z.number().min(1).max(50).optional().default(28),
         seed: z.number().optional(),
@@ -754,8 +755,8 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        image_url: z.string().url(),
-        image_urls: z.array(z.string().url()).max(13).optional(),
+        image_url: safeExternalUrl,
+        image_urls: z.array(safeExternalUrl).max(13).optional(),
         aspect_ratio: z
           .enum([
             "auto",
@@ -808,8 +809,8 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        image_url: z.string().url(),
-        image_urls: z.array(z.string().url()).max(2).optional(),
+        image_url: safeExternalUrl,
+        image_urls: z.array(safeExternalUrl).max(2).optional(),
         image_size: z
           .enum([
             "auto",
@@ -856,7 +857,7 @@ export const imageStudioRouter = router({
   seedVRUpscale: generationProcedure
     .input(
       z.object({
-        image_url: z.string().url(),
+        image_url: safeExternalUrl,
         upscale_mode: z.enum(["factor", "target"]).optional().default("factor"),
         upscale_factor: z.number().min(1).max(4).optional().default(2),
         target_resolution: z
@@ -898,7 +899,7 @@ export const imageStudioRouter = router({
   dwPose: generationProcedure
     .input(
       z.object({
-        image_url: z.string().url(),
+        image_url: safeExternalUrl,
         draw_mode: z
           .enum([
             "full-pose",
@@ -957,7 +958,7 @@ export const imageStudioRouter = router({
         seed: z.number().optional(),
         output_format: z.enum(["jpeg", "png"]).optional().default("jpeg"),
         // ControlNet
-        controlnet_image_url: z.string().url().optional(),
+        controlnet_image_url: safeExternalUrlOptional,
         controlnet_path: z.string().optional(),
         controlnet_scale: z.number().min(0).max(2).optional().default(1),
         // LoRA (single for simplicity)
@@ -1115,7 +1116,7 @@ export const imageStudioRouter = router({
   trellis2: generationProcedure
     .input(
       z.object({
-        image_url: z.string().url(),
+        image_url: safeExternalUrl,
         resolution: z.enum(["512", "1024", "1536"]).optional().default("1024"),
         texture_size: z
           .enum(["1024", "2048", "4096"])
@@ -1154,7 +1155,7 @@ export const imageStudioRouter = router({
   sam3dObjects: generationProcedure
     .input(
       z.object({
-        image_url: z.string().url(),
+        image_url: safeExternalUrl,
         prompt: z.string().optional().default("object"),
         export_textured_glb: z.boolean().optional().default(true),
         detection_threshold: z.number().min(0.1).max(1).optional(),
@@ -1195,10 +1196,10 @@ export const imageStudioRouter = router({
   hunyuan3d: generationProcedure
     .input(
       z.object({
-        input_image_url: z.string().url(),
-        back_image_url: z.string().url().optional(),
-        left_image_url: z.string().url().optional(),
-        right_image_url: z.string().url().optional(),
+        input_image_url: safeExternalUrl,
+        back_image_url: safeExternalUrlOptional,
+        left_image_url: safeExternalUrlOptional,
+        right_image_url: safeExternalUrlOptional,
         enable_pbr: z.boolean().optional().default(true),
         face_count: z
           .number()
@@ -1259,7 +1260,7 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().optional().default(""),
-        image_urls: z.array(z.string().url()).max(8).optional(),
+        image_urls: z.array(safeExternalUrl).max(8).optional(),
         condition_mode: z.enum(["fuse", "concat"]).optional().default("concat"),
         geometry_file_format: z
           .enum(["glb", "usdz", "fbx", "obj", "stl"])
@@ -1307,7 +1308,7 @@ export const imageStudioRouter = router({
   hunyuanWorld: generationProcedure
     .input(
       z.object({
-        image_url: z.string().url(),
+        image_url: safeExternalUrl,
         labels_fg1: z.string().min(1).default("foreground objects"),
         labels_fg2: z.string().min(1).default("background elements"),
         classes: z.string().min(1).default("general scene"),
