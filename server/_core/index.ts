@@ -482,15 +482,16 @@ async function startServer() {
   });
   app.use("/api/", rateLimiters.api);
 
-  // Configure body parser with larger size limit for file uploads.
+  // AIDV-294: Body size limit reduced from 50 MB to 4 MB.
+  // Uploads bypass express.json (presigned S3 / multipart), so 4 MB comfortably
+  // covers the largest legitimate tRPC payload (director.saveSession 2 MB sessionData
+  // + JSON overhead) while blocking bulk-data DoS attacks.
   // The `verify` callback exposes the original byte buffer on `req.rawBody`
   // so webhook handlers (fal / suno / replicate / stripe) can compute HMAC /
-  // Ed25519 signatures over the exact bytes the upstream service signed —
-  // re-stringifying `req.body` after JSON parse can re-order keys and break
-  // signature verification.
+  // Ed25519 signatures over the exact bytes the upstream service signed.
   app.use(
     express.json({
-      limit: "50mb",
+      limit: "4mb",
       verify: (req, _res, buf) => {
         if (buf && buf.length) {
           (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
@@ -498,7 +499,7 @@ async function startServer() {
       },
     })
   );
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.urlencoded({ limit: "4mb", extended: true }));
   app.use(googleAuthRouter);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
@@ -698,6 +699,10 @@ async function startServer() {
   // AIDV-261：升級為雙重探測（DB + JWT auth），DB 停機時回 HTTP 503。
   // UptimeRobot 已設定偵測 503；Railway 的容器存活判定可接受 503 或依 body.ok。
   app.get("/api/health", async (_req, res) => {
+    // AIDV-259: Cache-Control: no-store prevents CDN/proxy caching a stale 200
+    // during a DB outage that would mask 503 from uptime monitors.
+    res.setHeader("Cache-Control", "no-store, no-cache");
+
     // storage:boolean — 「是否已設定後端」而非具體類型。
     const storageConfigured = detectStorageBackend() !== "none";
 

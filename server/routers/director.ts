@@ -204,12 +204,13 @@ export const directorRouter = router({
   chat: aiChatProcedure
     .input(
       z.object({
+        // AIDV-294: cap conversation history; role is a short enum-like string.
         messages: z.array(
           z.object({
-            role: z.string(),
-            content: z.string(),
+            role: z.string().max(20),
+            content: z.string().max(50_000),
           })
-        ),
+        ).max(200),
         saveToNotes: z.boolean().default(false),
         personality: z
           .enum(["calm", "creative", "technical"])
@@ -256,17 +257,17 @@ export const directorRouter = router({
     .input(
       z.object({
         script: z.object({
-          context: z.string(),
-          situation: z.string(),
-          task: z.string(),
-          action: z.string(),
-          result: z.string(),
-          visualPrompt: z.string(),
-          audioScript: z.string(),
-          musicVibe: z.string(),
-          proactiveQuestion: z.string().optional(),
+          context: z.string().max(5_000),
+          situation: z.string().max(5_000),
+          task: z.string().max(5_000),
+          action: z.string().max(5_000),
+          result: z.string().max(5_000),
+          visualPrompt: z.string().max(5_000),
+          audioScript: z.string().max(5_000),
+          musicVibe: z.string().max(5_000),
+          proactiveQuestion: z.string().max(2_000).optional(),
         }),
-        instruction: z.string().min(1),
+        instruction: z.string().min(1).max(10_000),
         personality: z
           .enum(["calm", "creative", "technical"])
           .default("creative"),
