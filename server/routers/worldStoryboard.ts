@@ -501,6 +501,121 @@ export const worldStoryboardRouter = router({
     }),
 
   /**
+   * AIDV-151: Director→Video 橋接。
+   * 把帶有 CO-STAR visualPrompt 的腳本段落轉成分鏡板，
+   * 並立即進入 in_progress 佇列，讓 VideoStudio 可逐鏡生成。
+   */
+  queueForVideo: protectedProcedure
+    .input(
+      z.object({
+        worldId: z.number().int().positive(),
+        name: z.string().min(1).max(255),
+        segments: z
+          .array(
+            z.object({
+              segmentId: z.string().min(1).max(64),
+              storyboard: z.object({
+                sceneHeading: z.string(),
+                visualDescription: z.string(),
+                dialogue: z.string(),
+                soundDesign: z.string(),
+                cameraDirection: z.string(),
+                duration: z.string(),
+                mood: z.string(),
+              }),
+              characters: z.array(z.string()).default([]),
+              locations: z.array(z.string()).default([]),
+              visualPrompt: z.string().max(2000).optional(),
+              musicVibe: z.string().max(500).optional(),
+              audioScript: z.string().max(2000).optional(),
+            })
+          )
+          .min(1)
+          .max(60),
+        aspectRatio: z.string().max(16).optional(),
+        fps: z.number().int().min(1).max(120).optional(),
+        sourceScriptId: z.string().max(64).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const framework = await loadFramework(ctx.user.id, input.worldId);
+
+      let cursor = 0;
+      const scenes: StoryboardScene[] = input.segments.map((seg, idx) => {
+        const durSec = Math.max(
+          3,
+          parseDurationToSeconds(seg.storyboard.duration) || 5
+        );
+        const startSec = cursor;
+        const endSec = cursor + durSec;
+        cursor = endSec;
+
+        const characterBeats: StoryboardCharacterBeat[] = [];
+        for (const charName of seg.characters ?? []) {
+          const fwChar = framework.characters.find(c => c.name === charName);
+          if (!fwChar) continue;
+          characterBeats.push({
+            characterId: fwChar.id,
+            startOffsetSec: 0,
+            durationSec: durSec,
+            dialogue: seg.storyboard.dialogue || undefined,
+          });
+        }
+
+        const matchedScene = framework.scenes.find(s =>
+          (seg.locations ?? []).some(loc => s.name === loc)
+        );
+
+        return {
+          id: seg.segmentId,
+          sequenceIndex: idx,
+          startSec,
+          endSec,
+          title: seg.storyboard.sceneHeading,
+          worldSceneId: matchedScene?.id,
+          characterBeats,
+          actionDescription: seg.storyboard.visualDescription,
+          cameraDirection: seg.storyboard.cameraDirection,
+          frames: [],
+          audioClips: [],
+          styleProfileId: framework.defaultStyleProfileId ?? null,
+          status: "draft" as const,
+          notes: seg.visualPrompt || seg.storyboard.visualDescription,
+        } satisfies StoryboardScene;
+      });
+
+      const totalDurationSec = cursor;
+
+      const jobsJson: Record<string, Record<string, unknown>> = {};
+      for (const seg of input.segments) {
+        jobsJson[seg.segmentId] = {
+          status: "queued",
+          visualPrompt: seg.visualPrompt ?? seg.storyboard.visualDescription,
+          sceneHeading: seg.storyboard.sceneHeading,
+          mood: seg.storyboard.mood,
+          musicVibe: seg.musicVibe,
+          audioScript: seg.audioScript,
+          queuedAt: new Date().toISOString(),
+        };
+      }
+
+      const id = await db.createWorldStoryboard({
+        userId: ctx.user.id,
+        worldId: input.worldId,
+        name: input.name,
+        totalDurationSec,
+        fps: input.fps ?? 24,
+        aspectRatio: input.aspectRatio ?? "16:9",
+        scenesJson: scenes as unknown as Record<string, unknown>[],
+        productionStatus: "in_progress",
+        jobsJson,
+        sourceScriptId: input.sourceScriptId,
+      });
+
+      return { id, sceneCount: scenes.length, totalDurationSec };
+    }),
+
+  /**
    * 匯出「鏡頭表」—— CSV / JSON 兩種，給導演 / 動畫師外部協作用。
    * CSV 欄位：場序、起、訖、時長、場景、角色、表情、穿著、動作、對白、鏡頭、配樂
    */
