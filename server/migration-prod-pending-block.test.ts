@@ -69,6 +69,8 @@ const PENDING_BLOCK = [
   "0086_skill_cost_dimension",
   // AIDV-131 S-6：Skill 沙箱——manifestChecksum + needsReaudit 供應鏈欄位。
   "0087_skill_sandbox",
+  // AIDV-252：video_projects 表（影片格式選擇 aspect_ratio），解鎖垂直影片市場。
+  "0088_video_projects",
 ];
 
 function readSql(tag: string): string {

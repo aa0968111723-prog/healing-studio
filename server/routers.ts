@@ -41,6 +41,7 @@ import { brainPipelineRouter } from "./routers/brainPipeline";
 import { proStudioRouter } from "./routers/proStudio";
 import { imageStudioRouter } from "./routers/imageStudio";
 import { videoStudioRouter } from "./routers/videoStudio";
+import { videoProjectRouter } from "./routers/videoProject";
 import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
 import { modelConsentsRouter } from "./routers/modelConsents";
@@ -304,6 +305,7 @@ export const appRouter = router({
   proStudio: proStudioRouter,
   imageStudio: imageStudioRouter,
   videoStudio: videoStudioRouter,
+  videoProject: videoProjectRouter,
   learnHub: learnHubRouter,
   loraTrainer: loraTrainerRouter,
   modelConsents: modelConsentsRouter,

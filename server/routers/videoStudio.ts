@@ -1325,6 +1325,7 @@ export const videoStudioRouter = router({
           ])
           .default("push_in"),
         duration: z.number().min(3).max(10).default(5),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
       })
     )
     .mutation(async ({ input }) => {
@@ -1357,7 +1358,7 @@ export const videoStudioRouter = router({
             prompt: `${input.prompt}. Camera motion: ${CAM_DESCRIPTIONS[input.cameraMotion] ?? input.cameraMotion}.`,
             image_url: input.imageUrl,
             duration: String(input.duration),
-            aspect_ratio: "16:9",
+            aspect_ratio: input.aspectRatio,
             cfg_scale: 0.5,
           }
         : {
