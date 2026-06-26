@@ -104,9 +104,17 @@ function openGenerationStream(req: Request, res: Response, jobId: number): void 
     "X-Accel-Buffering": "no", // Disable nginx buffering
   });
 
+  // Per-connection monotonic event sequence for Last-Event-ID reconnect support (AIDV-291).
+  // Clients reconnecting with Last-Event-ID header can detect how many events they missed;
+  // with the in-memory bus we cannot replay missed events (that requires AIDV-13 persistence),
+  // but the id field lets clients know their reconnect point.
+  let eventSeq = 0;
+  const lastEventId = parseInt(req.header("last-event-id") ?? "0", 10) || 0;
+
   // Send initial connection event
   const orbTraceId = req.header("x-orb-trace-id") || req.header("x-trace-id") || null;
-  res.write(`data: ${JSON.stringify({ type: "connected", jobId, orbTraceId })}\n\n`);
+  eventSeq += 1;
+  res.write(`id: ${eventSeq}\ndata: ${JSON.stringify({ type: "connected", jobId, orbTraceId, resumedFrom: lastEventId || undefined })}\n\n`);
 
   // Cleanup helper — ensures timers and subscriptions are released exactly once
   let cleaned = false;
@@ -124,7 +132,8 @@ function openGenerationStream(req: Request, res: Response, jobId: number): void 
     (event: GenerationEvent) => {
       // Guard against writing to an already-closed response
       if (cleaned) return;
-      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      eventSeq += 1;
+      res.write(`id: ${eventSeq}\ndata: ${JSON.stringify(event)}\n\n`);
 
       // Close connection after complete or error
       if (event.type === "complete" || event.type === "error") {
@@ -209,7 +218,11 @@ function openTrainingStream(req: Request, res: Response, modelId: number): void 
     "X-Accel-Buffering": "no",
   });
 
-  res.write(`data: ${JSON.stringify({ type: "connected", modelId })}\n\n`);
+  let eventSeq = 0;
+  const lastEventId = parseInt(req.header("last-event-id") ?? "0", 10) || 0;
+
+  eventSeq += 1;
+  res.write(`id: ${eventSeq}\ndata: ${JSON.stringify({ type: "connected", modelId, resumedFrom: lastEventId || undefined })}\n\n`);
 
   let cleaned = false;
   const cleanup = () => {
@@ -224,7 +237,8 @@ function openTrainingStream(req: Request, res: Response, modelId: number): void 
     modelId,
     (event: GenerationEvent) => {
       if (cleaned) return;
-      res.write(`data: ${JSON.stringify(event)}\n\n`);
+      eventSeq += 1;
+      res.write(`id: ${eventSeq}\ndata: ${JSON.stringify(event)}\n\n`);
       if (event.type === "complete" || event.type === "error") {
         clearInterval(heartbeat);
         unsubscribe();
