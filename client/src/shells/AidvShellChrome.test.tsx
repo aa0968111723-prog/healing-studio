@@ -20,10 +20,15 @@ vi.mock("@/providers/SpineProvider", () => ({
 vi.mock("@/contexts/ThemeContext", () => ({
   useTheme: () => ({ setAppearanceMode: h.setAppearanceMode, appearanceMode: "system", theme: "light", switchable: true }),
 }));
+const h2 = vi.hoisted(() => ({ compileMutate: vi.fn() }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    creativeProject: { list: { useQuery: () => ({ data: [{ id: 1, title: "雪山專案" }, { id: 2, title: "森林專案" }] }) } },
+    creativeProject: { list: { useQuery: () => ({ data: [{ id: 1, title: "雪山專案", status: "production" }, { id: 2, title: "森林專案", status: "concept" }] }) } },
     credits: { myBalance: { useQuery: () => ({ data: { remaining: 500 } }) } },
+    contextPacket: {
+      getLatest: { useQuery: () => ({ data: { tokenEstimate: 1024, expiresAt: new Date(Date.now() + 20 * 60_000).toISOString() } }) },
+      compileProject: { useMutation: () => ({ mutate: h2.compileMutate }) },
+    },
   },
 }));
 
@@ -85,6 +90,13 @@ describe("AidvShellChrome（U-4 / AIDV-94）", () => {
     fireEvent.click(screen.getByText("雪山專案")); // collapsed pill → 展開下拉
     fireEvent.click(screen.getByText("森林專案")); // 選另一個專案
     expect(h.setActive).toHaveBeenCalledWith(2);
+  });
+
+  it("ProjectSwitcher：切換專案同時觸發 contextPacket.compileProject（AIDV-134）", () => {
+    render(<AidvShellChrome />);
+    fireEvent.click(screen.getByText("雪山專案"));
+    fireEvent.click(screen.getByText("森林專案"));
+    expect(h2.compileMutate).toHaveBeenCalledWith({ projectId: 2, mode: "director" });
   });
 
   // AIDV-136：⌘K 代理動作群組（排程生成所有就緒鏡/重建 Context Packet/研究 i2v 一致性/自訂工作流）
