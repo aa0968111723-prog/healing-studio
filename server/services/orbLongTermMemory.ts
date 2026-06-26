@@ -93,6 +93,14 @@ export interface MemorySearchResult {
   associations?: LongTermMemory[];
 }
 
+function computeTextRelevance(content: string, query: string): number {
+  const lowerContent = content.toLowerCase();
+  const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 1);
+  if (terms.length === 0) return 0.5;
+  const matched = terms.filter(t => lowerContent.includes(t)).length;
+  return matched / terms.length;
+}
+
 export class OrbLongTermMemory {
   /**
    * Create a new long-term memory
@@ -212,12 +220,23 @@ export class OrbLongTermMemory {
 
       const memories = await query;
 
-      // Map to results with relevance scores
-      const results: MemorySearchResult[] = memories.map((mem) => ({
-        memory: this.mapDbToMemory(mem),
-        relevanceScore: parseFloat(mem.importanceScore ?? "0.5"),
-        associations: input.includeAssociations ? [] : undefined,
-      }));
+      // Map to results with relevance scores — blend keyword relevance + importance
+      const results: MemorySearchResult[] = memories.map((mem) => {
+        const importanceScore = parseFloat(mem.importanceScore ?? "0.5");
+        const relevanceScore = input.query
+          ? computeTextRelevance(mem.content, input.query) * 0.6 + importanceScore * 0.4
+          : importanceScore;
+        return {
+          memory: this.mapDbToMemory(mem),
+          relevanceScore,
+          associations: input.includeAssociations ? [] : undefined,
+        };
+      });
+
+      // Re-sort by computed relevance when query provided (DB ordered by importanceScore)
+      if (input.query) {
+        results.sort((a, b) => b.relevanceScore - a.relevanceScore);
+      }
 
       // Fetch associations if requested
       if (input.includeAssociations && results.length > 0) {
