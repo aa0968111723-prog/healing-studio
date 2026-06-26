@@ -104,6 +104,9 @@ import {
   sceneCompositions,
   type SceneCompositionRow,
   type InsertSceneComposition,
+  videoProjects,
+  type VideoProject,
+  type InsertVideoProject,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { serverEnv } from "./_core/env.validated";
@@ -4758,4 +4761,43 @@ export async function exportUserData(userId: number): Promise<Record<string, unk
     loginHistory: loginRows,
     assets: assetRows,
   };
+}
+
+// ─── Video Projects (AIDV-252) ─────────────────────────────────────────────────
+
+export async function createVideoProject(data: InsertVideoProject): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(videoProjects).values(data);
+  return result[0].insertId;
+}
+
+export async function getVideoProject(id: number): Promise<VideoProject | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(videoProjects)
+    .where(eq(videoProjects.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getVideoProjectsByUser(userId: number): Promise<VideoProject[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(videoProjects)
+    .where(eq(videoProjects.userId, userId))
+    .orderBy(desc(videoProjects.updatedAt));
+}
+
+export async function updateVideoProject(
+  id: number,
+  data: Partial<InsertVideoProject>
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(videoProjects).set(data).where(eq(videoProjects.id, id));
 }

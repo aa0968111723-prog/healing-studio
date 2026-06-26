@@ -4456,31 +4456,19 @@ export const skillRegistry = mysqlTable(
   "skill_registry",
   {
     id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
-    /** Globally unique skill manifest id (e.g. "storyboard.breakdown"). */
     skillId: varchar("skillId", { length: 128 }).notNull(),
-    /** Pinned semver version at install time. */
     version: varchar("version", { length: 32 }).notNull(),
-    /** Display name from the manifest. */
     name: varchar("name", { length: 255 }).notNull(),
-    /** Trust tier: determines default permission ceiling. */
     trust: mysqlEnum("trust", ["official", "reviewed", "community"])
       .notNull()
       .default("community"),
-    /** Connector IDs explicitly approved by Admin. */
     grantedConnectors: json("grantedConnectors").$type<string[]>(),
-    /** Whether Admin has approved materials access (read/write creative data). */
     grantedMaterials: boolean("grantedMaterials").notNull().default(false),
-    /** Whether Admin has approved cross-project access. */
     grantedCrossProject: boolean("grantedCrossProject").notNull().default(false),
-    /** Active or disabled; disabled skills are rejected at dispatch time. */
     status: mysqlEnum("status", ["active", "disabled"]).notNull().default("active"),
-    /** userId who installed this skill; null for built-in official skills. */
     installedBy: int("installedBy"),
-    /** Manifest source URL or file path; null for official skills. */
     source: varchar("source", { length: 512 }),
-    /** SHA-256 of the canonical manifest JSON recorded at install/upgrade time. */
     manifestChecksum: varchar("manifestChecksum", { length: 64 }),
-    /** 1 when an upgrade detected permission escalation; Admin must re-approve before re-enabling. */
     needsReaudit: tinyint("needsReaudit").default(0).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -4494,3 +4482,26 @@ export const skillRegistry = mysqlTable(
 
 export type SkillRegistryEntry = typeof skillRegistry.$inferSelect;
 export type InsertSkillRegistryEntry = typeof skillRegistry.$inferInsert;
+
+// ─── Video Projects (AIDV-252) ────────────────────────────────────────────────
+
+export const videoProjects = mysqlTable(
+  "video_projects",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    creativeProjectId: int("creativeProjectId"),
+    title: varchar("title", { length: 255 }).notNull().default("未命名影片"),
+    aspectRatio: mysqlEnum("aspect_ratio", ["16:9", "9:16", "1:1"])
+      .notNull()
+      .default("16:9"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("vp_userId_idx").on(table.userId),
+  })
+);
+
+export type VideoProject = typeof videoProjects.$inferSelect;
+export type InsertVideoProject = typeof videoProjects.$inferInsert;

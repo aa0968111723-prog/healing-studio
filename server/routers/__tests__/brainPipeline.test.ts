@@ -302,6 +302,7 @@ describe("brainPipeline graph builder", () => {
       "agentCapability", // AIDV-323：代理能力動態登記/心跳/派工 — 純路由基礎設施，不直接觸發 AI provider
       "account", // AIDV-63：帳號刪除/資料匯出（GDPR），純 CRUD，不觸發 AI
       "workflow", // AIDV-43：使用者工作流步驟 CRUD — 純資料持久化，不觸發 AI
+      "videoProject", // AIDV-252：影片格式選擇 CRUD — 純資料持久化，不觸發 AI
     ]);
 
     const inGraph = new Set(

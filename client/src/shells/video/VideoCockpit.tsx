@@ -3,6 +3,7 @@
 // ----------------------------------------------------------------------------
 // 狀態場景：loading / error / empty（未選或空專案）/ success（DirectorConsole）。
 // W3-G：刪 columns/* 舊三欄＋ENABLE_DIRECTOR_CONSOLE 旗標（AIDV-52）。
+// AIDV-252：新建專案前先選格式（16:9 / 9:16 / 1:1）。
 // ============================================================================
 import { useState, type ReactNode } from "react";
 import { Wand2, Film, FolderOpen, AlertTriangle, RefreshCw, Loader2 } from "lucide-react";
@@ -16,10 +17,12 @@ import {
 } from "@/contexts/PageAgentContext";
 import { GuidedJourney } from "./GuidedJourney";
 import { DirectorConsole } from "./DirectorConsole";
+import { VideoProjectCreateDialog } from "@/components/VideoProjectCreateDialog";
 
 export function VideoCockpit() {
   const spine = useProjectSpine();
   const [guided, setGuided] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const p = spine.project;
 
   useRegisterPageAgent({
@@ -128,13 +131,20 @@ export function VideoCockpit() {
             <Button onClick={() => setGuided(true)}>
               <Wand2 className="size-4" /> 開始引導式創作
             </Button>
-            <Button variant="outline" onClick={() => spine.createProject("未命名創作", "影片")}>
+            <Button variant="outline" onClick={() => setCreateDialogOpen(true)}>
               <FolderOpen className="size-4" /> 建立空白專案
             </Button>
           </div>
         </CardContent>
       </Card>
       <GuidedJourney open={guided} onClose={() => setGuided(false)} />
+      <VideoProjectCreateDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onCreated={(_videoProjectId, _aspectRatio) => {
+          spine.createProject("未命名創作", "影片");
+        }}
+      />
     </CockpitShell>
   );
 }
