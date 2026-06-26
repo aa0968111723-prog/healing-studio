@@ -1,15 +1,11 @@
 /**
- * worldbuildingRouter.test.ts — AIDV-187 P1 止血驗收
+ * worldbuildingRouter.test.ts — 世界觀時間軸 / 構圖端點驗收
  *
- * 驗收（AIDV-187 工作表）：
- *   1. ENABLE_WORLDBUILDING_PERSIST 未設（預設 OFF）
- *      → 8 個持久化端點全部拋 METHOD_NOT_SUPPORTED
- *   2. ENABLE_WORLDBUILDING_PERSIST=1（flag ON）
- *      → 端點不再拋（通過 guard），各自執行至末尾
+ * HEAD 版本已實作 DB 持久化（無 ENABLE_WORLDBUILDING_PERSIST flag guard）。
+ * 驗收 8 個端點在 DB mock 下正確運作。
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { TRPCError } from "@trpc/server";
+import { describe, it, expect, vi } from "vitest";
 
 // ─── db mock ─────────────────────────────────────────────────────────────────
 
@@ -20,6 +16,61 @@ vi.mock("../../db", () => ({
   updateWorldbuildingFramework: vi.fn(async () => {}),
   deleteWorldbuildingFramework: vi.fn(async () => {}),
   getFineTunedModelsByUser: vi.fn(async () => []),
+  listTimelineFramesByStoryboard: vi.fn(async () => [
+    {
+      id: 1,
+      storyboardId: 1,
+      sceneId: "scene-1",
+      userId: 99,
+      timeOffsetSec: "0",
+      imageUrl: "https://example.com/frame.png",
+      frameType: "keyframe",
+      title: null,
+      description: null,
+      tags: null,
+      consistencyCheckJson: null,
+      uploadedAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ]),
+  createTimelineFrame: vi.fn(async () => 1),
+  getTimelineFrame: vi.fn(async () => ({
+    id: 1,
+    storyboardId: 1,
+    sceneId: "scene-1",
+    userId: 99,
+    timeOffsetSec: "0",
+    imageUrl: "https://example.com/frame.png",
+    frameType: "keyframe",
+    title: null,
+    description: null,
+    tags: null,
+    consistencyCheckJson: null,
+    uploadedAt: new Date(),
+    updatedAt: new Date(),
+  })),
+  deleteTimelineFrame: vi.fn(async () => {}),
+  updateTimelineFrameConsistency: vi.fn(async () => {}),
+  listSceneCompositions: vi.fn(async () => [
+    {
+      id: 1,
+      worldId: 1,
+      storyboardId: null,
+      userId: 99,
+      name: "test-composition",
+      description: null,
+      canvasWidth: 1920,
+      canvasHeight: 1080,
+      backgroundSceneId: null,
+      backgroundImageUrl: null,
+      elementsJson: [],
+      aiSuggestionsJson: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ]),
+  createSceneComposition: vi.fn(async () => 1),
+  deleteSceneComposition: vi.fn(async () => {}),
 }));
 
 import { worldbuildingRouter } from "../worldbuilding";
@@ -60,100 +111,31 @@ const validCompositionSuggestionInput = {
   elements: [],
 };
 
-// ─── Flag OFF (預設) ─────────────────────────────────────────────────────────
+// ─── Tests ───────────────────────────────────────────────────────────────────
 
-describe("ENABLE_WORLDBUILDING_PERSIST=OFF（預設）→ 8 端點全回 METHOD_NOT_SUPPORTED", () => {
-  beforeEach(() => {
-    delete process.env.ENABLE_WORLDBUILDING_PERSIST;
-  });
-
-  afterEach(() => {
-    delete process.env.ENABLE_WORLDBUILDING_PERSIST;
-  });
-
-  it("listTimelineFrames → METHOD_NOT_SUPPORTED", async () => {
-    const c = caller();
-    await expect(c.listTimelineFrames({ storyboardId: 1 })).rejects.toMatchObject({
-      code: "METHOD_NOT_SUPPORTED",
-    });
-  });
-
-  it("uploadTimelineFrame → METHOD_NOT_SUPPORTED", async () => {
-    const c = caller();
-    await expect(c.uploadTimelineFrame(validTimelineFrameInput)).rejects.toMatchObject({
-      code: "METHOD_NOT_SUPPORTED",
-    });
-  });
-
-  it("deleteTimelineFrame → METHOD_NOT_SUPPORTED", async () => {
-    const c = caller();
-    await expect(c.deleteTimelineFrame(1)).rejects.toMatchObject({
-      code: "METHOD_NOT_SUPPORTED",
-    });
-  });
-
-  it("checkConsistency → METHOD_NOT_SUPPORTED", async () => {
-    const c = caller();
-    await expect(c.checkConsistency(validConsistencyCheckInput)).rejects.toMatchObject({
-      code: "METHOD_NOT_SUPPORTED",
-    });
-  });
-
-  it("listCompositions → METHOD_NOT_SUPPORTED", async () => {
-    const c = caller();
-    await expect(c.listCompositions({ worldId: 1 })).rejects.toMatchObject({
-      code: "METHOD_NOT_SUPPORTED",
-    });
-  });
-
-  it("saveComposition → METHOD_NOT_SUPPORTED", async () => {
-    const c = caller();
-    await expect(c.saveComposition(validCompositionInput)).rejects.toMatchObject({
-      code: "METHOD_NOT_SUPPORTED",
-    });
-  });
-
-  it("deleteComposition → METHOD_NOT_SUPPORTED", async () => {
-    const c = caller();
-    await expect(c.deleteComposition(1)).rejects.toMatchObject({
-      code: "METHOD_NOT_SUPPORTED",
-    });
-  });
-
-  it("getCompositionSuggestions → METHOD_NOT_SUPPORTED", async () => {
-    const c = caller();
-    await expect(c.getCompositionSuggestions(validCompositionSuggestionInput)).rejects.toMatchObject({
-      code: "METHOD_NOT_SUPPORTED",
-    });
-  });
-
-  it("錯誤訊息含有 ENABLE_WORLDBUILDING_PERSIST 字串", async () => {
-    const c = caller();
-    let err: TRPCError | undefined;
-    try {
-      await c.listTimelineFrames({ storyboardId: 1 });
-    } catch (e: any) {
-      err = e;
-    }
-    expect(err?.message).toContain("ENABLE_WORLDBUILDING_PERSIST");
-  });
-});
-
-// ─── Flag ON → guard 通過，不拋錯 ────────────────────────────────────────────
-
-describe("ENABLE_WORLDBUILDING_PERSIST=1（flag ON）→ guard 通過", () => {
-  beforeEach(() => {
-    process.env.ENABLE_WORLDBUILDING_PERSIST = "1";
-  });
-
-  afterEach(() => {
-    delete process.env.ENABLE_WORLDBUILDING_PERSIST;
-  });
-
+describe("worldbuilding router — 時間軸 / 構圖 8 端點（DB 已實作）", () => {
   it("listTimelineFrames → 不拋，回傳陣列", async () => {
     const c = caller();
     const result = await c.listTimelineFrames({ storyboardId: 1 });
     expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("uploadTimelineFrame → 不拋，回傳 TimelineFrame", async () => {
+    const c = caller();
+    const result = await c.uploadTimelineFrame(validTimelineFrameInput);
+    expect(result).toMatchObject({ id: 1, storyboardId: 1, sceneId: "scene-1" });
+  });
+
+  it("deleteTimelineFrame → 不拋，回傳 frameId", async () => {
+    const c = caller();
+    const result = await c.deleteTimelineFrame(1);
+    expect(result).toBe(1);
+  });
+
+  it("checkConsistency → 不拋，回傳 ConsistencyCheckResult", async () => {
+    const c = caller();
+    const result = await c.checkConsistency(validConsistencyCheckInput);
+    expect(result).toMatchObject({ overallScore: expect.any(Number) });
   });
 
   it("listCompositions → 不拋，回傳陣列", async () => {
@@ -162,33 +144,22 @@ describe("ENABLE_WORLDBUILDING_PERSIST=1（flag ON）→ guard 通過", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it("uploadTimelineFrame → 不拋（stub 階段，回傳 undefined）", async () => {
+  it("saveComposition → 不拋，回傳 SceneComposition", async () => {
     const c = caller();
-    await expect(c.uploadTimelineFrame(validTimelineFrameInput)).resolves.toBeUndefined();
+    const result = await c.saveComposition(validCompositionInput);
+    expect(result).toMatchObject({ worldId: 1, name: "test-composition" });
   });
 
-  it("deleteTimelineFrame → 不拋（stub 階段，回傳 undefined）", async () => {
+  it("deleteComposition → 不拋，回傳 compositionId", async () => {
     const c = caller();
-    await expect(c.deleteTimelineFrame(1)).resolves.toBeUndefined();
+    const result = await c.deleteComposition(1);
+    expect(result).toBe(1);
   });
 
-  it("checkConsistency → 不拋（stub 階段，回傳 undefined）", async () => {
+  it("getCompositionSuggestions → 不拋，回傳建議陣列", async () => {
     const c = caller();
-    await expect(c.checkConsistency(validConsistencyCheckInput)).resolves.toBeUndefined();
-  });
-
-  it("saveComposition → 不拋（stub 階段，回傳 undefined）", async () => {
-    const c = caller();
-    await expect(c.saveComposition(validCompositionInput)).resolves.toBeUndefined();
-  });
-
-  it("deleteComposition → 不拋（stub 階段，回傳 undefined）", async () => {
-    const c = caller();
-    await expect(c.deleteComposition(1)).resolves.toBeUndefined();
-  });
-
-  it("getCompositionSuggestions → 不拋（stub 階段，回傳 undefined）", async () => {
-    const c = caller();
-    await expect(c.getCompositionSuggestions(validCompositionSuggestionInput)).resolves.toBeUndefined();
+    const result = await c.getCompositionSuggestions(validCompositionSuggestionInput);
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBeGreaterThan(0);
   });
 });

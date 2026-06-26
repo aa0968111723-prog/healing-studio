@@ -107,7 +107,7 @@ export const VoiceCompilerInputSchema = z.object({
   rateOverride: z.string().max(20).optional(),
   enableHesitation: z.boolean().optional(),
   customBreakpoints: z.array(z.string().max(200)).max(20).optional(),
-  resolvedCustomProfile: z.record(z.unknown()).optional(),
+  resolvedCustomProfile: z.record(z.string(), z.unknown()).optional(),
 });
 
 // ─── Shared validate helper ───────────────────────────────────────────────────
