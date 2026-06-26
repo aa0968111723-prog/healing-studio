@@ -13,9 +13,34 @@ import {
   type BrainContext,
 } from "../middleware/brainContext";
 import { checkTrpcRateLimit } from "./trpcRateLimit";
+import { logger } from "./logger";
+import { captureError } from "./errorTracking";
+
+const isProd = process.env.NODE_ENV === "production";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
+  // AIDV-329: mask INTERNAL_SERVER_ERROR details in production to prevent info disclosure.
+  // Raw DB messages (ECONNREFUSED host:port, stack traces, schema names) must never reach clients.
+  errorFormatter({ shape, error }) {
+    if (isProd && shape.data.code === "INTERNAL_SERVER_ERROR") {
+      logger.error("trpc_internal_error", {
+        path: shape.data.path,
+        message: error.message,
+        cause: error.cause instanceof Error ? error.cause.message : String(error.cause ?? ""),
+      });
+      captureError(error.cause ?? error, { path: shape.data.path });
+      return {
+        ...shape,
+        message: "Internal server error",
+        data: {
+          ...shape.data,
+          stack: undefined,
+        },
+      };
+    }
+    return shape;
+  },
 });
 
 export const router = t.router;
