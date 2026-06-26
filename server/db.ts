@@ -98,6 +98,12 @@ import {
   type UserWorkflow,
   type InsertUserWorkflow,
   loginHistory,
+  timelineFrames,
+  type TimelineFrameRow,
+  type InsertTimelineFrame,
+  sceneCompositions,
+  type SceneCompositionRow,
+  type InsertSceneComposition,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { serverEnv } from "./_core/env.validated";
@@ -2746,6 +2752,116 @@ export async function deleteWorldStoryboard(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(worldStoryboards).where(eq(worldStoryboards.id, id));
+}
+
+// ─── Timeline Frames (AIDV-433) ────────────────────────────────────────────
+
+export async function listTimelineFramesByStoryboard(
+  storyboardId: number,
+  userId: number
+): Promise<TimelineFrameRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(timelineFrames)
+    .where(
+      and(
+        eq(timelineFrames.storyboardId, storyboardId),
+        eq(timelineFrames.userId, userId)
+      )
+    )
+    .orderBy(asc(timelineFrames.timeOffsetSec));
+}
+
+export async function createTimelineFrame(
+  data: InsertTimelineFrame
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(timelineFrames).values(data);
+  return result[0].insertId;
+}
+
+export async function getTimelineFrame(
+  frameId: number
+): Promise<TimelineFrameRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(timelineFrames)
+    .where(eq(timelineFrames.id, frameId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function deleteTimelineFrame(
+  frameId: number,
+  userId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(timelineFrames)
+    .where(and(eq(timelineFrames.id, frameId), eq(timelineFrames.userId, userId)));
+}
+
+export async function updateTimelineFrameConsistency(
+  frameId: number,
+  result: Record<string, unknown>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(timelineFrames)
+    .set({ consistencyCheckJson: result, updatedAt: new Date() })
+    .where(eq(timelineFrames.id, frameId));
+}
+
+// ─── Scene Compositions (AIDV-433) ─────────────────────────────────────────
+
+export async function listSceneCompositions(
+  worldId: number,
+  userId: number
+): Promise<SceneCompositionRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(sceneCompositions)
+    .where(
+      and(
+        eq(sceneCompositions.worldId, worldId),
+        eq(sceneCompositions.userId, userId)
+      )
+    )
+    .orderBy(desc(sceneCompositions.updatedAt));
+}
+
+export async function createSceneComposition(
+  data: InsertSceneComposition
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(sceneCompositions).values(data);
+  return result[0].insertId;
+}
+
+export async function deleteSceneComposition(
+  compositionId: number,
+  userId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(sceneCompositions)
+    .where(
+      and(
+        eq(sceneCompositions.id, compositionId),
+        eq(sceneCompositions.userId, userId)
+      )
+    );
 }
 
 // ─── Creative Projects（創作專案）─────────────────────────────────────────

@@ -27,6 +27,7 @@ import {
   type ConsistencyCheckResult,
   type SceneComposition,
   type CompositionSuggestion,
+  type CompositionElement,
 } from "../../shared/worldbuilding-timeline";
 import { VOICE_MODEL_REGISTRY } from "../../shared/voiceModelRegistry";
 
@@ -614,12 +615,24 @@ export const worldbuildingRouter = router({
   listTimelineFrames: protectedProcedure
     .input(z.object({ storyboardId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
-      // TODO: 實作資料庫查詢
-      // const frames = await db.getTimelineFramesByStoryboard(input.storyboardId, ctx.user.id);
-      // return frames;
-
-      // 暫時返回空陣列
-      return [] as TimelineFrame[];
+      const rows = await db.listTimelineFramesByStoryboard(input.storyboardId, ctx.user.id);
+      return rows.map((row) => ({
+        id: row.id,
+        storyboardId: row.storyboardId,
+        sceneId: row.sceneId,
+        userId: row.userId,
+        timeOffsetSec: parseFloat(row.timeOffsetSec as string),
+        imageUrl: row.imageUrl,
+        frameType: row.frameType,
+        title: row.title ?? undefined,
+        description: row.description ?? undefined,
+        tags: (row.tags as string[] | null) ?? undefined,
+        consistencyCheck: row.consistencyCheckJson
+          ? (row.consistencyCheckJson as ConsistencyCheckResult)
+          : undefined,
+        uploadedAt: row.uploadedAt,
+        updatedAt: row.updatedAt,
+      })) as TimelineFrame[];
     }),
 
   /**
@@ -628,23 +641,33 @@ export const worldbuildingRouter = router({
   uploadTimelineFrame: protectedProcedure
     .input(timelineFrameInputSchema)
     .mutation(async ({ ctx, input }) => {
-      // TODO: 實作資料庫插入
-      // const frameId = await db.createTimelineFrame({
-      //   ...input,
-      //   userId: ctx.user.id,
-      // });
-      // const frame = await db.getTimelineFrame(frameId);
-      // return frame;
-
-      // 暫時返回模擬數據
-      const mockFrame: TimelineFrame = {
-        id: Date.now(),
-        ...input,
+      const frameId = await db.createTimelineFrame({
+        storyboardId: input.storyboardId,
+        sceneId: input.sceneId,
         userId: ctx.user.id,
-        uploadedAt: new Date(),
-        updatedAt: new Date(),
-      };
-      return mockFrame;
+        timeOffsetSec: input.timeOffsetSec.toString(),
+        imageUrl: input.imageUrl,
+        frameType: input.frameType,
+        title: input.title ?? null,
+        description: input.description ?? null,
+        tags: (input.tags as string[] | null) ?? null,
+      });
+      const row = await db.getTimelineFrame(frameId);
+      if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to fetch created frame" });
+      return {
+        id: row.id,
+        storyboardId: row.storyboardId,
+        sceneId: row.sceneId,
+        userId: row.userId,
+        timeOffsetSec: parseFloat(row.timeOffsetSec as string),
+        imageUrl: row.imageUrl,
+        frameType: row.frameType,
+        title: row.title ?? undefined,
+        description: row.description ?? undefined,
+        tags: (row.tags as string[] | null) ?? undefined,
+        uploadedAt: row.uploadedAt,
+        updatedAt: row.updatedAt,
+      } as TimelineFrame;
     }),
 
   /**
@@ -653,58 +676,28 @@ export const worldbuildingRouter = router({
   deleteTimelineFrame: protectedProcedure
     .input(z.number().int().positive())
     .mutation(async ({ ctx, input: frameId }) => {
-      // TODO: 實作資料庫刪除
-      // await db.deleteTimelineFrame(frameId, ctx.user.id);
+      await db.deleteTimelineFrame(frameId, ctx.user.id);
       return frameId;
     }),
 
   /**
-   * 執行一致性檢查
+   * 執行一致性檢查（Vision API Phase 2 待接入；Phase 1 回預設分析並存入 DB）
    */
   checkConsistency: protectedProcedure
     .input(consistencyCheckRequestSchema)
     .mutation(async ({ ctx, input }) => {
-      // TODO: 實作 Vision API 呼叫與一致性分析
-      // const frame = await db.getTimelineFrame(input.timelineFrameId);
-      // const storyboard = await db.getStoryboard(frame.storyboardId);
-      // const framework = await db.getWorldbuildingFramework(storyboard.worldId);
-
-      // 使用 Vision API 分析圖像
-      // const analysis = await visionAPI.analyze(frame.imageUrl, {
-      //   characters: framework.characters,
-      //   scenes: framework.scenes,
-      //   styleProfiles: framework.styleProfiles,
-      // });
-
-      // 暫時返回模擬數據
-      const mockResult: ConsistencyCheckResult = {
+      const result: ConsistencyCheckResult = {
         checkedAt: new Date(),
         overallScore: 85,
         characterConsistency: [
-          {
-            name: "主角外觀",
-            score: 90,
-            details: "角色外觀與設定基本一致，髮型、服裝符合設定",
-          },
-          {
-            name: "角色表情",
-            score: 80,
-            details: "表情符合場景氛圍，但細節可以更精緻",
-          },
+          { name: "主角外觀", score: 90, details: "角色外觀與設定基本一致，髮型、服裝符合設定" },
+          { name: "角色表情", score: 80, details: "表情符合場景氛圍，但細節可以更精緻" },
         ],
         sceneConsistency: [
-          {
-            name: "場景環境",
-            score: 85,
-            details: "場景布局合理，光線與氛圍符合設定",
-          },
+          { name: "場景環境", score: 85, details: "場景布局合理，光線與氛圍符合設定" },
         ],
         styleConsistency: [
-          {
-            name: "整體風格",
-            score: 85,
-            details: "色調、線條風格與設定一致",
-          },
+          { name: "整體風格", score: 85, details: "色調、線條風格與設定一致" },
         ],
         issues: [
           {
@@ -714,14 +707,13 @@ export const worldbuildingRouter = router({
             suggestedFix: "建議參考三視圖中的服裝細節進行微調",
           },
         ],
-        suggestions: [
-          "整體一致性良好，建議加強服裝細節的準確度",
-          "場景光線可以更加突出主角",
-        ],
+        suggestions: ["整體一致性良好，建議加強服裝細節的準確度", "場景光線可以更加突出主角"],
       };
-
-      // await db.updateTimelineFrameConsistency(input.timelineFrameId, mockResult);
-      return mockResult;
+      await db.updateTimelineFrameConsistency(
+        input.timelineFrameId,
+        result as unknown as Record<string, unknown>
+      );
+      return result;
     }),
 
   // ─── Multi-Character/Scene Composition ─────────────────────────────────
@@ -732,8 +724,25 @@ export const worldbuildingRouter = router({
   listCompositions: protectedProcedure
     .input(z.object({ worldId: z.number().int().positive() }))
     .query(async ({ ctx, input }) => {
-      // TODO: 實作資料庫查詢
-      return [] as SceneComposition[];
+      const rows = await db.listSceneCompositions(input.worldId, ctx.user.id);
+      return rows.map((row) => ({
+        id: row.id,
+        worldId: row.worldId,
+        storyboardId: row.storyboardId ?? undefined,
+        userId: row.userId,
+        name: row.name,
+        description: row.description ?? undefined,
+        canvasWidth: row.canvasWidth,
+        canvasHeight: row.canvasHeight,
+        backgroundSceneId: row.backgroundSceneId ?? undefined,
+        backgroundImageUrl: row.backgroundImageUrl ?? undefined,
+        elements: (row.elementsJson as CompositionElement[]) ?? [],
+        aiSuggestions: row.aiSuggestionsJson
+          ? (row.aiSuggestionsJson as CompositionSuggestion[])
+          : undefined,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })) as SceneComposition[];
     }),
 
   /**
@@ -742,15 +751,26 @@ export const worldbuildingRouter = router({
   saveComposition: protectedProcedure
     .input(sceneCompositionInputSchema)
     .mutation(async ({ ctx, input }) => {
-      // TODO: 實作資料庫插入或更新
-      const mockComposition: SceneComposition = {
-        id: Date.now(),
+      const compositionId = await db.createSceneComposition({
+        worldId: input.worldId,
+        storyboardId: input.storyboardId ?? null,
+        userId: ctx.user.id,
+        name: input.name,
+        description: input.description ?? null,
+        canvasWidth: input.canvasWidth,
+        canvasHeight: input.canvasHeight,
+        backgroundSceneId: input.backgroundSceneId ?? null,
+        backgroundImageUrl: input.backgroundImageUrl ?? null,
+        elementsJson: input.elements as Array<Record<string, unknown>>,
+      });
+      const now = new Date();
+      return {
+        id: compositionId,
         ...input,
         userId: ctx.user.id,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      return mockComposition;
+        createdAt: now,
+        updatedAt: now,
+      } as SceneComposition;
     }),
 
   /**
@@ -759,7 +779,7 @@ export const worldbuildingRouter = router({
   deleteComposition: protectedProcedure
     .input(z.number().int().positive())
     .mutation(async ({ ctx, input: compositionId }) => {
-      // TODO: 實作資料庫刪除
+      await db.deleteSceneComposition(compositionId, ctx.user.id);
       return compositionId;
     }),
 
