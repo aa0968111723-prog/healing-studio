@@ -2153,6 +2153,8 @@ ${segmentSummaries}
         mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
         firstFrameUrl: safeExternalUrlOptional, // For video with image dependency (i2v)
         sourceVideoUrl: safeExternalUrlOptional, // For v2v / enhance pipeline (來源影片)
+        /** prompt↔asset junction relation（重骰=variant/改寫=rewrite/延長=extended/其他=derived）*/
+        relation: z.enum(["derived", "variant", "rewrite", "extended"]).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -2275,6 +2277,8 @@ ${segmentSummaries}
           // from a partial set of inputs (voice's charCount, for instance,
           // is not part of params and would be silently dropped on refund).
           chargedPoints: estimate.totalPoints,
+          // AIDV-9: 座艙操作類型 → 供 runPostGenForJob 建 prompt↔asset 邊
+          ...(input.relation ? { relation: input.relation } : {}),
         } as any,
       });
 
