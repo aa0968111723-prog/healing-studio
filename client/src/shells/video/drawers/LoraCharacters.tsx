@@ -1,37 +1,52 @@
 // ============================================================================
-// shells/video/drawers/LoraCharacters.tsx — I-7 角色 LoRA 一致性（唯讀 Phase 1，AIDV-85）
+// shells/video/drawers/LoraCharacters.tsx — I-7 角色 LoRA 一致性（Phase 2，AIDV-85）
 // ----------------------------------------------------------------------------
-// 唯讀面板：把「本專案角色的 LoRA 狀態」＋「你訓練好的 LoRA 模型庫」攤開來看。
-//   • 角色有訓練好的 LoRA → 標「已就緒」（Phase 2 生成時自動套用）。
-//   • 角色未訓練 → 標「可訓練」提示（＝驗收的『無 LoRA 時提示可訓練』半部）。
-//   • 模型庫＝worldbuilding.linkableModels（fine_tuned_models status=ready/training）。
-// Phase 1 純唯讀、不改生成、無需旗標（資料來源：脊椎 project.characters ＋ 既有 query）。
-//   真正「生成時自動注入 loraUrl/loraScale」＝Phase 2（需擴座艙生成接縫合約端到端）。
+// Phase 2（生圖自動建議套用）：
+//   • 角色有 linkedModelId 且 model status=ready → 解析 trainedLoraUrl，
+//     顯示 LoRA URL、觸發詞、可調 scale（0–2），一鍵複製到剪貼板。
+//   • 角色無 LoRA → 「可訓練」提示（同 Phase 1）。
+//   • 模型庫 = worldbuilding.linkableModels（含 trainedLoraUrl）。
 // ============================================================================
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { trpc } from "@/lib/trpc";
 import { PanelError, PanelLoading } from "@/shells/_shared/PanelState";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
+import { Check, Copy, Link2 } from "lucide-react";
 
-/** 脊椎 Character.loraStatus（未訓練/排隊中/訓練中/已完成）→ 顯示。trained＝Phase 2 可自動套用。 */
-const LORA_STATUS: Record<string, { label: string; trained: boolean }> = {
-  "已完成": { label: "LoRA 已就緒", trained: true },
-  "訓練中": { label: "訓練中", trained: false },
-  "排隊中": { label: "排隊中", trained: false },
-  "未訓練": { label: "未訓練", trained: false },
-};
+function useCopy() {
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const copy = (text: string, key: string) => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(k => (k === key ? null : k)), 1800);
+    });
+  };
+  return { copiedKey, copy };
+}
+
+/** 每個有 LoRA 就緒角色的可調 scale — 本地 UI state，不影響後端。 */
+type ScaleMap = Record<string, number>;
 
 export function LoraCharactersBody() {
   const { project } = useProjectSpine();
   const characters = project?.characters ?? [];
   const models = trpc.worldbuilding.linkableModels.useQuery(undefined, { staleTime: 60_000 });
   const list = models.data ?? [];
+  const { copiedKey, copy } = useCopy();
+  const [scales, setScales] = useState<ScaleMap>({});
+
+  const getScale = (charId: string) => scales[charId] ?? 1.0;
+  const setScale = (charId: string, v: number) =>
+    setScales(prev => ({ ...prev, [charId]: v }));
 
   return (
     <div className="space-y-4 pt-4">
       {/* 本專案角色 × LoRA 狀態 */}
       <div>
-        <div className="mb-1.5 text-xs font-medium text-muted-foreground">本專案角色 · LoRA 狀態</div>
+        <div className="mb-1.5 text-xs font-medium text-muted-foreground">本專案角色 · LoRA 一致性</div>
         {characters.length === 0 ? (
           <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-6 text-center text-xs text-muted-foreground">
             尚未載入專案或此專案無角色。先在世界觀建立角色，這裡就會列出。
@@ -39,17 +54,101 @@ export function LoraCharactersBody() {
         ) : (
           <div className="space-y-2">
             {characters.map((c) => {
-              // 權威訊號＝linkedModelId（已連結訓練好的 LoRA）；loraStatus="已完成" 為輔。
-              const trained = c.linkedModelId != null || c.loraStatus === "已完成";
-              const label = trained ? "LoRA 已就緒" : (LORA_STATUS[c.loraStatus]?.label ?? c.loraStatus);
+              const linkedModel = c.linkedModelId != null
+                ? list.find(m => m.id === c.linkedModelId)
+                : null;
+              const isReady = linkedModel?.status === "ready" && !!linkedModel.trainedLoraUrl;
+              const scale = getScale(c.id);
+
               return (
-                <div key={c.id} className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-card/60 px-2.5 py-2">
-                  <span className="text-xs font-medium">{c.emoji} {c.name}</span>
-                  <Badge variant={trained ? "secondary" : "outline"} className="text-[9px]">{label}</Badge>
-                  {trained ? (
-                    <span className="ml-auto text-[10px] text-muted-foreground">Phase 2 將於生成時自動套用</span>
-                  ) : (
-                    <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-400">可訓練 LoRA（前往模型訓練中心）</span>
+                <div key={c.id} className="rounded-lg border bg-card/60 px-2.5 py-2 space-y-2">
+                  {/* header row */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-medium">{c.emoji} {c.name}</span>
+                    {isReady ? (
+                      <Badge variant="secondary" className="text-[9px]">LoRA 已就緒</Badge>
+                    ) : linkedModel?.status === "training" ? (
+                      <Badge variant="outline" className="text-[9px]">訓練中</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[9px] border-amber-400 text-amber-600">未訓練</Badge>
+                    )}
+                    {!isReady && !linkedModel && (
+                      <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-400">
+                        可訓練 LoRA（前往模型訓練中心）
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Phase 2: LoRA 詳情 + 操作（僅 ready 模型顯示） */}
+                  {isReady && linkedModel && (
+                    <div className="space-y-2 border-t pt-2">
+                      {/* LoRA URL row */}
+                      <div className="flex items-center gap-1.5">
+                        <Link2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="truncate font-mono text-[9px] text-muted-foreground max-w-[180px]">
+                          {linkedModel.trainedLoraUrl}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="ml-auto h-5 w-5 shrink-0"
+                          title="複製 LoRA URL"
+                          onClick={() => copy(linkedModel.trainedLoraUrl!, `url:${c.id}`)}
+                        >
+                          {copiedKey === `url:${c.id}`
+                            ? <Check className="h-3 w-3 text-emerald-500" />
+                            : <Copy className="h-3 w-3" />}
+                        </Button>
+                      </div>
+
+                      {/* 觸發詞 row */}
+                      {linkedModel.triggerWord && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] text-muted-foreground">觸發詞：</span>
+                          <span className="font-mono text-[9px]">{linkedModel.triggerWord}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="ml-auto h-5 w-5 shrink-0"
+                            title="複製觸發詞"
+                            onClick={() => copy(linkedModel.triggerWord!, `tw:${c.id}`)}
+                          >
+                            {copiedKey === `tw:${c.id}`
+                              ? <Check className="h-3 w-3 text-emerald-500" />
+                              : <Copy className="h-3 w-3" />}
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Scale 滑桿 */}
+                      <div className="flex items-center gap-2">
+                        <span className="w-16 shrink-0 text-[9px] text-muted-foreground">
+                          強度 {scale.toFixed(1)}
+                        </span>
+                        <Slider
+                          min={0}
+                          max={2}
+                          step={0.1}
+                          value={[scale]}
+                          onValueChange={([v]) => setScale(c.id, v!)}
+                          className="h-3"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-5 shrink-0 px-2 text-[9px]"
+                          title="複製生成參數（loraUrl + loraScale）"
+                          onClick={() =>
+                            copy(
+                              JSON.stringify({ lora_path: linkedModel.trainedLoraUrl, lora_scale: scale }),
+                              `params:${c.id}`,
+                            )
+                          }
+                        >
+                          {copiedKey === `params:${c.id}` ? "✓ 已複製" : "複製參數"}
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               );
@@ -79,17 +178,24 @@ export function LoraCharactersBody() {
                   {m.status === "ready" ? "可用" : m.status}
                 </Badge>
                 {m.triggerWord && <span className="font-mono text-[10px] text-muted-foreground">{m.triggerWord}</span>}
+                {m.status === "ready" && m.trainedLoraUrl && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-auto h-5 w-5"
+                    title="複製 LoRA URL"
+                    onClick={() => copy(m.trainedLoraUrl!, `lib:${m.id}`)}
+                  >
+                    {copiedKey === `lib:${m.id}`
+                      ? <Check className="h-3 w-3 text-emerald-500" />
+                      : <Copy className="h-3 w-3" />}
+                  </Button>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
-
-      <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
-        Phase 1（唯讀）：只顯示角色 LoRA 狀態與你的模型庫、無 LoRA 時提示可訓練。
-        <span className="font-medium">生成時自動套用 LoRA（loraUrl／loraScale 注入）＝Phase 2 後端待補</span>——
-        需擴座艙生成接縫合約端到端帶 lora 參數＋角色→loraUrl 解析（後端 fal lora 派工已就緒）。
-      </p>
     </div>
   );
 }
