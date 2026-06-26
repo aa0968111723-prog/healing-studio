@@ -14,7 +14,7 @@
  */
 
 import { z } from "zod";
-import { safeExternalUrlOptional } from "../utils/validateSafeUrl";
+import { safeMediaUrl, safeMediaUrlOptional } from "../lib/urlValidator";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { router, brainProcedure, aiChatProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -555,7 +555,7 @@ export const directorRouter = router({
         targetDurationSec: z.number().int().positive().max(7200).optional(),
         targetSegmentCount: z.number().int().min(1).max(50).optional(),
         worldFrameworkId: z.number().int().positive().optional(),
-        referenceMediaUrls: z.array(z.string().url()).max(8).optional(),
+        referenceMediaUrls: z.array(safeMediaUrl).max(8).optional(),
         personality: z
           .enum(["calm", "creative", "technical"])
           .default("creative"),
@@ -2752,8 +2752,8 @@ ${segmentSummaries}
         voiceText: z.string().optional(),
         params: z.record(z.string(), z.unknown()),
         mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
-        firstFrameUrl: safeExternalUrlOptional, // For video with image dependency (i2v)
-        sourceVideoUrl: safeExternalUrlOptional, // For v2v / enhance pipeline (來源影片)
+        firstFrameUrl: safeMediaUrlOptional, // For video with image dependency (i2v)
+        sourceVideoUrl: safeMediaUrlOptional, // For v2v / enhance pipeline (來源影片)
         /** prompt↔asset junction relation（重骰=variant/改寫=rewrite/延長=extended/其他=derived）*/
         relation: z.enum(["derived", "variant", "rewrite", "extended"]).optional(),
       })
