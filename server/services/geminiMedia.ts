@@ -10,6 +10,7 @@
  * 所有端點均透過 Google AI Studio / Gemini API Key
  */
 import { serverEnv } from "../_core/env.validated";
+import { assertSafeExternalUrl } from "../_core/ssrfGuard";
 import { safeApiCall } from "./modelClients";
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -428,6 +429,8 @@ export class GeminiMediaClient {
         instance.image = { gcsUri: params.imageUrl };
       } else {
         // DEF-11 修正：HTTP URL 需下載轉 base64（gcsUri 只接受 gs:// 不接受 https://）
+        // AIDV-322：下載前先過 SSRF 守衛，防止 imageUrl 指向私網 / IMDS
+        assertSafeExternalUrl(params.imageUrl);
         try {
           const imgRes = await fetch(params.imageUrl, {
             signal: AbortSignal.timeout(30_000),
