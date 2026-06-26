@@ -343,6 +343,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     id: "video-studio",
     label: "影片創作室",
     path: "/video-studio",
+    routeAliases: ["/video", "/video/director", "/video/cockpit"],
     group: "create",
     description: "影片生成與轉換",
     aliases: ["video", "影片", "動畫"],
