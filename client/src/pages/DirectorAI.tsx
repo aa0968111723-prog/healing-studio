@@ -68,6 +68,7 @@ import {
   Search,
   Package,
   Globe2,
+  RefreshCw,
 } from "lucide-react";
 import { GlassCard } from "@/components/ZenCoPilot";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
@@ -317,6 +318,8 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
   adjacentSegments,
   onGenerateCostar,
   isGeneratingCostar,
+  onRegenerate,
+  isRegenerating,
 }: {
   segment: ScriptSegment;
   personality: Personality;
@@ -327,6 +330,8 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
   adjacentSegments?: { prev?: ScriptSegment; next?: ScriptSegment };
   onGenerateCostar?: () => void;
   isGeneratingCostar?: boolean;
+  onRegenerate?: () => void;
+  isRegenerating?: boolean;
 }) {
   const [inputMessage, setInputMessage] = useState("");
   const [selectedAction, setSelectedAction] = useState<QuickAction | null>(
@@ -578,6 +583,17 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
               {STATUS_CONFIG[s].label}
             </button>
           ))}
+          {onRegenerate && (
+            <button
+              onClick={onRegenerate}
+              disabled={isRegenerating}
+              className="ml-1 flex items-center gap-1 text-2xs px-2 py-0.5 rounded-md border border-primary/30 text-primary hover:bg-primary/5 disabled:opacity-50 transition-all"
+              title="重生成此鏡 (AIDV-279)"
+            >
+              <RefreshCw className={cn("w-3 h-3", isRegenerating && "animate-spin")} />
+              {isRegenerating ? "生成中…" : "重生成"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -2938,6 +2954,49 @@ export default function DirectorAI() {
     onError: e => toast.error("規劃失敗：" + e.message),
   });
 
+  // AIDV-279: 分段重生成 — 單鏡重生成規劃
+  const regenerateSegMut = trpc.director.regenerateSegment.useMutation({
+    onSuccess: data => {
+      toast.success(
+        `分鏡 #${data.tasks[0]?.segmentIndex != null ? data.tasks[0].segmentIndex + 1 : "?"} 重生成已規劃 (${data.totalTasks} 任務, ${data.totalPoints} pts)`
+      );
+      const newTasks: DirectorGenTaskRow[] = data.tasks.map(t => ({
+        segmentId: t.segmentId,
+        segmentIndex: t.segmentIndex,
+        modality: t.modality as DirectorGenTaskRow["modality"],
+        modelId: t.modelId,
+        prompt: t.prompt,
+        voiceText: t.voiceText,
+        params: (t.params ?? {}) as Record<string, unknown>,
+        estimatedPoints: t.estimatedPoints,
+        dependsOn: t.dependsOn,
+        status: "pending" as const,
+      }));
+      // Merge into existing tasks (replace same segmentId+modality to avoid duplicates)
+      setGenerationTasks(prev => {
+        const filtered = prev.filter(
+          p => !newTasks.some(n => n.segmentId === p.segmentId && n.modality === p.modality)
+        );
+        return [...filtered, ...newTasks];
+      });
+      // Fire independent tasks immediately with relation=variant (this is a re-gen)
+      for (const t of newTasks.filter(t => !t.dependsOn)) {
+        executeTaskMut.mutate({
+          segmentId: t.segmentId,
+          segmentIndex: t.segmentIndex,
+          modality: t.modality,
+          modelId: t.modelId,
+          prompt: t.prompt,
+          voiceText: t.voiceText,
+          params: t.params,
+          mode: batchGenerationOptions.mode,
+          relation: "variant",
+        });
+      }
+    },
+    onError: e => toast.error("重生成規劃失敗：" + e.message),
+  });
+
   const executeTaskMut = trpc.director.executeGenerationTask.useMutation({
     onSuccess: data => {
       setGenerationTasks(prev =>
@@ -3798,6 +3857,24 @@ export default function DirectorAI() {
       });
     },
     [importedSegments, personality, generateCostarMut]
+  );
+
+  // AIDV-279: 分段重生成 — 用當前 batchGenerationOptions 重生成指定分鏡
+  const handleRegenerateSegment = useCallback(
+    (segmentId: string) => {
+      const seg = importedSegments.find(s => s.id === segmentId);
+      if (!seg) return;
+      regenerateSegMut.mutate({
+        segment: {
+          id: seg.id,
+          index: seg.index,
+          storyboard: seg.storyboard,
+          costar: seg.costar,
+        },
+        generationOptions: batchGenerationOptions,
+      });
+    },
+    [importedSegments, batchGenerationOptions, regenerateSegMut]
   );
 
   const handleBatchCostar = useCallback(() => {
@@ -5200,6 +5277,12 @@ export default function DirectorAI() {
                           )
                         }
                         isGeneratingCostar={generateCostarMut.isPending}
+                        onRegenerate={() =>
+                          handleRegenerateSegment(
+                            importedSegments[selectedSegmentIdx].id
+                          )
+                        }
+                        isRegenerating={regenerateSegMut.isPending}
                       />
                     </GlassCard>
                   ) : (

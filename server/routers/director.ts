@@ -2137,6 +2137,325 @@ ${segmentSummaries}
     }),
 
   /**
+   * AIDV-279: Plan generation tasks for a single segment (segment-level regeneration)
+   * 分段重生成規劃 — 等同 autoGenerateFromSegments 但只處理一個分鏡，
+   * 讓前端可以在任意鏡頭上觸發「重生成此鏡」而不影響其他鏡頭。
+   */
+  regenerateSegment: brainProcedure
+    .input(
+      z.object({
+        segment: z.object({
+          id: z.string(),
+          index: z.number(),
+          storyboard: z.object({
+            sceneHeading: z.string(),
+            visualDescription: z.string(),
+            dialogue: z.string(),
+            soundDesign: z.string(),
+            cameraDirection: z.string(),
+            duration: z.string(),
+            mood: z.string(),
+          }),
+          costar: z
+            .object({
+              context: z.string(),
+              situation: z.string(),
+              task: z.string(),
+              action: z.string(),
+              result: z.string(),
+              visualPrompt: z.string(),
+              audioScript: z.string(),
+              musicVibe: z.string(),
+            })
+            .optional(),
+        }),
+        generationOptions: z.object({
+          modalities: z
+            .array(z.enum(["image", "video", "audio", "voice", "sfx"]))
+            .min(1),
+          imageSettings: z
+            .object({
+              aspectRatio: z.string().optional(),
+              negativePrompt: z.string().optional(),
+              modelId: z.string().optional(),
+            })
+            .optional(),
+          videoSettings: z
+            .object({
+              modelId: z.string().optional(),
+              useImageAsFirstFrame: z.boolean().optional(),
+            })
+            .optional(),
+          audioSettings: z
+            .object({
+              modelId: z.string().optional(),
+              isInstrumental: z.boolean().optional(),
+            })
+            .optional(),
+          voiceSettings: z
+            .object({
+              modelId: z.string().optional(),
+              voiceSpeed: z.number().optional(),
+              voiceStability: z.number().optional(),
+              cloneVoiceId: z.string().optional(),
+              cloneEmbeddingUrl: z.string().url().optional(),
+            })
+            .optional(),
+          mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
+        }),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Delegate to autoGenerateFromSegments logic with a single-element array
+      // by reusing the same brain procedure context
+      const { segment, generationOptions } = input;
+      const segments = [segment];
+
+      const {
+        resolveFalEnginesFromRow,
+      } = await import("../services/falDispatcher");
+      const { estimatePoints } = await import("../services/modelPricing");
+      const { isDemoMode } = await import("../_core/googleAuth");
+      const { normalizeEngineModelId } = await import(
+        "../../shared/engineModelIds"
+      );
+      const { getDb } = await import("../db");
+      const { userAiBrain } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const userId = ctx.user.id;
+
+      let brainRow: Record<string, unknown> | null = null;
+      try {
+        const database = await getDb();
+        if (database) {
+          const rows = await database
+            .select()
+            .from(userAiBrain)
+            .where(eq(userAiBrain.userId, userId))
+            .limit(1);
+          brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
+        }
+      } catch {
+        /* use defaults */
+      }
+      const falEngines = resolveFalEnginesFromRow(brainRow);
+
+      type GenTask = {
+        segmentId: string;
+        segmentIndex: number;
+        modality: "image" | "video" | "audio" | "voice" | "sfx";
+        modelId: string;
+        prompt: string;
+        voiceText?: string;
+        params: Record<string, unknown>;
+        estimatedPoints: number;
+        dependsOn?: { segmentId: string; modality: string };
+      };
+
+      const generationTasks: GenTask[] = [];
+
+      for (const seg of segments) {
+        const visualPrompt = seg.costar?.visualPrompt ||
+          seg.storyboard.visualDescription;
+        const audioScript = seg.costar?.audioScript ||
+          seg.storyboard.dialogue;
+        const soundDesign = seg.storyboard.soundDesign ?? "";
+        const musicVibe = seg.costar?.musicVibe ||
+          seg.storyboard.soundDesign;
+
+        const durationStr = seg.storyboard.duration;
+        const minMatch = durationStr.match(/(\d+)\s*分/);
+        const secMatch = durationStr.match(/(\d+)\s*秒/);
+        let durationSec = 0;
+        if (minMatch) durationSec += parseInt(minMatch[1], 10) * 60;
+        if (secMatch) durationSec += parseInt(secMatch[1], 10);
+        if (durationSec === 0) durationSec = 5;
+
+        for (const modality of generationOptions.modalities) {
+          if (modality === "image") {
+            const modelId =
+              generationOptions.imageSettings?.modelId
+                ? normalizeEngineModelId(generationOptions.imageSettings.modelId)
+                : falEngines.textToImage;
+            const estimate = estimatePoints(modelId, {});
+            generationTasks.push({
+              segmentId: seg.id,
+              segmentIndex: seg.index,
+              modality: "image",
+              modelId,
+              prompt: visualPrompt,
+              params: {
+                aspect_ratio: generationOptions.imageSettings?.aspectRatio || "16:9",
+                negative_prompt: generationOptions.imageSettings?.negativePrompt || "",
+              },
+              estimatedPoints: estimate.totalPoints,
+            });
+          } else if (modality === "video") {
+            const useImageFirst =
+              generationOptions.videoSettings?.useImageAsFirstFrame ?? false;
+            const modelId =
+              generationOptions.videoSettings?.modelId
+                ? normalizeEngineModelId(generationOptions.videoSettings.modelId)
+                : useImageFirst
+                  ? falEngines.imageToVideo
+                  : falEngines.textToVideo;
+            const estimate = estimatePoints(modelId, { durationSec });
+            const task: GenTask = {
+              segmentId: seg.id,
+              segmentIndex: seg.index,
+              modality: "video",
+              modelId,
+              prompt: visualPrompt,
+              params: { duration: String(durationSec) },
+              estimatedPoints: estimate.totalPoints,
+            };
+            if (useImageFirst) {
+              task.dependsOn = { segmentId: seg.id, modality: "image" };
+            }
+            generationTasks.push(task);
+          } else if (modality === "audio") {
+            const modelId =
+              generationOptions.audioSettings?.modelId
+                ? normalizeEngineModelId(generationOptions.audioSettings.modelId)
+                : falEngines.textToAudio;
+            const estimate = estimatePoints(modelId, { durationSec });
+            const isInstrumental = generationOptions.audioSettings?.isInstrumental ?? true;
+            const audioPrompt = isInstrumental
+              ? `${musicVibe}, instrumental, no vocals`
+              : musicVibe;
+            const isSonautoModel =
+              modelId === "sonauto/v2/text-to-music" ||
+              modelId === "fal-ai/sonauto";
+            const audioDurationParams: Record<string, unknown> = isSonautoModel
+              ? { output_format: "mp3", num_songs: 1 }
+              : modelId.includes("stable-audio")
+                ? { seconds_total: durationSec }
+                : { duration: durationSec };
+            generationTasks.push({
+              segmentId: seg.id,
+              segmentIndex: seg.index,
+              modality: "audio",
+              modelId,
+              prompt: audioPrompt,
+              params: audioDurationParams,
+              estimatedPoints: estimate.totalPoints,
+            });
+          } else if (modality === "voice") {
+            const modelId =
+              generationOptions.voiceSettings?.modelId
+                ? normalizeEngineModelId(generationOptions.voiceSettings.modelId)
+                : falEngines.textToSpeech;
+            const charCount = audioScript.length;
+            const estimate = estimatePoints(modelId, { charCount });
+            const voiceStability =
+              generationOptions.voiceSettings?.voiceStability ?? 0.5;
+            const voiceParams: Record<string, unknown> = {
+              text: audioScript,
+              speed: generationOptions.voiceSettings?.voiceSpeed ?? 1.0,
+              voice_settings: { stability: voiceStability },
+            };
+            if (generationOptions.voiceSettings?.cloneVoiceId) {
+              voiceParams.voice_id = generationOptions.voiceSettings.cloneVoiceId;
+            }
+            if (generationOptions.voiceSettings?.cloneEmbeddingUrl) {
+              voiceParams.speaker_voice_embedding_file_url =
+                generationOptions.voiceSettings.cloneEmbeddingUrl;
+            }
+            generationTasks.push({
+              segmentId: seg.id,
+              segmentIndex: seg.index,
+              modality: "voice",
+              modelId,
+              prompt: audioScript,
+              voiceText: audioScript,
+              params: voiceParams,
+              estimatedPoints: estimate.totalPoints,
+            });
+          } else if (modality === "sfx") {
+            if (!soundDesign.trim()) continue;
+            const brainAudioEngine = ctx.brain.generation.audioEngine.engine;
+            const sfxCapable = new Set([
+              "fal-ai/stable-audio",
+              "fal-ai/mmaudio-v2",
+              "fal-ai/audioldm2",
+              "fal-ai/elevenlabs/sound-effects/v2",
+              "fal-ai/elevenlabs/sound-effects",
+            ]);
+            const requiresElevenLabsKey =
+              brainAudioEngine === "fal-ai/elevenlabs/sound-effects/v2" ||
+              brainAudioEngine === "fal-ai/elevenlabs/sound-effects";
+            const elevenLabsKeyMissing =
+              requiresElevenLabsKey && !process.env.ELEVENLABS_API_KEY;
+            const modelId =
+              sfxCapable.has(brainAudioEngine) && !elevenLabsKeyMissing
+                ? brainAudioEngine
+                : "fal-ai/stable-audio";
+            const isElevenLabs =
+              modelId === "fal-ai/elevenlabs/sound-effects/v2" ||
+              modelId === "fal-ai/elevenlabs/sound-effects";
+            const sfxDuration = Math.min(durationSec, isElevenLabs ? 22 : 30);
+            const estimate = estimatePoints(modelId, { durationSec: sfxDuration });
+            const sfxParams: Record<string, unknown> = isElevenLabs
+              ? { duration_seconds: sfxDuration, prompt_influence: 0.3 }
+              : modelId === "fal-ai/stable-audio"
+                ? { seconds_total: sfxDuration }
+                : { duration: sfxDuration };
+            generationTasks.push({
+              segmentId: seg.id,
+              segmentIndex: seg.index,
+              modality: "sfx",
+              modelId,
+              prompt: soundDesign,
+              params: sfxParams,
+              estimatedPoints: estimate.totalPoints,
+            });
+          }
+        }
+      }
+
+      const totalPoints = generationTasks.reduce(
+        (sum, t) => sum + t.estimatedPoints,
+        0
+      );
+
+      if (!isDemoMode()) {
+        const database = await getDb();
+        if (database) {
+          const { users } = await import("../../drizzle/schema");
+          const userRows = await database
+            .select()
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
+          const user = userRows[0];
+          if (!user || (user.remainingGenerations ?? 0) < totalPoints) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: `積分不足。需要 ${totalPoints} pts，目前 ${user?.remainingGenerations ?? 0} pts`,
+            });
+          }
+        }
+      }
+
+      return {
+        tasks: generationTasks.map(t => ({
+          segmentId: t.segmentId,
+          segmentIndex: t.segmentIndex,
+          modality: t.modality,
+          modelId: t.modelId,
+          prompt: t.prompt,
+          voiceText: t.voiceText,
+          params: t.params,
+          estimatedPoints: t.estimatedPoints,
+          dependsOn: t.dependsOn,
+        })),
+        totalPoints,
+        totalTasks: generationTasks.length,
+      };
+    }),
+
+  /**
    * Execute a single generation task from the auto-generation pipeline
    * 執行單個自動生成任務
    */
