@@ -467,9 +467,9 @@ export const directorRouter = router({
           preferredFormat: z
             .enum(["co-star", "sslcm", "selcm", "free"])
             .optional(),
-          customSystemPrompt: z.string().optional(),
+          customSystemPrompt: z.string().max(20_000).optional(),
           preferencesJson: z.record(z.string(), z.unknown()).optional(),
-          onboardingSteps: z.array(z.string()).optional(),
+          onboardingSteps: z.array(z.string().max(200)).max(100).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
