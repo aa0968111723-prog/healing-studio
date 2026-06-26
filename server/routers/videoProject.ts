@@ -17,11 +17,13 @@ import { sanitizePlainText } from "../utils/sanitize";
 
 const aspectRatioSchema = z.enum(["16:9", "9:16", "1:1"]);
 
-// AIDV-260: 影片輸出規格 Zod schema
+// AIDV-260/271: 影片輸出規格 Zod schema
 const outputSpecSchema = z.object({
   resolution: z.enum(["720p", "1080p", "4K"]).default("1080p"),
   fps: z.union([z.literal(24), z.literal(30), z.literal(60)]).default(30),
   codec: z.enum(["h264", "h265", "vp9"]).default("h264"),
+  /** AIDV-271: 匯出格式；gif 後端限制 ≤15s / ≤720px（export chain 步驟執行）。 */
+  format: z.enum(["mp4", "webm", "gif"]).default("mp4"),
 });
 
 // AIDV-338: 優先等級 Zod schema
