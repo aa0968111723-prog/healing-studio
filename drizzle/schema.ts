@@ -3610,6 +3610,8 @@ export const creativeProjects = mysqlTable(
     metadata: json("metadata").$type<Record<string, unknown>>(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    /** AIDV-316 樂觀鎖：多代理並行更新時 WHERE id=? AND version=? 確保唯一寫入者，衝突回傳 409。 */
+    version: int("version").notNull().default(0),
   },
   table => ({
     userIdIdx: index("cp_userId_idx").on(table.userId),

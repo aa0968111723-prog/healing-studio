@@ -45,6 +45,9 @@ const createInputSchema = z.object({
 const updateInputSchema = z.object({
   id: z.number().int().positive(),
   patch: createInputSchema.partial(),
+  /** AIDV-316 樂觀鎖：攜帶呼叫方讀到的 version，後端做原子 WHERE id=? AND version=?；
+   *  version 不符時回傳 CONFLICT(409)；省略時退化為無版本檢查（向下相容）。 */
+  expectedVersion: z.number().int().nonnegative().optional(),
 });
 
 function rowToData(row: CreativeProject) {
@@ -66,6 +69,7 @@ function rowToData(row: CreativeProject) {
         : undefined,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    version: row.version,
   };
 }
 
@@ -213,27 +217,38 @@ export const creativeProjectRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
       const p = input.patch;
-      await db.updateCreativeProject(input.id, {
-        ...(p.title !== undefined ? { title: p.title } : {}),
-        ...(p.description !== undefined ? { description: p.description } : {}),
-        ...(p.directorSessionId !== undefined
-          ? { directorSessionId: p.directorSessionId }
-          : {}),
-        ...(p.worldFrameworkId !== undefined
-          ? { worldFrameworkId: p.worldFrameworkId }
-          : {}),
-        ...(p.worldStoryboardId !== undefined
-          ? { worldStoryboardId: p.worldStoryboardId }
-          : {}),
-        ...(p.worldviewId !== undefined ? { worldviewId: p.worldviewId } : {}),
-        ...(p.scriptId !== undefined ? { scriptId: p.scriptId } : {}),
-        ...(p.status !== undefined ? { status: p.status } : {}),
-        ...(p.coverImageUrl !== undefined
-          ? { coverImageUrl: p.coverImageUrl }
-          : {}),
-        ...(p.tags !== undefined ? { tags: p.tags } : {}),
-        ...(p.metadata !== undefined ? { metadata: p.metadata } : {}),
-      });
+      const { updated } = await db.updateCreativeProject(
+        input.id,
+        {
+          ...(p.title !== undefined ? { title: p.title } : {}),
+          ...(p.description !== undefined ? { description: p.description } : {}),
+          ...(p.directorSessionId !== undefined
+            ? { directorSessionId: p.directorSessionId }
+            : {}),
+          ...(p.worldFrameworkId !== undefined
+            ? { worldFrameworkId: p.worldFrameworkId }
+            : {}),
+          ...(p.worldStoryboardId !== undefined
+            ? { worldStoryboardId: p.worldStoryboardId }
+            : {}),
+          ...(p.worldviewId !== undefined ? { worldviewId: p.worldviewId } : {}),
+          ...(p.scriptId !== undefined ? { scriptId: p.scriptId } : {}),
+          ...(p.status !== undefined ? { status: p.status } : {}),
+          ...(p.coverImageUrl !== undefined
+            ? { coverImageUrl: p.coverImageUrl }
+            : {}),
+          ...(p.tags !== undefined ? { tags: p.tags } : {}),
+          ...(p.metadata !== undefined ? { metadata: p.metadata } : {}),
+        },
+        { expectedVersion: input.expectedVersion }
+      );
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "版本衝突：專案已被其他代理更新，請重新載入後重試（optimistic lock AIDV-316）",
+        });
+      }
       recordAuditEvent({
         actorUserId: ctx.user.id,
         actorRole: ctx.user.role,

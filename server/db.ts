@@ -2975,14 +2975,19 @@ export async function getCreativeProjectsByUserPaginated(
 
 export async function updateCreativeProject(
   id: number,
-  data: Partial<InsertCreativeProject>
-) {
+  data: Partial<InsertCreativeProject>,
+  opts?: { expectedVersion?: number }
+): Promise<{ updated: boolean }> {
   const db = await getDb();
-  if (!db) return;
-  await db
-    .update(creativeProjects)
-    .set(data)
-    .where(eq(creativeProjects.id, id));
+  if (!db) return { updated: false };
+  const setData = { ...data, version: sql`\`version\` + 1` };
+  const whereClause =
+    opts?.expectedVersion !== undefined
+      ? and(eq(creativeProjects.id, id), eq(creativeProjects.version, opts.expectedVersion))
+      : eq(creativeProjects.id, id);
+  const result = await db.update(creativeProjects).set(setData).where(whereClause);
+  const affected = (result as unknown as { affectedRows: number }).affectedRows;
+  return { updated: affected > 0 };
 }
 
 export async function deleteCreativeProject(id: number) {
