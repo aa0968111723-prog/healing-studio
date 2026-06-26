@@ -217,7 +217,7 @@ export const videoProjectRouter = router({
     .input(
       z.object({
         id: z.number().int().positive(),
-        title: z.string().min(1).max(255).optional(),
+        title: z.string().min(1).max(255).transform(sanitizePlainText).optional(),
         aspectRatio: aspectRatioSchema.optional(),
         outputSpec: outputSpecSchema.optional(),
         deadlineAt: z.string().datetime().nullable().optional(),
