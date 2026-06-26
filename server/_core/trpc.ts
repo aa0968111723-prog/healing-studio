@@ -161,7 +161,7 @@ const requireAiChatLimit = t.middleware(async ({ ctx, next }) => {
 // Image / video generation calls: 5 req / 60s per user (shared bucket across studios).
 const requireGenerationLimit = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
-  checkTrpcRateLimit(ctx.user.id, { limit: 5, windowMs: 60_000, label: "gen" });
+  checkTrpcRateLimit(ctx.user.id, { limit: 5, windowMs: 60_000, label: "gen" }, ctx.res);
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
@@ -178,8 +178,8 @@ const MAX_CONCURRENT_VIDEO_JOBS = 5;
 const MAX_GLOBAL_CONCURRENT_VIDEO_JOBS = 20;
 const requireVideoStudioLimit = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
-  checkTrpcRateLimit(ctx.user.id, { limit: 50, windowMs: 60 * 60_000, label: "videoStudio:hr" });
-  checkTrpcRateLimit(ctx.user.id, { limit: 200, windowMs: 24 * 60 * 60_000, label: "videoStudio:day" });
+  checkTrpcRateLimit(ctx.user.id, { limit: 50, windowMs: 60 * 60_000, label: "videoStudio:hr" }, ctx.res);
+  checkTrpcRateLimit(ctx.user.id, { limit: 200, windowMs: 24 * 60 * 60_000, label: "videoStudio:day" }, ctx.res);
 
   const db = await getDb();
   if (db) {

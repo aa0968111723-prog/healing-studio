@@ -107,6 +107,34 @@ describe("checkTrpcRateLimit — AIDV-211", () => {
   });
 });
 
+describe("checkTrpcRateLimit — AIDV-292 Retry-After header", () => {
+  it("超限時設定 Retry-After header（秒數為正整數字串）", () => {
+    const mockRes = { setHeader: vi.fn() } as unknown as import("express").Response;
+    for (let i = 0; i < 3; i++) {
+      checkTrpcRateLimit(1, { limit: 3, windowMs: 60_000, label: "retry-hdr" }, mockRes);
+    }
+    expect(() =>
+      checkTrpcRateLimit(1, { limit: 3, windowMs: 60_000, label: "retry-hdr" }, mockRes)
+    ).toThrow();
+    expect(mockRes.setHeader).toHaveBeenCalledWith("Retry-After", expect.stringMatching(/^\d+$/));
+  });
+
+  it("未超限時不設定 Retry-After header", () => {
+    const mockRes = { setHeader: vi.fn() } as unknown as import("express").Response;
+    checkTrpcRateLimit(1, { limit: 5, windowMs: 60_000, label: "no-hdr" }, mockRes);
+    expect(mockRes.setHeader).not.toHaveBeenCalled();
+  });
+
+  it("未傳 res 時超限不拋 TypeError（向下相容）", () => {
+    for (let i = 0; i < 3; i++) {
+      checkTrpcRateLimit(1, { limit: 3, windowMs: 60_000, label: "no-res" });
+    }
+    expect(() =>
+      checkTrpcRateLimit(1, { limit: 3, windowMs: 60_000, label: "no-res" })
+    ).toThrowError(expect.objectContaining({ code: "TOO_MANY_REQUESTS" } as Partial<TRPCError>));
+  });
+});
+
 describe("checkTrpcRateLimit — AIDV-242 videoStudio 多視窗保護", () => {
   it("videoStudio:hr 與 videoStudio:day 是獨立桶", () => {
     // Fill up hourly bucket but not daily
