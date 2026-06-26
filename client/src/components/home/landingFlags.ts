@@ -56,3 +56,15 @@ export const LANDING_KV_ENABLED: boolean = readFlag("VITE_LANDING_KV", true);
 
 /** calm orb 平靜光球是否顯示（隸屬門面之下；單獨關閉動效元件用）。預設 ON。 */
 export const LANDING_CALM_ORB_ENABLED: boolean = readFlag("VITE_LANDING_CALM_ORB", true);
+
+/**
+ * 首頁 CosmicBackdrop（星空背景層）是否在行動端顯示。
+ * AIDV-119：行動端預設關閉以減少 GPU 負擔，Railway 設 VITE_LANDING_COSMIC_MOBILE=1 可強制開啟。
+ */
+export const LANDING_COSMIC_MOBILE_ENABLED: boolean = readFlag("VITE_LANDING_COSMIC_MOBILE", false);
+
+/**
+ * 首頁 AuroraBlobs（aurora 漸層光球層）是否在行動端顯示。
+ * AIDV-119：行動端預設關閉以減少 blur filter 耗能，Railway 設 VITE_LANDING_AURORA_MOBILE=1 可強制開啟。
+ */
+export const LANDING_AURORA_MOBILE_ENABLED: boolean = readFlag("VITE_LANDING_AURORA_MOBILE", false);

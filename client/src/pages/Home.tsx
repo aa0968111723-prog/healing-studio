@@ -68,6 +68,7 @@ import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
 import { IntentOnboardingNudge } from "@/components/home/IntentOnboardingNudge";
+import { LANDING_COSMIC_MOBILE_ENABLED, LANDING_AURORA_MOBILE_ENABLED } from "@/components/home/landingFlags";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
 import OrbCreationStage from "@/components/home/OrbCreationStage";
 import HeroMagneticSpotlight from "@/components/home/HeroMagneticSpotlight";
@@ -1144,7 +1145,7 @@ ${profileSnippet}`;
       />
       {/* ── Scene-tinted vignette: deepens edges per time-of-day ── */}
       <SceneVignette sceneId={sceneId} />
-      <CosmicBackdrop glowColor={s.glowColor} />
+      {(!isMobile || LANDING_COSMIC_MOBILE_ENABLED) && <CosmicBackdrop glowColor={s.glowColor} />}
 
       {/* ── Page-wide pointer aura (mouse + touch) — gentle scene-tinted glow
           that follows the cursor / finger across the homepage. */}
@@ -1243,7 +1244,7 @@ ${profileSnippet}`;
             : undefined
         }
       >
-        <AuroraBlobs sceneId={sceneId} />
+        {(!isMobile || LANDING_AURORA_MOBILE_ENABLED) && <AuroraBlobs sceneId={sceneId} />}
         <HeroMagneticSpotlight color={s.glowColor} />
         <motion.div
           className="max-w-4xl mx-auto text-center w-full relative"
