@@ -17,6 +17,7 @@ import { SHELL_SUBROUTES } from "@/shells/shellRouteTable";
 import { ProjectSpineProvider } from "@/spine/ProjectSpineProvider";
 import { VideoCockpit } from "./VideoCockpit";
 import { SSEFallbackBanner } from "@/components/SSEFallbackBanner";
+import { AgentStatusBar } from "@/components/AgentStatusBar";
 
 /** 由座艙接管的路徑（其餘 video 子路由維持 P0 re-home）。 */
 const COCKPIT_PATHS = ["/video", "/video/director", "/video/cockpit"];
@@ -28,6 +29,7 @@ export function VideoCockpitFrame() {
   return (
     <DashboardLayout shell="video">
       <SSEFallbackBanner />
+      <AgentStatusBar />
       <ProjectSpineProvider>
         <Switch>
           {/* 旗艦座艙：/video、/video/director、/video/cockpit 同一畫面 */}
