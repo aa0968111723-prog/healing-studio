@@ -4980,3 +4980,17 @@ html.dark {
   border-color: rgba(170, 175, 255, 0.6);
   box-shadow: 0 10px 32px rgba(80, 100, 200, 0.28);
 }
+
+/* ── prefers-reduced-motion 全域安全網 ────────────────────────────────────
+   Tailwind animate-* 類別（animate-spin / animate-ping / animate-pulse /
+   animate-bounce）在 reduced-motion 環境下全數停止；避免前庭敏感者不適。
+   framer-motion 已透過 App.tsx <MotionConfig reducedMotion="user"> 全局守衛。
+   ──────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin,
+  .animate-ping,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none !important;
+  }
+}

@@ -97,6 +97,7 @@ function AssemblingPlaceholder({ doneShots, totalShots }: { doneShots: number; t
   return (
     <div
       role="status"
+      aria-live="polite"
       aria-label="成片組合進度"
       className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-muted bg-muted/20 p-8 text-center"
     >

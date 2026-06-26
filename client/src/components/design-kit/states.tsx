@@ -15,7 +15,7 @@ export function Skeleton({
   return (
     <div
       aria-hidden
-      className={cn("animate-pulse bg-[var(--surface-2)] border border-[var(--hair)]", className)}
+      className={cn("motion-safe:animate-pulse bg-[var(--surface-2)] border border-[var(--hair)]", className)}
       style={{ width: w ?? "100%", height: h, borderRadius: rounded, ...style }}
       {...p}
     />

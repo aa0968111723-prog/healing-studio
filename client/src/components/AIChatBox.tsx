@@ -347,12 +347,13 @@ export function AIChatBox({
           type="submit"
           size="icon"
           disabled={!input.trim() || isLoading}
+          aria-label={isLoading ? "送出中" : "送出"}
           className="shrink-0 h-11 w-11"
         >
           {isLoading ? (
-            <Loader2 className="size-4 animate-spin" />
+            <Loader2 className="size-4 motion-safe:animate-spin" aria-hidden />
           ) : (
-            <Send className="size-4" />
+            <Send className="size-4" aria-hidden />
           )}
         </Button>
       </form>

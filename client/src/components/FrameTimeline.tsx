@@ -104,13 +104,14 @@ export function FrameTimeline({
           <Button
             variant="outline"
             size="icon"
+            aria-label="清除此幀"
             className="absolute top-2 right-2 w-6 h-6 rounded-full bg-card/80"
             onClick={e => {
               e.stopPropagation();
               onClear();
             }}
           >
-            <X className="w-3 h-3" />
+            <X className="w-3 h-3" aria-hidden />
           </Button>
         </>
       ) : (

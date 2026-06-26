@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { getLoginUrl } from "@/const";
 import { Suspense, useEffect } from "react";
+import { MotionConfig } from "framer-motion";
 import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -422,6 +423,7 @@ function App() {
   return (
     <ErrorBoundary>
       {/* P0：SpineProvider 包覆既有 provider 樹（加法、無副作用；不取代任何 context）。 */}
+      <MotionConfig reducedMotion="user">
       <SpineProvider>
       <ThemeProvider defaultTheme="light" switchable>
         <PersonalSettingsProvider>
@@ -473,6 +475,7 @@ function App() {
         </PersonalSettingsProvider>
       </ThemeProvider>
       </SpineProvider>
+      </MotionConfig>
     </ErrorBoundary>
   );
 }

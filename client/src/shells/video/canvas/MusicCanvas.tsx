@@ -120,7 +120,7 @@ export function MusicCanvas() {
       {submitted && (
         ENABLE_VIDEO_GATE_KIT ? (
           <AidvKit>
-            <DkCard className="border-[rgba(92,138,85,.26)] bg-[var(--ok-tint)]" role="status" aria-label="配樂送出成功">
+            <DkCard className="border-[rgba(92,138,85,.26)] bg-[var(--ok-tint)]" role="status" aria-live="polite" aria-label="配樂送出成功">
               <div className="flex items-center gap-2 px-[14px] py-[10px] text-[12px]">
                 <CircleCheck className="size-4 text-[var(--ok)] shrink-0" aria-hidden />
                 <span className="flex-1 min-w-0">

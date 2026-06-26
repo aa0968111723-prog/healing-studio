@@ -125,6 +125,7 @@ export function AmbientOrb() {
           RING[orb.level],
         )}
         aria-label="光球助手"
+        aria-expanded={console_.orbOpen}
         title={`光球 · ${orb.level}`}
       >
         <OrbGlyph size={42} />

@@ -192,10 +192,12 @@ export default function AssetsQuickDrawer() {
               <Button
                 size="sm"
                 variant="ghost"
+                aria-label="關閉"
+                type="button"
                 className="h-7 w-7 p-0"
                 onClick={closeDrawer}
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden />
               </Button>
             </div>
           </SheetHeader>
@@ -234,10 +236,17 @@ export default function AssetsQuickDrawer() {
           {/* List */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
             {assetsQuery.isLoading ? (
-              <div className="space-y-2">
+              <div className="space-y-2" role="status" aria-label="載入素材中">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-20 rounded-lg bg-card/5 animate-pulse" />
+                  <div key={i} className="h-20 rounded-lg bg-card/5 motion-safe:animate-pulse" />
                 ))}
+              </div>
+            ) : assetsQuery.isError ? (
+              <div className="flex flex-col items-center justify-center h-40 text-center gap-2" role="alert">
+                <p className="text-sm text-destructive/70">素材載入失敗</p>
+                <Button size="sm" variant="outline" className="text-xs mt-1" onClick={() => assetsQuery.refetch()}>
+                  重試
+                </Button>
               </div>
             ) : assets.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 text-center gap-2">
