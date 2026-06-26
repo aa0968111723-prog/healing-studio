@@ -619,6 +619,53 @@ function ApiKeyBanner() {
   );
 }
 
+// ─── AIDV-520: Provider System Status Banner ───────────────────────────────
+
+function ProviderStatusBanner() {
+  const { data } = trpc.brain.providerSystemStatus.useQuery(undefined, {
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  if (!data || data.status === "healthy") return null;
+  const isDown = data.status === "down";
+  const lastUpdated = data.lastCheckedAt
+    ? new Date(data.lastCheckedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })
+    : null;
+  return (
+    <div
+      role="alert"
+      className={`rounded-xl border px-3 py-2.5 text-xs flex items-start gap-2 leading-relaxed ${
+        isDown
+          ? "border-red-300/60 bg-red-50/70 dark:bg-red-900/20 text-red-900 dark:text-red-200"
+          : "border-amber-300/60 bg-amber-50/70 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200"
+      }`}
+    >
+      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+      <div>
+        {isDown ? (
+          <>
+            <p className="font-semibold">AI 生成服務暫時無法使用，新的送出已暫停</p>
+            <p className="mt-0.5">
+              所有 AI 服務提供商目前均離線
+              {data.affectedProviders.length > 0 && `（${data.affectedProviders.join("、")}）`}。
+              請稍候再試。{lastUpdated && ` 最後更新：${lastUpdated}`}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-semibold">部分 AI 服務異常，可能影響生成速度</p>
+            <p className="mt-0.5">
+              受影響服務：{data.affectedProviders.join("、")}。您的任務可能需要較長時間或使用備援服務。
+              {lastUpdated && ` 最後更新：${lastUpdated}`}
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🔄 AsyncVideoPoller — 非同步影片輪詢元件（防止 504 的核心機制）
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5035,6 +5082,8 @@ export default function VideoStudio() {
 
       {/* API Key 提示 */}
       <ApiKeyBanner />
+      {/* AIDV-520: 服務容量狀態橫幅（所有提供商離線時警告） */}
+      <ProviderStatusBanner />
 
       {/* 世界觀上下文（僅在用戶選定創作專案時顯示） */}
       {worldCtx.currentProjectId !== null && (
