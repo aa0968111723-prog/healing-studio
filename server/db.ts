@@ -4888,9 +4888,17 @@ export async function getVideoProjectsByUser(userId: number): Promise<VideoProje
 
 export async function updateVideoProject(
   id: number,
-  data: Partial<InsertVideoProject>
-) {
+  data: Partial<InsertVideoProject>,
+  opts?: { expectedVersion?: number }
+): Promise<{ updated: boolean }> {
   const db = await getDb();
-  if (!db) return;
-  await db.update(videoProjects).set(data).where(eq(videoProjects.id, id));
+  if (!db) return { updated: false };
+  const setData = { ...data, version: sql`\`version\` + 1` };
+  const whereClause =
+    opts?.expectedVersion !== undefined
+      ? and(eq(videoProjects.id, id), eq(videoProjects.version, opts.expectedVersion))
+      : eq(videoProjects.id, id);
+  const result = await db.update(videoProjects).set(setData).where(whereClause);
+  const affected = (result as unknown as { affectedRows: number }).affectedRows;
+  return { updated: affected > 0 };
 }
