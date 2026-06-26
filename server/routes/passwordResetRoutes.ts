@@ -12,6 +12,7 @@ import { passwordResetService } from "../services/auth/passwordResetService";
 import { loginHistoryService } from "../services/auth/loginHistoryService";
 import { verifyToken } from "../middleware/verifyToken";
 import { logger } from "../_core/logger";
+import { rateLimiters } from "../_core/rateLimiter";
 
 const forgotPasswordSchema = z.object({
   email: z.string().email(),
@@ -44,7 +45,7 @@ export function createPasswordResetRouter() {
   const router = Router();
 
   // ── Request password reset ──────────────────────────────────────────
-  router.post("/api/auth/forgot-password", async (req: Request, res: Response) => {
+  router.post("/api/auth/forgot-password", rateLimiters.auth, async (req: Request, res: Response) => {
     const parsed = forgotPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({
@@ -117,7 +118,7 @@ export function createPasswordResetRouter() {
   });
 
   // ── Reset password with token ───────────────────────────────────────
-  router.post("/api/auth/reset-password", async (req: Request, res: Response) => {
+  router.post("/api/auth/reset-password", rateLimiters.auth, async (req: Request, res: Response) => {
     const parsed = resetPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({

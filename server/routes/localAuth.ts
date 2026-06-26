@@ -1,11 +1,11 @@
 import { Router, type Request, type Response } from "express";
-import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { COOKIE_NAME, THIRTY_DAYS_MS, type UserRole } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
 import { ENV } from "../_core/env";
 import { verifyToken } from "../middleware/verifyToken";
 import { logger } from "../_core/logger";
+import { rateLimiters } from "../_core/rateLimiter";
 import { AuthFacade, authFacade } from "../services/auth/AuthFacade";
 import { loginHistoryService } from "../services/auth/loginHistoryService";
 import {
@@ -20,30 +20,6 @@ import {
   isRefreshTokenActive,
   getUserByOpenId,
 } from "../db";
-
-// ── Auth-specific rate limiters ────────────────────────────────────────────
-// Stricter than the global /api/ limiter (300/15min). Built per-router so that
-// tests get fresh limiter state and so a future multi-instance setup can scope
-// limits independently.
-function buildLoginRateLimiter() {
-  return rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Too many login attempts. Please try again later." },
-  });
-}
-
-function buildRegisterRateLimiter() {
-  return rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Too many registration attempts. Please try again later." },
-  });
-}
 
 // How many recent per-email failures within the lockout window block the account
 const MAX_FAILED_ATTEMPTS = 5;
@@ -148,10 +124,8 @@ export function createLocalAuthRouter(
 ) {
   const history = deps.loginHistory ?? loginHistoryService;
   const router = Router();
-  const loginRateLimiter = buildLoginRateLimiter();
-  const registerRateLimiter = buildRegisterRateLimiter();
 
-  router.post("/api/auth/register", registerRateLimiter, async (req: Request, res: Response) => {
+  router.post("/api/auth/register", rateLimiters.auth, async (req: Request, res: Response) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
       const flat = parsed.error.flatten();
@@ -230,7 +204,7 @@ export function createLocalAuthRouter(
     }
   });
 
-  router.post("/api/auth/login", loginRateLimiter, async (req: Request, res: Response) => {
+  router.post("/api/auth/login", rateLimiters.auth, async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       const flat = parsed.error.flatten();
