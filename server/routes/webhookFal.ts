@@ -267,7 +267,7 @@ falWebhookRouter.post(
           // 拿不到結果 URL → 使用者沒成品,退回 submitMultimodalAsync 預扣的點數。
           void refundJobIfBilled(jobId);
           void dispatchWebhookEvent(job.userId, "video.failed", { jobId, error: errMsg });
-          generationBus.emit(jobId, { type: "error", message: errMsg });
+          generationBus.emit(jobId, { type: "error", message: errMsg, provider: "fal_ai", retryable: true });
           console.warn(
             `[WebhookFal] ⚠️  Job ${jobId} completed but no URL extracted. orbTraceId=${orbTraceId} rawPayload=${JSON.stringify(localizedData.rawPayload ?? {}).slice(0, 400)}`
           );
@@ -312,7 +312,15 @@ falWebhookRouter.post(
           `[WebhookFal] ✅ Job ${jobId} completed. orbTraceId=${orbTraceId} Result URLs saved.`
         );
       } else if (payload.status === "ERROR") {
-        const errorMessage = payload.error ?? "fal.ai 回傳錯誤";
+        const rawError = payload.error ?? "";
+        const isNetworkFailure =
+          rawError.toLowerCase().includes("fetch failed") ||
+          rawError.toLowerCase().includes("econnrefused") ||
+          rawError.toLowerCase().includes("etimedout") ||
+          rawError.toLowerCase().includes("connection refused");
+        const errorMessage = isNetworkFailure
+          ? `AI 生成服務（fal.ai）暫時無法連線——尚未扣點，請稍後重試`
+          : rawError || "fal.ai 回傳錯誤";
         await updateBackgroundJob(jobId, {
           status: "failed",
           progress: 0,
@@ -326,7 +334,7 @@ falWebhookRouter.post(
           jobId,
           error: errorMessage,
         });
-        generationBus.emit(jobId, { type: "error", message: errorMessage });
+        generationBus.emit(jobId, { type: "error", message: errorMessage, provider: "fal_ai", retryable: isNetworkFailure });
         console.error(
           `[WebhookFal] ❌ Job ${jobId} failed: ${payload.error} orbTraceId=${orbTraceId}`
         );

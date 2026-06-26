@@ -11,8 +11,8 @@ export function useOrbVoice() {
   const [error, setError] = useState<string | null>(null);
 
   const startVoice = () => {
-    const token = localStorage.getItem("token") ?? "";
-    const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/orb-voice?token=${encodeURIComponent(token)}`);
+    // AIDV-238: auth via httpOnly cookie (sent automatically by browser); no token in URL.
+    const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/orb-voice`);
     wsRef.current = ws;
     ws.onopen = () => { setIsConnected(true); setIsListening(true); };
     ws.onmessage = evt => {

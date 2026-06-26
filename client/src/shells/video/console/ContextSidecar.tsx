@@ -265,11 +265,12 @@ function AssetLineageCard() {
   );
 }
 
-/** AIDV-253: 影片專案生命週期 — 三點選單「複製專案」＋版本歷程。 */
+/** AIDV-253/245: 影片專案生命週期 — 三點選單「複製專案」＋版本歷程＋標題行內編輯（CAS）。 */
 export function VideoProjectLifecycleCard() {
   const utils = trpc.useUtils();
   const projectsQ = trpc.videoProject.list.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
 
   const projects = projectsQ.data ?? [];
   const project = projects.find(p => p.id === selectedId) ?? projects[0] ?? null;
@@ -281,6 +282,27 @@ export function VideoProjectLifecycleCard() {
     },
     onError: () => toast.error("複製失敗，請稍後再試"),
   });
+
+  const saveMut = trpc.videoProject.save.useMutation({
+    onSuccess: () => {
+      utils.videoProject.list.invalidate();
+      setEditingTitle(null);
+    },
+    onError: (err) => {
+      if (err.data?.code === "CONFLICT") {
+        toast.error("版本衝突，請重新載入後再試");
+      } else {
+        toast.error("儲存失敗，請稍後再試");
+      }
+    },
+  });
+
+  function commitTitle() {
+    if (!project || editingTitle === null) return;
+    const trimmed = editingTitle.trim();
+    if (!trimmed || trimmed === project.title) { setEditingTitle(null); return; }
+    saveMut.mutate({ id: project.id, title: trimmed, expectedVersion: project.version });
+  }
 
   if (projectsQ.isError) return <PanelError compact message="影片專案讀取失敗" onRetry={() => projectsQ.refetch()} />;
   if (!project) return null;
@@ -323,7 +345,30 @@ export function VideoProjectLifecycleCard() {
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex items-center gap-2 text-xs">
-          <span className="font-medium truncate flex-1">{project.title}</span>
+          {editingTitle !== null ? (
+            <Input
+              autoFocus
+              value={editingTitle}
+              onChange={e => setEditingTitle(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={e => {
+                if (e.key === "Enter") { e.preventDefault(); commitTitle(); }
+                if (e.key === "Escape") setEditingTitle(null);
+              }}
+              disabled={saveMut.isPending}
+              className="h-5 flex-1 px-1 text-xs"
+              maxLength={255}
+              aria-label="編輯影片專案標題"
+            />
+          ) : (
+            <button
+              className="font-medium truncate flex-1 text-left hover:underline cursor-pointer"
+              title="點擊編輯標題"
+              onClick={() => setEditingTitle(project.title)}
+            >
+              {project.title}
+            </button>
+          )}
           <Badge variant="outline" className="text-[9px] shrink-0">{project.aspectRatio}</Badge>
           <span className="text-muted-foreground shrink-0">v{project.version}</span>
         </div>

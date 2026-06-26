@@ -4515,17 +4515,20 @@ export type InsertSkillRegistryEntry = typeof skillRegistry.$inferInsert;
 
 // ─── Video Projects (AIDV-252) ────────────────────────────────────────────────
 
-/** AIDV-260: 影片輸出規格 — resolution/fps/codec 三欄收斂至單一 JSON 欄位。 */
+/** AIDV-260/271: 影片輸出規格 — resolution/fps/codec/format 四欄收斂至單一 JSON 欄位。 */
 export type VideoOutputSpec = {
   resolution: "720p" | "1080p" | "4K";
   fps: 24 | 30 | 60;
   codec: "h264" | "h265" | "vp9";
+  /** AIDV-271: 匯出格式；gif 自動限 ≤15s / ≤720px。 */
+  format: "mp4" | "webm" | "gif";
 };
 
 export const VIDEO_OUTPUT_SPEC_DEFAULT: VideoOutputSpec = {
   resolution: "1080p",
   fps: 30,
   codec: "h264",
+  format: "mp4",
 };
 
 export const videoProjects = mysqlTable(

@@ -11,7 +11,7 @@
 //   ON 版導覽改走 wouter navigate（client-side，不碰 window.location，過 check:navigation）。
 // ============================================================================
 import { Link, useLocation } from "wouter";
-import { LayoutGrid, Palette, Shield, Send } from "lucide-react";
+import { LayoutGrid, Palette, Shield, Send, Route } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
 import { AidvKit, SubTabs } from "@/components/design-kit";
@@ -21,6 +21,7 @@ const TABS = [
   { path: "/social/studio", label: "圖像台", icon: Palette },
   { path: "/social/brand", label: "品牌庫", icon: Shield },
   { path: "/social/publish", label: "發佈/精選", icon: Send },
+  { path: "/social/journey", label: "旅程", icon: Route },
 ] as const;
 
 export function SocialNav({ className }: { className?: string }) {

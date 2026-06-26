@@ -698,12 +698,15 @@ export async function runOrbTaskToCompletion(
       };
     }
     if (task.status === "failed") {
+      const failedReport = task.stepReports.find(r => !r.ok);
       dualEmitForUser(input.userId, {
         type: "task_failed",
         taskId: input.taskId,
         userId: input.userId,
         at: clock(),
         orbTraceId: traceId,
+        errorCode: failedReport?.errorCode ?? "task-failed",
+        failureReason: failedReport?.detail ?? failedReport?.errorCode ?? "task-failed",
       });
       console.info("[orb.task_cost_aggregate]", { traceId, taskId: input.taskId, tokenCost: totalTokenCost, externalApiCost: totalExternalApiCost, retryCount: totalRetryCount });
       return {
@@ -713,10 +716,7 @@ export async function runOrbTaskToCompletion(
         perStepToolResults,
         finalTask: task,
         finalAgentTask: getOrbAgentTask(input.taskId),
-        reason:
-          task.stepReports.find(r => !r.ok)?.errorCode ??
-          task.stepReports.find(r => !r.ok)?.detail ??
-          "task-failed",
+        reason: failedReport?.errorCode ?? failedReport?.detail ?? "task-failed",
       };
     }
     if (task.status === "cancelled") {
@@ -1025,12 +1025,15 @@ export async function runOrbTaskToCompletion(
     };
   }
   if (finalTask?.status === "failed") {
+    const failedReport = finalTask.stepReports?.find(r => !r.ok);
     dualEmitForUser(input.userId, {
       type: "task_failed",
       taskId: input.taskId,
       userId: input.userId,
       at: clock(),
       orbTraceId: traceId,
+      errorCode: failedReport?.errorCode ?? "max-steps-exceeded",
+      failureReason: failedReport?.detail ?? failedReport?.errorCode ?? "max-steps-exceeded",
     });
     console.info("[orb.task_cost_aggregate]", { traceId, taskId: input.taskId, tokenCost: totalTokenCost, externalApiCost: totalExternalApiCost, retryCount: totalRetryCount });
   }

@@ -742,6 +742,10 @@ function TextToVideoTab() {
     "16:9"
   );
   const [klingCfg, setKlingCfg] = useState(0.5);
+  const [klingStyle, setKlingStyle] = useState<"cinematic" | "documentary" | "advertising" | "anime" | "minimal" | "">("");
+  const [klingPacing, setKlingPacing] = useState<"fast" | "normal" | "slow" | "">("");
+  const [klingTransition, setKlingTransition] = useState<"fade" | "cut" | "slide" | "none" | "">("");
+  const [klingColorGrade, setKlingColorGrade] = useState<"warm" | "cool" | "high-contrast" | "cinematic-lut" | "natural" | "">("");
   const [klingResult, setKlingResult] = useState<VideoResult | null>(null);
 
   // ─ Wan
@@ -813,6 +817,12 @@ function TextToVideoTab() {
     | "ltx"
     | "sora";
   const [activeT2VModel, setActiveT2VModel] = useState<T2VModel>("kling");
+
+  // ─ Provider health polling (AIDV-520)
+  const [sysStatus, setSysStatus] = useState<"healthy" | "degraded" | "down">("healthy");
+  const [affectedProviders, setAffectedProviders] = useState<string[]>([]);
+  const [sysLastChecked, setSysLastChecked] = useState<string | null>(null);
+
   const runKlingRef = useRef<() => void>(() => {});
   const runWanRef = useRef<() => void>(() => {});
   const runMmRef = useRef<() => void>(() => {});
@@ -820,6 +830,40 @@ function TextToVideoTab() {
   const runVeoProRef = useRef<() => void>(() => {});
   const runLtxRef = useRef<() => void>(() => {});
   const runSoraRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    let cancelled = false;
+    async function checkHealth() {
+      try {
+        const resp = await fetch("/api/provider-health");
+        if (!resp.ok || cancelled) return;
+        const data = await resp.json() as {
+          providers: Array<{ id: string; ok: boolean; status: string }>;
+          summary: { healthy: number; critical: number; total: number };
+          checkedAt: string;
+        };
+        if (cancelled) return;
+        const falProvider = data.providers.find(p => p.id === "fal");
+        setAffectedProviders(data.providers.filter(p => !p.ok).map(p => p.id));
+        setSysLastChecked(data.checkedAt);
+        if (data.summary.total === 0) {
+          setSysStatus("healthy");
+        } else if (falProvider?.status === "critical") {
+          setSysStatus("down");
+        } else if (data.summary.critical > 0) {
+          setSysStatus("degraded");
+        } else {
+          setSysStatus("healthy");
+        }
+      } catch {
+        // Keep optimistic on network error
+      }
+    }
+    checkHealth();
+    const timerId = setInterval(checkHealth, 60_000);
+    return () => { cancelled = true; clearInterval(timerId); };
+  }, []);
+
   useEffect(() => {
     if (!bus) return;
     const pending = bus.consumePendingModel();
@@ -900,6 +944,7 @@ function TextToVideoTab() {
       }
       if (cmd.type === "reset") {
         setKlingPrompt(""); setKlingNeg(""); setKlingDuration("5"); setKlingAspect("16:9"); setKlingCfg(0.5);
+        setKlingStyle(""); setKlingPacing(""); setKlingTransition(""); setKlingColorGrade("");
         setWanPrompt(""); setWanNeg(""); setWanRes("720p"); setWanFrames(81);
         setMmPrompt(""); setMmOptimize(true);
         setVeoPrompt(""); setVeoAspect("16:9"); setVeoAudio(true);
@@ -930,6 +975,12 @@ function TextToVideoTab() {
         duration: klingDuration,
         aspectRatio: klingAspect,
         cfgScale: klingCfg,
+        directorConfig: (klingStyle || klingPacing || klingTransition || klingColorGrade) ? {
+          style: klingStyle || undefined,
+          pacing: klingPacing || undefined,
+          transition: klingTransition || undefined,
+          colorGrade: klingColorGrade || undefined,
+        } : undefined,
       });
       setKlingResult(r);
       registerBgTask(r, "video", "Kling 文生影", klingPrompt);
@@ -1077,7 +1128,36 @@ function TextToVideoTab() {
   runSoraRef.current = runSora;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+    <div className="space-y-3 sm:space-y-4">
+      {sysStatus !== "healthy" && (
+        <div className={`rounded-lg px-4 py-3 flex items-start gap-3 text-sm ${
+          sysStatus === "down"
+            ? "bg-destructive/10 border border-destructive/30 text-destructive"
+            : "bg-yellow-500/10 border border-yellow-500/30 text-yellow-700 dark:text-yellow-400"
+        }`}>
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <div className="min-w-0">
+            {sysStatus === "down" ? (
+              <>
+                <p className="font-semibold">AI 生成服務暫時不可用，新的提交已暫停</p>
+                <p className="text-xs mt-1 opacity-80">
+                  {affectedProviders.length > 0 && `受影響服務：${affectedProviders.join("、")}。`}
+                  {sysLastChecked && `最後更新：${new Date(sysLastChecked).toLocaleTimeString("zh-TW")}`}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold">部分 AI 服務效能降低，任務可能較慢</p>
+                <p className="text-xs mt-1 opacity-80">
+                  {affectedProviders.length > 0 && `受影響：${affectedProviders.join("、")}。`}
+                  你的任務將自動路由至備援服務。
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Kling v2.1 */}
       <ToolCard
         icon={Clapperboard}
@@ -1162,9 +1242,74 @@ function TextToVideoTab() {
               className="mt-2"
             />
           </div>
+          {/* AI Director 風格參數 (AIDV-274) */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs text-muted-foreground">視覺風格</Label>
+              <Select value={klingStyle} onValueChange={v => setKlingStyle(v as typeof klingStyle)}>
+                <SelectTrigger className="mt-1 text-xs h-8">
+                  <SelectValue placeholder="預設" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">預設</SelectItem>
+                  <SelectItem value="cinematic">電影感</SelectItem>
+                  <SelectItem value="documentary">紀錄片</SelectItem>
+                  <SelectItem value="advertising">廣告風</SelectItem>
+                  <SelectItem value="anime">動漫</SelectItem>
+                  <SelectItem value="minimal">極簡</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">節奏</Label>
+              <Select value={klingPacing} onValueChange={v => setKlingPacing(v as typeof klingPacing)}>
+                <SelectTrigger className="mt-1 text-xs h-8">
+                  <SelectValue placeholder="預設" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">預設</SelectItem>
+                  <SelectItem value="fast">快節奏</SelectItem>
+                  <SelectItem value="normal">均衡</SelectItem>
+                  <SelectItem value="slow">舒緩</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">轉場偏好</Label>
+              <Select value={klingTransition} onValueChange={v => setKlingTransition(v as typeof klingTransition)}>
+                <SelectTrigger className="mt-1 text-xs h-8">
+                  <SelectValue placeholder="預設" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">預設</SelectItem>
+                  <SelectItem value="fade">淡入淡出</SelectItem>
+                  <SelectItem value="cut">閃切</SelectItem>
+                  <SelectItem value="slide">滑動</SelectItem>
+                  <SelectItem value="none">無轉場</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">色調</Label>
+              <Select value={klingColorGrade} onValueChange={v => setKlingColorGrade(v as typeof klingColorGrade)}>
+                <SelectTrigger className="mt-1 text-xs h-8">
+                  <SelectValue placeholder="預設" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">預設</SelectItem>
+                  <SelectItem value="warm">暖色</SelectItem>
+                  <SelectItem value="cool">冷色</SelectItem>
+                  <SelectItem value="high-contrast">高對比</SelectItem>
+                  <SelectItem value="cinematic-lut">電影感 LUT</SelectItem>
+                  <SelectItem value="natural">自然</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <Button
             onClick={runKling}
-            disabled={klingMut.isPending}
+            disabled={klingMut.isPending || sysStatus === "down"}
+            title={sysStatus === "down" ? "服務不可用 — 請稍後再試" : undefined}
             className="w-full btn-healing"
           >
             {klingMut.isPending ? (
@@ -1662,6 +1807,7 @@ function TextToVideoTab() {
           />
         </div>
       )}
+      </div>
     </div>
   );
 }

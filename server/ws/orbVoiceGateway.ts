@@ -1,6 +1,8 @@
 import type { IncomingMessage } from "http";
 import type WebSocket from "ws";
+import { parse as parseCookie } from "cookie";
 import { verifySessionToken } from "../_core/googleAuth";
+import { COOKIE_NAME } from "@shared/const";
 import { getAllowedOrigins } from "../services/agentToolExecutor";
 import { randomUUID } from "node:crypto";
 
@@ -14,7 +16,10 @@ export const ORB_MAX_PAYLOAD_BYTES = 64 * 1024;
 
 export async function handleOrbVoiceConnection(ws: WebSocket, req: IncomingMessage) {
   const url = new URL(req.url ?? "", "http://localhost");
-  const token = url.searchParams.get("token") ?? "";
+  // AIDV-238: auth via httpOnly cookie only; URL token param removed to prevent
+  // credential leakage in server/proxy access logs.
+  const cookies = parseCookie(req.headers.cookie ?? "");
+  const token = cookies[COOKIE_NAME] ?? "";
   const payload = await verifySessionToken(token);
   if (!payload?.sub) {
     ws.close(1008, "unauthorized");

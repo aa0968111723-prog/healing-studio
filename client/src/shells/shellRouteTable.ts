@@ -72,6 +72,8 @@ export const SHELL_SUBROUTES: Record<ShellId, ShellSubRoute[]> = {
     { path: "/social/studio", component: P.SocialStudio },
     { path: "/social/brand", component: P.SocialBrand },
     { path: "/social/publish", component: P.SocialPublish },
+    // AIDV-96 U-6：九步旅程全流程（S1–S9 視覺實裝）。
+    { path: "/social/journey", component: P.SocialJourney },
   ],
 };
 

@@ -56,7 +56,7 @@ import {
   dispatchImageGeneration,
   dispatchVideoGeneration,
 } from "./falDispatcher";
-import { generationBus } from "../generationEvents";
+import { dualEmitForUser } from "../generationEvents";
 
 export type OrbExecutableTask = {
   type: "generate_image" | "generate_music" | "generate_video";
@@ -118,12 +118,12 @@ export async function executeOrbTask(userId: number, task: OrbExecutableTask): P
   const url = pickResultUrl(resultData);
   if (!url) throw new Error("生成完成但找不到結果 URL");
 
-  generationBus.emit(userId, {
+  dualEmitForUser(userId, {
     type: "progress",
     progress: 100,
     message: `orb_task_complete:${task.type}`,
   });
-  generationBus.emit(userId, {
+  dualEmitForUser(userId, {
     type: "complete",
     thoughtChain: [],
   });
