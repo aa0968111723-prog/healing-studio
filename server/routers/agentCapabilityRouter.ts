@@ -162,10 +162,10 @@ export const agentCapabilityRouter = router({
           input.requiredScope && input.requiredScope.length > 0
             ? `; scope [${input.requiredScope.join(", ")}] 未被授權`
             : "";
-        return {
-          agentId: null,
-          reason: `無符合 capabilities [${input.requiredCapabilities.join(", ")}]${scopeMsg} 的活躍代理`,
-        };
+        throw new TRPCError({
+          code: "SERVICE_UNAVAILABLE",
+          message: `no_agents_available: 無符合 capabilities [${input.requiredCapabilities.join(", ")}]${scopeMsg} 的活躍代理`,
+        });
       }
 
       const best = matched[0]!;
