@@ -1,10 +1,8 @@
-import { COOKIE_NAME } from "@shared/const";
 import {
   parseUsdToTwdRate,
   safeSharePct,
   usdToTwd,
 } from "@shared/currency";
-import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import {
   publicProcedure,
@@ -94,6 +92,11 @@ import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
 import { agentCapabilityRouter } from "./routers/agentCapabilityRouter";
 import { modelWishesRouter } from "./routers/modelWishesRouter";
 import { orchestrationRunsRouter } from "./routers/orchestrationRunsRouter";
+import { orbTracesRouter } from "./routers/orbTraces";
+import { authRouter } from "./routers/auth";
+import { creditsRouter } from "./routers/credits";
+import { accountantRouter } from "./routers/accountant";
+import { musicSpecialistRouter } from "./routers/musicSpecialist";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -204,7 +207,6 @@ import {
   estimatePoints,
   getModelPricing,
   checkModelAvailability,
-  getAllPricingByCategory,
   MODEL_PRICING_CATALOG,
 } from "./services/modelPricing";
 import {
@@ -224,7 +226,7 @@ import {
 } from "./services/internalMedia";
 import { eq } from "drizzle-orm";
 import { userAiBrain, promptLibrary } from "../drizzle/schema";
-import { getDb, getSiteWideModelUsageSnapshot, getUserTopModelRecent } from "./db";
+import { getDb, getSiteWideModelUsageSnapshot } from "./db";
 import { normalizeEngineModelId } from "../shared/engineModelIds";
 import { applyCameraMotionToPrompt } from "../shared/cameraMotionPrompt";
 import { selectProvider, type ProviderRouteIntent } from "./services/providerRouter";
@@ -1191,351 +1193,18 @@ export const appRouter = router({
   adminEval: adminRouter,
 
   // ─── Orb Agent Observability ─────────────────────────────────────────────
-  orbTraces: router({
-    /** Get trace by ID for debugging */
-    getTrace: protectedProcedure
-      .input(z.object({ traceId: z.string() }))
-      .query(({ input }) => {
-        return orbTaskTracer.getTrace(input.traceId);
-      }),
+  orbTraces: orbTracesRouter,
 
-    /** Get recent traces for user */
-    listUserTraces: protectedProcedure
-      .input(z.object({ limit: z.number().min(1).max(50).optional() }))
-      .query(({ ctx, input }) => {
-        return orbTaskTracer.getTracesForUser(ctx.user.id, input.limit);
-      }),
-
-    /** Get execution timeline for visualization */
-    getTimeline: protectedProcedure
-      .input(z.object({ traceId: z.string() }))
-      .query(({ input }) => {
-        return orbTaskTracer.getTimeline(input.traceId);
-      }),
-
-    /** Export trace in observability platform format */
-    exportTrace: protectedProcedure
-      .input(z.object({
-        traceId: z.string(),
-        format: z.enum(["langfuse", "langsmith", "otlp"]).optional(),
-      }))
-      .query(({ input }) => {
-        return orbTaskTracer.exportTrace(input.traceId, input.format);
-      }),
-
-    /** Analyze failure patterns for debugging */
-    analyzeFailures: protectedProcedure.query(({ ctx }) => {
-      return orbTaskTracer.analyzeFailurePatterns(ctx.user.id);
-    }),
-  }),
-
-  auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return { success: true } as const;
-    }),
-    updateAvatar: protectedProcedure
-      .input(
-        z.object({
-          // null = clear; "preset:<id>" | http(s) URL | data URL ≤ 64 KB.
-          avatarUrl: z
-            .string()
-            .max(64 * 1024)
-            .nullable(),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const value = input.avatarUrl;
-        if (value !== null) {
-          const looksLikePreset = value.startsWith("preset:");
-          const looksLikeUrl = /^https?:\/\//i.test(value);
-          const looksLikeDataUrl = value.startsWith("data:image/");
-          if (!looksLikePreset && !looksLikeUrl && !looksLikeDataUrl) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: "avatarUrl must be a preset id, https URL, or data URL",
-            });
-          }
-        }
-        await db.updateUserAvatar(ctx.user.id, value);
-        return { ok: true as const, avatarUrl: value };
-      }),
-  }),
+  auth: authRouter,
 
   // ─── Credits / Points Info ───────────────────────────────────────────────
-  credits: router({
-    /** 取得所有模型的定價分類表（公開，無需登入） */
-    pricingCatalog: publicProcedure.query(() => {
-      const byCategory = getAllPricingByCategory();
-      // Transform to serializable format
-      const result: Record<
-        string,
-        Array<{
-          modelId: string;
-          label: string;
-          provider: string;
-          tier: string;
-          basePoints: number;
-          unit: string;
-          minPoints: number;
-          maxPoints: number;
-          pointsPerSecond?: number;
-          pointsPer1kChars?: number;
-          pointsPerImage?: number;
-          pointsPerStep?: number;
-        }>
-      > = {};
-      for (const [cat, models] of Object.entries(byCategory)) {
-        result[cat] = models.map(m => ({
-          modelId: m.modelId,
-          label: m.label,
-          provider: m.provider,
-          tier: m.tier,
-          basePoints: m.basePoints,
-          unit: m.unit,
-          minPoints: m.minPoints,
-          maxPoints: m.maxPoints,
-          pointsPerSecond: m.pointsPerSecond,
-          pointsPer1kChars: m.pointsPer1kChars,
-          pointsPerImage: m.pointsPerImage,
-          pointsPerStep: m.pointsPerStep,
-        }));
-      }
-      return result;
-    }),
+  credits: creditsRouter,
 
-    /** 取得使用者目前積分餘額（需登入）+ 近 30 天用量摘要，給「財財」精靈
-     *  的低餘額提醒 / monthly_spend_threshold 真實 usedPct 計算用。
-     *
-     *  之前 DashboardLayout publish 時 usedPct 硬寫 90 是因為這支只回 remaining
-     *  + topModel；現在把 totalSpentPoints / usedPct 也一起回，前端就不用瞎猜。
-     *
-     *  usedPct 算法：spent / (spent + remaining) — 不需要平台「monthly allowance」
-     *  欄位，就能算出「在你目前的支出與餘額之間，花掉多少」的相對比例。新使用者
-     *  spent=0 → usedPct=0；老使用者花完所有點數 → usedPct=100。 */
-    myBalance: protectedProcedure.query(async ({ ctx }) => {
-      let topModel: string | null = null;
-      let totalSpentPoints = 0;
-      try {
-        const top = await getUserTopModelRecent(ctx.user.id, { days: 30 });
-        if (top?.model) topModel = top.model;
-      } catch {
-        // DB 不可用或表為空 — 落在 null，前端會給「最近的高耗模型」備援文案。
-      }
-      try {
-        const summary = await db.getUserCostSummary(ctx.user.id);
-        // 1 USD ≈ 100 pts（與 modelPricing 的換算基準一致）。
-        totalSpentPoints = Math.round((Number(summary.totalCost) || 0) * 100);
-      } catch {
-        // 落在 0 — 前端會把 usedPct 算成 0%，避免 publish 假警示。
-      }
-      const remaining = ctx.user.remainingGenerations ?? 0;
-      const denominator = totalSpentPoints + remaining;
-      const usedPct = denominator > 0
-        ? Math.min(100, Math.round((totalSpentPoints / denominator) * 100))
-        : 0;
-      return {
-        remaining,
-        topModel,
-        totalSpentPoints,
-        usedPct,
-      };
-    }),
-  }),
+  // ─── 財財 (accountant) ──────────────────────────────────────────────────
+  accountant: accountantRouter,
 
-  // ─── 財財 (accountant) 工具：對前端 / 光球都開放的四個唯讀 endpoint ─────────
-  //
-  // 為什麼放在 tRPC：
-  //   1. agentToolExecutor 已經有 server-side dispatch（accountant.* tools），但
-  //      ① 客戶端有時想直接顯示「這次會花多少」卡片，不一定要透過 LLM 中轉
-  //      ② BackgroundTasksContext 的 lookupExpensiveModel 需要一個前端可呼叫的
-  //         入口拿真實 catalog 資料（取代硬編碼 EXPENSIVE_MODEL_HINTS）
-  //   2. 共享同一個 server/services/spiritTools/accountantTools 實作 — 把
-  //      LLM 工具呼叫與 tRPC 客戶端呼叫對齊到同一份 ground truth。
-  //
-  // 所有 endpoint 都是唯讀，不扣款 / 不寫 DB，所以 estimate / compare / savings
-  // 用 publicProcedure（無需登入也能算）；usage 用 protectedProcedure 因為要
-  // 看使用者個人 apiUsageLogs。
-  accountant: router({
-    estimate: publicProcedure
-      .input(
-        z.object({
-          modelId: z.string().min(1),
-          durationSec: z.number().nonnegative().optional(),
-          charCount: z.number().nonnegative().optional(),
-          imageCount: z.number().nonnegative().optional(),
-          trainingSteps: z.number().nonnegative().optional(),
-        })
-      )
-      .query(async ({ input }) => {
-        const { estimateCost } = await import("./services/spiritTools/accountantTools");
-        return estimateCost(input);
-      }),
-
-    compare: publicProcedure
-      .input(
-        z.object({
-          category: z.string().min(1),
-          durationSec: z.number().nonnegative().optional(),
-          charCount: z.number().nonnegative().optional(),
-          imageCount: z.number().nonnegative().optional(),
-          limit: z.number().int().min(1).max(10).optional(),
-        })
-      )
-      .query(async ({ input }) => {
-        const { compareModels } = await import("./services/spiritTools/accountantTools");
-        // Validate category against catalog like the LLM dispatcher does —
-        // otherwise an unknown enum silently returns an empty list.
-        const knownCategories = new Set(
-          Object.values(MODEL_PRICING_CATALOG).map(p => p.category)
-        );
-        if (!knownCategories.has(input.category as never)) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: `unknown category: ${input.category}`,
-          });
-        }
-        return compareModels({
-          category: input.category as Parameters<typeof compareModels>[0]["category"],
-          durationSec: input.durationSec,
-          charCount: input.charCount,
-          imageCount: input.imageCount,
-          limit: input.limit,
-        });
-      }),
-
-    usage: protectedProcedure.query(async ({ ctx }) => {
-      const { getMonthlyUsage } = await import("./services/spiritTools/accountantTools");
-      return getMonthlyUsage(ctx.user.id);
-    }),
-
-    savings: publicProcedure
-      .input(
-        z.object({
-          modelId: z.string().min(1),
-          durationSec: z.number().nonnegative().optional(),
-          charCount: z.number().nonnegative().optional(),
-          imageCount: z.number().nonnegative().optional(),
-          limit: z.number().int().min(1).max(5).optional(),
-        })
-      )
-      .query(async ({ input }) => {
-        const { suggestSavings } = await import("./services/spiritTools/accountantTools");
-        return suggestSavings(input);
-      }),
-  }),
-
-  // ─── 音音 (music-specialist) 工具：對前端 / 光球都開放的諮詢 endpoint ─────
-  //
-  // 為什麼放在 tRPC（與 accountant.* 同一理由）：
-  //   1. agentToolExecutor 已經有 server-side dispatch（musicSpecialist.* tools），
-  //      但前端的 ProStudio / OrbCreationStage 也想直接：
-  //        ① 在使用者填 mood + duration 時即時顯示「推薦引擎 + 預估點數」卡片
-  //        ② 在 BGM 模板選擇 UI 列出所有 engine（依 capability 過濾）
-  //        ③ 在「最近作品」面板抓使用者之前做過的音檔（getRecentAssets）
-  //      不需要每個 UI 元件都包一層 LLM，這四個 endpoint 共享 musicSpecialistTools
-  //      的同一份實作，與 LLM tool dispatch 的回值對齊。
-  //   2. estimate / list / recommend 屬唯讀且不需 user-specific 資訊，用
-  //      publicProcedure；getRecent 需要 userId，用 protectedProcedure。
-  musicSpecialist: router({
-    recommendEngine: publicProcedure
-      .input(
-        z.object({
-          capability: z.enum([
-            "music-vocals",
-            "music-instrumental",
-            "music-loop",
-            "music-ambient",
-            "sfx",
-            "stems",
-            "isolation",
-            "merge",
-          ]),
-          durationSec: z.number().nonnegative().optional(),
-          needsVocals: z.boolean().optional(),
-          prioritizeBudget: z.boolean().optional(),
-          excludeModelIds: z.array(z.string()).optional(),
-        })
-      )
-      .query(async ({ input }) => {
-        const { recommendEngine } = await import(
-          "./services/spiritTools/musicSpecialistTools"
-        );
-        return recommendEngine(input);
-      }),
-
-    buildPrompt: publicProcedure
-      .input(
-        z.object({
-          modelId: z.string().min(1),
-          mood: z.string().optional(),
-          genre: z.string().optional(),
-          instruments: z.array(z.string()).optional(),
-          bpm: z.number().int().positive().optional(),
-          seamlessLoop: z.boolean().optional(),
-          references: z.string().optional(),
-          lyrics: z.string().optional(),
-          durationSec: z.number().nonnegative().optional(),
-        })
-      )
-      .query(async ({ input }) => {
-        const { buildPrompt } = await import(
-          "./services/spiritTools/musicSpecialistTools"
-        );
-        return buildPrompt(input);
-      }),
-
-    estimateCost: publicProcedure
-      .input(
-        z.object({
-          modelId: z.string().min(1),
-          durationSec: z.number().nonnegative().optional(),
-        })
-      )
-      .query(async ({ input }) => {
-        const { estimateMusicCost } = await import(
-          "./services/spiritTools/musicSpecialistTools"
-        );
-        return estimateMusicCost(input);
-      }),
-
-    listEngines: publicProcedure
-      .input(
-        z
-          .object({
-            capability: z
-              .enum([
-                "music-vocals",
-                "music-instrumental",
-                "music-loop",
-                "music-ambient",
-                "sfx",
-                "stems",
-                "isolation",
-                "merge",
-              ])
-              .optional(),
-          })
-          .optional()
-      )
-      .query(async ({ input }) => {
-        const { listEngines } = await import(
-          "./services/spiritTools/musicSpecialistTools"
-        );
-        return listEngines(input ?? {});
-      }),
-
-    getRecentAssets: protectedProcedure
-      .input(z.object({ limit: z.number().int().min(1).max(30).optional() }).optional())
-      .query(async ({ ctx, input }) => {
-        const { getRecentAudioAssets } = await import(
-          "./services/spiritTools/musicSpecialistTools"
-        );
-        return getRecentAudioAssets(ctx.user.id, input?.limit);
-      }),
-  }),
+  // ─── 音音 (music-specialist) ────────────────────────────────────────────
+  musicSpecialist: musicSpecialistRouter,
 
   // ─── Generation ──────────────────────────────────────────────────────────
 
