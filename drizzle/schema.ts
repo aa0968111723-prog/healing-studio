@@ -4612,3 +4612,27 @@ export const webhookDeliveryHistory = mysqlTable(
 
 export type WebhookDeliveryRecord = typeof webhookDeliveryHistory.$inferSelect;
 export type InsertWebhookDeliveryRecord = typeof webhookDeliveryHistory.$inferInsert;
+
+// ─── API Keys (AIDV-276) ────────────────────────────────────────────────────
+
+export const apiKeys = mysqlTable(
+  "api_keys",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    keyHash: varchar("key_hash", { length: 64 }).notNull(),
+    keyPrefix: varchar("key_prefix", { length: 12 }).notNull(),
+    scopes: json("scopes").$type<string[]>().notNull(),
+    lastUsedAt: timestamp("last_used_at"),
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("ak_userId_idx").on(table.userId),
+    keyHashIdx: uniqueIndex("ak_keyHash_idx").on(table.keyHash),
+  })
+);
+
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = typeof apiKeys.$inferInsert;
