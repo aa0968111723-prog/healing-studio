@@ -890,6 +890,16 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     files: ["server/_core/index.ts"],
     downstream: ["storage:assets"],
   },
+  {
+    id: "api:video-output",
+    label: "GET /api/video-output",
+    description:
+      "AIDV-280 BOLA 修復：HMAC-signed 影片輸出代理，驗 ownership + 簽章 + 到期後 302 跳轉真實 CDN URL",
+    method: "GET",
+    path: "/api/video-output",
+    files: ["server/routes/videoOutputRoute.ts"],
+    downstream: ["db:main"],
+  },
 ];
 
 /**
