@@ -59,8 +59,39 @@ export function AidvShellChrome() {
       ? ((user as { name?: string; email?: string }).name ?? (user as { email?: string }).email)
       : undefined) ?? undefined;
   const doLogout = () => { setAcctOpen(false); void logout(); };
+
   const projectsQ = trpc.creativeProject.list.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
-  const projectList: DkProjectLite[] = (projectsQ.data ?? []).map((p) => ({ id: String(p.id), name: p.title }));
+  const STATUS_EMOJI: Record<string, string> = { concept: "💡", production: "🎬", review: "🔍", complete: "✅" };
+  const STATUS_ZH: Record<string, string> = { concept: "概念", production: "製作中", review: "審閱中", complete: "完成" };
+  const projectList: DkProjectLite[] = (projectsQ.data ?? []).map((p) => ({
+    id: String(p.id),
+    name: p.title,
+    emoji: STATUS_EMOJI[(p as { status?: string }).status ?? ""] ?? "🎬",
+    subtitle: STATUS_ZH[(p as { status?: string }).status ?? ""],
+  }));
+
+  // AIDV-134：Context Packet meter — 讀作用專案最新 packet（不重算；30 min TTL）
+  const activeProjectId = world.activeProjectId;
+  const ctxPktQ = trpc.contextPacket.getLatest.useQuery(
+    { projectId: activeProjectId! },
+    { enabled: activeProjectId != null, staleTime: 60_000, refetchOnWindowFocus: false }
+  );
+  const CTX_MAX_TOKENS = 4096;
+  const contextPct = ctxPktQ.data?.tokenEstimate != null
+    ? Math.min(100, Math.round((ctxPktQ.data.tokenEstimate / CTX_MAX_TOKENS) * 100))
+    : undefined;
+  const ttlLabel = (() => {
+    const exp = ctxPktQ.data?.expiresAt;
+    if (!exp) return undefined;
+    const ms = new Date(exp).getTime() - Date.now();
+    if (ms <= 0) return "已過期";
+    const mins = Math.floor(ms / 60_000);
+    return mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h`;
+  })();
+
+  // AIDV-134：切換專案後在背景重建 Context Packet（fire-and-forget）
+  const compileMut = trpc.contextPacket.compileProject.useMutation();
+
   const balanceQ = trpc.credits.myBalance.useQuery(undefined, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   const credits = typeof balanceQ.data?.remaining === "number" ? balanceQ.data.remaining : undefined;
 
@@ -132,10 +163,15 @@ export function AidvShellChrome() {
             <ProjectSwitcher
               projects={projectList}
               activeId={world.activeProjectId != null ? String(world.activeProjectId) : undefined}
-              onSelect={(id) => world.setActiveProjectId(Number(id))}
+              onSelect={(id) => {
+                world.setActiveProjectId(Number(id));
+                compileMut.mutate({ projectId: Number(id), mode: "director" });
+              }}
               onCreate={() => navigate("/create")}
               open={psOpen}
               onToggle={() => setPsOpen((v) => !v)}
+              contextPct={contextPct}
+              ttlLabel={ttlLabel}
             />
           }
           providerSlot={

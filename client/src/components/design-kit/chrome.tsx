@@ -287,7 +287,7 @@ export function TopBar({
 }
 
 /* ================= ProjectSwitcher（collapsed pill ＋ 展開清單）================= */
-export interface DkProjectLite { id: string; name: string; emoji?: string }
+export interface DkProjectLite { id: string; name: string; emoji?: string; subtitle?: string }
 export function ProjectSwitcher({
   projects, activeId, onSelect, onCreate, contextPct, ttlLabel, locked, open, onToggle,
 }: {
@@ -310,7 +310,11 @@ export function ProjectSwitcher({
               <li key={p.id}>
                 <button type="button" role="menuitemradio" aria-checked={p.id === activeId} onClick={() => onSelect?.(p.id)} className={cn("flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-[12px]", p.id === activeId ? "bg-[var(--clay-tint)] text-[var(--clay)]" : "text-[var(--text-soft)] hover:bg-[var(--surface-2)]")}>
                   <span>{p.emoji ?? "🎬"}</span>
-                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{p.name}</span>
+                    {p.subtitle && <span className="block truncate text-[10px] text-[var(--muted)]">{p.subtitle}</span>}
+                  </span>
+                  {p.id === activeId && <span aria-hidden="true">✓</span>}
                 </button>
               </li>
             ))}
