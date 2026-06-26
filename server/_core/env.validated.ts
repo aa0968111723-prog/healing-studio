@@ -533,6 +533,8 @@ const multimodalSchema = z.object({
   ENABLE_CLAUDE_CODE_TASKS: z.string().optional().default("true"),
   ENABLE_CODEX_TASKS: z.string().optional().default("false"),
   ENABLE_ORB_PROVIDER_ROUTER: z.string().optional().default("true"),
+  /** AIDV-204: LLM engine fallback chain — when OFF, single-engine mode (no auto-retry to next provider). Default ON. */
+  ENABLE_LLM_FALLBACK: z.string().optional().default("true"),
   ENABLE_ORB_COST_GUARD: z.string().optional().default("true"),
   ENABLE_ORB_QUOTA_GUARD: z.string().optional().default("false"),
   ENABLE_ORB_IDEMPOTENCY_GUARD: z.string().optional().default("false"),
