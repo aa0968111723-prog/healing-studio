@@ -90,6 +90,7 @@ import {
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
 import { useEnsureCompatibleModel } from "@/hooks/useEnsureCompatibleModel";
+import { useGenerationTask } from "@/hooks/useGenerationTask";
 import {
   FEATURE_LABELS,
   getModelCapability,
@@ -355,8 +356,13 @@ export default function Studio() {
     | "versions"
   >("vault");
   const [isApplyingSuggestedModel, setIsApplyingSuggestedModel] = useState(false);
-  const [selectedFalModelId, setSelectedFalModelId] = useState<string | undefined>();
-  const [selectedModelParams, setSelectedModelParams] = useState<Record<string, string | number | boolean>>({});
+  const {
+    selectedModelId: selectedFalModelId,
+    setSelectedModelId: setSelectedFalModelId,
+    params: selectedModelParams,
+    setParams: setSelectedModelParams,
+    resetParams: resetModelParams,
+  } = useGenerationTask();
   // 光球 setModel 能力用的 Fal 模型清單（依 activeModality 切換）。
   // 真正的下拉選單在 MiniModelsPanel 各自 fetch；這裡只是給 orb agent 看「可選什麼」。
   const [orbFalModelOptions, setOrbFalModelOptions] = useState<
@@ -1523,7 +1529,7 @@ export default function Studio() {
       const modalityLabel =
         MODALITY_TABS.find(m => m.value === activeModality)?.label ?? "目前";
       setSelectedFalModelId(candidate.id);
-      setSelectedModelParams({});
+      resetModelParams();
       setToolboxTab("models");
       toast.success(`已套用${modalityLabel}模型：${candidate.name ?? candidate.id}`);
       return true;
@@ -2377,7 +2383,7 @@ export default function Studio() {
           const falId = raw.startsWith("fal:") ? raw.slice(4) : raw;
           if (falId.includes("/")) {
             setSelectedFalModelId(falId);
-            setSelectedModelParams({});
+            resetModelParams();
             return { ok: true, message: `Fal 模型已套用：${falId}` };
           }
           return {
