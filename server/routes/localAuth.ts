@@ -179,7 +179,6 @@ export function createLocalAuthRouter(
 
       res.status(201).json({
         success: true,
-        token: result.token,
         user: result.user,
         // Signal whether this registration linked a password to a pre-existing
         // Google-only account (no new row) so the UI can show the right copy.
@@ -310,7 +309,6 @@ export function createLocalAuthRouter(
 
       res.json({
         success: true,
-        token: result.token,
         user: result.user,
       });
     } catch (error) {
@@ -523,7 +521,7 @@ export function createLocalAuthRouter(
 
     const cookieOptions = getSessionCookieOptions(req);
     res.cookie(COOKIE_NAME, newToken, { ...cookieOptions, maxAge: newLifetimeMs });
-    res.json({ success: true, token: newToken });
+    res.json({ success: true });
   });
 
   return router;
