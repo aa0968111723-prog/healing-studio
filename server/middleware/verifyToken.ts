@@ -67,10 +67,14 @@ async function hydrateRequestAuth(req: Request, token: string): Promise<boolean>
       };
     }
   } catch (err) {
-    logger.warn("[Auth] Failed to hydrate user from DB, falling back to JWT payload", {
+    // AIDV-258: DB unavailable (ECONNREFUSED / timeout) — fail closed.
+    // Returning true without a hydrated user would allow JWT-only access,
+    // bypassing role and soft-delete checks that live only in the DB record.
+    logger.warn("[Auth] DB unavailable — failing closed, rejecting request", {
       sub: payload.sub,
-      err,
+      err: err instanceof Error ? err.message : String(err),
     });
+    return false;
   }
   return true;
 }

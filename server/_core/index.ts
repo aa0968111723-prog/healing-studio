@@ -699,6 +699,10 @@ async function startServer() {
   // AIDV-261：升級為雙重探測（DB + JWT auth），DB 停機時回 HTTP 503。
   // UptimeRobot 已設定偵測 503；Railway 的容器存活判定可接受 503 或依 body.ok。
   app.get("/api/health", async (_req, res) => {
+    // AIDV-259: Cache-Control: no-store prevents CDN/proxy caching a stale 200
+    // during a DB outage that would mask 503 from uptime monitors.
+    res.setHeader("Cache-Control", "no-store, no-cache");
+
     // storage:boolean — 「是否已設定後端」而非具體類型。
     const storageConfigured = detectStorageBackend() !== "none";
 
