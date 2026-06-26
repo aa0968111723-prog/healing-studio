@@ -29,6 +29,7 @@ import { getRecentApiEventsForModel } from "../db";
 import { recordSpecialistInteraction } from "./specializedAgentMemoryStore";
 import { serverEnv } from "../_core/env.validated";
 import type { AgentRole } from "../../shared/orb-agent-roles";
+import { dualEmitForUser } from "../generationEvents";
 
 // ─── LangSmith 追蹤（fal.ai 多模態模型深度整合）──────────────────────────────
 
@@ -1230,6 +1231,21 @@ export async function dispatchFalQueueTask(
     throw new Error(
       `fal.ai queue submit returned no request_id [${targetModelId}]`
     );
+  }
+
+  // AIDV-495: fal.ai 接受任務後廣播「生成中」，讓創作者端 SSE 退出「已排入」狀態。
+  if (params.userId) {
+    try {
+      dualEmitForUser(params.userId, {
+        type: "task_in_progress",
+        requestId: data.request_id,
+        userId: params.userId,
+        modelId: targetModelId,
+        at: Date.now(),
+      });
+    } catch (_) {
+      // fire-and-forget — SSE emit 失敗不能讓 dispatch 失敗
+    }
   }
 
   return {
