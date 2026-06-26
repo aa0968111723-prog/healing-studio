@@ -37,6 +37,7 @@ PREPARE r2oc_create_stmt FROM @r2oc_create;
 EXECUTE r2oc_create_stmt;
 --> statement-breakpoint
 DEALLOCATE PREPARE r2oc_create_stmt;
+--> statement-breakpoint
 
 -- ── (B) snapshotId INDEX（FK 查詢熱路徑）────────────────────────────────────
 
@@ -56,6 +57,7 @@ PREPARE r2oc_idx1_stmt FROM @r2oc_idx1;
 EXECUTE r2oc_idx1_stmt;
 --> statement-breakpoint
 DEALLOCATE PREPARE r2oc_idx1_stmt;
+--> statement-breakpoint
 
 -- ── (C) objectKey 前綴 INDEX（key 查詢，prefix 255 chars）───────────────────
 
