@@ -4536,3 +4536,22 @@ export const videoProjects = mysqlTable(
 
 export type VideoProject = typeof videoProjects.$inferSelect;
 export type InsertVideoProject = typeof videoProjects.$inferInsert;
+
+// ─── Project Snapshots (AIDV-253) ─────────────────────────────────────────────
+
+export const projectSnapshots = mysqlTable(
+  "project_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    projectId: int("project_id").notNull(),
+    snapshot: json("snapshot").notNull().$type<Record<string, unknown>>(),
+    source: varchar("source", { length: 20 }).notNull().default("auto"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => ({
+    projectCreatedIdx: index("ps_project_id_created_idx").on(table.projectId, table.createdAt),
+  })
+);
+
+export type ProjectSnapshot = typeof projectSnapshots.$inferSelect;
+export type InsertProjectSnapshot = typeof projectSnapshots.$inferInsert;

@@ -89,4 +89,118 @@ export const videoProjectRouter = router({
       createdAt: r.createdAt,
     }));
   }),
+
+  /** AIDV-248: 複製影片專案（A/B 迭代必備），回傳新 projectId */
+  duplicate: protectedProcedure
+    .input(
+      z.object({
+        sourceId: z.number().int().positive(),
+        title: z.string().min(1).max(255).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const source = await db.getVideoProject(input.sourceId);
+      if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "來源專案不存在" });
+      if (source.userId !== ctx.user.id)
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const newId = await db.duplicateVideoProject(input.sourceId, ctx.user.id, input.title);
+      return { id: newId };
+    }),
+
+  /** AIDV-227: 列出最近 N 個快照（版本歷程） */
+  listSnapshots: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        limit: z.number().int().min(1).max(50).default(10),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const project = await db.getVideoProject(input.projectId);
+      if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
+      if (project.userId !== ctx.user.id)
+        throw new TRPCError({ code: "FORBIDDEN" });
+      const rows = await db.listProjectSnapshots(input.projectId, input.limit);
+      return rows.map(r => ({
+        id: r.id,
+        projectId: r.projectId,
+        source: r.source,
+        createdAt: r.createdAt,
+        snapshot: r.snapshot,
+      }));
+    }),
+
+  /**
+   * AIDV-227: 回溯至指定快照，在覆寫前先存一個 'pre-restore' 快照以防意外。
+   * 回傳新 version 供前端更新樂觀鎖。
+   */
+  restoreSnapshot: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        snapshotId: z.number().int().positive(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await db.getVideoProject(input.projectId);
+      if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
+      if (project.userId !== ctx.user.id)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const snap = await db.getProjectSnapshot(input.snapshotId);
+      if (!snap || snap.projectId !== input.projectId)
+        throw new TRPCError({ code: "NOT_FOUND", message: "快照不存在" });
+
+      await db.createProjectSnapshot(input.projectId, {}, "pre-restore");
+
+      const patch = snap.snapshot as Parameters<typeof db.updateVideoProject>[1];
+      const { updated } = await db.updateVideoProject(input.projectId, patch);
+      if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const refreshed = await db.getVideoProject(input.projectId);
+      return { ok: true, version: refreshed?.version ?? 0 };
+    }),
+
+  /**
+   * AIDV-241/227: 儲存影片專案（帶 CAS 版本鎖），成功後自動寫入快照。
+   * expectedVersion 省略時退化為無版本檢查（向下相容）。
+   */
+  save: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        title: z.string().min(1).max(255).optional(),
+        aspectRatio: aspectRatioSchema.optional(),
+        expectedVersion: z.number().int().nonnegative().optional(),
+        snapshotData: z.record(z.string(), z.unknown()).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const row = await db.getVideoProject(input.id);
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
+      if (row.userId !== ctx.user.id)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const patch: Record<string, unknown> = {};
+      if (input.title) patch.title = input.title;
+      if (input.aspectRatio) patch.aspectRatio = input.aspectRatio;
+
+      const { updated } = await db.updateVideoProject(
+        input.id,
+        patch as Parameters<typeof db.updateVideoProject>[1],
+        { expectedVersion: input.expectedVersion }
+      );
+      if (!updated) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "版本衝突，請重新載入後再試",
+        });
+      }
+
+      if (input.snapshotData) {
+        void db.createProjectSnapshot(input.id, input.snapshotData, "auto").catch(() => {});
+      }
+
+      return { ok: true };
+    }),
 });

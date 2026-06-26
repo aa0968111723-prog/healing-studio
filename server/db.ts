@@ -107,6 +107,8 @@ import {
   videoProjects,
   type VideoProject,
   type InsertVideoProject,
+  projectSnapshots,
+  type ProjectSnapshot,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 import { serverEnv } from "./_core/env.validated";
@@ -4901,4 +4903,61 @@ export async function updateVideoProject(
   const result = await db.update(videoProjects).set(setData).where(whereClause);
   const affected = (result as unknown as { affectedRows: number }).affectedRows;
   return { updated: affected > 0 };
+}
+
+// ─── Project Snapshots (AIDV-253) ─────────────────────────────────────────────
+
+export async function createProjectSnapshot(
+  projectId: number,
+  snapshot: Record<string, unknown>,
+  source: "auto" | "manual" | "pre-restore" = "auto"
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(projectSnapshots).values({ projectId, snapshot, source });
+  return result[0].insertId;
+}
+
+export async function listProjectSnapshots(
+  projectId: number,
+  limit = 10
+): Promise<ProjectSnapshot[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(projectSnapshots)
+    .where(eq(projectSnapshots.projectId, projectId))
+    .orderBy(desc(projectSnapshots.createdAt))
+    .limit(limit);
+}
+
+export async function getProjectSnapshot(id: number): Promise<ProjectSnapshot | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(projectSnapshots)
+    .where(eq(projectSnapshots.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function duplicateVideoProject(
+  sourceId: number,
+  userId: number,
+  newTitle?: string
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const source = await getVideoProject(sourceId);
+  if (!source) throw new Error("Source project not found");
+  const result = await db.insert(videoProjects).values({
+    userId,
+    title: newTitle ?? `${source.title} (複本)`,
+    aspectRatio: source.aspectRatio,
+    creativeProjectId: source.creativeProjectId ?? undefined,
+    version: 0,
+  });
+  return result[0].insertId;
 }
