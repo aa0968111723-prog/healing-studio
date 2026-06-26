@@ -723,6 +723,15 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     downstream: ["db:main"],
   },
   {
+    id: "api:provider-health",
+    label: "GET /api/provider-health",
+    description: "回傳所有 AI provider 的 probe 狀態（AIDV-518）",
+    method: "GET",
+    path: "/api/provider-health",
+    files: ["server/_core/index.ts", "server/jobs/providerHealthProbeJob.ts"],
+    downstream: ["service:provider-health"],
+  },
+  {
     id: "api:trpc",
     label: "ALL /api/trpc/*",
     description: "tRPC HTTP 適配器入口；所有 admin / studio / brain 呼叫都走這裡",
@@ -1371,6 +1380,15 @@ const CRON_JOBS: CronJobMeta[] = [
       "掃描 data_source_connections.expiresAt，對 30 天內即將到期的連接發出 console.warn 警告（AIDV-68 M5 key versioning）",
     files: ["server/jobs/credentialExpiryAlertJob.ts"],
     downstream: ["db:main"],
+  },
+  {
+    id: "cron:provider-health-probe",
+    label: "AI Provider 健康探測（每 10 分鐘）",
+    schedule: "*/10 * * * *",
+    description:
+      "主動探測各 AI provider API key 可用性（FAL / ElevenLabs / Replicate / Anthropic / Gemini / OpenRouter）；連續 2+ 次失敗寫入 orb_system_alerts；自動恢復時標記 isResolved（AIDV-518）",
+    files: ["server/jobs/providerHealthProbeJob.ts"],
+    downstream: ["db:main", "service:provider-health"],
   },
 ];
 
