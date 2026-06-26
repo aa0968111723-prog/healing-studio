@@ -491,6 +491,7 @@ async function startServer() {
   // so webhook handlers (fal / suno / replicate / stripe) can compute HMAC /
   // Ed25519 signatures over the exact bytes the upstream service signed.
   app.use(
+    "/api/upload",
     express.json({
       limit: "4mb",
       verify: (req, _res, buf) => {
@@ -616,9 +617,14 @@ async function startServer() {
     }
   });
 
+  // AIDV-265: Max bytes the proxy-download stream will forward.
+  // Prevents a malicious/massive upstream response from exhausting server RAM.
+  const PROXY_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
+
   // ── 後端代理下載（解決前端直接 fetch CDN 時的 CORS 問題）──────────────────
   // GET /api/proxy-download?url=<encodedUrl>
-  app.get("/api/proxy-download", async (req, res) => {
+  // AIDV-265: requires auth + dedicated rate limit + 100 MB byte cap.
+  app.get("/api/proxy-download", authenticateRequest, rateLimiters.proxyDownload, async (req, res) => {
     const raw = req.query.url as string | undefined;
     if (!raw) {
       res.status(400).json({ error: "Missing url parameter" });
@@ -653,17 +659,28 @@ async function startServer() {
         upstream.headers.get("content-type") || "application/octet-stream";
       const contentLength = upstream.headers.get("content-length");
       res.setHeader("Content-Type", contentType);
-      res.setHeader("Cache-Control", "public, max-age=86400"); // 24h cache
+      // private: endpoint now requires auth — no shared cache should store this.
+      res.setHeader("Cache-Control", "private, max-age=86400");
       res.setHeader("Access-Control-Allow-Origin", "*");
       if (contentLength) res.setHeader("Content-Length", contentLength);
-      // Stream the response body instead of buffering into memory
+      // Stream the response body instead of buffering into memory.
+      // AIDV-265: track bytes forwarded; abort and close once the cap is hit.
       if (upstream.body) {
         const reader = upstream.body.getReader();
+        let bytesForwarded = 0;
         const pump = async () => {
           while (true) {
             const { done, value } = await reader.read();
             if (done) {
               res.end();
+              return;
+            }
+            bytesForwarded += value.byteLength;
+            if (bytesForwarded > PROXY_DOWNLOAD_MAX_BYTES) {
+              reader.cancel().catch(() => {});
+              if (!res.headersSent)
+                res.status(413).json({ error: "Response too large" });
+              else res.end();
               return;
             }
             if (!res.write(value)) {
@@ -681,6 +698,10 @@ async function startServer() {
       } else {
         // Fallback for environments without ReadableStream
         const buffer = await upstream.arrayBuffer();
+        if (buffer.byteLength > PROXY_DOWNLOAD_MAX_BYTES) {
+          res.status(413).json({ error: "Response too large" });
+          return;
+        }
         res.send(Buffer.from(buffer));
       }
     } catch (err: unknown) {

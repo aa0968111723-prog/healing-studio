@@ -29,7 +29,7 @@ import { logger } from "./logger";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-export type RateLimitTier = "auth" | "llm" | "api" | "upload" | "health";
+export type RateLimitTier = "auth" | "llm" | "api" | "upload" | "health" | "proxyDownload";
 
 export interface TierConfig {
   /** Rolling window duration in milliseconds */
@@ -67,6 +67,11 @@ const TIER_CONFIGS: Record<RateLimitTier, TierConfig> = {
     windowMs: 60 * 1_000, // 1 minute
     max: 120,
     description: "Health check endpoints",
+  },
+  proxyDownload: {
+    windowMs: 15 * 60 * 1_000, // 15 minutes
+    max: 30,
+    description: "Proxy-download endpoint (bandwidth cost per hit)",
   },
 };
 
@@ -238,6 +243,8 @@ export const rateLimiters = {
   upload: createTierLimiter("upload"),
   /** Lenient limiter for health check endpoints (120 req / min) */
   health: createTierLimiter("health"),
+  /** Strict limiter for proxy-download endpoint (30 req / 15 min) */
+  proxyDownload: createTierLimiter("proxyDownload"),
 } as const;
 
 export { TIER_CONFIGS, buildRateLimitKey };
