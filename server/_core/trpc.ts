@@ -15,6 +15,9 @@ import {
 import { checkTrpcRateLimit } from "./trpcRateLimit";
 import { logger } from "./logger";
 import { captureError } from "./errorTracking";
+import { getDb } from "../db";
+import { backgroundJobs } from "../../drizzle/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -169,10 +172,33 @@ export const generationProcedure = brainProcedure.use(requireGenerationLimit);
 
 // AIDV-242: Video Studio generation limits — per-hour + per-day on top of shared 5/min.
 // GPU cost per call ($0.05–$0.5) is far higher than text/image, so tighter hourly/daily caps.
+// AIDV-294: Concurrent active job cap — prevents a single user from queuing unbounded GPU tasks.
+const MAX_CONCURRENT_VIDEO_JOBS = 5;
 const requireVideoStudioLimit = t.middleware(async ({ ctx, next }) => {
   if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   checkTrpcRateLimit(ctx.user.id, { limit: 50, windowMs: 60 * 60_000, label: "videoStudio:hr" });
   checkTrpcRateLimit(ctx.user.id, { limit: 200, windowMs: 24 * 60 * 60_000, label: "videoStudio:day" });
+
+  const db = await getDb();
+  if (db) {
+    const [row] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(backgroundJobs)
+      .where(
+        and(
+          eq(backgroundJobs.userId, ctx.user.id),
+          eq(backgroundJobs.jobType, "video"),
+          inArray(backgroundJobs.status, ["queued", "processing"])
+        )
+      );
+    if ((row?.count ?? 0) >= MAX_CONCURRENT_VIDEO_JOBS) {
+      throw new TRPCError({
+        code: "TOO_MANY_REQUESTS",
+        message: `最多同時進行 ${MAX_CONCURRENT_VIDEO_JOBS} 個影片生成任務，請等待現有任務完成後再試`,
+      });
+    }
+  }
+
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 

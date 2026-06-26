@@ -426,12 +426,13 @@ export const aiRouter = router({
   chat: brainProcedure
     .input(
       z.object({
-        messages: z.array(OrbChatRouterMessageSchema),
+        // AIDV-294: cap conversation history to 200 turns (100 user + 100 assistant).
+        messages: z.array(OrbChatRouterMessageSchema).max(200),
         personality: z
           .enum(["calm", "creative", "technical"])
           .default("creative"),
         /** 舊版欄位：純文字頁面上下文，保留向後相容 */
-        context: z.string().optional(),
+        context: z.string().max(10_000).optional(),
         /**
          * 新版：PageAgent 註冊時提供的結構化 snapshot。
          * 帶入後 LLM 才能知道這頁有哪些 modelId / tabId / preset 可以 [ACTION:...]。
