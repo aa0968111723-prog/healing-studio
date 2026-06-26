@@ -17,9 +17,11 @@
  */
 
 import { logger } from "../_core/logger";
+import { getDb } from "../db";
 import { instantiateSkillStep } from "./skillValidator";
 import { getOfficialSkill } from "../../shared/skills/index";
 import { dispatchOfficialSkill, type OfficialSkillInput } from "./officialSkillAdapters";
+import { enqueueAttribution, isCostAttributionEnabled } from "./cost/costAttribution";
 import type { SkillPermissions, SkillInstance } from "../../shared/skill-manifest";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -282,8 +284,8 @@ export class SkillOrchestrator {
           ...skillInputs,
         } as OfficialSkillInput);
 
-        // Audit: emit to structured logs (AIDV-13 full DB persistence is future work)
-        this.persistStepRecord(executionId, stepIndex, inst.instance, output);
+        // Audit: emit to structured logs + enqueue cost attribution (AIDV-130 S-5)
+        void this.persistStepRecord(executionId, stepIndex, inst.instance, output, opts.userId);
 
         emit("completed");
         return {
@@ -319,15 +321,14 @@ export class SkillOrchestrator {
     };
   }
 
-  private persistStepRecord(
+  private async persistStepRecord(
     executionId: string,
     stepIndex: number,
     instance: SkillInstance,
-    output: unknown
-  ): void {
-    // Audit log: AIDV-13 full persistence (bigint executionId FK + stepId/spiritId/toolName)
-    // will be wired when the workflow execution table integration is complete.
-    // For now emit to structured logs so the audit trail is preserved.
+    output: unknown,
+    userId: number
+  ): Promise<void> {
+    // Structured audit log — AIDV-13 full DB persistence deferred to execution table integration.
     logger.info(
       {
         executionId,
@@ -340,6 +341,32 @@ export class SkillOrchestrator {
       },
       "SkillOrchestrator: step completed"
     );
+
+    // AIDV-130 S-5: enqueue skill cost attribution (fire-and-forget, best-effort).
+    if (!isCostAttributionEnabled()) return;
+    const costUsd =
+      output !== null &&
+      typeof output === "object" &&
+      !Array.isArray(output) &&
+      "estimatedCostUsd" in (output as Record<string, unknown>)
+        ? Number((output as Record<string, unknown>).estimatedCostUsd)
+        : 0;
+    if (!Number.isFinite(costUsd) || costUsd <= 0) return;
+    try {
+      const db = await getDb();
+      if (!db) return;
+      await enqueueAttribution(db as Parameters<typeof enqueueAttribution>[0], {
+        costUsd,
+        userId,
+        skillId: instance.skillId,
+        skillVersion: instance.skillVersion,
+        idempotencyKey: `sko:${executionId}:${stepIndex}`,
+        refType: "skill_step",
+        refId: `${instance.skillId}@${executionId}`,
+      });
+    } catch (err) {
+      logger.warn({ err, executionId, stepIndex }, "SkillOrchestrator: cost attribution enqueue failed");
+    }
   }
 }
 

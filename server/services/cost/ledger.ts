@@ -152,6 +152,9 @@ export interface LedgerEntryMeta {
   model?: string | null;
   /** 成本數字來源："provider"＝上游真實計費；"catalog"＝目錄真實單位價後援。 */
   costSource?: string | null;
+  /** AIDV-130 S-5：Skill 成本維度。執行此分錄的 Skill manifest id + 版本。 */
+  skillId?: string | null;
+  skillVersion?: string | null;
 }
 
 /** 實際 insert 進 DB 的 row（amount 已正規化為字串）。 */
@@ -172,6 +175,9 @@ interface InsertLedgerInput {
   provider?: string | null;
   model?: string | null;
   costSource?: string | null;
+  // AIDV-130 S-5：Skill 成本維度。
+  skillId?: string | null;
+  skillVersion?: string | null;
 }
 
 export interface PostEntryResult {
@@ -385,6 +391,12 @@ export function normalizeLedgerMeta(
   }
   if (meta.costSource != null && String(meta.costSource).trim() !== "") {
     out.costSource = String(meta.costSource).trim();
+  }
+  if (meta.skillId != null && String(meta.skillId).trim() !== "") {
+    out.skillId = String(meta.skillId).trim();
+  }
+  if (meta.skillVersion != null && String(meta.skillVersion).trim() !== "") {
+    out.skillVersion = String(meta.skillVersion).trim();
   }
   return out;
 }

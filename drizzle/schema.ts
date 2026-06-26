@@ -2147,6 +2147,10 @@ export const costLedger = mysqlTable(
     //   "catalog" ＝modelPricing 目錄真實單位價後援（次準，線上四家供應商無 usage.cost
     //               時用以讓成本可視）。null＝舊資料/未標。
     costSource: varchar("costSource", { length: 16 }),
+    // ── AIDV-130 S-5（migration 0086）：Skill 成本維度 ──────────────────────────
+    // 每筆 Skill 執行的分錄帶上 skillId@skillVersion，支援依 Skill 彙總成本。
+    skillId: varchar("skillId", { length: 128 }),
+    skillVersion: varchar("skillVersion", { length: 32 }),
   },
   table => ({
     idempotencyKeyUnique: uniqueIndex("cl_idempotencyKey_unique").on(
@@ -2160,6 +2164,7 @@ export const costLedger = mysqlTable(
     createdAtIdx: index("cl_createdAt_idx").on(table.createdAt),
     projectIdx: index("cl_projectId_idx").on(table.projectId),
     workflowIdx: index("cl_workflowId_idx").on(table.workflowId),
+    skillIdx: index("cl_skillId_idx").on(table.skillId),
   })
 );
 

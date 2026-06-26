@@ -65,6 +65,8 @@ const PENDING_BLOCK = [
   "0084_skill_step_columns",
   // AIDV-129 S-4：Skill 註冊表（三級信任 + 權限放行）。
   "0085_skill_registry",
+  // AIDV-130 S-5：Skill 成本維度（依 skillId 落帳）。
+  "0086_skill_cost_dimension",
 ];
 
 function readSql(tag: string): string {

@@ -631,6 +631,13 @@
       "when": 1782456021100,
       "tag": "0085_skill_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "5",
+      "when": 1782457200000,
+      "tag": "0086_skill_cost_dimension",
+      "breakpoints": true
     }
   ]
 }
