@@ -410,6 +410,7 @@ function assembleProject(
       status: (sh.gen?.status ?? (sh.assetUrl ? "done" : "idle")) as Shot["gen"]["status"],
       provider: sh.gen?.provider, model: sh.gen?.model, costUsd: sh.gen?.costUsd,
       variant: Number(sh.gen?.variant ?? 0),
+      assetUrl: sh.assetUrl ?? sh.gen?.assetUrl,
     },
     prompt: sh.prompt,
     assetUrl: sh.assetUrl ?? undefined,
