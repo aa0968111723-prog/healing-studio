@@ -2769,6 +2769,25 @@ export default function DirectorAI() {
       onError: e => toast.error("建立分鏡板失敗：" + e.message),
     });
 
+  // AIDV-151: 把帶 CO-STAR 的段落送入影片製作佇列（建立 in_progress 分鏡板 + 跳 VideoStudio）
+  const queueForVideoMut =
+    trpc.worldStoryboard.queueForVideo.useMutation({
+      onSuccess: data => {
+        toast.success(
+          `已送入影片製作佇列 — ${data.sceneCount} 個鏡頭`,
+          {
+            action: {
+              label: "前往影片製作",
+              onClick: () => navigate(`/video-studio?queue=${data.id}`),
+            },
+            duration: 8000,
+          }
+        );
+        navigate(`/video-studio?queue=${data.id}`);
+      },
+      onError: e => toast.error("送入影片佇列失敗：" + e.message),
+    });
+
   const handleCreateStoryboardFromScript = useCallback(
     (overrideWorldId?: number) => {
       if (importedSegments.length === 0) {
@@ -4002,6 +4021,54 @@ export default function DirectorAI() {
     });
   }, [importedSegments, personality, batchCostarMut]);
 
+  // AIDV-151: 把所有有 CO-STAR 的分鏡一鍵送入影片製作佇列
+  const handleQueueForVideo = useCallback(
+    (overrideWorldId?: number) => {
+      const segmentsWithCostar = importedSegments.filter(s => s.costar);
+      if (segmentsWithCostar.length === 0) {
+        toast.error("尚未生成 CO-STAR，請先批次生成後再送入影片佇列", {
+          action: {
+            label: "批次生成 CO-STAR",
+            onClick: handleBatchCostar,
+          },
+        });
+        return;
+      }
+      const worldId =
+        overrideWorldId ?? worldbuildingSelectedId ?? worldCtx.worldFrameworkId;
+      if (!worldId) {
+        toast.error("請先在「世界觀」分頁選擇要使用的世界觀", {
+          action: {
+            label: "前往世界觀",
+            onClick: () => setActiveTab("worldbuilding"),
+          },
+        });
+        return;
+      }
+      queueForVideoMut.mutate({
+        worldId,
+        name: importedTitle || `影片佇列 ${new Date().toLocaleString("zh-TW")}`,
+        segments: segmentsWithCostar.map(s => ({
+          segmentId: s.id,
+          storyboard: s.storyboard,
+          characters: s.characters ?? [],
+          locations: s.locations ?? [],
+          visualPrompt: s.costar?.visualPrompt,
+          musicVibe: s.costar?.musicVibe,
+          audioScript: s.costar?.audioScript,
+        })),
+      });
+    },
+    [
+      importedSegments,
+      importedTitle,
+      worldbuildingSelectedId,
+      worldCtx.worldFrameworkId,
+      queueForVideoMut,
+      handleBatchCostar,
+    ]
+  );
+
   const handleStartBatchGeneration = useCallback(() => {
     if (importedSegments.length === 0) {
       toast.error("尚未匯入腳本分鏡");
@@ -5069,6 +5136,28 @@ export default function DirectorAI() {
                       <Layers className="w-3.5 h-3.5 text-blue-600" />
                     )}
                     建立分鏡板
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs gap-1 bg-gradient-to-r from-orange-500/10 to-red-500/10 border-orange-300/50 hover:from-orange-500/20 hover:to-red-500/20"
+                    onClick={() => handleQueueForVideo()}
+                    disabled={
+                      queueForVideoMut.isPending ||
+                      importedSegments.filter(s => s.costar).length === 0
+                    }
+                    title={
+                      importedSegments.filter(s => s.costar).length > 0
+                        ? `送入影片製作佇列（${importedSegments.filter(s => s.costar).length} 個鏡頭）`
+                        : "請先批次生成 CO-STAR 再送入影片佇列"
+                    }
+                  >
+                    {queueForVideoMut.isPending ? (
+                      <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                    ) : (
+                      <Film className="w-3.5 h-3.5 text-orange-600" />
+                    )}
+                    送入影片佇列
                   </Button>
                   <Button
                     variant="outline"

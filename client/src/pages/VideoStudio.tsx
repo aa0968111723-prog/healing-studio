@@ -62,6 +62,8 @@ import {
   Copy,
   Search,
   Package,
+  Play,
+  ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
@@ -74,7 +76,7 @@ import {
   type AgentActionResult,
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
@@ -4326,6 +4328,13 @@ export default function VideoStudio() {
   );
 
   const [, navigate] = useLocation();
+  const search = useSearch();
+  // AIDV-151: ?queue=:storyboardId — Director AI 批次送入的影片製作佇列
+  const queueStoryboardId = useMemo(() => {
+    const p = new URLSearchParams(search);
+    const v = p.get("queue");
+    return v ? parseInt(v, 10) || null : null;
+  }, [search]);
 
   // ── Director AI 來源情境（從 sendToStudio 載入後保留，用於「回到導演 AI」回填）──
   const [directorContext, setDirectorContext] = useState<{
@@ -4333,6 +4342,13 @@ export default function VideoStudio() {
     sceneHeading?: string;
     mood?: string;
   } | null>(null);
+
+  // AIDV-151: 查詢 Director AI 送來的佇列分鏡板
+  const queueStoryboardQuery = trpc.worldStoryboard.get.useQuery(
+    { id: queueStoryboardId! },
+    { enabled: queueStoryboardId !== null, staleTime: 30_000 }
+  );
+  const [queuePanelOpen, setQueuePanelOpen] = useState(true);
 
   // 暫存等待派發到子 tab 的 prompt / firstFrame；待 activeTab 切換到 targetTab
   // 後再透過 agentBus.dispatch 發送，避免 child 還沒 subscribe 就 dispatch。
@@ -5056,6 +5072,107 @@ export default function VideoStudio() {
           >
             回到導演 AI
           </button>
+        </div>
+      )}
+
+      {/* ── AIDV-151 Director AI 影片製作佇列面板 ── */}
+      {queueStoryboardId !== null && (
+        <div className="rounded-xl border border-orange-300/40 bg-orange-50/40 dark:bg-orange-900/10 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setQueuePanelOpen(o => !o)}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-orange-700 dark:text-orange-300 hover:bg-orange-100/40 dark:hover:bg-orange-900/20 transition"
+          >
+            <Film className="w-3.5 h-3.5 shrink-0" />
+            <span>
+              導演 AI 影片製作佇列
+              {queueStoryboardQuery.data
+                ? ` — ${queueStoryboardQuery.data.name}（${Object.keys(queueStoryboardQuery.data.jobs ?? {}).length} 個鏡頭）`
+                : ""}
+            </span>
+            <ChevronDown
+              className={`ml-auto w-3.5 h-3.5 transition-transform ${queuePanelOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+          {queuePanelOpen && (
+            <div className="px-3 pb-3 space-y-1.5 max-h-64 overflow-y-auto">
+              {queueStoryboardQuery.isLoading && (
+                <p className="text-xs text-muted-foreground py-2">載入中…</p>
+              )}
+              {queueStoryboardQuery.data &&
+                Object.entries(
+                  queueStoryboardQuery.data.jobs ?? {}
+                ).map(([segId, job]) => {
+                  const j = job as Record<string, unknown>;
+                  const status = (j.status as string) ?? "queued";
+                  const sceneHeading = (j.sceneHeading as string) ?? segId;
+                  const visualPrompt = (j.visualPrompt as string) ?? "";
+                  const statusColors: Record<string, string> = {
+                    queued: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+                    success: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+                    failed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+                    running: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+                  };
+                  return (
+                    <div
+                      key={segId}
+                      className="flex items-start gap-2 rounded-lg border border-border/30 bg-background/60 px-2.5 py-2 text-xs"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{sceneHeading}</p>
+                        {visualPrompt && (
+                          <p className="text-muted-foreground line-clamp-1 mt-0.5">{visualPrompt}</p>
+                        )}
+                      </div>
+                      <span
+                        className={`shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${statusColors[status] ?? statusColors.queued}`}
+                      >
+                        {status}
+                      </span>
+                      <button
+                        type="button"
+                        className="shrink-0 flex items-center gap-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary px-2 py-1 transition"
+                        onClick={() => {
+                          setActiveTab("t2v");
+                          setTimeout(() => {
+                            agentBus.dispatch({
+                              type: "fillPrompt",
+                              payload: { text: visualPrompt },
+                            });
+                          }, 100);
+                        }}
+                        title="載入此鏡頭提示詞到文生影"
+                      >
+                        <Play className="w-3 h-3" />
+                        <span>生成</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              {queueStoryboardQuery.data &&
+                Object.keys(queueStoryboardQuery.data.jobs ?? {}).length === 0 && (
+                  <p className="text-xs text-muted-foreground py-2">佇列為空</p>
+                )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition"
+                  onClick={() => navigate(`/animation/${queueStoryboardId}`)}
+                >
+                  <ChevronRight className="w-3 h-3" />
+                  前往分鏡板
+                </button>
+                <button
+                  type="button"
+                  className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition"
+                  onClick={() => navigate("/director")}
+                >
+                  <ChevronRight className="w-3 h-3" />
+                  回到導演 AI
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
