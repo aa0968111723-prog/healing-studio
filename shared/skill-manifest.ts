@@ -63,6 +63,11 @@ export const SkillManifestSchema = z.object({
   cost: z.object({
     attributeTo: CostAttributionSchema,
   }),
+  /**
+   * For kind=sandboxed only: restricted JavaScript executed in the vm sandbox.
+   * Must be absent for kind=declarative (no arbitrary code allowed).
+   */
+  code: z.string().optional(),
 });
 
 export type SkillManifest = z.infer<typeof SkillManifestSchema>;

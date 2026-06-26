@@ -19,6 +19,11 @@ import type { SkillRegistryEntry, InsertSkillRegistryEntry } from "../../drizzle
 import type { SkillManifest, SkillPermissions } from "../../shared/skill-manifest";
 import { OFFICIAL_SKILLS } from "../../shared/skills/index";
 import { logger } from "../_core/logger";
+import {
+  computeManifestChecksum,
+  checkUpgrade,
+  validateExternalSkillManifest,
+} from "./skillSupplyChain";
 
 // ─── Trust ceiling ────────────────────────────────────────────────────────────
 
@@ -125,6 +130,13 @@ export async function installSkill(input: InstallSkillInput): Promise<InstallRes
     return { ok: false, error: "Manifest permissions exceed the 'reviewed' trust ceiling" };
   }
 
+  const supplyChainCheck = validateExternalSkillManifest(manifest);
+  if (!supplyChainCheck.valid) {
+    return { ok: false, error: supplyChainCheck.reason! };
+  }
+
+  const manifestChecksum = computeManifestChecksum(manifest);
+
   try {
     await db.insert(skillRegistry).values({
       skillId: manifest.id,
@@ -137,6 +149,8 @@ export async function installSkill(input: InstallSkillInput): Promise<InstallRes
       status: "active",
       installedBy,
       source: source ?? null,
+      manifestChecksum,
+      needsReaudit: 0,
     });
     const [entry] = await db
       .select()
@@ -269,4 +283,77 @@ export async function enableSkill(skillId: string): Promise<AdminResult> {
     .set({ status: "active" })
     .where(eq(skillRegistry.skillId, skillId));
   return { ok: true };
+}
+
+// ─── Supply chain: version upgrade with permission re-audit ───────────────────
+
+export interface UpgradeSkillInput {
+  skillId: string;
+  newManifest: SkillManifest;
+  installedBy: number;
+}
+
+export type UpgradeResult =
+  | { ok: true; reauditRequired: false }
+  | { ok: true; reauditRequired: true; reason: string }
+  | { ok: false; error: string };
+
+/**
+ * Upgrade an installed skill to a new manifest version.
+ *
+ * Fail-closed supply chain rule: if the new manifest requests permissions
+ * beyond what Admin has already explicitly granted, the skill is disabled
+ * (needsReaudit=1, status=disabled) until Admin re-approves via enableSkill().
+ *
+ * Official skills bypass this — use seedOfficialSkills() instead.
+ */
+export async function upgradeSkill(input: UpgradeSkillInput): Promise<UpgradeResult> {
+  const db = await getDb();
+  if (!db) return { ok: false, error: "Database not configured" };
+
+  const entry = await getSkillEntry(input.skillId);
+  if (!entry) return { ok: false, error: `Skill "${input.skillId}" not found in registry` };
+  if (entry.trust === "official") {
+    return { ok: false, error: 'Official skills are upgraded via seedOfficialSkills(), not upgradeSkill()' };
+  }
+
+  const supplyChainCheck = validateExternalSkillManifest(input.newManifest);
+  if (!supplyChainCheck.valid) {
+    return { ok: false, error: supplyChainCheck.reason! };
+  }
+
+  const currentGranted = effectivePermissions(entry);
+  const upgradeCheck = checkUpgrade(currentGranted, input.newManifest);
+  const newChecksum = computeManifestChecksum(input.newManifest);
+
+  if (!upgradeCheck.safe) {
+    await db
+      .update(skillRegistry)
+      .set({
+        version: input.newManifest.version,
+        name: input.newManifest.name,
+        manifestChecksum: newChecksum,
+        needsReaudit: 1,
+        status: "disabled",
+      })
+      .where(eq(skillRegistry.skillId, input.skillId));
+    logger.warn(
+      { skillId: input.skillId, reason: upgradeCheck.reason },
+      "skillRegistryService: upgrade blocked — permission escalation, needs re-audit"
+    );
+    return { ok: true, reauditRequired: true, reason: upgradeCheck.reason! };
+  }
+
+  await db
+    .update(skillRegistry)
+    .set({
+      version: input.newManifest.version,
+      name: input.newManifest.name,
+      manifestChecksum: newChecksum,
+      needsReaudit: 0,
+    })
+    .where(eq(skillRegistry.skillId, input.skillId));
+
+  logger.info({ skillId: input.skillId, version: input.newManifest.version }, "skillRegistryService: skill upgraded");
+  return { ok: true, reauditRequired: false };
 }

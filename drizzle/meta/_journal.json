@@ -638,6 +638,13 @@
       "when": 1782457200000,
       "tag": "0086_skill_cost_dimension",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "5",
+      "when": 1782460800000,
+      "tag": "0087_skill_sandbox",
+      "breakpoints": true
     }
   ]
 }

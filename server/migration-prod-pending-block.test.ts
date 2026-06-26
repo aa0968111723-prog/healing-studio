@@ -67,6 +67,8 @@ const PENDING_BLOCK = [
   "0085_skill_registry",
   // AIDV-130 S-5：Skill 成本維度（依 skillId 落帳）。
   "0086_skill_cost_dimension",
+  // AIDV-131 S-6：Skill 沙箱——manifestChecksum + needsReaudit 供應鏈欄位。
+  "0087_skill_sandbox",
 ];
 
 function readSql(tag: string): string {

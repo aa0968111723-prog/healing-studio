@@ -13,6 +13,7 @@ import {
   date,
   index,
   uniqueIndex,
+  tinyint,
 } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
@@ -4477,6 +4478,10 @@ export const skillRegistry = mysqlTable(
     installedBy: int("installedBy"),
     /** Manifest source URL or file path; null for official skills. */
     source: varchar("source", { length: 512 }),
+    /** SHA-256 of the canonical manifest JSON recorded at install/upgrade time. */
+    manifestChecksum: varchar("manifestChecksum", { length: 64 }),
+    /** 1 when an upgrade detected permission escalation; Admin must re-approve before re-enabling. */
+    needsReaudit: tinyint("needsReaudit").default(0).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

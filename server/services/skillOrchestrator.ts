@@ -22,7 +22,9 @@ import { instantiateSkillStep } from "./skillValidator";
 import { getOfficialSkill } from "../../shared/skills/index";
 import { dispatchOfficialSkill, type OfficialSkillInput } from "./officialSkillAdapters";
 import { enqueueAttribution, isCostAttributionEnabled } from "./cost/costAttribution";
-import type { SkillPermissions, SkillInstance } from "../../shared/skill-manifest";
+import { getSkillEntry } from "./skillRegistryService";
+import { runSandboxedSkill, SandboxViolation } from "./skillSandbox";
+import type { SkillPermissions, SkillInstance, SkillManifest } from "../../shared/skill-manifest";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -240,14 +242,17 @@ export class SkillOrchestrator {
     emit: (status: StepStatus, message?: string) => void
   ): Promise<StepResult> {
     const stepStart = Date.now();
-    const manifest = getOfficialSkill(stepDef.skillId);
+    const officialManifest = getOfficialSkill(stepDef.skillId);
+    // Fall back to registry for external/community skills.
+    const manifest: SkillManifest | null =
+      officialManifest ?? (await this.resolveExternalSkill(stepDef.skillId));
     if (!manifest) {
       return {
         stepIndex,
         skillId: stepDef.skillId,
         label: stepDef.label,
         status: "failed",
-        error: `Unknown official skill: ${stepDef.skillId}`,
+        error: `Unknown skill: ${stepDef.skillId} (not in official registry or skill_registry)`,
         retries: 0,
         durationMs: 0,
       };
@@ -279,13 +284,18 @@ export class SkillOrchestrator {
 
     while (retries <= maxRetries) {
       try {
-        const output = await dispatchOfficialSkill({
-          skillId: stepDef.skillId as OfficialSkillInput["skillId"],
-          ...skillInputs,
-        } as OfficialSkillInput);
+        let output: unknown;
+        if (officialManifest) {
+          output = await dispatchOfficialSkill({
+            skillId: stepDef.skillId as OfficialSkillInput["skillId"],
+            ...skillInputs,
+          } as OfficialSkillInput);
+        } else {
+          output = await this.dispatchExternalSkill(manifest, skillInputs);
+        }
 
         // Audit: emit to structured logs + enqueue cost attribution (AIDV-130 S-5)
-        void this.persistStepRecord(executionId, stepIndex, inst.instance, output, opts.userId);
+        void this.persistStepRecord(executionId, stepIndex, inst.instance, output, userId);
 
         emit("completed");
         return {
@@ -319,6 +329,66 @@ export class SkillOrchestrator {
       retries: retries - 1,
       durationMs: Date.now() - stepStart,
     };
+  }
+
+  // ── External skill resolution (S-6) ─────────────────────────────────────
+
+  private async resolveExternalSkill(skillId: string): Promise<SkillManifest | null> {
+    try {
+      const entry = await getSkillEntry(skillId);
+      if (!entry) return null;
+      if (entry.status === "disabled") {
+        logger.warn({ skillId }, "SkillOrchestrator: external skill is disabled (possible re-audit pending)");
+        return null;
+      }
+      // Reconstruct a minimal SkillManifest from the registry entry so the
+      // upstream instantiateSkillStep + permission checks work unchanged.
+      const manifest: SkillManifest = {
+        id: entry.skillId,
+        version: entry.version,
+        name: entry.name,
+        kind: (entry as { kind?: string }).kind as "declarative" | "sandboxed" ?? "sandboxed",
+        trust: entry.trust,
+        inputs: {},
+        outputs: {},
+        providers: [],
+        permissions: {
+          connectors: entry.grantedConnectors ?? [],
+          materials: entry.grantedMaterials,
+          crossProject: entry.grantedCrossProject,
+        },
+        cost: { attributeTo: "skill" },
+        code: (entry as { code?: string }).code ?? undefined,
+      };
+      return manifest;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Dispatch an external skill: sandboxed code or declarative (prompt-only). */
+  private async dispatchExternalSkill(
+    manifest: SkillManifest,
+    inputs: Record<string, unknown>
+  ): Promise<unknown> {
+    if (manifest.kind === "sandboxed") {
+      if (!manifest.code) {
+        throw new Error(`Sandboxed skill "${manifest.id}" has no code field — cannot execute`);
+      }
+      try {
+        return runSandboxedSkill(manifest.code, inputs);
+      } catch (err) {
+        if (err instanceof SandboxViolation) {
+          throw new Error(`Sandbox violation (${err.kind}): ${err.message}`);
+        }
+        throw err;
+      }
+    }
+
+    // kind=declarative: no arbitrary code — assemble prompt context only.
+    // Full provider dispatch wired in AIDV-24 (BYOMCP/Wave 4).
+    logger.info({ skillId: manifest.id }, "SkillOrchestrator: declarative external skill executed (provider dispatch deferred to BYOMCP)");
+    return { skillId: manifest.id, inputs, kind: "declarative", dispatched: false };
   }
 
   private async persistStepRecord(
