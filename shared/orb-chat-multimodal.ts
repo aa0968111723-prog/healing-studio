@@ -235,7 +235,8 @@ export const OrbChatAttachmentMimeTypeSchema = z.enum(ORB_CHAT_ATTACHMENT_MIME_T
 
 export const OrbChatLLMTextPartSchema = z.object({
   type: z.literal("text"),
-  text: z.string(),
+  // AIDV-294: 32 K chars ≈ 8 K tokens; more than any real prompt needs.
+  text: z.string().max(32_000),
 });
 
 /**
