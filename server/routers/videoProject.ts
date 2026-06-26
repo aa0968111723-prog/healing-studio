@@ -24,6 +24,9 @@ const outputSpecSchema = z.object({
   codec: z.enum(["h264", "h265", "vp9"]).default("h264"),
 });
 
+// AIDV-338: 優先等級 Zod schema
+const priorityClassSchema = z.enum(["standard", "express", "critical"]);
+
 /** 從 DB 讀到的 output_spec（可能為 null）回退到預設值。 */
 function resolveOutputSpec(raw: VideoOutputSpec | null | undefined): VideoOutputSpec {
   return raw ?? VIDEO_OUTPUT_SPEC_DEFAULT;
@@ -37,6 +40,8 @@ export const videoProjectRouter = router({
         aspectRatio: aspectRatioSchema.default("16:9"),
         creativeProjectId: z.number().int().positive().optional(),
         outputSpec: outputSpecSchema.optional(),
+        deadlineAt: z.string().datetime().optional(),
+        priorityClass: priorityClassSchema.default("standard"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -46,6 +51,8 @@ export const videoProjectRouter = router({
         aspectRatio: input.aspectRatio,
         creativeProjectId: input.creativeProjectId ?? null,
         outputSpec: input.outputSpec ?? VIDEO_OUTPUT_SPEC_DEFAULT,
+        deadlineAt: input.deadlineAt ? new Date(input.deadlineAt) : null,
+        priorityClass: input.priorityClass,
       });
       const row = await db.getVideoProject(id);
       if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -55,6 +62,8 @@ export const videoProjectRouter = router({
         aspectRatio: row.aspectRatio,
         outputSpec: resolveOutputSpec(row.outputSpec),
         version: row.version,
+        deadlineAt: row.deadlineAt ?? null,
+        priorityClass: row.priorityClass,
       };
     }),
 
@@ -71,6 +80,8 @@ export const videoProjectRouter = router({
         aspectRatio: row.aspectRatio,
         outputSpec: resolveOutputSpec(row.outputSpec),
         version: row.version,
+        deadlineAt: row.deadlineAt ?? null,
+        priorityClass: row.priorityClass,
       };
     }),
 
@@ -81,6 +92,8 @@ export const videoProjectRouter = router({
         aspectRatio: aspectRatioSchema.optional(),
         title: z.string().min(1).max(255).transform(sanitizePlainText).optional(),
         outputSpec: outputSpecSchema.optional(),
+        deadlineAt: z.string().datetime().nullable().optional(),
+        priorityClass: priorityClassSchema.optional(),
         /** AIDV-241 樂觀鎖：攜帶呼叫方讀到的 version，後端做原子 WHERE id=? AND version=?；
          *  version 不符時回傳 CONFLICT(409)；省略時退化為無版本檢查（向下相容）。 */
         expectedVersion: z.number().int().nonnegative().optional(),
@@ -95,6 +108,8 @@ export const videoProjectRouter = router({
       if (input.aspectRatio) patch.aspectRatio = input.aspectRatio;
       if (input.title) patch.title = input.title;
       if (input.outputSpec) patch.outputSpec = input.outputSpec;
+      if (input.deadlineAt !== undefined) patch.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : null;
+      if (input.priorityClass) patch.priorityClass = input.priorityClass;
       const { updated } = await db.updateVideoProject(
         input.id,
         patch as Parameters<typeof db.updateVideoProject>[1],
@@ -117,6 +132,8 @@ export const videoProjectRouter = router({
       aspectRatio: r.aspectRatio,
       outputSpec: resolveOutputSpec(r.outputSpec),
       version: r.version,
+      deadlineAt: r.deadlineAt ?? null,
+      priorityClass: r.priorityClass,
       createdAt: r.createdAt,
     }));
   }),
@@ -203,6 +220,8 @@ export const videoProjectRouter = router({
         title: z.string().min(1).max(255).optional(),
         aspectRatio: aspectRatioSchema.optional(),
         outputSpec: outputSpecSchema.optional(),
+        deadlineAt: z.string().datetime().nullable().optional(),
+        priorityClass: priorityClassSchema.optional(),
         expectedVersion: z.number().int().nonnegative().optional(),
         snapshotData: z.record(z.string(), z.unknown()).optional(),
       })
@@ -217,6 +236,8 @@ export const videoProjectRouter = router({
       if (input.title) patch.title = input.title;
       if (input.aspectRatio) patch.aspectRatio = input.aspectRatio;
       if (input.outputSpec) patch.outputSpec = input.outputSpec;
+      if (input.deadlineAt !== undefined) patch.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : null;
+      if (input.priorityClass) patch.priorityClass = input.priorityClass;
 
       const { updated } = await db.updateVideoProject(
         input.id,

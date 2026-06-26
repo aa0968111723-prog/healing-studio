@@ -87,6 +87,8 @@ const PENDING_BLOCK = [
   "0095_video_output_spec",
   // AIDV-276：程式化 API 金鑰表 — api_keys（CREATE TABLE IF NOT EXISTS，含唯一索引）。
   "0096_api_keys",
+  // AIDV-338：影片專案截止時間與優先等級 — deadline_at + priority_class（information_schema 守門）。
+  "0097_video_project_deadline",
 ];
 
 function readSql(tag: string): string {

@@ -4540,6 +4540,10 @@ export const videoProjects = mysqlTable(
       .default("16:9"),
     outputSpec: json("output_spec").$type<VideoOutputSpec>(),
     version: int("version").notNull().default(0),
+    deadlineAt: timestamp("deadline_at"),
+    priorityClass: mysqlEnum("priority_class", ["standard", "express", "critical"])
+      .notNull()
+      .default("standard"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
