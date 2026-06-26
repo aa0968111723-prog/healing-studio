@@ -468,11 +468,10 @@ describe("VoiceCompiler", () => {
       expect(result.ssml).toContain('pitch="+10%"');
     });
 
-    it("should handle empty script gracefully", () => {
-      const result = compiler.compile({ script: "" });
-      expect(result.ssml).toContain("<speak>");
-      expect(result.segmentCount).toBe(0);
-      expect(result.breakCount).toBe(0);
+    it("should reject empty script with COMPILER_INPUT_INVALID (AIDV-172)", () => {
+      expect(() => compiler.compile({ script: "" })).toThrow(
+        /script 不能為空|COMPILER_INPUT_INVALID/
+      );
     });
 
     it("should handle script with only punctuation", () => {

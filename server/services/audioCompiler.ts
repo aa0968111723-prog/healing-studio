@@ -12,6 +12,11 @@
  * 3. Style Conflict Resolver — 偵測矛盾風格並自動調和
  */
 
+import {
+  validateCompilerInput,
+  AudioCompilerInputSchema,
+} from "./compilerValidation";
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -479,6 +484,7 @@ export class AudioCompiler {
   // ─── 主編譯方法 ──────────────────────────────────────────────
 
   compile(input: AudioCompilerInput): AudioCompileResult {
+    validateCompilerInput("audio", input, AudioCompilerInputSchema);
     const log: string[] = [];
     const stackingLog: string[] = [];
     const conflictLog: string[] = [];

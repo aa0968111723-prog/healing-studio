@@ -343,7 +343,7 @@ describe("POST /api/upload/finalize — AIDV-64 magic-byte parity", () => {
     server.close();
   });
 
-  it("嗅探 GET 連續失敗（3 次）→ 400 fail-closed（AIDV-203）", async () => {
+  it("嗅探 GET 連續失敗（3 次）+ UPLOAD_SNIFF_FAIL_CLOSED=ON（預設）→ 415 刪物件（AIDV-183）", async () => {
     authenticateRequestMock.mockResolvedValue({ id: 1 });
     verifyUploadedObjectMock.mockResolvedValue({
       exists: true,
@@ -354,15 +354,42 @@ describe("POST /api/upload/finalize — AIDV-64 magic-byte parity", () => {
     // 持續拒絕 → 三次重試全失敗 → fail-closed
     fetchObjectHeadBytesMock.mockRejectedValue(new Error("R2 jitter"));
     deleteUploadedObjectMock.mockResolvedValue(undefined);
+    const origEnv = process.env.UPLOAD_SNIFF_FAIL_CLOSED;
+    delete process.env.UPLOAD_SNIFF_FAIL_CLOSED; // 預設 ON
     const { server, baseUrl } = await startTestServer();
     const res = await post(baseUrl, "/api/upload/finalize", {
       fileKey: "uploads/1/x.png",
       mimeType: "image/png",
     });
-    expect(res.status).toBe(400);
-    expect(deleteUploadedObjectMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(415);
+    // 嗅探失敗時 fail-closed 應刪除物件，避免未檢查的物件留在儲存
+    expect(deleteUploadedObjectMock).toHaveBeenCalledWith("uploads/1/x.png");
+    process.env.UPLOAD_SNIFF_FAIL_CLOSED = origEnv ?? "";
     server.close();
   }, 10_000); // 退避延遲最多 600ms，給充裕 timeout
+
+  it("嗅探 GET 連續失敗 + UPLOAD_SNIFF_FAIL_CLOSED=0 → 放行 200（fail-open opt-out）", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    verifyUploadedObjectMock.mockResolvedValue({
+      exists: true,
+      sizeBytes: 2048,
+      contentType: "image/png",
+    });
+    buildPublicUrlMock.mockReturnValue("https://pub.r2.dev/uploads/1/x.png");
+    fetchObjectHeadBytesMock.mockRejectedValue(new Error("R2 jitter"));
+    deleteUploadedObjectMock.mockResolvedValue(undefined);
+    process.env.UPLOAD_SNIFF_FAIL_CLOSED = "0";
+    const { server, baseUrl } = await startTestServer();
+    const res = await post(baseUrl, "/api/upload/finalize", {
+      fileKey: "uploads/1/x.png",
+      mimeType: "image/png",
+    });
+    expect(res.status).toBe(200);
+    // fail-open: 物件不刪，只記 skip
+    expect(deleteUploadedObjectMock).not.toHaveBeenCalled();
+    delete process.env.UPLOAD_SNIFF_FAIL_CLOSED;
+    server.close();
+  }, 10_000);
 
   it("document kind（text/plain）不跑 binary-media 嗅探（不呼叫 fetchObjectHeadBytes）", async () => {
     authenticateRequestMock.mockResolvedValue({ id: 1 });

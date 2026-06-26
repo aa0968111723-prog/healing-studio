@@ -2,8 +2,13 @@ import { Router, Request, Response } from "express";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
 import { authenticateRequest } from "./_core/googleAuth";
+import { logger } from "./_core/logger";
 
 const uploadRouter = Router();
+
+// AIDV-183: observable counter — incremented each time content sniff is skipped
+// (fail-open mode when UPLOAD_SNIFF_FAIL_CLOSED=0). Exported for unit tests.
+let _sniffSkipTotal = 0;
 
 // ── Allowed MIME types for upload ─────────────────────────────────────────
 const ALLOWED_MIME_TYPES = new Set([
@@ -779,28 +784,55 @@ uploadRouter.post("/api/upload/finalize", async (req: Request, res: Response) =>
     // 對 binary media kind（image/audio/video/pdf）用 Range:bytes=0-63 取前 64 bytes
     // 跑既有 detectMimeMismatch；偵測到 disguise（markup/executable/跨類）即刪物件 + 415。
     // 只抓 64 bytes，保留「整檔位元組不進 Node」的核心好處。
-    // AIDV-203 fix: fail-closed。Range GET 失敗最多重試 3 次（指數退避 200/400/800ms），
-    // 全失敗 → 400 拒絕 finalize，不再靜默放行惡意偽裝檔案。
+    // AIDV-183/203: fail-closed by default (UPLOAD_SNIFF_FAIL_CLOSED != "0").
+    // Range GET retries up to 3× with exponential back-off (200/400/800ms).
+    // On exhaustion:
+    //   flag ON (default) — delete the uploaded object and return 415, same as
+    //     the disguise path.  Prevents a disguised file from slipping through
+    //     during transient R2 errors.
+    //   flag OFF (explicit opt-out) — warn and allow through (original behaviour);
+    //     increment sniff_skip_total so the metric is visible in logs.
     if (BINARY_MEDIA_KINDS.has(kind)) {
       const headBytes = await fetchBytesWithRetry(fileKey, fetchObjectHeadBytes);
       if (headBytes === null) {
-        console.warn("[Upload/finalize] content sniff exhausted retries (fail-closed):", fileKey);
-        res.status(400).json({ error: "Content inspection failed — please retry the upload." });
-        return;
-      }
-      const mismatch = detectMimeMismatch(authoritativeMime, headBytes);
-      if (mismatch.reject) {
-        // 偵測到偽裝：刪除已直傳的物件（best-effort），回 415。
-        try {
-          await deleteUploadedObject(fileKey);
-        } catch (delErr) {
-          console.warn(
-            "[Upload/finalize] failed to delete disguised object:",
-            (delErr as any)?.message
-          );
+        const failClosed = process.env.UPLOAD_SNIFF_FAIL_CLOSED !== "0";
+        if (failClosed) {
+          // Delete best-effort — don't let an un-inspectable object sit in storage.
+          try {
+            await deleteUploadedObject(fileKey);
+          } catch (delErr) {
+            logger.warn("[Upload/finalize] failed to delete un-inspectable object", {
+              fileKey,
+              err: delErr instanceof Error ? delErr.message : String(delErr),
+            });
+          }
+          logger.warn("[Upload/finalize] content sniff exhausted retries (fail-closed)", {
+            fileKey,
+          });
+          res.status(415).json({ error: "Content inspection failed — upload rejected." });
+          return;
         }
-        res.status(415).json({ error: mismatch.reason });
-        return;
+        // fail-open opt-out: track skips so ops can observe the rate.
+        _sniffSkipTotal++;
+        logger.warn("[Upload/finalize] content sniff skipped (UPLOAD_SNIFF_FAIL_CLOSED=0)", {
+          fileKey,
+          sniff_skip_total: _sniffSkipTotal,
+        });
+      } else {
+        const mismatch = detectMimeMismatch(authoritativeMime, headBytes);
+        if (mismatch.reject) {
+          // 偵測到偽裝：刪除已直傳的物件（best-effort），回 415。
+          try {
+            await deleteUploadedObject(fileKey);
+          } catch (delErr) {
+            logger.warn("[Upload/finalize] failed to delete disguised object", {
+              fileKey,
+              err: delErr instanceof Error ? delErr.message : String(delErr),
+            });
+          }
+          res.status(415).json({ error: mismatch.reason });
+          return;
+        }
       }
     }
 
@@ -903,6 +935,10 @@ export const __uploadRouteInternals = {
   /** Exposed for unit tests: retry helper used by the finalize route's
    *  fail-closed content-sniff path (AIDV-203). */
   fetchBytesWithRetry,
+  /** AIDV-183: observable skip counter (incremented in fail-open mode). */
+  get sniffSkipTotal() { return _sniffSkipTotal; },
+  /** AIDV-183: reset for test isolation. */
+  _resetSniffSkipTotal() { _sniffSkipTotal = 0; },
 };
 
 export { uploadRouter };

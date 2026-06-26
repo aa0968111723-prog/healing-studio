@@ -13,6 +13,11 @@
  * 3. Frame Anchoring — 首尾幀錨定邏輯，確保鏡頭連續性
  */
 
+import {
+  validateCompilerInput,
+  VideoCompilerInputSchema,
+} from "./compilerValidation";
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1064,6 +1069,7 @@ export class VideoCompiler {
   // ─── 4. 主編譯管線 ──────────────────────────────────────
 
   compile(input: VideoCompilerInput): VideoCompileResult {
+    validateCompilerInput("video", input, VideoCompilerInputSchema);
     const log: string[] = [];
     log.push(`[VideoCompiler] 開始編譯 | 積木數: ${input.blocks.length}`);
 

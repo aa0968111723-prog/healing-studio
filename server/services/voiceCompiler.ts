@@ -11,6 +11,10 @@
  *
  * 支援 ElevenLabs SSML 子集（prosody / emphasis / break / say-as / sub）
  */
+import {
+  validateCompilerInput,
+  VoiceCompilerInputSchema,
+} from "./compilerValidation";
 import { ELEVENLABS_AVAILABLE } from "./providerHealth";
 import textToSpeech from "@google-cloud/text-to-speech";
 import {
@@ -846,6 +850,7 @@ export class VoiceCompiler {
    * 編譯劇本為 SSML
    */
   compile(input: VoiceCompilerInput): VoiceCompilerOutput {
+    validateCompilerInput("voice", input, VoiceCompilerInputSchema);
     const compilationLog: string[] = [];
     const enableHesitation = input.enableHesitation !== false; // 預設啟用
 
