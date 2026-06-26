@@ -77,6 +77,8 @@ const PENDING_BLOCK = [
   "0090_r2_object_catalog",
   // AIDV-241：video_projects 樂觀鎖 CAS — version 欄位 + 409 Conflict 防協作覆蓋。
   "0091_video_project_version",
+  // AIDV-253：project_snapshots 表 — 版本歷程 + 複製來源（information_schema 守門）。
+  "0092_project_snapshots",
 ];
 
 function readSql(tag: string): string {

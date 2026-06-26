@@ -8,12 +8,17 @@
 import { useMemo, useState } from "react";
 import {
   Database, RefreshCw, Cloud, HardDrive, Coins, History, MessageSquarePlus, Layers, Link2,
+  MoreVertical, Copy, RotateCcw, Film,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { useDirectorConsole } from "../DirectorConsoleProvider";
 import { ConfirmGate } from "../ConfirmGate";
@@ -89,6 +94,9 @@ export function ContextSidecar() {
 
       {/* 代理即時狀態 — AIDV-358 */}
       <AgentProgressPanel />
+
+      {/* AIDV-253: 影片專案三點選單（複製）＋版本歷程 */}
+      <VideoProjectLifecycleCard />
 
       {/* 版本 diff（過期待重生） */}
       <Card className="glass-card-static">
@@ -254,6 +262,136 @@ function AssetLineageCard() {
         <p className="mt-2 text-[10px] text-muted-foreground/60">僅顯示已連結到提示詞庫的最近 5 筆；完整血統樹待 M2。</p>
       </CardContent>
     </Card>
+  );
+}
+
+/** AIDV-253: 影片專案生命週期 — 三點選單「複製專案」＋版本歷程。 */
+export function VideoProjectLifecycleCard() {
+  const utils = trpc.useUtils();
+  const projectsQ = trpc.videoProject.list.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  const projects = projectsQ.data ?? [];
+  const project = projects.find(p => p.id === selectedId) ?? projects[0] ?? null;
+
+  const duplicateMut = trpc.videoProject.duplicate.useMutation({
+    onSuccess: (data) => {
+      toast.success(`已複製為新專案 (id: ${data.id})`);
+      utils.videoProject.list.invalidate();
+    },
+    onError: () => toast.error("複製失敗，請稍後再試"),
+  });
+
+  if (projectsQ.isError) return <PanelError compact message="影片專案讀取失敗" onRetry={() => projectsQ.refetch()} />;
+  if (!project) return null;
+
+  return (
+    <Card className="glass-card-static">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Film className="size-4 text-primary" /> 影片專案
+          <div className="ml-auto flex items-center gap-1">
+            {projects.length > 1 && (
+              <select
+                aria-label="切換影片專案"
+                value={selectedId ?? project.id}
+                onChange={e => setSelectedId(Number(e.target.value))}
+                className="rounded border bg-background px-1.5 py-0.5 text-[10px]"
+              >
+                {projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.title}</option>
+                ))}
+              </select>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="size-6" aria-label="專案選項">
+                  <MoreVertical className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => duplicateMut.mutate({ sourceId: project.id })}
+                  disabled={duplicateMut.isPending}
+                >
+                  <Copy className="mr-2 size-3.5" /> 複製專案
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="font-medium truncate flex-1">{project.title}</span>
+          <Badge variant="outline" className="text-[9px] shrink-0">{project.aspectRatio}</Badge>
+          <span className="text-muted-foreground shrink-0">v{project.version}</span>
+        </div>
+        <VersionHistoryPanel projectId={project.id} />
+      </CardContent>
+    </Card>
+  );
+}
+
+/** AIDV-253/227: 版本歷程面板（listSnapshots + restoreSnapshot）。 */
+function VersionHistoryPanel({ projectId }: { projectId: number }) {
+  const utils = trpc.useUtils();
+  const snapsQ = trpc.videoProject.listSnapshots.useQuery(
+    { projectId, limit: 8 },
+    { staleTime: 30_000, refetchOnWindowFocus: false },
+  );
+
+  const restoreMut = trpc.videoProject.restoreSnapshot.useMutation({
+    onSuccess: () => {
+      toast.success("已回溯至選定版本，並備份當前狀態為 pre-restore 快照");
+      utils.videoProject.listSnapshots.invalidate({ projectId });
+      utils.videoProject.list.invalidate();
+    },
+    onError: () => toast.error("回溯失敗，請稍後再試"),
+  });
+
+  const snaps = snapsQ.data ?? [];
+
+  if (snapsQ.isLoading) {
+    return <div className="text-[10px] text-muted-foreground animate-pulse">讀取版本歷程…</div>;
+  }
+  if (snapsQ.isError) {
+    return <PanelError compact message="版本歷程讀取失敗" onRetry={() => snapsQ.refetch()} />;
+  }
+  if (snaps.length === 0) {
+    return <div className="text-[10px] text-muted-foreground">尚無版本快照</div>;
+  }
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-1 text-[10px] font-medium text-muted-foreground">
+        <History className="size-3" /> 版本歷程
+        <Badge variant="outline" className="ml-auto text-[9px]">{snaps.length}</Badge>
+      </div>
+      <ul className="space-y-1 max-h-40 overflow-y-auto">
+        {snaps.map(snap => (
+          <li key={snap.id} className="flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-2 py-1.5 text-[10px]">
+            <div className="flex-1 min-w-0">
+              <span className="font-mono text-primary mr-1.5">#{snap.id}</span>
+              <Badge variant="secondary" className="text-[8px] mr-1">{snap.source}</Badge>
+              <span className="text-muted-foreground">
+                {new Date(snap.createdAt).toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-5 px-1.5 text-[9px] shrink-0"
+              disabled={restoreMut.isPending}
+              onClick={() => restoreMut.mutate({ projectId, snapshotId: snap.id })}
+              title="回溯至此版本"
+            >
+              <RotateCcw className="size-2.5" />
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
