@@ -109,6 +109,8 @@ export interface CreativeProject {
   worldFrameworkId?: number | null;
   /** AIDV-246：創作者指定的封面幀 Shot id；社群媒體上傳封面。可無（預設取首幀）。 */
   coverShotId?: string | null;
+  /** AIDV-282：background_jobs.zip_export 組裝完成後的成片 URL；有值即可在「完成」畫布播放。可無（組合中）。 */
+  outputUrl?: string | null;
   updatedAt: number;
 }
 
