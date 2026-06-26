@@ -98,7 +98,7 @@ import { studioRouter } from "./routers/studio";
 import { plansRouter } from "./routers/plans";
 import { customBlocksRouter } from "./routers/customBlocks";
 import { blockCombosRouter } from "./routers/blockCombos";
-import { adminRouter } from "./routers/admin";
+import { adminRouter as adminFullRouter } from "./routers/admin";
 import { profileRouter } from "./routers/profile";
 import { settingsRouter } from "./routers/settings";
 import { dashboardRouter } from "./routers/dashboard";
@@ -483,7 +483,7 @@ export const appRouter = router({
 
   // ─── Admin Dashboard ────────────────────────────────────────────────────────
 
-  admin: adminRouter,
+  admin: adminFullRouter,
 
   // ─── User Profile & Settings ───────────────────────────────────────────────
 

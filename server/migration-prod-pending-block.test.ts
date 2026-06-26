@@ -71,6 +71,8 @@ const PENDING_BLOCK = [
   "0087_skill_sandbox",
   // AIDV-252：video_projects 表（影片格式選擇 aspect_ratio），解鎖垂直影片市場。
   "0088_video_projects",
+  // AIDV-316：creativeProject 樂觀鎖 — version 欄位 + 409 Conflict 防多代理後寫覆蓋。
+  "0089_creative_project_version",
 ];
 
 function readSql(tag: string): string {
