@@ -56,7 +56,7 @@ import type { AgentPlannerInput } from "./agentPlanner";
 import { buildOrbMemorySummaryForPlanner } from "./orbMemory";
 import { guardOrbMemorySummary } from "./security/ragInjectionGuard";
 import { orbTaskRepository } from "../repositories/orbTaskRepository";
-import { emitGenerationEvent } from "../generationEvents";
+import { dualEmitForUser } from "../generationEvents";
 import {
   persistOrbTaskMemoryEvent,
   recordOrbTaskMemory,
@@ -343,7 +343,7 @@ export async function runOrbTaskWithContinuationLoop(
   const startedAt = Date.now();
   // Best-effort telemetry; emit failures shouldn't break the loop.
   try {
-    emitGenerationEvent({
+    dualEmitForUser(input.userId, {
       type: "chain_started",
       taskId: input.initialTaskId,
       userId: input.userId,
@@ -504,7 +504,7 @@ export async function runOrbTaskWithContinuationLoop(
   deleteOrbTaskPageState(currentTaskId);
 
   try {
-    emitGenerationEvent({
+    dualEmitForUser(input.userId, {
       type: "chain_completed",
       taskId: input.initialTaskId,
       finalTaskId: currentTaskId,

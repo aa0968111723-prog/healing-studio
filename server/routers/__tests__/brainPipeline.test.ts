@@ -331,6 +331,7 @@ describe("brainPipeline graph builder", () => {
       "musicSpecialist", // 音樂 AI（Suno）；待 ROUTER_TO_PROVIDERS 補齊後移除此豁免
       "evaluate", // AI 評估（LLM judge）；待 ROUTER_TO_PROVIDERS 補齊後移除此豁免
       "orbGuide", // Orb 引導內容（靜態 + 輕度 LLM）；待確認 provider 後補齊
+      "export", // AIDV-237：Export Chain — 媒體 URL 讀取，純資料持久化，不觸發 AI
     ]);
 
     const inGraph = new Set(

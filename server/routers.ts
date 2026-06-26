@@ -42,6 +42,7 @@ import { proStudioRouter } from "./routers/proStudio";
 import { imageStudioRouter } from "./routers/imageStudio";
 import { videoStudioRouter } from "./routers/videoStudio";
 import { videoProjectRouter } from "./routers/videoProject";
+import { exportRouter } from "./routers/export";
 import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
 import { modelConsentsRouter } from "./routers/modelConsents";
@@ -306,6 +307,7 @@ export const appRouter = router({
   imageStudio: imageStudioRouter,
   videoStudio: videoStudioRouter,
   videoProject: videoProjectRouter,
+  export: exportRouter,
   learnHub: learnHubRouter,
   loraTrainer: loraTrainerRouter,
   modelConsents: modelConsentsRouter,

@@ -235,6 +235,7 @@ export const worldbuildingRouter = router({
           modelType: m.modelType,
           status: m.status,
           triggerWord: (config.triggerWord as string | undefined) ?? null,
+          trainedLoraUrl: m.trainedLoraUrl ?? null,
         };
       });
   }),

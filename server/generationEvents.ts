@@ -155,3 +155,21 @@ export function setGenerationEventBusForTests(bus: EventEmitter): void {
 export function emitGenerationEvent(event: GenerationEvent): void {
   generationEventBus.emit("generation", event);
 }
+
+/**
+ * AIDV-173: Dual-emit for user-scoped task events (chain/step/task_done/failed).
+ *
+ * Default (UNIFIED_GEN_EVENT_BUS unset or "false"):
+ *   → emits to generationBus user-SSE channel AND legacy admin EventEmitter.
+ * When UNIFIED_GEN_EVENT_BUS=true:
+ *   → emits only to generationBus (admin stream dropped = unified mode active).
+ *
+ * Rollback: unset UNIFIED_GEN_EVENT_BUS → reverts to dual-write with admin stream.
+ */
+export function dualEmitForUser(userId: number, event: GenerationEvent): void {
+  generationBus.emit(userId, event);
+  const unified = process.env.UNIFIED_GEN_EVENT_BUS?.trim().toLowerCase();
+  if (unified !== "true" && unified !== "1" && unified !== "on") {
+    emitGenerationEvent(event);
+  }
+}
