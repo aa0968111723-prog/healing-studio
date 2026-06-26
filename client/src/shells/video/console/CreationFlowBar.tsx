@@ -6,7 +6,7 @@
 // 流程列反映「可設定工作流」當前啟用步驟集（console_.steps）。
 // ============================================================================
 import { useMemo, useState } from "react";
-import { Wand2, Zap, Wrench, Check, Coins, Brain, Download, PackageOpen, Captions } from "lucide-react";
+import { Wand2, Zap, Wrench, Check, Coins, Brain, Download, PackageOpen, Captions, Star } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -194,31 +194,54 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
             <PackageOpen className="size-5" /> 匯出素材包
           </DialogTitle>
           <DialogDescription>
-            {exportableShots.length} 個鏡頭已生成完畢。點「下載」取得個別媒體檔，或「全部下載」依序開啟所有連結。
+            {exportableShots.length} 個鏡頭已生成完畢。點 ★ 指定封面幀（社群媒體上傳封面），點「下載」取得個別媒體檔，或「全部下載」依序開啟所有連結。
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-          {exportableShots.map((sh) => (
-            <div key={sh.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="rounded bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] text-primary shrink-0">{sh.no}</span>
-                <span className="truncate text-foreground">{sh.title}</span>
-                {sh.gen.provider && (
-                  <span className="shrink-0 text-[10px] text-muted-foreground">{sh.gen.provider}</span>
-                )}
+          {exportableShots.map((sh) => {
+            const isCover = p.coverShotId === sh.id;
+            return (
+              <div key={sh.id} className={cn(
+                "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm",
+                isCover && "border-primary bg-primary/5",
+              )}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="rounded bg-primary/15 px-1.5 py-0.5 font-mono text-[10px] text-primary shrink-0">{sh.no}</span>
+                  <span className="truncate text-foreground">{sh.title}</span>
+                  {sh.gen.provider && (
+                    <span className="shrink-0 text-[10px] text-muted-foreground">{sh.gen.provider}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {/* AIDV-246：封面幀選擇按鈕（★ 選取／取消） */}
+                  <button
+                    type="button"
+                    onClick={() => spine.setCoverShot(isCover ? null : sh.id)}
+                    title={isCover ? "取消封面選擇" : "設為封面"}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                      isCover
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    <Star className={cn("size-3", isCover && "fill-primary")} />
+                    {isCover ? "封面" : "設封面"}
+                  </button>
+                  <a
+                    href={`/api/media/download?url=${encodeURIComponent(sh.gen.assetUrl!)}&filename=${encodeURIComponent(`${sh.no}.mp4`)}`}
+                    download
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1",
+                      "text-[11px] font-medium text-foreground hover:bg-muted transition-colors",
+                    )}
+                  >
+                    <Download className="size-3" /> 下載
+                  </a>
+                </div>
               </div>
-              <a
-                href={`/api/media/download?url=${encodeURIComponent(sh.gen.assetUrl!)}&filename=${encodeURIComponent(`${sh.no}.mp4`)}`}
-                download
-                className={cn(
-                  "inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1",
-                  "text-[11px] font-medium text-foreground hover:bg-muted transition-colors",
-                )}
-              >
-                <Download className="size-3" /> 下載
-              </a>
-            </div>
-          ))}
+            );
+          })}
         </div>
         {/* AIDV-234：字幕 / CC 區段——明確標示「待語音軌就緒」，不靜默 no-op */}
         <div className="border-t pt-3">

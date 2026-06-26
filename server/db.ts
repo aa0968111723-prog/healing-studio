@@ -1870,6 +1870,24 @@ export async function getBackgroundJob(id: number) {
 }
 
 /**
+ * AIDV-244：透過 fal.ai request_id 反查任意狀態的 backgroundJob（用於 ownership 驗證）。
+ * 與 findProcessingJobByRequestId 的差異：不限制 status，適用於 checkVideoStatus 查詢已完成的 job。
+ */
+export async function getBackgroundJobByRequestId(requestId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(backgroundJobs)
+    .where(
+      sql`JSON_UNQUOTE(JSON_EXTRACT(${backgroundJobs.resultJson}, '$.requestId')) = ${requestId}`
+    )
+    .orderBy(desc(backgroundJobs.createdAt))
+    .limit(1);
+  return result[0];
+}
+
+/**
  * 透過 fal.ai request_id 反查 processing 中的 backgroundJob。
  * 用於 webhookFal：當 webhook URL 沒帶 ?jobId 時，從 payload.request_id
  * 反查 resultJson.requestId 對應的 job（imageStudio/proStudio 等先送 fal、

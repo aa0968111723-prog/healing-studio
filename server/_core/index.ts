@@ -112,6 +112,7 @@ import { toolsModelsRouter } from "../routes/toolsModels";
 import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
+import { jsonDepthGuard } from "./inputGuard";
 import { closeDatabaseManager } from "./DatabaseManager";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { runOrbToolExecutorStartupSelfCheck } from "../services/agentToolExecutor";
@@ -418,7 +419,7 @@ async function startServer() {
   // Trust Railway's reverse proxy so req.ip / X-Forwarded-For work correctly
   app.set("trust proxy", 1);
 
-  // ── Security headers ─────────────────────────────────────────────────────
+  // ── Request trace middleware ──────────────────────────────────────────────
   app.use(requestTraceMiddleware);
 
   // ── Security headers ─────────────────────────────────────────────────────
@@ -438,7 +439,7 @@ async function startServer() {
   app.use((_req, res, next) => {
     res.setHeader(
       "Permissions-Policy",
-      "camera=(), microphone=(), geolocation=(), payment=()"
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     );
     next();
   });
@@ -749,6 +750,11 @@ async function startServer() {
   // 未登入 → 401；非 admin → 403（fail-closed）。demo（role=user）→ 403。
   app.use(metricsRouter);
   app.use("/api/webhooks", webhooksRouter);
+
+  // AIDV-293: JSON nesting-depth guard — rejects payloads with >32 levels of
+  // nesting (Billion Laughs / deeply recursive objects → 400). Applied only to
+  // tRPC so webhook routes are unaffected.
+  app.use("/api/trpc", jsonDepthGuard(32));
 
   // AIDV-219：tRPC CSRF guard — POST 必須帶 x-trpc-source header。
   // 跨站 form/fetch 不帶自訂 header，瀏覽器會發 CORS preflight；

@@ -81,7 +81,7 @@ describe("verifyToken middleware", () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it("verifyToken should continue with auth payload when DB lookup fails", async () => {
+  it("verifyToken should reject (401) when DB lookup fails — fail-closed (AIDV-259)", async () => {
     process.env.JWT_SECRET = "test-secret";
     mockGetUserByOpenId.mockRejectedValueOnce(new Error("db down"));
     const token = await createSessionToken("local:fallback@example.com", {
@@ -99,8 +99,8 @@ describe("verifyToken middleware", () => {
     const next = vi.fn();
 
     await verifyToken(req, res, next);
-    expect(next).toHaveBeenCalledOnce();
-    expect((req as any).auth?.sub).toBe("local:fallback@example.com");
-    expect((req as any).user).toBeUndefined();
+    // Fail-closed: DB error → 401, next() NOT called
+    expect(next).not.toHaveBeenCalled();
+    expect(status).toHaveBeenCalledWith(401);
   });
 });

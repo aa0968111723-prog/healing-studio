@@ -362,7 +362,7 @@ export const directorRouter = router({
     .input(
       z.object({
         id: z.number().int().positive().optional(),
-        title: z.string().min(1).max(255),
+        title: z.string().min(1).max(255).refine(v => !/[<>]/.test(v), { message: "Title must not contain HTML tags" }),
         // Cap at ~2 MB of stringified JSON. Larger payloads almost always
         // indicate a runaway message log and would push the TEXT column past
         // healthy limits; clients should trim or split.
@@ -467,9 +467,9 @@ export const directorRouter = router({
           preferredFormat: z
             .enum(["co-star", "sslcm", "selcm", "free"])
             .optional(),
-          customSystemPrompt: z.string().optional(),
+          customSystemPrompt: z.string().max(20_000).optional(),
           preferencesJson: z.record(z.string(), z.unknown()).optional(),
-          onboardingSteps: z.array(z.string()).optional(),
+          onboardingSteps: z.array(z.string().max(200)).max(100).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -485,7 +485,7 @@ export const directorRouter = router({
     .input(
       z.object({
         rawContent: z.string().min(1).max(100000),
-        title: z.string().min(1).max(255),
+        title: z.string().min(1).max(255).refine(v => !/[<>]/.test(v), { message: "Title must not contain HTML tags" }),
         sourceFormat: z.string().default("plaintext"),
         personality: z
           .enum(["calm", "creative", "technical"])
@@ -536,7 +536,7 @@ export const directorRouter = router({
     .input(
       z.object({
         brief: z.string().min(1).max(20_000),
-        title: z.string().min(1).max(255),
+        title: z.string().min(1).max(255).refine(v => !/[<>]/.test(v), { message: "Title must not contain HTML tags" }),
         type: z.enum(VIDEO_SCRIPT_TYPES),
         targetDurationSec: z.number().int().positive().max(7200).optional(),
         targetSegmentCount: z.number().int().min(1).max(50).optional(),
@@ -1610,7 +1610,7 @@ ${segmentSummaries}
     .input(
       z.object({
         id: z.number().optional(),
-        title: z.string().min(1).max(255),
+        title: z.string().min(1).max(255).refine(v => !/[<>]/.test(v), { message: "Title must not contain HTML tags" }),
         sessionData: z.string(), // JSON stringified ScriptPlanningSession
         personality: z
           .enum(["calm", "creative", "technical"])

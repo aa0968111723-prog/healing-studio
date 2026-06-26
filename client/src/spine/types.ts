@@ -105,6 +105,8 @@ export interface CreativeProject {
   worldStyle?: string;
   /** I-3（AIDV-81）：連結的世界觀 framework id（creative_projects.worldFrameworkId）；自動分鏡骨架的 worldId。可無。 */
   worldFrameworkId?: number | null;
+  /** AIDV-246：創作者指定的封面幀 Shot id；社群媒體上傳封面。可無（預設取首幀）。 */
+  coverShotId?: string | null;
   updatedAt: number;
 }
 

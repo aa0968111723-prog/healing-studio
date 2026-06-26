@@ -26,18 +26,21 @@ const h = vi.hoisted(() => ({
   setCanvasMode: vi.fn(),
   scheduleGeneration: vi.fn(),
   setProvider: vi.fn(),
+  setCoverShot: vi.fn(),
   openDrawer: vi.fn(),
   toast: vi.fn(),
   canvasMode: "chat" as string,
   steps: null as unknown[] | null,
   shots: [] as unknown[],
+  coverShotId: null as string | null,
 }));
 vi.mock("sonner", () => ({ toast: (...a: unknown[]) => h.toast(...a) }));
 vi.mock("@/spine/ProjectSpineProvider", () => ({
   useProjectSpine: () => ({
-    project: { shots: h.shots, characters: [], scenes: [], stageIndex: 0 },
+    project: { shots: h.shots, characters: [], scenes: [], stageIndex: 0, coverShotId: h.coverShotId },
     scheduleGeneration: h.scheduleGeneration,
     setProvider: h.setProvider,
+    setCoverShot: h.setCoverShot,
     provider: "mock",
   }),
 }));
@@ -53,7 +56,8 @@ vi.mock("../DirectorConsoleProvider", () => ({
 import { CreationFlowBar } from "./CreationFlowBar";
 
 beforeEach(() => {
-  h.setCanvasMode.mockReset(); h.toast.mockReset(); h.canvasMode = "chat"; h.steps = null; h.shots = [];
+  h.setCanvasMode.mockReset(); h.toast.mockReset(); h.setCoverShot.mockReset();
+  h.canvasMode = "chat"; h.steps = null; h.shots = []; h.coverShotId = null;
 });
 afterEach(() => { cleanup(); flags.chrome = false; });
 
@@ -124,5 +128,31 @@ describe("CreationFlowBar（U-2 / AIDV-92 · /video S2）", () => {
     fireEvent.click(screen.getByText(/匯出素材包/));
     expect(screen.getByText(/字幕 \/ CC（SRT/)).toBeTruthy();
     expect(screen.getByText("待語音軌")).toBeTruthy();
+  });
+
+  // AIDV-246：封面幀選擇
+  it("（AIDV-246）匯出對話框：點「設封面」呼叫 setCoverShot(shotId)", () => {
+    h.shots = [
+      { id: "s1", no: "S01", act: 1, title: "晨光", route: "text", characterIds: [], sceneId: null,
+        seed: 1, approval: "pending", stale: false, gen: { status: "done", variant: 0, assetUrl: "/media/s01.mp4" } },
+    ];
+    render(<CreationFlowBar onGuided={vi.fn()} />);
+    fireEvent.click(screen.getByText(/匯出素材包/));
+    fireEvent.click(screen.getByTitle("設為封面"));
+    expect(h.setCoverShot).toHaveBeenCalledWith("s1");
+  });
+
+  it("（AIDV-246）封面幀已選擇：按鈕顯示「封面」、再點呼叫 setCoverShot(null) 取消", () => {
+    h.coverShotId = "s1";
+    h.shots = [
+      { id: "s1", no: "S01", act: 1, title: "晨光", route: "text", characterIds: [], sceneId: null,
+        seed: 1, approval: "pending", stale: false, gen: { status: "done", variant: 0, assetUrl: "/media/s01.mp4" } },
+    ];
+    render(<CreationFlowBar onGuided={vi.fn()} />);
+    fireEvent.click(screen.getByText(/匯出素材包/));
+    expect(screen.getByTitle("取消封面選擇")).toBeTruthy();
+    expect(screen.getByText("封面")).toBeTruthy();
+    fireEvent.click(screen.getByTitle("取消封面選擇"));
+    expect(h.setCoverShot).toHaveBeenCalledWith(null);
   });
 });

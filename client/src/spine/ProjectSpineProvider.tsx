@@ -75,6 +75,8 @@ interface ProjectSpineValue {
   // ── I-6 Phase 2b（AIDV-100）：世界連結 ──
   linkWorld: (worldFrameworkId: number | null) => Promise<void>;
   listWorlds: () => Promise<{ id: number; name: string }[]>;
+  // ── AIDV-246：封面幀選擇 ──
+  setCoverShot: (shotId: string | null) => void;
   // ── 導演 / 拆解（薄包 P0 commander adapter）──
   directorReply: (message: string) => Promise<DirectorReply>;
   breakdownScript: (script: string) => Promise<ScriptBreakdown>;
@@ -465,6 +467,11 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
   }, [gateway, patchProject]);
   const listWorlds = useCallback(() => gateway.listWorlds(), [gateway]);
 
+  // ── AIDV-246：封面幀選擇（純本地 patchProject；未來可 best-effort 回寫 creativeProject.update）──
+  const setCoverShot = useCallback((shotId: string | null) => {
+    patchProject((pp) => ({ ...pp, coverShotId: shotId }));
+  }, [patchProject]);
+
   // ── 導演對話（薄包 P0 commander adapter）──
   const directorReply = useCallback(async (message: string): Promise<DirectorReply> => {
     const p = projRef.current;
@@ -488,7 +495,7 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     generateShot, retrySingleShot, scheduleGeneration,
     uploadReference, changeCharacterSetting, toggleLock, toggleSceneLock, approveShot,
     addNote, addPromptBlock, rebuildPacket, ingestBreakdown, createProject, directorReply, breakdownScript,
-    linkWorld, listWorlds,
+    linkWorld, listWorlds, setCoverShot,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

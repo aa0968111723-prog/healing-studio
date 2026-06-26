@@ -51,6 +51,8 @@ export function logCircuitBreaker(
 type RequestContext = {
   traceId: string;
   orbTraceId: string;
+  /** x-request-id (AIDV-289): standard W3C correlation header echoed in response. */
+  requestId: string;
 };
 
 type Serializable = unknown;
@@ -110,6 +112,7 @@ function formatLog(level: LogLevel, message: string, metadata?: unknown): string
     message,
     traceId: context?.traceId ?? null,
     orbTraceId: context?.orbTraceId ?? null,
+    requestId: context?.requestId ?? null,
     metadata: safeSerialize(metadata ?? {}),
   };
 
@@ -141,12 +144,17 @@ export function getOrbTraceId(): string | null {
   return contextStorage.getStore()?.orbTraceId ?? null;
 }
 
+export function getRequestId(): string | null {
+  return contextStorage.getStore()?.requestId ?? null;
+}
+
 export function runWithTraceContext<T>(
   traceId: string,
   orbTraceId: string,
+  requestId: string,
   callback: () => T
 ): T {
-  return contextStorage.run({ traceId, orbTraceId }, callback);
+  return contextStorage.run({ traceId, orbTraceId, requestId }, callback);
 }
 
 export function requestTraceMiddleware(
@@ -158,10 +166,13 @@ export function requestTraceMiddleware(
   const incomingOrbTraceId = req.header("x-orb-trace-id") || req.header("x-trace-id");
   const traceId = incomingTraceId || randomUUID();
   const orbTraceId = incomingOrbTraceId || `orb_${randomUUID()}`;
+  // AIDV-289: accept x-request-id from callers (agents/headless API); fall back to traceId.
+  const requestId = req.header("x-request-id") || traceId;
 
-  runWithTraceContext(traceId, orbTraceId, () => {
+  runWithTraceContext(traceId, orbTraceId, requestId, () => {
     res.setHeader("x-trace-id", traceId);
     res.setHeader("x-orb-trace-id", orbTraceId);
+    res.setHeader("x-request-id", requestId);
     logger.info("HTTP request received", {
       method: req.method,
       path: req.originalUrl,
