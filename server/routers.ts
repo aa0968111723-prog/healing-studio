@@ -501,6 +501,9 @@ export const appRouter = router({
 
   dashboard: dashboardRouter,
 
+  // ─── Orb Memory（持久化使用者記憶，PageAgent 寫入）────────────────────────
+  orbMemory: orbMemoryRouter,
+
   // ─── LangSmith 深度整合（AI 監控儀表板）─────────────────────────────────────
   langsmith: langsmithRouter,
 });

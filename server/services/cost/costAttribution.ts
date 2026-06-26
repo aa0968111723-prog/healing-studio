@@ -103,8 +103,7 @@ export interface UsageAttributionInput {
   idempotencyKey: string;
   refType?: string | null;
   refId?: string | null;
-  /** AIDV-130 S-5：Skill 成本維度（有 Skill 上下文時傳入）。 */
-  skillId?: string | null;
+  /** AIDV-130 S-5：Skill 版本（有 Skill 上下文時傳入）。 */
   skillVersion?: string | null;
 }
 

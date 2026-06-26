@@ -154,8 +154,7 @@ export interface LedgerEntryMeta {
   model?: string | null;
   /** 成本數字來源："provider"＝上游真實計費；"catalog"＝目錄真實單位價後援。 */
   costSource?: string | null;
-  /** AIDV-130 S-5：Skill 成本維度。執行此分錄的 Skill manifest id + 版本。 */
-  skillId?: string | null;
+  /** AIDV-130 S-5：Skill 版本。執行此分錄的 Skill manifest 版本。 */
   skillVersion?: string | null;
 }
 
@@ -179,7 +178,6 @@ interface InsertLedgerInput {
   model?: string | null;
   costSource?: string | null;
   // AIDV-130 S-5：Skill 成本維度。
-  skillId?: string | null;
   skillVersion?: string | null;
 }
 

@@ -333,6 +333,7 @@ describe("brainPipeline graph builder", () => {
       "orbGuide", // Orb 引導內容（靜態 + 輕度 LLM）；待確認 provider 後補齊
       "export", // AIDV-237：Export Chain — 媒體 URL 讀取，純資料持久化，不觸發 AI
       "webhook", // AIDV-269：創作者端 Webhook 訂閱管理 CRUD — 純資料持久化，不觸發 AI
+      "orbMemory", // Orb 使用者記憶 CRUD — 純資料持久化（append/search/clear），不直接觸發 AI provider
     ]);
 
     const inGraph = new Set(

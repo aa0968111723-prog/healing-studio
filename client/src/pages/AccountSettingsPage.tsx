@@ -72,7 +72,7 @@ export default function AccountSettingsPage() {
 
   const deleteAccountMutation = trpc.profile.deleteAccount.useMutation({
     onSuccess: () => {
-      window.location.href = "/";
+      window.location.replace("/");
     },
   });
 
