@@ -158,6 +158,8 @@ function createTierLimiter(tier: RateLimitTier): RequestHandler {
       if (tier === "health") return false;
       // Skip rate limiting in test environments
       if (process.env.NODE_ENV === "test") return true;
+      // AIDV-223: allow disabling rate limits for local dev via env flag
+      if (process.env.ENABLE_RATE_LIMIT === "false") return true;
       return false;
     },
   };
@@ -242,6 +244,8 @@ export const CHAT_RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
  */
 export function tryConsumeChatToken(userId: number): boolean {
   if (process.env.NODE_ENV === "test") return true;
+  // AIDV-223: allow disabling rate limits for local dev
+  if (process.env.ENABLE_RATE_LIMIT === "false") return true;
   const now = Date.now();
   const entry = _chatRateLimitStore.get(userId);
   if (!entry || now >= entry.resetAt) {
