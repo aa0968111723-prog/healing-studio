@@ -4956,6 +4956,7 @@ export async function duplicateVideoProject(
     userId,
     title: newTitle ?? `${source.title} (複本)`,
     aspectRatio: source.aspectRatio,
+    outputSpec: source.outputSpec ?? undefined,
     creativeProjectId: source.creativeProjectId ?? undefined,
     version: 0,
   });
