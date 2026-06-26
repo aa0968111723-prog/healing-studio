@@ -36,6 +36,7 @@ import {
   doPostGenComplete,
   unifiedAssetPrefix,
 } from "../services/postGenActions";
+import * as db from "../db";
 import {
   getVideoCompiler,
   type CameraModeId,
@@ -1531,7 +1532,12 @@ export const videoStudioRouter = router({
         modelId: z.string(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      // AIDV-244: Reject if a backgroundJob for this requestId exists but belongs to another user.
+      const existingJob = await db.getBackgroundJobByRequestId(input.requestId);
+      if (existingJob && existingJob.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "無此任務存取權限" });
+      }
       const status = (await falQueueStatus(
         input.requestId,
         input.modelId
@@ -1555,6 +1561,13 @@ export const videoStudioRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      // AIDV-244: If a DB record exists for this requestId, verify the caller owns it.
+      // Prevents doPostGenComplete from attributing another user's completed video to ctx.user.id.
+      // When no DB record exists (videoStudio async path), requestId is a random UUID—low enumeration risk.
+      const existingJob = await db.getBackgroundJobByRequestId(input.requestId);
+      if (existingJob && existingJob.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "無此任務存取權限" });
+      }
       const status = (await falQueueStatus(
         input.requestId,
         input.modelId
