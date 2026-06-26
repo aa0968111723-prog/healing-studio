@@ -436,15 +436,34 @@ async function startServer() {
   app.use(requestTraceMiddleware);
 
   // ── Security headers ─────────────────────────────────────────────────────
-  // AIDV-313: helmet with DENY frame-guard + Permissions-Policy.
-  // CSP kept disabled (requires full CDN allowlist audit before enforcement).
+  // AIDV-313/251: helmet with CSP + DENY frame-guard + Permissions-Policy.
   // CORS wildcard stays on CDN-proxy-download route only — intentional for
   // public media delivery; tRPC/auth routes share same origin so no CORS needed.
+  // CSP notes (AIDV-251):
+  //   - 'unsafe-inline' required: Vite dev HMR + some inline styles in SPA shell
+  //   - connect-src 'https:' covers all proxied API calls (fal/supabase/etc. via server)
+  //   - frame-ancestors 'none' duplicates X-Frame-Options DENY for CSP-aware browsers
+  //   - Disable with CSP_ENFORCEMENT=0 env if a CDN/widget requires a new directive
   app.use(
     helmet({
-      contentSecurityPolicy: false, // CSP audit pending (AIDV-283/313)
+      contentSecurityPolicy: process.env.CSP_ENFORCEMENT === "0" ? false : {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "blob:", "https:"],
+          mediaSrc: ["'self'", "blob:", "https:"],
+          connectSrc: ["'self'", "https:", "wss:"],
+          fontSrc: ["'self'", "data:"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          frameSrc: ["'none'"],
+          workerSrc: ["'self'", "blob:"],
+          frameAncestors: ["'none'"],
+        },
+      },
       crossOriginEmbedderPolicy: false, // Allow cross-origin media assets
-      frameguard: { action: "deny" }, // X-Frame-Options: DENY (upgraded from SAMEORIGIN)
+      frameguard: { action: "deny" }, // X-Frame-Options: DENY
     })
   );
   // Permissions-Policy: disable browser features not used by healing-studio.

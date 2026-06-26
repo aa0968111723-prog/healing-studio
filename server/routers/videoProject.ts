@@ -13,6 +13,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { VIDEO_OUTPUT_SPEC_DEFAULT, type VideoOutputSpec } from "../../drizzle/schema";
+import { sanitizePlainText } from "../utils/sanitize";
 
 const aspectRatioSchema = z.enum(["16:9", "9:16", "1:1"]);
 
@@ -32,7 +33,7 @@ export const videoProjectRouter = router({
   create: protectedProcedure
     .input(
       z.object({
-        title: z.string().min(1).max(255).default("未命名影片"),
+        title: z.string().min(1).max(255).transform(sanitizePlainText).default("未命名影片"),
         aspectRatio: aspectRatioSchema.default("16:9"),
         creativeProjectId: z.number().int().positive().optional(),
         outputSpec: outputSpecSchema.optional(),
@@ -78,7 +79,7 @@ export const videoProjectRouter = router({
       z.object({
         id: z.number().int().positive(),
         aspectRatio: aspectRatioSchema.optional(),
-        title: z.string().min(1).max(255).optional(),
+        title: z.string().min(1).max(255).transform(sanitizePlainText).optional(),
         outputSpec: outputSpecSchema.optional(),
         /** AIDV-241 樂觀鎖：攜帶呼叫方讀到的 version，後端做原子 WHERE id=? AND version=?；
          *  version 不符時回傳 CONFLICT(409)；省略時退化為無版本檢查（向下相容）。 */
@@ -125,7 +126,7 @@ export const videoProjectRouter = router({
     .input(
       z.object({
         sourceId: z.number().int().positive(),
-        title: z.string().min(1).max(255).optional(),
+        title: z.string().min(1).max(255).transform(sanitizePlainText).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
