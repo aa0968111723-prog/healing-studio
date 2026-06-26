@@ -49,6 +49,10 @@ vi.mock("../../services/internalMedia.js", () => ({
   localizeResultUrls: async (raw: unknown) => raw,
 }));
 
+vi.mock("../../services/webhookDispatcher", () => ({
+  dispatchWebhookEvent: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("../../services/postGenActions.js", () => ({
   runPostGenForJob: (...args: unknown[]) =>
     runPostGenForJobMock(...(args as [number])),

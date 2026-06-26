@@ -81,6 +81,8 @@ const PENDING_BLOCK = [
   "0092_project_snapshots",
   // AIDV-264：IP 維度登入失敗加速索引 — 同一 IP 1 分鐘 20 次失敗即封鎖。
   "0094_login_history_ip_idx",
+  // AIDV-269：創作者端 Webhook 訂閱 — webhook_subscriptions + webhook_delivery_history。
+  "0093_webhook_subscriptions",
 ];
 
 function readSql(tag: string): string {

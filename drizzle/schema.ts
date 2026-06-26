@@ -4555,3 +4555,46 @@ export const projectSnapshots = mysqlTable(
 
 export type ProjectSnapshot = typeof projectSnapshots.$inferSelect;
 export type InsertProjectSnapshot = typeof projectSnapshots.$inferInsert;
+
+// ─── Webhook Subscriptions (AIDV-269) ────────────────────────────────────────
+
+export const webhookSubscriptions = mysqlTable(
+  "webhook_subscriptions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    url: varchar("url", { length: 2048 }).notNull(),
+    events: json("events").$type<string[]>().notNull(),
+    secret: varchar("secret", { length: 64 }).notNull(),
+    active: boolean("active").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("ws_userId_idx").on(table.userId, table.active),
+  })
+);
+
+export type WebhookSubscription = typeof webhookSubscriptions.$inferSelect;
+export type InsertWebhookSubscription = typeof webhookSubscriptions.$inferInsert;
+
+export const webhookDeliveryHistory = mysqlTable(
+  "webhook_delivery_history",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    subscriptionId: int("subscriptionId").notNull(),
+    event: varchar("event", { length: 64 }).notNull(),
+    payload: json("payload").$type<Record<string, unknown>>().notNull(),
+    statusCode: int("statusCode"),
+    attempt: int("attempt").notNull().default(1),
+    succeeded: boolean("succeeded").default(false).notNull(),
+    errorMessage: varchar("errorMessage", { length: 512 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    subIdCreatedAtIdx: index("wdh_subId_createdAt_idx").on(table.subscriptionId, table.createdAt),
+  })
+);
+
+export type WebhookDeliveryRecord = typeof webhookDeliveryHistory.$inferSelect;
+export type InsertWebhookDeliveryRecord = typeof webhookDeliveryHistory.$inferInsert;
