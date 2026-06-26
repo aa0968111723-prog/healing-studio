@@ -17,6 +17,11 @@ export interface ShotVM {
   id: string; no: string; title: string; route: "text" | "ref";
   seed: number; approved: boolean; stale: boolean;
   status: GenStatus; provider?: ProviderId; variant?: number;
+  assetUrl?: string;
+}
+
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(url);
 }
 
 export function ShotCard({
@@ -36,7 +41,26 @@ export function ShotCard({
       <div className="relative grid place-items-center overflow-hidden aspect-[16/10] bg-[linear-gradient(150deg,#efe6d6,#e4d6c0)]">
         {status === "done" && (
           <>
-            <div className={"absolute inset-0 " + (shot.stale ? "grayscale-[.4] brightness-95 sepia-[.1]" : "")} style={frameStyle(shot.seed, shot.variant)} />
+            {shot.assetUrl ? (
+              isVideoUrl(shot.assetUrl) ? (
+                <video
+                  src={shot.assetUrl}
+                  className={"absolute inset-0 w-full h-full object-cover " + (shot.stale ? "grayscale-[.4] brightness-95" : "")}
+                  muted
+                  autoPlay
+                  loop
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={shot.assetUrl}
+                  alt={shot.title}
+                  className={"absolute inset-0 w-full h-full object-cover " + (shot.stale ? "grayscale-[.4] brightness-95 sepia-[.1]" : "")}
+                />
+              )
+            ) : (
+              <div className={"absolute inset-0 " + (shot.stale ? "grayscale-[.4] brightness-95 sepia-[.1]" : "")} style={frameStyle(shot.seed, shot.variant)} />
+            )}
             <span className="absolute left-[7px] bottom-[7px] font-mono text-[8.5px] text-white bg-[rgba(43,38,32,.6)] px-[6px] py-[2px] rounded-[6px] backdrop-blur-[2px]">
               seed {shot.seed} · {shot.provider}
             </span>

@@ -248,6 +248,42 @@ export const creativeProjectRouter = router({
       return { ok: true };
     }),
 
+  /** 複製創作專案 — 建立同名（附「(副本)」）的新專案，繼承所有關聯欄位 */
+  duplicate: protectedProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const source = await db.getCreativeProject(input.id);
+      if (!source || source.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const newId = await db.createCreativeProject({
+        userId: ctx.user.id,
+        title: `${source.title} (副本)`,
+        description: source.description ?? null,
+        directorSessionId: null,
+        worldFrameworkId: source.worldFrameworkId ?? null,
+        worldStoryboardId: source.worldStoryboardId ?? null,
+        worldviewId: source.worldviewId ?? null,
+        scriptId: source.scriptId ?? null,
+        status: "concept",
+        coverImageUrl: source.coverImageUrl ?? null,
+        tags: Array.isArray(source.tags) ? (source.tags as string[]) : [],
+        metadata: source.metadata && typeof source.metadata === "object"
+          ? (source.metadata as Record<string, unknown>)
+          : null,
+      });
+      recordAuditEvent({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        action: "project.duplicate",
+        targetType: "project",
+        targetId: newId,
+        metadata: { sourceId: input.id, title: source.title },
+        ...extractRequestSource(ctx.req),
+      });
+      return { id: newId };
+    }),
+
   /**
    * 綁定（或解綁）三大資源到專案。傳 null 代表解綁。
    * 同時呼叫多個 link 可以一次設定多項；省略則維持原值。

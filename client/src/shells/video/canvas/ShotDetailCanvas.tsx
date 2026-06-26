@@ -51,6 +51,7 @@ export function ShotDetailCanvas() {
       status: shot.gen.status,
       provider: shot.gen.provider,
       variant: shot.gen.variant,
+      assetUrl: shot.gen.assetUrl,
     };
     const blockedCharName = g.reasons.find((r) => r.kind !== "scene-missing-location")?.refName;
     return (
@@ -104,11 +105,31 @@ export function ShotDetailCanvas() {
         </div>
       </div>
 
-      {/* 大圖 */}
+      {/* 大圖 / 媒體預覽 */}
       <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl border bg-muted">
         {gen.status === "done" && (
           <>
-            <div className="absolute inset-0" style={{ background: frameStyle(shot.seed, gen.variant) }} />
+            {gen.assetUrl ? (
+              /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(gen.assetUrl) ? (
+                <video
+                  key={gen.assetUrl}
+                  src={gen.assetUrl}
+                  controls
+                  muted
+                  loop
+                  playsInline
+                  className={cn("absolute inset-0 h-full w-full object-cover", shot.stale && "brightness-75")}
+                />
+              ) : (
+                <img
+                  src={gen.assetUrl}
+                  alt={shot.title}
+                  className={cn("absolute inset-0 h-full w-full object-cover", shot.stale && "grayscale brightness-90")}
+                />
+              )
+            ) : (
+              <div className="absolute inset-0" style={{ background: frameStyle(shot.seed, gen.variant) }} />
+            )}
             <span className="absolute bottom-2 left-2 rounded bg-black/50 px-2 py-0.5 font-mono text-[10px] text-white">
               seed {shot.seed} · {gen.provider}
             </span>
