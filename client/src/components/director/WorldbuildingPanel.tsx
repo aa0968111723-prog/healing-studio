@@ -234,11 +234,13 @@ const WorldCard = memo(function WorldCard({
   isSelected,
   onSelect,
   onCreateStoryboard,
+  onOpenCanvas,
 }: {
   fw: LoadedFramework;
   isSelected: boolean;
   onSelect: () => void;
   onCreateStoryboard?: () => void;
+  onOpenCanvas?: () => void;
 }) {
   const progress: WorldProgressResult = useMemo(
     () => calculateWorldbuildingProgress(fw),
@@ -305,21 +307,45 @@ const WorldCard = memo(function WorldCard({
         </span>
       </button>
 
-      {/* Overall progress bar */}
-      <div className="px-3 pt-2.5">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[10px] text-muted-foreground">
-            整體完成度 {progress.completedCount}/{progress.totalCount}
-          </span>
-          <span className="text-[11px] font-bold text-primary tabular-nums">
-            {progress.overall}%
-          </span>
-        </div>
-        <div className="h-2 rounded-full bg-muted overflow-hidden">
+      {/* Overall progress meter — 完成度 Meter */}
+      <div className="px-3 pt-3 pb-1">
+        <div className="flex items-center gap-3">
+          {/* Circular percentage badge */}
           <div
-            className={`h-full rounded-full bg-gradient-to-r ${overallColorClass} transition-all`}
-            style={{ width: `${progress.overall}%` }}
-          />
+            className={`relative flex items-center justify-center w-12 h-12 rounded-full shrink-0 bg-gradient-to-br ${overallColorClass}`}
+            style={{ padding: "3px" }}
+          >
+            <div className="w-full h-full rounded-full bg-card flex items-center justify-center">
+              <span
+                className={`text-[13px] font-extrabold tabular-nums leading-none ${
+                  progress.status === "complete"
+                    ? "text-primary"
+                    : progress.status === "partial"
+                      ? "text-amber-500"
+                      : "text-muted-foreground"
+                }`}
+              >
+                {progress.overall}
+                <span className="text-[8px]">%</span>
+              </span>
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-semibold text-foreground/80">
+                整體完成度
+              </span>
+              <span className="text-[10px] text-muted-foreground tabular-nums">
+                {progress.completedCount}/{progress.totalCount} 項目
+              </span>
+            </div>
+            <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className={`h-full rounded-full bg-gradient-to-r ${overallColorClass} transition-all`}
+                style={{ width: `${progress.overall}%` }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -379,6 +405,7 @@ const WorldCard = memo(function WorldCard({
           </ul>
         )}
         <div className="flex items-center gap-1.5 flex-wrap">
+          {/* 入口 1：內嵌編輯（在頁面下方展開 WorldbuildingInlineEditor） */}
           <Button
             size="sm"
             className="h-6 text-[10px]"
@@ -387,8 +414,23 @@ const WorldCard = memo(function WorldCard({
               onSelect();
             }}
           >
-            {actionPlan.primaryAction.cta}
+            {isSelected ? "收合編輯器" : actionPlan.primaryAction.cta}
           </Button>
+          {/* 入口 2：進入世界觀畫布（AnimationStudio 完整製作管線） */}
+          {onOpenCanvas && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] gap-1"
+              onClick={e => {
+                e.stopPropagation();
+                onOpenCanvas();
+              }}
+            >
+              <Film className="w-2.5 h-2.5" />
+              進入畫布
+            </Button>
+          )}
           {actionPlan.readyForGeneration && onCreateStoryboard && (
             <Button
               size="sm"
@@ -655,6 +697,7 @@ export default function WorldbuildingPanel({
                       ? () => onCreateStoryboard(fw.id)
                       : undefined
                   }
+                  onOpenCanvas={() => navigate("/animation")}
                 />
               ))}
             </div>
