@@ -103,6 +103,8 @@ import {
   initCredentialExpiryAlertCron,
   stopCredentialExpiryAlertCron,
 } from "../jobs/credentialExpiryAlertJob";
+import { agentStatusRouter } from "../routes/agentStatusRoute";
+import { v1Router } from "../routes/v1";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
@@ -530,6 +532,10 @@ async function startServer() {
   app.use(sseRouter);
   // SSE for multi-agent collaboration state broadcast (AIDV-331)
   app.use(agentEventsRouter);
+  // Agent status dashboard + SSE heartbeat + Prometheus metrics (AIDV-334/336)
+  app.use(agentStatusRouter);
+  // Programmatic REST API v1 (AIDV-276)
+  app.use(v1Router);
   // (LangSmith stats moved to tRPC: trpc.langsmith.stats)
   app.use(falWebhookRouter);
   app.use(sunoWebhookRouter);

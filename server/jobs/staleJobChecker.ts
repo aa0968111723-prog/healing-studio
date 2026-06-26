@@ -11,6 +11,9 @@
 import * as cron from "node-cron";
 import { getStuckJobsByType, updateBackgroundJob } from "../db.js";
 import { generationBus } from "../generationEvents.js";
+import { getRedisClient } from "../_core/redisClient.js";
+
+const DLQ_KEY = "dlq:video_jobs";
 
 // ─── 常數 ────────────────────────────────────────────────────────────────────
 
@@ -68,6 +71,16 @@ export async function checkStaleJobs(): Promise<void> {
             type: "error",
             message: `job_failed: stale timeout after ${MAX_RETRIES} retries`,
           });
+          const redis = getRedisClient();
+          if (redis) {
+            const dlqEntry = JSON.stringify({
+              jobId: job.id,
+              jobType,
+              failedAt: new Date().toISOString(),
+              reason: `stale_timeout:retries_exhausted`,
+            });
+            redis.lpush(DLQ_KEY, dlqEntry).catch(() => {});
+          }
           log("error", `任務 #${job.id}（${jobType}）超過 ${MAX_RETRIES} 次重試，標記 failed 並廣播 SSE`);
         }
       } catch (err: unknown) {

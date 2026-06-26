@@ -85,6 +85,8 @@ const PENDING_BLOCK = [
   "0093_webhook_subscriptions",
   // AIDV-260：影片輸出規格 — resolution/fps/codec JSON 欄位（information_schema 守門）。
   "0095_video_output_spec",
+  // AIDV-276：程式化 API 金鑰表 — api_keys（CREATE TABLE IF NOT EXISTS，含唯一索引）。
+  "0096_api_keys",
 ];
 
 function readSql(tag: string): string {
