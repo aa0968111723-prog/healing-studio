@@ -25,7 +25,7 @@ export type GenerationEventBase = { orbTraceId?: string };
 export type GenerationEvent =
   | ({ type: "thought-update"; node: ThoughtNodeEvent } & GenerationEventBase)
   | ({ type: "progress"; progress: number; message: string } & GenerationEventBase)
-  | ({ type: "complete"; thoughtChain: ThoughtNodeEvent[] } & GenerationEventBase)
+  | ({ type: "complete"; thoughtChain: ThoughtNodeEvent[]; preview_url?: string } & GenerationEventBase)
   | ({ type: "error"; message: string } & GenerationEventBase)
   | ({
       type: "step_complete";
