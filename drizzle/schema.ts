@@ -4515,6 +4515,19 @@ export type InsertSkillRegistryEntry = typeof skillRegistry.$inferInsert;
 
 // ─── Video Projects (AIDV-252) ────────────────────────────────────────────────
 
+/** AIDV-260: 影片輸出規格 — resolution/fps/codec 三欄收斂至單一 JSON 欄位。 */
+export type VideoOutputSpec = {
+  resolution: "720p" | "1080p" | "4K";
+  fps: 24 | 30 | 60;
+  codec: "h264" | "h265" | "vp9";
+};
+
+export const VIDEO_OUTPUT_SPEC_DEFAULT: VideoOutputSpec = {
+  resolution: "1080p",
+  fps: 30,
+  codec: "h264",
+};
+
 export const videoProjects = mysqlTable(
   "video_projects",
   {
@@ -4525,6 +4538,7 @@ export const videoProjects = mysqlTable(
     aspectRatio: mysqlEnum("aspect_ratio", ["16:9", "9:16", "1:1"])
       .notNull()
       .default("16:9"),
+    outputSpec: json("output_spec").$type<VideoOutputSpec>(),
     version: int("version").notNull().default(0),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

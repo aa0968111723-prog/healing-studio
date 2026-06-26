@@ -694,6 +694,13 @@
       "when": 1782806400000,
       "tag": "0094_login_history_ip_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "5",
+      "when": 1782892800000,
+      "tag": "0095_video_output_spec",
+      "breakpoints": true
     }
   ]
 }

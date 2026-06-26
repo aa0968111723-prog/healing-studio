@@ -83,6 +83,8 @@ const PENDING_BLOCK = [
   "0094_login_history_ip_idx",
   // AIDV-269：創作者端 Webhook 訂閱 — webhook_subscriptions + webhook_delivery_history。
   "0093_webhook_subscriptions",
+  // AIDV-260：影片輸出規格 — resolution/fps/codec JSON 欄位（information_schema 守門）。
+  "0095_video_output_spec",
 ];
 
 function readSql(tag: string): string {
