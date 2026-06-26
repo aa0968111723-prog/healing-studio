@@ -666,6 +666,13 @@
       "when": 1782460800003,
       "tag": "0090_r2_object_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "5",
+      "when": 1782547200000,
+      "tag": "0091_video_project_version",
+      "breakpoints": true
     }
   ]
 }
