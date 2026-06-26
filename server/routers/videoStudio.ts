@@ -20,9 +20,11 @@
  *  進階控制：AnimateDiff + ControlNet, DepthCrafter, CamMaster Camera Control
  */
 
+import crypto from "crypto";
 import { z } from "zod";
 import { safeExternalUrl, safeExternalUrlOptional } from "../utils/validateSafeUrl";
 import { generationProcedure, videoGenerationProcedure, publicProcedure, router } from "../_core/trpc";
+import { serverEnv } from "../_core/env.validated";
 import { TRPCError } from "@trpc/server";
 import { FAL_QUEUE_BASE } from "../_core/providerFacade";
 import { signWebhookToken, signFalWebhookNonce } from "../_core/webhookTokens";
@@ -1617,9 +1619,27 @@ export const videoStudioRouter = router({
           });
         }
 
+        // AIDV-280: replace raw Fal.ai CDN URL with a short-lived HMAC-signed
+        // proxy URL. The frontend uses the same video_url field; only the value
+        // changes. Expiry: 1 hour. Ownership is re-verified inside the route.
+        let signedVideoUrl: string | null = video_url;
+        if (video_url && serverEnv.JWT_SECRET) {
+          const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+          const mac = crypto
+            .createHmac("sha256", serverEnv.JWT_SECRET)
+            .update(`v1:${input.requestId}:${ctx.user.id}:${expiresAt}`)
+            .digest("base64url");
+          signedVideoUrl =
+            `/api/video-output` +
+            `?r=${encodeURIComponent(input.requestId)}` +
+            `&u=${ctx.user.id}` +
+            `&e=${expiresAt}` +
+            `&t=${mac}`;
+        }
+
         return {
           status: "COMPLETED" as const,
-          video_url,
+          video_url: signedVideoUrl,
           raw: localized,
         };
       }
