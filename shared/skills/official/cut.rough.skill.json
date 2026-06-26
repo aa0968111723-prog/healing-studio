@@ -1,0 +1,25 @@
+{
+  "id": "cut.rough",
+  "version": "1.0.0",
+  "name": "粗剪組合",
+  "kind": "declarative",
+  "trust": "official",
+  "inputs": {
+    "storyboardId": "int",
+    "selectFrames": "text?",
+    "includeAudio": "bool?"
+  },
+  "outputs": {
+    "jobId": "int",
+    "estimatedCostUsd": "float?"
+  },
+  "providers": ["fal", "runway"],
+  "permissions": {
+    "connectors": [],
+    "materials": true,
+    "crossProject": false
+  },
+  "cost": {
+    "attributeTo": "workflow"
+  }
+}

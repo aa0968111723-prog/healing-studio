@@ -1,0 +1,24 @@
+{
+  "id": "world.styleinject",
+  "version": "1.0.0",
+  "name": "世界風格注入",
+  "kind": "declarative",
+  "trust": "official",
+  "inputs": {
+    "worldId": "int",
+    "styleDescriptor": "text",
+    "globalNegativePrompt": "text?"
+  },
+  "outputs": {
+    "ok": "bool"
+  },
+  "providers": [],
+  "permissions": {
+    "connectors": [],
+    "materials": true,
+    "crossProject": false
+  },
+  "cost": {
+    "attributeTo": "workflow"
+  }
+}

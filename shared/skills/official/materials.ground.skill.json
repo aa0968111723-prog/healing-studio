@@ -1,0 +1,25 @@
+{
+  "id": "materials.ground",
+  "version": "1.0.0",
+  "name": "素材 RAG 定錨",
+  "kind": "declarative",
+  "trust": "official",
+  "inputs": {
+    "query": "text",
+    "scope": "text?",
+    "maxResults": "int?"
+  },
+  "outputs": {
+    "materials": "MaterialRef[]",
+    "groundingContext": "text"
+  },
+  "providers": [],
+  "permissions": {
+    "connectors": [],
+    "materials": true,
+    "crossProject": false
+  },
+  "cost": {
+    "attributeTo": "workflow"
+  }
+}
