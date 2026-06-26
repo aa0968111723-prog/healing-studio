@@ -29,6 +29,8 @@
     "audit:spirits": "tsx scripts/audit-25-spirits.mjs",
     "audit:director-orb": "tsx scripts/simulate-director-orb.mjs",
     "audit:music-voice": "tsx scripts/audit-music-voice-studio.mjs",
+    "simulate:orb-studio": "node scripts/simulate-orb-studio-25.mjs",
+    "simulate:orb": "node scripts/simulate-full-site-orb.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "eslint": "npm run lint --"
   },
