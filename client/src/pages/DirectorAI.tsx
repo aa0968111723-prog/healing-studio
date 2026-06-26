@@ -126,6 +126,7 @@ import {
   studioRouteLabel,
 } from "@/lib/send-to-studio";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -2263,6 +2264,7 @@ const ScriptCard = memo(function ScriptCard({
 
 export default function DirectorAI() {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
 
   // 全站新手引導
   usePageTour("director");
@@ -4923,6 +4925,22 @@ export default function DirectorAI() {
                       </Badge>
                     </>
                   )}
+                  {/* AIDV-273: 剩餘積分即時顯示 */}
+                  {user?.remainingGenerations != null && (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-2xs",
+                        user.remainingGenerations < 20
+                          ? "bg-red-50 text-red-700 border-red-200"
+                          : user.remainingGenerations < 100
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      )}
+                    >
+                      ⚡ {user.remainingGenerations} pts
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -6175,6 +6193,7 @@ export default function DirectorAI() {
         onOptionsChange={setBatchGenerationOptions}
         onStartGeneration={handleStartBatchGeneration}
         isPending={autoGenerateMut.isPending}
+        remainingPoints={user?.remainingGenerations}
       />
 
       <GenerationProgressPanel
