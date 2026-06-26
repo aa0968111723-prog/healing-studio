@@ -13,6 +13,7 @@ import {
   date,
   index,
   uniqueIndex,
+  tinyint,
 } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
@@ -2147,6 +2148,10 @@ export const costLedger = mysqlTable(
     //   "catalog" ＝modelPricing 目錄真實單位價後援（次準，線上四家供應商無 usage.cost
     //               時用以讓成本可視）。null＝舊資料/未標。
     costSource: varchar("costSource", { length: 16 }),
+    // ── AIDV-130 S-5（migration 0086）：Skill 成本維度 ──────────────────────────
+    // 每筆 Skill 執行的分錄帶上 skillId@skillVersion，支援依 Skill 彙總成本。
+    skillId: varchar("skillId", { length: 128 }),
+    skillVersion: varchar("skillVersion", { length: 32 }),
   },
   table => ({
     idempotencyKeyUnique: uniqueIndex("cl_idempotencyKey_unique").on(
@@ -2160,6 +2165,7 @@ export const costLedger = mysqlTable(
     createdAtIdx: index("cl_createdAt_idx").on(table.createdAt),
     projectIdx: index("cl_projectId_idx").on(table.projectId),
     workflowIdx: index("cl_workflowId_idx").on(table.workflowId),
+    skillIdx: index("cl_skillId_idx").on(table.skillId),
   })
 );
 
@@ -3155,6 +3161,14 @@ export const orbWorkflowStepExecutions = mysqlTable(
     startedAt: timestamp("startedAt"),
     completedAt: timestamp("completedAt"),
     durationSeconds: int("durationSeconds"),
+    /** Skill manifest id backing this step (null for non-Skill steps). AIDV-126. */
+    skillId: varchar("skillId", { length: 128 }),
+    /** Pinned skill version (semver). Null for non-Skill steps. */
+    skillVersion: varchar("skillVersion", { length: 32 }),
+    /** Input values snapshot at execution time (audit trail). */
+    inputSnapshot: json("inputSnapshot").$type<Record<string, unknown>>(),
+    /** Effective permissions granted to this skill instance. */
+    permissionSnapshot: json("permissionSnapshot").$type<Record<string, unknown>>(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
@@ -3165,6 +3179,7 @@ export const orbWorkflowStepExecutions = mysqlTable(
     execIdx: index("orb_workflow_step_exec_idx").on(table.executionId),
     statusIdx: index("orb_workflow_step_status_idx").on(table.status),
     spiritIdx: index("orb_workflow_step_spirit_idx").on(table.spiritId),
+    skillIdx: index("orb_workflow_step_skill_idx").on(table.skillId),
   })
 );
 
@@ -4434,3 +4449,48 @@ export const sceneCompositions = mysqlTable(
 
 export type SceneCompositionRow = typeof sceneCompositions.$inferSelect;
 export type InsertSceneComposition = typeof sceneCompositions.$inferInsert;
+
+// ─── Skill Registry (Wave S S-4 / AIDV-129) ────────────────────────────────
+
+export const skillRegistry = mysqlTable(
+  "skill_registry",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    /** Globally unique skill manifest id (e.g. "storyboard.breakdown"). */
+    skillId: varchar("skillId", { length: 128 }).notNull(),
+    /** Pinned semver version at install time. */
+    version: varchar("version", { length: 32 }).notNull(),
+    /** Display name from the manifest. */
+    name: varchar("name", { length: 255 }).notNull(),
+    /** Trust tier: determines default permission ceiling. */
+    trust: mysqlEnum("trust", ["official", "reviewed", "community"])
+      .notNull()
+      .default("community"),
+    /** Connector IDs explicitly approved by Admin. */
+    grantedConnectors: json("grantedConnectors").$type<string[]>(),
+    /** Whether Admin has approved materials access (read/write creative data). */
+    grantedMaterials: boolean("grantedMaterials").notNull().default(false),
+    /** Whether Admin has approved cross-project access. */
+    grantedCrossProject: boolean("grantedCrossProject").notNull().default(false),
+    /** Active or disabled; disabled skills are rejected at dispatch time. */
+    status: mysqlEnum("status", ["active", "disabled"]).notNull().default("active"),
+    /** userId who installed this skill; null for built-in official skills. */
+    installedBy: int("installedBy"),
+    /** Manifest source URL or file path; null for official skills. */
+    source: varchar("source", { length: 512 }),
+    /** SHA-256 of the canonical manifest JSON recorded at install/upgrade time. */
+    manifestChecksum: varchar("manifestChecksum", { length: 64 }),
+    /** 1 when an upgrade detected permission escalation; Admin must re-approve before re-enabling. */
+    needsReaudit: tinyint("needsReaudit").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    skillIdUnique: uniqueIndex("skill_registry_skillId_uk").on(table.skillId),
+    trustIdx: index("skill_registry_trust_idx").on(table.trust),
+    statusIdx: index("skill_registry_status_idx").on(table.status),
+  })
+);
+
+export type SkillRegistryEntry = typeof skillRegistry.$inferSelect;
+export type InsertSkillRegistryEntry = typeof skillRegistry.$inferInsert;

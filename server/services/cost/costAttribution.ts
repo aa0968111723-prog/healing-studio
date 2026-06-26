@@ -101,6 +101,9 @@ export interface UsageAttributionInput {
   idempotencyKey: string;
   refType?: string | null;
   refId?: string | null;
+  /** AIDV-130 S-5：Skill 成本維度（有 Skill 上下文時傳入）。 */
+  skillId?: string | null;
+  skillVersion?: string | null;
 }
 
 /**
@@ -135,6 +138,8 @@ export function buildAttributionEntries(
     provider: input.provider ?? null,
     model: input.model ?? null,
     costSource: input.costSource ?? null,
+    skillId: input.skillId ?? null,
+    skillVersion: input.skillVersion ?? null,
   };
 
   const dims: Array<{
@@ -459,6 +464,71 @@ export function summarizeAttribution(
   }
   // 淨額 clamp 到 ≥0，並濾掉全額退掉（淨額為 0）的維度列。
   const out: AttributionSummaryRow[] = [];
+  for (const cur of acc.values()) {
+    cur.costUsd = Number(Math.max(0, cur.costUsd).toFixed(6));
+    cur.costTwd = Number(Math.max(0, cur.costTwd).toFixed(4));
+    if (cur.entries === 0 && cur.costUsd === 0 && cur.costTwd === 0) continue;
+    out.push(cur);
+  }
+  return out.sort((a, b) => b.costTwd - a.costTwd);
+}
+
+// ─── AIDV-130 S-5：依 Skill 維度彙總（唯讀，pure）────────────────────────────
+
+/** ledger 列子集，含 Skill 維度欄位，供 summarizeSkillCost 使用。 */
+export interface LedgerRowForSkillSummary extends LedgerRowForSummary {
+  skillId?: string | null;
+  skillVersion?: string | null;
+}
+
+export interface SkillCostRow {
+  skillId: string;
+  /** 最後一次落帳使用的 skillVersion（多版本同 id 時取最後一筆）。 */
+  skillVersion: string | null;
+  costUsd: number;
+  costTwd: number;
+  /** debit 次數（消耗事件數；credit 是沖銷不另計）。 */
+  entries: number;
+}
+
+/**
+ * pure：把 cost_ledger posted 列依 skillId 分組彙總成「淨額」USD/TWD 成本。
+ *
+ * 與 summarizeAttribution 邏輯一致：debit 加、credit 減 → 淨額 clamp ≥0。
+ * 供「依 Skill 彙總成本報表、知道哪個 Skill 最燒錢」查詢（AIDV-130 完成定義）。
+ *
+ * 無 skillId 的列（舊資料或非 Skill 觸發）自動略過，不污染 Skill 視角。
+ */
+export function summarizeSkillCost(
+  rows: LedgerRowForSkillSummary[],
+  rate: number
+): SkillCostRow[] {
+  const acc = new Map<string, SkillCostRow>();
+  for (const r of rows) {
+    if (r.entryType !== "debit" && r.entryType !== "credit") continue;
+    if (!r.skillId || String(r.skillId).trim() === "") continue;
+    const sid = String(r.skillId).trim();
+    const usd = Number(r.amount);
+    if (!Number.isFinite(usd) || usd < 0) continue;
+    const twdFrozen =
+      r.amountTwd != null && Number.isFinite(Number(r.amountTwd))
+        ? Number(r.amountTwd)
+        : usdToTwd(usd, rate);
+    const cur = acc.get(sid) ?? {
+      skillId: sid,
+      skillVersion: r.skillVersion ?? null,
+      costUsd: 0,
+      costTwd: 0,
+      entries: 0,
+    };
+    const sign = r.entryType === "credit" ? -1 : 1;
+    cur.costUsd = Number((cur.costUsd + sign * usd).toFixed(6));
+    cur.costTwd = Number((cur.costTwd + sign * twdFrozen).toFixed(4));
+    if (r.entryType === "debit") cur.entries += 1;
+    if (r.skillVersion) cur.skillVersion = r.skillVersion;
+    acc.set(sid, cur);
+  }
+  const out: SkillCostRow[] = [];
   for (const cur of acc.values()) {
     cur.costUsd = Number(Math.max(0, cur.costUsd).toFixed(6));
     cur.costTwd = Number(Math.max(0, cur.costTwd).toFixed(4));

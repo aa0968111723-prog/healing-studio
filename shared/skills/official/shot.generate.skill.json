@@ -1,0 +1,23 @@
+{
+  "id": "shot.generate",
+  "version": "1.0.0",
+  "name": "分鏡 CO-STAR 生成",
+  "kind": "declarative",
+  "trust": "official",
+  "inputs": {
+    "segment": "SegmentJSON",
+    "personality": "text?"
+  },
+  "outputs": {
+    "costarCard": "CostarCard"
+  },
+  "providers": ["gemini", "openai", "claude"],
+  "permissions": {
+    "connectors": [],
+    "materials": true,
+    "crossProject": false
+  },
+  "cost": {
+    "attributeTo": "workflow"
+  }
+}

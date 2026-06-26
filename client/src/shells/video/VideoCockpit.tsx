@@ -9,6 +9,11 @@ import { Wand2, Film, FolderOpen, AlertTriangle, RefreshCw, Loader2 } from "luci
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+} from "@/contexts/PageAgentContext";
 import { GuidedJourney } from "./GuidedJourney";
 import { DirectorConsole } from "./DirectorConsole";
 
@@ -16,6 +21,33 @@ export function VideoCockpit() {
   const spine = useProjectSpine();
   const [guided, setGuided] = useState(false);
   const p = spine.project;
+
+  useRegisterPageAgent({
+    pageId: "video-studio",
+    pageLabel: "導演座艙",
+    pagePath: "/video",
+    capabilities: [
+      {
+        action: "navigate",
+        label: "導航",
+        hint: "導航到影片子頁面，例如 /video/video（影片工作室）、/video/image（圖片工作室）",
+      },
+    ],
+    state: {
+      modality: "video-cockpit",
+      hasProject: !!p,
+      projectTitle: p?.name ?? null,
+      shotCount: p?.shots.length ?? 0,
+      characterCount: p?.characters.length ?? 0,
+      loading: spine.loading,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "navigate" && action.path) {
+        return { ok: true, message: `導航到 ${action.path}` };
+      }
+      return { ok: false, reason: `導演座艙不支援動作 "${action.type}"` };
+    },
+  });
 
   // ── loading ──
   if (spine.loading && !p) {

@@ -6,6 +6,7 @@
  */
 
 import { logger } from "../_core/logger";
+import { invokeLLM, extractMessageText, type Message } from "../_core/llm";
 import { getDb } from "../db";
 import {
   orbIntentLogs,
@@ -116,16 +117,59 @@ export class OrbClarificationEngine {
     try {
       const db = await getDb();
       if (!db) throw new Error("Database is not configured");
-      // TODO: Implement actual intent classification
-      // Could use: keyword matching, LLM-based classification, learned patterns
 
-      const detectedIntents: DetectedIntent[] = [];
+      let detectedIntents: DetectedIntent[] = [];
       let primaryIntent: string | undefined;
       let intentConfidence: number | undefined;
       let ambiguityScore = 0;
       let needsClarification = false;
 
-      // Simple heuristic: if confidence < 0.7 or multiple high-confidence intents
+      // LLM-backed intent classification
+      try {
+        const messages: Message[] = [
+          {
+            role: "system",
+            content: `You are an intent classifier for a creative video production AI platform called Healing Studio. Classify user input into structured intents and return ONLY a JSON object.
+
+Common intents: create_video, edit_video, view_video, create_script, edit_script, adjust_audio, upload_media, export_content, configure_spirit, navigate, query_info, get_help, adjust_settings.
+
+Return exactly:
+{"intents":[{"intent":"string","confidence":0.0,"category":"string","parameters":{}}]}`
+          },
+          {
+            role: "user",
+            content: `User input: "${input.userInput}"${input.context ? `\nContext: ${JSON.stringify(input.context)}` : ""}\n\nClassify this user's intent.`
+          }
+        ];
+
+        const llmResult = await invokeLLM({
+          messages,
+          runName: "orb-intent-classify",
+          maxTokens: 400,
+          response_format: { type: "json_object" },
+          cacheable: true,
+          cacheTtlSeconds: 60,
+        });
+
+        const raw = extractMessageText(llmResult.choices[0]?.message?.content);
+        const parsed = JSON.parse(raw) as { intents?: DetectedIntent[] };
+        if (Array.isArray(parsed.intents) && parsed.intents.length > 0) {
+          detectedIntents = parsed.intents.map(i => ({
+            intent: String(i.intent ?? "unknown"),
+            confidence: Math.max(0, Math.min(1, Number(i.confidence ?? 0.5))),
+            category: String(i.category ?? "general"),
+            parameters: i.parameters ?? {},
+          }));
+        }
+      } catch (llmErr) {
+        logger.warn("orb_intent_classify_llm_failed", {
+          userId: input.userId,
+          error: llmErr instanceof Error ? llmErr.message : String(llmErr),
+          note: "falling back to empty intents",
+        });
+      }
+
+      // Compute ambiguity and whether clarification is needed
       if (detectedIntents.length > 1) {
         const topConfidences = detectedIntents
           .map(i => i.confidence)
@@ -230,19 +274,68 @@ export class OrbClarificationEngine {
         return null;
       }
 
-      // Generate question
+      // LLM-backed question generation
+      let generatedQuestion = "您想要做什麼？請告訴我更多細節。";
+      let generatedType: QuestionType = "choice";
+      let generatedOptions: Array<{ value: string; label: string; description?: string }> = intentLog.detectedIntents.map(intent => ({
+        value: intent.intent,
+        label: intent.intent,
+        description: `相關度: ${(intent.confidence * 100).toFixed(0)}%`,
+      }));
+
+      try {
+        const intentSummary = intentLog.detectedIntents
+          .map(i => `${i.intent} (${(i.confidence * 100).toFixed(0)}%)`)
+          .join(", ");
+
+        const messages: Message[] = [
+          {
+            role: "system",
+            content: `You are a helpful AI assistant for a creative video platform. Generate a concise clarification question in Traditional Chinese to resolve ambiguous user intent. Return ONLY a JSON object.
+
+Return exactly:
+{"question":"string","questionType":"choice","options":[{"value":"string","label":"string","description":"string"}]}`
+          },
+          {
+            role: "user",
+            content: `User said: "${intentLog.userInput}"\nPossible intents: ${intentSummary}\n\nGenerate a clarification question with at most 4 options.`
+          }
+        ];
+
+        const llmResult = await invokeLLM({
+          messages,
+          runName: "orb-clarification-gen",
+          maxTokens: 350,
+          response_format: { type: "json_object" },
+        });
+
+        const raw = extractMessageText(llmResult.choices[0]?.message?.content);
+        const parsed = JSON.parse(raw) as {
+          question?: string;
+          questionType?: QuestionType;
+          options?: Array<{ value: string; label: string; description?: string }>;
+        };
+        if (parsed.question) generatedQuestion = parsed.question;
+        if (parsed.questionType) generatedType = parsed.questionType;
+        if (Array.isArray(parsed.options) && parsed.options.length > 0) {
+          generatedOptions = parsed.options;
+        }
+      } catch (llmErr) {
+        logger.warn("orb_clarification_gen_llm_failed", {
+          intentLogId: intentLog.id,
+          error: llmErr instanceof Error ? llmErr.message : String(llmErr),
+          note: "falling back to intent list options",
+        });
+      }
+
       const question: ClarificationQuestion = {
         id: `clarif_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
         intentLogId: intentLog.id,
         userId: intentLog.userId,
         conversationId: intentLog.conversationId,
-        clarificationQuestion: "需要澄清您的意圖...", // TODO: Generate actual question
-        questionType: "choice",
-        options: intentLog.detectedIntents.map(intent => ({
-          value: intent.intent,
-          label: intent.intent,
-          description: `信心度: ${(intent.confidence * 100).toFixed(0)}%`,
-        })),
+        clarificationQuestion: generatedQuestion,
+        questionType: generatedType,
+        options: generatedOptions,
         createdAt: new Date(),
       };
 

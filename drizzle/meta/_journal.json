@@ -617,6 +617,34 @@
       "when": 1779050000098,
       "tag": "0082_data_source_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "5",
+      "when": 1779050000099,
+      "tag": "0084_skill_step_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "5",
+      "when": 1782456021100,
+      "tag": "0085_skill_registry",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "5",
+      "when": 1782457200000,
+      "tag": "0086_skill_cost_dimension",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "5",
+      "when": 1782460800000,
+      "tag": "0087_skill_sandbox",
+      "breakpoints": true
     }
   ]
 }

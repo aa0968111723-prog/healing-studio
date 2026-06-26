@@ -1,0 +1,47 @@
+{
+  "id": "official.video-workflow",
+  "name": "官方影片工作流",
+  "description": "從腳本到粗剪的標準五步技能序列（S-3 編排器預設）",
+  "version": "1.0.0",
+  "steps": [
+    {
+      "skillId": "materials.ground",
+      "label": "素材定錨",
+      "inputs": {
+        "query": "{{script}}",
+        "scope": "mine"
+      }
+    },
+    {
+      "skillId": "storyboard.breakdown",
+      "label": "分鏡拆解",
+      "inputs": {
+        "worldId": "{{worldId}}",
+        "totalDurationSec": "{{totalDurationSec}}"
+      }
+    },
+    {
+      "skillId": "world.styleinject",
+      "label": "風格注入",
+      "inputs": {
+        "worldId": "{{worldId}}",
+        "styleDescriptor": "{{styleDescriptor}}"
+      }
+    },
+    {
+      "skillId": "shot.generate",
+      "label": "分鏡生成",
+      "fanOut": "scenes",
+      "inputs": {
+        "segment": "{{scene}}"
+      }
+    },
+    {
+      "skillId": "cut.rough",
+      "label": "粗剪組合",
+      "inputs": {
+        "storyboardId": "{{storyboardId}}"
+      }
+    }
+  ]
+}

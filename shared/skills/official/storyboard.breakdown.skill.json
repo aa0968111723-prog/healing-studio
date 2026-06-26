@@ -1,0 +1,28 @@
+{
+  "id": "storyboard.breakdown",
+  "version": "1.0.0",
+  "name": "分鏡拆解",
+  "kind": "declarative",
+  "trust": "official",
+  "inputs": {
+    "worldId": "int",
+    "totalDurationSec": "int",
+    "sceneCount": "int?",
+    "aspectRatio": "text?",
+    "fps": "int?",
+    "name": "text?"
+  },
+  "outputs": {
+    "storyboardId": "int?",
+    "scenes": "StoryboardScene[]"
+  },
+  "providers": ["gemini", "openai"],
+  "permissions": {
+    "connectors": [],
+    "materials": true,
+    "crossProject": false
+  },
+  "cost": {
+    "attributeTo": "workflow"
+  }
+}
