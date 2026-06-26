@@ -419,7 +419,7 @@ async function startServer() {
   // Trust Railway's reverse proxy so req.ip / X-Forwarded-For work correctly
   app.set("trust proxy", 1);
 
-  // ── Security headers ─────────────────────────────────────────────────────
+  // ── Request trace middleware ──────────────────────────────────────────────
   app.use(requestTraceMiddleware);
 
   // ── Security headers ─────────────────────────────────────────────────────
@@ -439,7 +439,7 @@ async function startServer() {
   app.use((_req, res, next) => {
     res.setHeader(
       "Permissions-Policy",
-      "camera=(), microphone=(), geolocation=(), payment=()"
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     );
     next();
   });
