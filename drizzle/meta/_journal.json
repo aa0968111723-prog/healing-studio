@@ -659,6 +659,13 @@
       "when": 1782460800002,
       "tag": "0089_creative_project_version",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "5",
+      "when": 1782460800003,
+      "tag": "0090_r2_object_catalog",
+      "breakpoints": true
     }
   ]
 }
