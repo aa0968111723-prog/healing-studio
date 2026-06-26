@@ -103,6 +103,11 @@ import {
   initCredentialExpiryAlertCron,
   stopCredentialExpiryAlertCron,
 } from "../jobs/credentialExpiryAlertJob";
+import {
+  initProviderHealthProbeCron,
+  stopProviderHealthProbeCron,
+  getProviderProbeStatus,
+} from "../jobs/providerHealthProbeJob";
 import { agentStatusRouter } from "../routes/agentStatusRoute";
 import { v1Router } from "../routes/v1";
 import { aiProxyRouter } from "../routes/aiProxy";
@@ -245,6 +250,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "credentialExpiryAlertJob",
     start: initCredentialExpiryAlertCron,
     stop: stopCredentialExpiryAlertCron,
+  },
+  {
+    name: "providerHealthProbeJob",
+    start: initProviderHealthProbeCron,
+    stop: stopProviderHealthProbeCron,
   },
 ];
 
@@ -551,6 +561,27 @@ async function startServer() {
   app.use(orbTasksRouter);
   app.use(adminEventsRouter);
   app.use(toolsModelsRouter);
+
+  // AIDV-518: Provider key health status endpoint
+  app.get("/api/provider-health", (_req, res) => {
+    const results = getProviderProbeStatus();
+    res.json({
+      providers: results.map(r => ({
+        id: r.providerId,
+        ok: r.ok,
+        consecutiveFailures: r.consecutiveFailures,
+        latencyMs: r.latencyMs,
+        lastCheckedAt: r.lastCheckedAt ? new Date(r.lastCheckedAt).toISOString() : null,
+        status: r.ok ? "healthy" : r.consecutiveFailures >= 2 ? "critical" : "degraded",
+      })),
+      summary: {
+        healthy: results.filter(r => r.ok).length,
+        critical: results.filter(r => !r.ok && r.consecutiveFailures >= 2).length,
+        total: results.length,
+      },
+      checkedAt: new Date().toISOString(),
+    });
+  });
 
   // ── Maps proxy（隱藏 FRONTEND_FORGE_API_KEY，避免前端暴露）───────────────
   app.get("/api/maps/proxy/*", async (req, res) => {
