@@ -26,6 +26,9 @@
 import rateLimit, { ipKeyGenerator, type Options as RateLimitOptions } from "express-rate-limit";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { logger } from "./logger";
+import { getRedisClient, isRedisConfigured } from "./redisClient";
+import { RedisRateLimitStore } from "./redisRateLimitStore";
+import { serverEnv } from "./env.validated";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -97,10 +100,31 @@ function buildRateLimitKey(req: Request): string {
   return `ip:${ip}`;
 }
 
+// ─── Redis Store Factory ───────────────────────────────────────────────────
+
+/**
+ * Build a Redis-backed store for express-rate-limit when REDIS_URL is set.
+ * Returns undefined when Redis is not configured; the caller falls back to
+ * express-rate-limit's built-in MemoryStore.
+ *
+ * Key prefix: `<REDIS_KEY_PREFIX>rl:<tier>:` (e.g. "healing-studio:rl:auth:")
+ * This namespaces per-tier counters and avoids collisions with the
+ * generation-lock keys already in Redis.
+ */
+function buildRedisStore(tier: RateLimitTier): RedisRateLimitStore | undefined {
+  if (!isRedisConfigured()) return undefined;
+  const client = getRedisClient();
+  if (!client) return undefined;
+  const prefix = `${serverEnv.REDIS_KEY_PREFIX}rl:${tier}:`;
+  return new RedisRateLimitStore(client, prefix);
+}
+
 // ─── Rate Limit Factory ────────────────────────────────────────────────────
 
 function createTierLimiter(tier: RateLimitTier): RequestHandler {
   const config = TIER_CONFIGS[tier];
+
+  const redisStore = buildRedisStore(tier);
 
   const options: Partial<RateLimitOptions> = {
     windowMs: config.windowMs,
@@ -108,6 +132,7 @@ function createTierLimiter(tier: RateLimitTier): RequestHandler {
     standardHeaders: true,   // Return RateLimit-* headers (RFC 6585)
     legacyHeaders: false,     // Disable X-RateLimit-* legacy headers
     keyGenerator: buildRateLimitKey,
+    ...(redisStore ? { store: redisStore } : {}),
     handler: (req: Request, res: Response) => {
       const key = buildRateLimitKey(req);
       logger.warn("[RateLimit] Request blocked", {
