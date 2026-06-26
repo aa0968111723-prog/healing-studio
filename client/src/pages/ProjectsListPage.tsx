@@ -45,7 +45,7 @@ export default function ProjectsListPage() {
   const duplicateMutation = trpc.creativeProject.duplicate.useMutation({
     onSuccess: (data) => {
       utils.creativeProject.list.invalidate();
-      setActiveProjectId(data.id);
+      setActiveProjectId(String(data.id));
       setLocation(`/projects/${data.id}`);
     },
   });
@@ -138,7 +138,7 @@ export default function ProjectsListPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
-                          onSelect={() => duplicateMutation.mutate({ id: project.id })}
+                          onSelect={() => duplicateMutation.mutate({ id: Number(project.id) })}
                           disabled={duplicateMutation.isPending}
                         >
                           <Copy className="mr-2 size-3.5" />
