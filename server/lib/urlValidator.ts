@@ -1,5 +1,5 @@
 /**
- * urlValidator.ts — AIDV-259 SSRF URL Allowlist
+ * urlValidator.ts — AIDV-259/206 SSRF URL Allowlist
  *
  * Provides `assertSafeUrl()` for any server-side code that must validate
  * a user-supplied or externally-sourced URL before use.
@@ -13,10 +13,32 @@
  * domains cannot pass the regex regardless of what they resolve to.
  * Redirect following is already set to `redirect: 'error'` at the fetch
  * call site in internalMedia.ts so post-validation redirects cannot bypass.
+ *
+ * AIDV-206: Exports `safeMediaUrl` / `safeMediaUrlOptional` Zod schemas for
+ * use in tRPC router inputs that accept external media URLs. Gated by
+ * ENABLE_URL_ALLOWLIST env (default ON); set to "0" to fall back to
+ * IP-only blocking (ALLOWED_MEDIA_DOMAINS still applies when ON).
  */
 
-const ALLOWED_HOSTS_RE =
-  /^(?:[\w-]+\.)*(?:fal\.ai|fal\.run|storage\.googleapis\.com|r2\.dev|cloudfront\.net|amazonaws\.com|supabase\.co|supabase\.in|blob\.core\.windows\.net)$/i;
+import { z } from "zod";
+import { isSafeExternalUrl } from "../utils/validateSafeUrl";
+
+// Base static allowlist — fal.media added (AIDV-206: fal.ai returns image
+// results under this domain, not fal.ai or fal.run).
+const STATIC_ALLOWED_HOSTS_RE =
+  /^(?:[\w-]+\.)*(?:fal\.ai|fal\.run|fal\.media|storage\.googleapis\.com|r2\.dev|cloudfront\.net|amazonaws\.com|supabase\.co|supabase\.in|blob\.core\.windows\.net)$/i;
+
+// Env-based extension: comma-separated extra domains (no wildcards needed —
+// the check uses endsWith, so "example.com" covers "cdn.example.com").
+const EXTRA_DOMAINS: string[] = (process.env.ALLOWED_MEDIA_DOMAINS ?? "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAllowedHost(host: string): boolean {
+  if (STATIC_ALLOWED_HOSTS_RE.test(host)) return true;
+  return EXTRA_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
+}
 
 const PRIVATE_IPV4_PATTERNS: RegExp[] = [
   /^10\./,
@@ -109,10 +131,43 @@ export function assertSafeUrl(rawUrl: string, allowInsecureHosts = false): URL {
     return parsed;
   }
 
-  // Domain allowlist check
-  if (!ALLOWED_HOSTS_RE.test(host)) {
+  // Domain allowlist check (STATIC_ALLOWED_HOSTS_RE + env-based extras)
+  if (!isAllowedHost(host)) {
     throw new UrlNotAllowedError(`host not in allowlist: ${host}`);
   }
 
   return parsed;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Zod schemas (AIDV-206) — use these in tRPC router inputs instead of
+// plain z.string().url() wherever external media URLs are accepted.
+//
+// ENABLE_URL_ALLOWLIST=0  → IP-only block (no domain allowlist, fallback mode)
+// ENABLE_URL_ALLOWLIST=1  → full allowlist (default; recommended for prod)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Returns true when the URL passes the configured security check. */
+export function isMediaUrlSafe(url: string): boolean {
+  if (process.env.ENABLE_URL_ALLOWLIST === "0") {
+    // Fallback: private-IP block only, no domain allowlist.
+    return isSafeExternalUrl(url);
+  }
+  try {
+    assertSafeUrl(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Zod schema for a required external media URL (https + allowlist). */
+export const safeMediaUrl = z
+  .string()
+  .url()
+  .refine(isMediaUrlSafe, {
+    message: "URL 必須使用 https 且必須是允許的媒體 CDN 網域",
+  });
+
+/** Zod schema for an optional external media URL. */
+export const safeMediaUrlOptional = safeMediaUrl.optional();
