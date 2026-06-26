@@ -77,6 +77,8 @@ interface ProjectSpineValue {
   listWorlds: () => Promise<{ id: number; name: string }[]>;
   // ── AIDV-246：封面幀選擇 ──
   setCoverShot: (shotId: string | null) => void;
+  // ── AIDV-239：分鏡拖曳重排序 ──
+  reorderShots: (orderedIds: string[]) => Promise<void>;
   // ── 導演 / 拆解（薄包 P0 commander adapter）──
   directorReply: (message: string) => Promise<DirectorReply>;
   breakdownScript: (script: string) => Promise<ScriptBreakdown>;
@@ -357,6 +359,17 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     catch (e) { console.error("[spine] toggleSceneLock 回寫失敗（本地已更新）", e); }
   }, [gateway, patchProject]);
 
+  // AIDV-239：分鏡拖曳重排序——樂觀本地更新 + best-effort 持久化至 creativeProject.metadata.shotOrder。
+  const reorderShots = useCallback((orderedIds: string[]) => runExclusive("reorderShots", async () => {
+    const p = projRef.current; if (!p) return;
+    patchProject((pp) => ({
+      ...pp,
+      shots: orderedIds.map((id) => pp.shots.find((s) => s.id === id)!).filter(Boolean),
+    }));
+    try { await gateway.reorderShots({ projectId: p.id, orderedIds }); }
+    catch (e) { console.error("[spine] reorderShots 回寫失敗（本地已更新）", e); }
+  }), [gateway, patchProject, runExclusive]);
+
   // ── 資料庫寫入 ──
   const addNote = useCallback((text: string, shotNo?: string) => runExclusive(`addNote:${shotNo ?? "_"}:${text}`, async () => {
     const p = projRef.current; if (!p) return;
@@ -495,7 +508,7 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     generateShot, retrySingleShot, scheduleGeneration,
     uploadReference, changeCharacterSetting, toggleLock, toggleSceneLock, approveShot,
     addNote, addPromptBlock, rebuildPacket, ingestBreakdown, createProject, directorReply, breakdownScript,
-    linkWorld, listWorlds, setCoverShot,
+    linkWorld, listWorlds, setCoverShot, reorderShots,
   };
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

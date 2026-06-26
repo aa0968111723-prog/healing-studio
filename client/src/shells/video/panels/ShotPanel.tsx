@@ -7,7 +7,8 @@
 //   stale → 重生（已過期）｜ error → 重試
 // 動作走 useProjectSpine().generateShot / approveShot（→ P0 generation adapter，generate.* 真實串法）。
 // ============================================================================
-import { Bolt, RefreshCw, Check, Loader2 } from "lucide-react";
+import { useRef } from "react";
+import { Bolt, RefreshCw, Check, Loader2, GripVertical } from "lucide-react";
 import { PanelEmpty } from "@/shells/_shared/PanelState";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,12 +26,51 @@ import { AidvKit, ShotCard as DkShotCard, type ShotVM } from "@/components/desig
 export function ShotPanel() {
   const spine = useProjectSpine();
   const p = spine.project!;
+  // AIDV-239：追蹤拖曳中的原始索引（ref 同步，不觸發 re-render）。
+  const dragIdxRef = useRef<number | null>(null);
+
   if (p.shots.length === 0) {
     return <Empty icon="🎞" title="尚無分鏡" desc="用引導式創作或導演台建立。" />;
   }
+
+  function reorder(fromIdx: number, toIdx: number) {
+    if (fromIdx === toIdx) return;
+    const next = [...p.shots];
+    const [item] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, item);
+    void spine.reorderShots(next.map((s) => s.id));
+  }
+
   return (
     <div className="space-y-2">
-      {p.shots.map((sh) => <ShotCard key={sh.id} shot={sh} />)}
+      {p.shots.map((sh, idx) => (
+        <div
+          key={sh.id}
+          draggable
+          onDragStart={() => { dragIdxRef.current = idx; }}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => {
+            if (dragIdxRef.current !== null) { reorder(dragIdxRef.current, idx); dragIdxRef.current = null; }
+          }}
+          className="flex items-start gap-1 group"
+        >
+          {/* AIDV-239：拖曳手把。ArrowUp/Down 鍵盤替代方案（WCAG 2.1 AA）。 */}
+          <button
+            aria-label="拖曳重排"
+            tabIndex={0}
+            className="cursor-grab mt-3 px-0.5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0"
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown" && idx < p.shots.length - 1) { e.preventDefault(); reorder(idx, idx + 1); }
+              else if (e.key === "ArrowUp" && idx > 0) { e.preventDefault(); reorder(idx, idx - 1); }
+            }}
+          >
+            <GripVertical className="size-4" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <ShotCard shot={sh} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

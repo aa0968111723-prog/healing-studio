@@ -14,6 +14,7 @@ import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
   AidvKit, Rail, TopBar, MobileNav, CommandPalette, ProjectSwitcher, ProviderSwitcher, AccountMenu,
+  ToastProvider, Toasts,
   type DkShellDef, type DkCommandItem, type DkProjectLite, type DkProviderEntry,
 } from "@/components/design-kit";
 import { SHELL_META } from "@/config/shells";
@@ -117,6 +118,7 @@ export function AidvShellChrome() {
   ];
 
   return (
+    <ToastProvider>
     <AidvKit>
       {!isMobile && (
         <div className="fixed left-0 top-0 z-40 h-svh">
@@ -165,7 +167,9 @@ export function AidvShellChrome() {
         </div>
       )}
       <CommandPalette open={cmdkOpen} items={cmdItems} onClose={() => setCmdkOpen(false)} />
+      <Toasts />
     </AidvKit>
+    </ToastProvider>
   );
 }
 

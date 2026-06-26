@@ -417,7 +417,9 @@ export function MobileNav({
 }: { shells: DkShellDef[]; active: DkShellId; onSelect: (id: DkShellId) => void; onCmdK?: () => void;
   /** 行動版可見登出入口（avatar/⏻）；行動裝置無實體 ⌘K，登出不可只藏在命令面板。 */
   onLogout?: () => void }) {
-  const half = Math.ceil(shells.length / 2);
+  // flag off（enabled: false）的殼層不渲染對應籤（spec U-4e：flag off 不渲染對應籤）。
+  const visible = shells.filter((s) => s.enabled !== false);
+  const half = Math.ceil(visible.length / 2);
   const render = (s: DkShellDef) => {
     const on = s.id === active;
     return (
@@ -428,10 +430,11 @@ export function MobileNav({
     );
   };
   return (
-    <nav aria-label="行動版殼層導航" className="flex items-center gap-1 border-t border-[var(--line)] bg-[var(--surface)]/95 px-2 py-1 backdrop-blur">
-      {shells.slice(0, half).map(render)}
-      <button type="button" aria-label="命令面板" onClick={onCmdK} className="flex size-12 flex-none items-center justify-center rounded-full bg-[linear-gradient(120deg,var(--clay-bright),var(--clay))] text-[var(--on-clay)] shadow-[var(--shadow-lift)]">◎</button>
-      {shells.slice(half).map(render)}
+    <nav aria-label="行動版殼層導航" className="flex items-center gap-1 border-t border-[var(--line)] bg-[var(--surface)]/95 px-2 py-1 backdrop-blur overflow-visible">
+      {visible.slice(0, half).map(render)}
+      {/* FAB 上浮 −24px（spec §3.7）：-mt-6 在 flex 容器內向上偏移，溢出 nav 頂端呈光球效果。 */}
+      <button type="button" aria-label="命令面板" onClick={onCmdK} className="flex size-12 flex-none -mt-6 items-center justify-center rounded-full bg-[linear-gradient(120deg,var(--clay-bright),var(--clay))] text-[var(--on-clay)] shadow-[var(--shadow-lift)]">◎</button>
+      {visible.slice(half).map(render)}
       {onLogout && (
         <button type="button" aria-label="登出" onClick={onLogout}
           className="flex flex-none flex-col items-center gap-0.5 px-1.5 py-1.5 text-[10px] text-[var(--bad)]">
