@@ -84,6 +84,8 @@ import { readImageStudioHandoff } from "@/components/home/OrbCreationStage";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
+import { useGenerationTask } from "@/hooks/useGenerationTask";
+import { useAutoSavePrompt } from "@/hooks/useAutoSavePrompt";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
 import {
   useRegisterPageAgent,
@@ -2908,7 +2910,14 @@ export default function ImageStudio() {
 
   // ── Tab / Model ──
   const [activeTab, setActiveTab] = useState<StudioTab>("t2i");
-  const [selectedModelId, setSelectedModelId] = useState("nanoBanana2");
+  const {
+    selectedModelId: selectedModelIdRaw,
+    setSelectedModelId,
+    isGenerating,
+    setIsGenerating,
+  } = useGenerationTask({ initialModelId: "nanoBanana2" });
+  const selectedModelId = selectedModelIdRaw ?? "nanoBanana2";
+  const { trySave: autoSavePrompt } = useAutoSavePrompt({ sourceWorkflow: "video" });
 
   // ── Common ──
   const [prompt, setPrompt] = useState("");
@@ -2996,7 +3005,6 @@ export default function ImageStudio() {
     extras?: Record<string, string | null>;
   } | null>(null);
   const [resultPose, setResultPose] = useState<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
 
   /**
    * 回到導演 AI：把目前 prompt + 第一張結果圖打包進 sessionStorage["directorReturn"]
@@ -3752,6 +3760,7 @@ export default function ImageStudio() {
       setResultImages(internalImgs);
       toast.success(`✨ 生成完成！（${imgs.length} 張）`);
       reportSuccess();
+      autoSavePrompt({ title: `${model.name} 生成`, content: fullPrompt || "", modelHint: model.id });
       const returnedSeed =
         result?.seed ??
         result?.raw?.seed ??
@@ -3854,6 +3863,7 @@ export default function ImageStudio() {
     reportSuccess,
     reportFailure,
     recordGenResultMut,
+    autoSavePrompt,
   ]);
 
   const handleReuseHistory = (item: HistoryItem) => {

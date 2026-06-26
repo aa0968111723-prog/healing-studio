@@ -90,6 +90,8 @@ import {
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
 import { useEnsureCompatibleModel } from "@/hooks/useEnsureCompatibleModel";
+import { useGenerationTask } from "@/hooks/useGenerationTask";
+import { useAutoSavePrompt } from "@/hooks/useAutoSavePrompt";
 import {
   FEATURE_LABELS,
   getModelCapability,
@@ -355,8 +357,13 @@ export default function Studio() {
     | "versions"
   >("vault");
   const [isApplyingSuggestedModel, setIsApplyingSuggestedModel] = useState(false);
-  const [selectedFalModelId, setSelectedFalModelId] = useState<string | undefined>();
-  const [selectedModelParams, setSelectedModelParams] = useState<Record<string, string | number | boolean>>({});
+  const {
+    selectedModelId: selectedFalModelId,
+    setSelectedModelId: setSelectedFalModelId,
+    params: selectedModelParams,
+    setParams: setSelectedModelParams,
+    resetParams: resetModelParams,
+  } = useGenerationTask();
   // 光球 setModel 能力用的 Fal 模型清單（依 activeModality 切換）。
   // 真正的下拉選單在 MiniModelsPanel 各自 fetch；這裡只是給 orb agent 看「可選什麼」。
   const [orbFalModelOptions, setOrbFalModelOptions] = useState<
@@ -611,6 +618,8 @@ export default function Studio() {
       activeModality as "image" | "video" | "audio" | "voice"
     ];
 
+  const { trySave: autoSavePrompt } = useAutoSavePrompt({ sourceWorkflow: "video" });
+
   // ── Mutation ──
   const utils = trpc.useUtils();
   // ── Async submit mutation (背景任務模式，不阻塞 UI) ──
@@ -619,12 +628,17 @@ export default function Studio() {
       setAIState("generating");
       notifyGenStart();
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       // submitMultimodalAsync 在伺服器端已建立 background_job 記錄（routers.ts
       // submitMultimodalAsync 內 db.createBackgroundJob），這裡僅需 invalidate
       // activeJobs 讓 BackgroundTasksDrawer 立刻撈到新任務，避免再呼叫
       // submitTask → submitStudioJob 造成同一任務插入第二筆 job 列。
       utils.generate.activeJobs.invalidate();
+      autoSavePrompt({
+        title: data.label || "生成",
+        content: variables.prompt || "",
+        modelHint: data.modelId,
+      });
       setAIState("idle");
       notifyGenDone();
       toast.success(`${data.label} 已提交背景執行`, {
@@ -1523,7 +1537,7 @@ export default function Studio() {
       const modalityLabel =
         MODALITY_TABS.find(m => m.value === activeModality)?.label ?? "目前";
       setSelectedFalModelId(candidate.id);
-      setSelectedModelParams({});
+      resetModelParams();
       setToolboxTab("models");
       toast.success(`已套用${modalityLabel}模型：${candidate.name ?? candidate.id}`);
       return true;
@@ -2377,7 +2391,7 @@ export default function Studio() {
           const falId = raw.startsWith("fal:") ? raw.slice(4) : raw;
           if (falId.includes("/")) {
             setSelectedFalModelId(falId);
-            setSelectedModelParams({});
+            resetModelParams();
             return { ok: true, message: `Fal 模型已套用：${falId}` };
           }
           return {
