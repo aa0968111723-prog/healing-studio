@@ -1433,6 +1433,16 @@ const CRON_JOBS: CronJobMeta[] = [
     files: ["server/jobs/providerHealthProbeJob.ts"],
     downstream: ["db:main", "service:provider-health"],
   },
+  {
+    id: "cron:go-true-health-monitor",
+    label: "GoTrue Auth 健康監控（每 60 秒）",
+    schedule: "* * * * *",
+    description:
+      "每 60 秒探測 GoTrue /auth/v1/health，連續 2 次失敗時透過 Slack 告警；服務恢復時自動發送恢復通知，告警每 10 分鐘最多觸發一次（AIDV-352）",
+    files: ["server/jobs/goTrueHealthMonitor.ts"],
+    downstream: ["ext:gotrue-auth", "ext:slack-alerts"],
+    envKey: "ALERT_SLACK_WEBHOOK",
+  },
 ];
 
 /**

@@ -14,6 +14,11 @@ import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { VIDEO_OUTPUT_SPEC_DEFAULT, type VideoOutputSpec } from "../../drizzle/schema";
 import { sanitizePlainText } from "../utils/sanitize";
+import {
+  presignGetDownload,
+  EXPORT_PRESIGN_EXPIRES_SECONDS,
+  isR2Configured,
+} from "../signedUpload";
 
 const aspectRatioSchema = z.enum(["16:9", "9:16", "1:1"]);
 
@@ -256,5 +261,64 @@ export const videoProjectRouter = router({
       }
 
       return { ok: true };
+    }),
+
+  /**
+   * AIDV-347: 創作者下載匯出端點。
+   *
+   * 驗證影片專案與數位資產的所有權後，回傳一個 7 天有效的 presigned GET URL，
+   * 讓創作者可直接下載已完成的影片成品。不依賴 SSE（AIDV-341），同步回傳。
+   *
+   * 呼叫方須提供 digitalAssetId：從 digital_asset_library 取得的資產 ID
+   * （由 videoStudio.ts 生成完成後寫入）。
+   */
+  requestExport: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number().int().positive(),
+        assetId: z.number().int().positive(),
+        format: z.enum(["mp4", "mov", "webm", "gif"]).default("mp4"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const project = await db.getVideoProject(input.projectId);
+      if (!project)
+        throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
+      if (project.userId !== ctx.user.id)
+        throw new TRPCError({ code: "FORBIDDEN" });
+
+      const asset = await db.getDigitalAsset(input.assetId);
+      if (!asset)
+        throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
+      if (asset.userId !== ctx.user.id)
+        throw new TRPCError({ code: "FORBIDDEN" });
+      if (asset.assetType !== "video")
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "指定資產不是影片類型",
+        });
+      if (!asset.fileKey)
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "影片尚未儲存至儲存空間，無法產生下載連結",
+        });
+      if (!isR2Configured())
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "儲存空間未設定，無法產生下載連結",
+        });
+
+      const downloadUrl = await presignGetDownload(asset.fileKey);
+      const expiresAt = new Date(
+        Date.now() + EXPORT_PRESIGN_EXPIRES_SECONDS * 1000
+      ).toISOString();
+
+      return {
+        downloadUrl,
+        expiresAt,
+        assetId: asset.id,
+        projectId: project.id,
+        format: input.format,
+      };
     }),
 });
