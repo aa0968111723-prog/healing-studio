@@ -118,7 +118,7 @@ export async function verifyAgentToken(
     issuer: AGENT_ISSUER,
   });
 
-  const p = payload as AgentTokenPayload;
+  const p = payload as unknown as AgentTokenPayload;
   return {
     issuerId: p.sub ?? "",
     targetAgentId: p.agent_id ?? expectedAgentId,
