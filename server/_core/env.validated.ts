@@ -681,6 +681,14 @@ const multimodalSchema = z.object({
   // 共享密鑰：請求 header `x-orb-webhook-secret` 必須等於此值，否則 401
   ORB_WEBHOOK_SECRET: z.string().optional().default(""),
 
+  // ── Agent-to-Agent 互信認證（AIDV-333）─────────────────────────────────
+  // Orchestrator 為每個子任務簽發短時效（5 分鐘）JWT 供子代理驗證，防止
+  // prompt injection 劫持後偽冒 Orchestrator 發指令（橫向越權）。
+  // 未設 → isAgentAuthConfigured() = false，呼叫 issueAgentToken / verifyAgentToken
+  //         拋出 503 SERVICE_UNAVAILABLE（fail-closed，功能停用但不影響現有 Auth 流程）。
+  // 設定步驟：Railway → 新增 AGENT_SIGNING_KEY=<32+ 隨機字元>，重新部署即生效。
+  AGENT_SIGNING_KEY: z.string().optional().default(""),
+
   // ── 功能旗標（featureFlags.ts 讀取 FEATURE_* 前綴）─────────────────────
   // selfRepairEnv() 會把使用者設定的 ENABLE_ADVANCED_SEARCH / ENABLE_RAG_MEMORY /
   // ENABLE_RESEARCH_MODE 自動重命名為以下三個標準名稱，因此兩種寫法皆可生效。
