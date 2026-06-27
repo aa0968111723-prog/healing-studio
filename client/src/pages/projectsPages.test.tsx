@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { Route, Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
@@ -9,6 +9,15 @@ import { MockProjectsProvider } from "@/contexts/ProjectsContext";
 import { MOCK_PROJECTS } from "@/data/mockProjects";
 import ProjectsListPage from "./ProjectsListPage";
 import ProjectDetailPage from "./ProjectDetailPage";
+
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    useUtils: () => ({ creativeProject: { list: { invalidate: vi.fn() } } }),
+    creativeProject: {
+      duplicate: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    },
+  },
+}));
 
 afterEach(() => {
   cleanup();
