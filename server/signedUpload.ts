@@ -309,6 +309,24 @@ export async function fetchObjectHeadBytes(
   return Buffer.concat(chunks).subarray(0, byteCount);
 }
 
+/** 7 天 presigned GET URL 的效期（秒），供影片匯出下載使用（AIDV-347）。 */
+export const EXPORT_PRESIGN_EXPIRES_SECONDS = 7 * 24 * 60 * 60; // 7 days
+
+/**
+ * 產生 presigned GET URL，供創作者下載已完成影片（AIDV-347）。
+ * 效期預設 7 天；R2 支援最長 7 天（604800 秒）的 presigned URL。
+ */
+export async function presignGetDownload(
+  fileKey: string,
+  expiresInSeconds: number = EXPORT_PRESIGN_EXPIRES_SECONDS
+): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: serverEnv.S3_BUCKET_NAME,
+    Key: fileKey.replace(/^\/+/, ""),
+  });
+  return getSignedUrl(getR2Client(), command, { expiresIn: expiresInSeconds });
+}
+
 /**
  * finalize 補償：偵測到內容/型別不符（disguise）時，刪除已直傳到 R2 的物件，
  * 避免留下一個「宣稱是 image 但其實是 markup/executable」的垃圾/危險物件。
