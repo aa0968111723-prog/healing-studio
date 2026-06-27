@@ -39,6 +39,7 @@ vi.mock("./_core/env.validated", () => ({
     GEMINI_API_KEY: "",
     ELEVENLABS_API_KEY: "",
     SUNO_API_KEY: "",
+    REDIS_URL: "",
   },
 }));
 

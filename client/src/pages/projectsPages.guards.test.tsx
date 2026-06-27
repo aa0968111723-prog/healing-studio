@@ -42,6 +42,15 @@ vi.mock("@/contexts/ProjectsContext", () => ({
   useProjects: () => mockState,
 }));
 
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    useUtils: () => ({ creativeProject: { list: { invalidate: vi.fn() } } }),
+    creativeProject: {
+      duplicate: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    },
+  },
+}));
+
 // CreationHub 周邊重元件／context 與本測試無關，stub 掉以免拖 trpc。
 vi.mock("@/components/create/ActiveProjectContextPanel", () => ({
   ActiveProjectContextPanel: () => null,
