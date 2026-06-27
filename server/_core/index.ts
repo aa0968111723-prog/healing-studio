@@ -108,6 +108,10 @@ import {
   stopProviderHealthProbeCron,
   getProviderProbeStatus,
 } from "../jobs/providerHealthProbeJob";
+import {
+  initGoTrueHealthMonitorCron,
+  stopGoTrueHealthMonitorCron,
+} from "../jobs/goTrueHealthMonitor";
 import { agentStatusRouter } from "../routes/agentStatusRoute";
 import { v1Router } from "../routes/v1";
 import { aiProxyRouter } from "../routes/aiProxy";
@@ -255,6 +259,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "providerHealthProbeJob",
     start: initProviderHealthProbeCron,
     stop: stopProviderHealthProbeCron,
+  },
+  {
+    name: "goTrueHealthMonitor",
+    start: initGoTrueHealthMonitorCron,
+    stop: stopGoTrueHealthMonitorCron,
   },
 ];
 
