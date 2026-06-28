@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { usePersonalSettings } from "./PersonalSettingsContext";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
 import { getRecentPlatformMention } from "@/lib/spiritWatchers";
+import { describeBgSubmitError } from "./bgSubmitError";
 
 // 總總（chief-orchestrator）觀察「同時跑的精靈數」用：每種 studioType 對應
 // 哪位精靈正在工作。值是該精靈的暱稱（顯示用），key 對齊 StudioJobType。
@@ -502,7 +503,14 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         // 刷新活躍任務列表
         activeJobsQuery.refetch();
         return result.jobId;
-      } catch {
+      } catch (err) {
+        // 之前這裡只 `return null` 把送出失敗整個吞掉；而唯一呼叫端
+        // useRegisterBgTask 又丟棄回傳值，使用者端完全沒有任何回饋——沒有
+        // toast、沒有 log，看起來像成功了。改成一致地 console.error + toast.error
+        // 把失敗顯性化，同時保留 `return null` 契約（呼叫端對 null 的判斷不變）。
+        const { title, description } = describeBgSubmitError(err);
+        console.error("[BackgroundTasks] submitTask 失敗", err);
+        toast.error(title, description ? { description } : undefined);
         return null;
       }
     },
