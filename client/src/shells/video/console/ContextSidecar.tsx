@@ -268,10 +268,18 @@ function AssetLineageCard() {
 /** AIDV-253: 影片專案生命週期 — 三點選單「複製專案」＋版本歷程。 */
 export function VideoProjectLifecycleCard() {
   const utils = trpc.useUtils();
-  const projectsQ = trpc.videoProject.list.useQuery(undefined, { staleTime: 60_000, refetchOnWindowFocus: false });
+  // AIDV-307：改用游標分頁的 infinite query，避免重度用戶一次載入上百支影片。
+  const projectsQ = trpc.videoProject.list.useInfiniteQuery(
+    { limit: 20 },
+    {
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+    },
+  );
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  const projects = projectsQ.data ?? [];
+  const projects = projectsQ.data?.pages.flatMap(p => p.items) ?? [];
   const project = projects.find(p => p.id === selectedId) ?? projects[0] ?? null;
 
   const duplicateMut = trpc.videoProject.duplicate.useMutation({
@@ -302,6 +310,18 @@ export function VideoProjectLifecycleCard() {
                   <option key={p.id} value={p.id}>{p.title}</option>
                 ))}
               </select>
+            )}
+            {projectsQ.hasNextPage && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-1.5 text-[10px]"
+                aria-label="載入更多影片專案"
+                disabled={projectsQ.isFetchingNextPage}
+                onClick={() => projectsQ.fetchNextPage()}
+              >
+                {projectsQ.isFetchingNextPage ? "載入中…" : "載入更多"}
+              </Button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

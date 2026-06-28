@@ -129,19 +129,43 @@ export const videoProjectRouter = router({
       return { ok: true };
     }),
 
-  list: protectedProcedure.query(async ({ ctx }) => {
-    const rows = await db.getVideoProjectsByUser(ctx.user.id);
-    return rows.map(r => ({
-      id: r.id,
-      title: r.title,
-      aspectRatio: r.aspectRatio,
-      outputSpec: resolveOutputSpec(r.outputSpec),
-      version: r.version,
-      deadlineAt: r.deadlineAt ?? null,
-      priorityClass: r.priorityClass,
-      createdAt: r.createdAt,
-    }));
-  }),
+  /**
+   * AIDV-307：影片專案列表改為游標分頁，避免重度用戶（百支以上）全量載入造成
+   * 首屏卡頓／記憶體噴發。向後相容：所有輸入欄位皆可省略（預設第一頁 20 筆）。
+   * 回傳 `{ items, nextCursor }`；nextCursor 為 null 代表已到底。
+   * 注意：`status` 篩選需 video_projects 新增 status 欄位（migration），不在本卡「無 migration」範圍，故暫不提供。
+   */
+  list: protectedProcedure
+    .input(
+      z
+        .object({
+          cursor: z.number().int().positive().nullish(),
+          limit: z.number().int().min(1).max(50).default(20),
+          search: z.string().trim().max(255).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const { items, nextCursor } = await db.getVideoProjectsByUserPaged({
+        userId: ctx.user.id,
+        limit: input?.limit ?? 20,
+        cursor: input?.cursor ?? null,
+        search: input?.search ?? null,
+      });
+      return {
+        items: items.map(r => ({
+          id: r.id,
+          title: r.title,
+          aspectRatio: r.aspectRatio,
+          outputSpec: resolveOutputSpec(r.outputSpec),
+          version: r.version,
+          deadlineAt: r.deadlineAt ?? null,
+          priorityClass: r.priorityClass,
+          createdAt: r.createdAt,
+        })),
+        nextCursor,
+      };
+    }),
 
   /** AIDV-248: 複製影片專案（A/B 迭代必備），回傳新 projectId */
   duplicate: protectedProcedure
