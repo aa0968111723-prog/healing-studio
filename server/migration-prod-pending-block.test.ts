@@ -118,6 +118,24 @@ describe("drizzle 全目錄：MySQL 語法地雷", () => {
       );
     expect(offenders, `這些檔用了 MySQL 不支援的 CREATE INDEX IF NOT EXISTS：${offenders.join(", ")}`).toEqual([]);
   });
+
+  it("沒有任何 migration 以 --> statement-breakpoint 結尾（切出空語句 → MySQL ER_EMPTY_QUERY 1065 卡死部署）", () => {
+    // 背景（2026-06-29 真站抓到的部署阻斷）：drizzle 以 --> statement-breakpoint 逐段切檔、
+    // 逐句送 MySQL 且不過濾空字串。手寫 migration 若在檔尾多留一行 --> statement-breakpoint，
+    // 會切出一段只剩空白的「最後語句」，被原樣送進 MySQL → Query was empty（1065）→
+    // MIGRATION_FAIL_CLOSED 拒絕開機 → 此後所有新部署全被擋下。
+    // （上面「每個 chunk 只含一個語句」測抓不到：空 chunk 的分號數為 0、會通過。）
+    const offenders = readdirSync(drizzleDir)
+      .filter(name => name.endsWith(".sql"))
+      .filter(name => {
+        const sql = readFileSync(resolve(drizzleDir, name), "utf8");
+        return sql.replace(/\s+$/u, "").endsWith("--> statement-breakpoint");
+      });
+    expect(
+      offenders,
+      `這些檔以 --> statement-breakpoint 結尾，會送出空查詢卡死部署（刪掉檔尾那行即可）：${offenders.join(", ")}`
+    ).toEqual([]);
+  });
 });
 
 describe("生產待套用區段（0063–0077）可重跑鐵則", () => {
