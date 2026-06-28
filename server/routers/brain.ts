@@ -77,6 +77,7 @@ import {
   setAutoRepairEnabled,
   setMonitorInterval,
 } from "../jobs/apiHealthMonitor";
+import { getProviderProbeStatus } from "../jobs/providerHealthProbeJob";
 import {
   REASONING_MODEL_CATALOG,
   GENERATION_ENGINE_CATALOG,
@@ -678,6 +679,24 @@ export const brainRouter = router({
     }
 
     return status;
+  }),
+
+  // AIDV-520：AI provider 系統整體狀態（供 /video UI 顯示容量警告橫幅）
+  providerSystemStatus: protectedProcedure.query(() => {
+    const probes = getProviderProbeStatus();
+    if (probes.length === 0) {
+      return { status: "healthy" as const, affectedProviders: [] as string[], lastCheckedAt: null as number | null };
+    }
+    const failing = probes.filter((p) => !p.ok);
+    const status =
+      failing.length === 0 ? "healthy" :
+      failing.length >= probes.length ? "down" :
+      "degraded";
+    return {
+      status: status as "healthy" | "degraded" | "down",
+      affectedProviders: failing.map((p) => p.providerId),
+      lastCheckedAt: probes.reduce((max, p) => Math.max(max, p.lastCheckedAt), 0),
+    };
   }),
 
   // ─── Orb Voice Preview ──────────────────────────────────────────────────
