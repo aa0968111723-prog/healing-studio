@@ -46,4 +46,3 @@ PREPARE dsc_exp2 FROM @stmt;
 EXECUTE dsc_exp2;
 --> statement-breakpoint
 DEALLOCATE PREPARE dsc_exp2;
---> statement-breakpoint
