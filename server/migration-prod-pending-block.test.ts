@@ -136,6 +136,29 @@ describe("drizzle 全目錄：MySQL 語法地雷", () => {
       `這些檔以 --> statement-breakpoint 結尾，會送出空查詢卡死部署（刪掉檔尾那行即可）：${offenders.join(", ")}`
     ).toEqual([]);
   });
+
+  it("沒有任何 migration 用括號表達式 ON UPDATE（如 ON UPDATE (now())，MySQL ER_PARSE_ERROR 1064 卡死部署）", () => {
+    // 背景（2026-06-29 真站抓到的接力部署阻斷）：0082 空查詢修好後，下一支 0085 接力把部署再次擋死——
+    // `drizzle/0085_skill_registry.sql:31` 寫了 `ON UPDATE (now())`。MySQL/MariaDB 的 ON UPDATE 子句
+    // 只接受 CURRENT_TIMESTAMP（可帶精度 CURRENT_TIMESTAMP(N)），不接受括號表達式 → 解析器在 '(now())'
+    // 報 1064 → MIGRATION_FAIL_CLOSED 拒絕開機 → 此後所有新部署全被擋下。
+    // 注意：ON UPDATE 也合法用於外鍵參照動作（ON UPDATE CASCADE / RESTRICT / SET NULL / NO ACTION），
+    // 那些是關鍵字、後面不接 '('；故此處只禁「ON UPDATE 後緊接左括號」的表達式形式，不誤殺外鍵。
+    const offenders = readdirSync(drizzleDir)
+      .filter(name => name.endsWith(".sql"))
+      .filter(name => {
+        const sql = readFileSync(resolve(drizzleDir, name), "utf8")
+          // 剝掉 -- 註解行（修復說明可能提到這個語法本身）。
+          .split("\n")
+          .filter(line => !line.trim().startsWith("--"))
+          .join("\n");
+        return /ON\s+UPDATE\s*\(/i.test(sql);
+      });
+    expect(
+      offenders,
+      `這些檔用了括號表達式 ON UPDATE（改成 ON UPDATE CURRENT_TIMESTAMP）：${offenders.join(", ")}`
+    ).toEqual([]);
+  });
 });
 
 describe("生產待套用區段（0063–0077）可重跑鐵則", () => {

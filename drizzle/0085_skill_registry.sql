@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS `skill_registry` (
   `installedBy` int DEFAULT NULL,
   `source` varchar(512) DEFAULT NULL,
   `createdAt` timestamp NOT NULL DEFAULT (now()),
-  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE (now()),
+  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 );
 --> statement-breakpoint
