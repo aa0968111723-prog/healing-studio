@@ -542,6 +542,44 @@ async function startServer() {
     })
   );
   app.use(express.urlencoded({ limit: "4mb", extended: true }));
+
+  // AIDV-558: Global CSRF origin guard for non-tRPC, non-webhook state-changing Express routes.
+  // Complements the tRPC x-trpc-source check (line ~845) for auth routes like /api/oauth/logout.
+  // Skipped in dev/test and when CSRF_PROTECTION=0 kill-switch is set.
+  const CSRF_BYPASS_PREFIXES = ["/api/trpc", "/api/webhook/"];
+  const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (
+      process.env.CSRF_PROTECTION === "0" ||
+      process.env.NODE_ENV === "test" ||
+      CSRF_SAFE_METHODS.has(req.method) ||
+      CSRF_BYPASS_PREFIXES.some((p) => req.path.startsWith(p))
+    ) {
+      return next();
+    }
+    const siteUrl = process.env.VITE_SITE_URL?.trim().replace(/\/$/, "");
+    if (!siteUrl || siteUrl.includes("localhost") || siteUrl.includes("127.0.0.1")) {
+      return next();
+    }
+    const origin = req.headers.origin as string | undefined;
+    const referer = req.headers.referer as string | undefined;
+    let requestOrigin: string | undefined;
+    if (origin) {
+      requestOrigin = origin.replace(/\/$/, "");
+    } else if (referer) {
+      try { requestOrigin = new URL(referer).origin; } catch { /* malformed referer — block */ }
+    }
+    if (!requestOrigin) {
+      res.status(403).json({ error: "CSRF 防護：缺少 Origin header" });
+      return;
+    }
+    if (requestOrigin !== siteUrl) {
+      res.status(403).json({ error: "CSRF 防護：不允許的 Origin" });
+      return;
+    }
+    return next();
+  });
+
   app.use(googleAuthRouter);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
