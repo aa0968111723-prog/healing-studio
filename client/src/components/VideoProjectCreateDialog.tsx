@@ -22,6 +22,7 @@ import { toastError } from "@/lib/toastError";
 import {
   OutputSpecSelector,
   OUTPUT_SPEC_DEFAULT,
+  clampOutputSpecToPlan,
   type OutputSpecValue,
 } from "@/components/OutputSpecSelector";
 
@@ -67,11 +68,8 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
   });
 
   function handleConfirm() {
-    // 防呆：非付費方案若殘留 4K（理論上 selector 已停用），降回 1080p。
-    const safeSpec: OutputSpecValue =
-      !isPaid && outputSpec.resolution === "4K"
-        ? { ...outputSpec, resolution: "1080p" }
-        : outputSpec;
+    // 防呆：非付費方案若殘留 4K（理論上 selector 已停用），降回 1080p。共用單一真實來源。
+    const safeSpec = clampOutputSpecToPlan(outputSpec, isPaid);
     createMut.mutate({ aspectRatio, outputSpec: safeSpec });
   }
 

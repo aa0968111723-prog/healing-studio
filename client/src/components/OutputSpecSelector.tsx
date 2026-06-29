@@ -30,6 +30,42 @@ export const OUTPUT_SPEC_DEFAULT: OutputSpecValue = {
   codec: "h264",
 };
 
+/**
+ * AIDV-255 單一真實來源：把輸出規格收斂到「使用者方案實際可用」的安全值。
+ * 非付費方案選了 4K（理論上 selector 已停用，仍做送出前防呆）→ 退回 1080p，
+ * 與後端 fail-closed 的 4K 守門一致，避免前端送出後吃到 FORBIDDEN。
+ * 純函式，供 VideoProjectCreateDialog 與 VideoStudio 共用，消除重複的方案判定。
+ */
+export function clampOutputSpecToPlan(
+  spec: OutputSpecValue,
+  isPaid: boolean,
+): OutputSpecValue {
+  if (!isPaid && spec.resolution === "4K") {
+    return { ...spec, resolution: "1080p" };
+  }
+  return spec;
+}
+
+/** 兩個輸出規格三欄是否完全相同。 */
+export function isSameOutputSpec(a: OutputSpecValue, b: OutputSpecValue): boolean {
+  return a.resolution === b.resolution && a.fps === b.fps && a.codec === b.codec;
+}
+
+/**
+ * AIDV-255 生成路徑專用：把選擇器的值轉成「要送給生成 mutation 的 outputSpec」。
+ * 關鍵安全性（HARD SAFETY #1）：當（套方案守門後的）規格等於後端預設時回 undefined，
+ * 讓後端走「未帶 outputSpec → fal payload 位元零變化」路徑，使「使用者沒動選擇器」的
+ * 既有生成完全不受影響（避免對 Veo3 等可控解析度模型多注入 resolution=1080p 造成回歸）。
+ * 只有使用者真正改成非預設（如 720p / 4K）時才帶上規格。
+ */
+export function outputSpecForGeneration(
+  spec: OutputSpecValue,
+  isPaid: boolean,
+): OutputSpecValue | undefined {
+  const clamped = clampOutputSpecToPlan(spec, isPaid);
+  return isSameOutputSpec(clamped, OUTPUT_SPEC_DEFAULT) ? undefined : clamped;
+}
+
 const RESOLUTION_OPTIONS: { value: OutputResolution; label: string; desc: string; paidOnly?: boolean }[] = [
   { value: "720p", label: "720p", desc: "HD · 快速" },
   { value: "1080p", label: "1080p", desc: "Full HD · 推薦" },
