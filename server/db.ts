@@ -1998,6 +1998,60 @@ export async function updateBackgroundJob(
   await db.update(backgroundJobs).set(data).where(eq(backgroundJobs.id, id));
 }
 
+/**
+ * AIDV-577: CAS 原子退款鎖——先在 DB 設 refunded=true，再做真實退款。
+ *
+ * 同一 job 的多條失敗路徑可能並發呼叫退款；`UPDATE ... WHERE NOT refunded`
+ * 只有第一條能更新（affectedRows=1），其餘回傳 false，避免重複退款。
+ * 把旗標寫在退款**之前**：若信用回補失敗可由審計日誌對帳，
+ * 比把退款寫在前（舊做法）可能雙退積分更安全。
+ *
+ * 回傳：true = 此次呼叫搶到鎖（可繼續退款）；false = 已被其他呼叫搶先。
+ */
+export async function atomicClaimJobRefund(
+  jobId: number,
+  points: number
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.execute(
+    sql`UPDATE background_jobs
+        SET resultJson = JSON_SET(
+          COALESCE(resultJson, '{}'),
+          '$.refunded', CAST('true' AS JSON),
+          '$.refundedPoints', CAST(${points} AS SIGNED)
+        )
+        WHERE id = ${jobId}
+          AND (
+            resultJson IS NULL
+            OR JSON_UNQUOTE(JSON_EXTRACT(resultJson, '$.refunded')) IS NULL
+            OR JSON_UNQUOTE(JSON_EXTRACT(resultJson, '$.refunded')) != 'true'
+          )`
+  );
+  return ((result as unknown as { affectedRows?: number }).affectedRows ?? 0) > 0;
+}
+
+/**
+ * AIDV-577: 部分合併 resultJson 旗標，避免並發寫入互蓋整包 JSON。
+ *
+ * 舊做法 `{ ...meta, flag: true }` 會帶入函式開頭讀到的過期 meta；
+ * 若 doPostGenComplete 與 refundJobIfBilled 幾乎同時跑，後寫者會把
+ * 前者剛設的旗標蓋掉。`JSON_MERGE_PATCH` 只更新指定欄位，不動其餘。
+ */
+export async function mergeBackgroundJobResultJson(
+  jobId: number,
+  patch: Record<string, unknown>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  const patchJson = JSON.stringify(patch);
+  await db.execute(
+    sql`UPDATE background_jobs
+        SET resultJson = JSON_MERGE_PATCH(COALESCE(resultJson, '{}'), CAST(${patchJson} AS JSON))
+        WHERE id = ${jobId}`
+  );
+}
+
 export async function getBackgroundJob(id: number) {
   const db = await getDb();
   if (!db) return undefined;
