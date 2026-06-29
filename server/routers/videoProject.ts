@@ -127,11 +127,11 @@ export const videoProjectRouter = router({
       if (row.userId !== ctx.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
       const patch: Record<string, unknown> = {};
-      if (input.aspectRatio) patch.aspectRatio = input.aspectRatio;
-      if (input.title) patch.title = input.title;
-      if (input.outputSpec) patch.outputSpec = input.outputSpec;
+      if (input.aspectRatio !== undefined) patch.aspectRatio = input.aspectRatio;
+      if (input.title !== undefined) patch.title = input.title;
+      if (input.outputSpec !== undefined) patch.outputSpec = input.outputSpec;
       if (input.deadlineAt !== undefined) patch.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : null;
-      if (input.priorityClass) patch.priorityClass = input.priorityClass;
+      if (input.priorityClass !== undefined) patch.priorityClass = input.priorityClass;
       const { updated } = await db.updateVideoProject(
         input.id,
         patch as Parameters<typeof db.updateVideoProject>[1],
@@ -330,11 +330,11 @@ export const videoProjectRouter = router({
         throw new TRPCError({ code: "FORBIDDEN" });
 
       const patch: Record<string, unknown> = {};
-      if (input.title) patch.title = input.title;
-      if (input.aspectRatio) patch.aspectRatio = input.aspectRatio;
-      if (input.outputSpec) patch.outputSpec = input.outputSpec;
+      if (input.title !== undefined) patch.title = input.title;
+      if (input.aspectRatio !== undefined) patch.aspectRatio = input.aspectRatio;
+      if (input.outputSpec !== undefined) patch.outputSpec = input.outputSpec;
       if (input.deadlineAt !== undefined) patch.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : null;
-      if (input.priorityClass) patch.priorityClass = input.priorityClass;
+      if (input.priorityClass !== undefined) patch.priorityClass = input.priorityClass;
 
       const { updated } = await db.updateVideoProject(
         input.id,
