@@ -34,9 +34,19 @@ export function getTrpcClient(): ReturnType<typeof createTRPCClient<AppRouter>> 
       splitLink({
         condition: (op) => isHeavyProcedurePath(op.path),
         // Heavy（ai./generate./director./models. …）：獨立請求、不批次。
-        true: httpLink({ url: TRPC_URL, transformer: superjson, fetch: fetchWithCredentials }),
+        true: httpLink({
+          url: TRPC_URL,
+          transformer: superjson,
+          fetch: fetchWithCredentials,
+          headers: { "x-trpc-source": "web" }, // AIDV-219 CSRF guard（對齊 main.tsx）；缺此標頭所有 adapter mutation 被擋 403（AIDV-571）
+        }),
         // Light（auth/profile/page data）：批次。
-        false: httpBatchLink({ url: TRPC_URL, transformer: superjson, fetch: fetchWithCredentials }),
+        false: httpBatchLink({
+          url: TRPC_URL,
+          transformer: superjson,
+          fetch: fetchWithCredentials,
+          headers: { "x-trpc-source": "web" }, // AIDV-219 CSRF guard（對齊 main.tsx）；缺此標頭所有 adapter mutation 被擋 403（AIDV-571）
+        }),
       }),
     ],
   });
