@@ -179,7 +179,7 @@ export function listRecentOrbAgentTasks(limit = 20): OrbAgentTask[] {
 
 export function approveOrbAgentTask(taskId: string): OrbAgentTask | null {
   const task = taskStore.get(taskId);
-  if (!task || task.status === "cancelled" || task.status === "completed") return task ?? null;
+  if (!task || task.status === "cancelled" || task.status === "completed" || task.status === "failed") return task ?? null;
   task.status = "approved";
   task.updatedAt = now();
   pushEvent(task, "task.approved", "Task approved by user");
@@ -230,7 +230,7 @@ export function cancelOrbAgentTask(taskId: string, reason = "cancelled by user")
 
 export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTask | null {
   const task = taskStore.get(taskId);
-  if (!task || task.status === "cancelled") return task ?? null;
+  if (!task || task.status === "cancelled" || task.status === "completed" || task.status === "failed") return task ?? null;
   const index = task.steps.findIndex(step => step.id === stepId);
   if (index < 0) return task;
   task.steps[index].status = "completed";
