@@ -822,6 +822,21 @@ async function startServer() {
   app.use(metricsRouter);
   app.use("/api/webhooks", webhooksRouter);
 
+  // AIDV-572: tRPC JSON body parser. The global express.urlencoded() mounted
+  // earlier runs `req.body = req.body || {}` BEFORE its own content-type check
+  // (body-parser/lib/types/urlencoded.js), so EVERY request — including
+  // application/json — leaves this middleware chain with `req.body` already set
+  // to `{}`. tRPC v11's express adapter then sees `"body" in req` is true and
+  // uses that empty `{}` verbatim instead of reading the raw request stream, so
+  // every mutation receives empty/undefined input and zod rejects it with HTTP
+  // 400 ("expected object, received undefined"). /api/trpc had no JSON parser
+  // (express.json is only mounted on /api/upload, L536), so this hit ALL tRPC
+  // writes on real HTTP. Mounting express.json here — before jsonDepthGuard —
+  // restores the real parsed body (so mutations work) AND makes the depth guard
+  // below operate on the actual payload instead of an always-empty `{}`. 4 MB
+  // matches the /api/upload limit (AIDV-294, largest legitimate tRPC payload).
+  app.use("/api/trpc", express.json({ limit: "4mb" }));
+
   // AIDV-293: JSON nesting-depth guard — rejects payloads with >32 levels of
   // nesting (Billion Laughs / deeply recursive objects → 400). Applied only to
   // tRPC so webhook routes are unaffected.
