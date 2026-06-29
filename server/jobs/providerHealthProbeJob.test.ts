@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+vi.mock("../services/providerHealth.js", () => ({
+  setProviderHealth: vi.fn(),
+  markProviderRecovered: vi.fn(),
+}));
 vi.mock("../db.js", () => ({
   getDb: vi.fn().mockResolvedValue(null),
 }));
@@ -144,5 +148,58 @@ describe("AIDV-574: providerSystemStatus judgment convergence (unit-level logic)
       { kind: "generation", consecutiveFailures: 2 },
     ], 2, 3);
     expect(result).toBe("degraded");
+  });
+});
+
+describe("AIDV-707: health-store bridging (probe → providerRouter)", () => {
+  let mod: typeof import("./providerHealthProbeJob.js");
+  let setProviderHealthFn: ReturnType<typeof vi.fn>;
+  let markProviderRecoveredFn: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 200, ok: true }));
+    mod = await import("./providerHealthProbeJob.js");
+    const ph = await import("../services/providerHealth.js");
+    setProviderHealthFn = ph.setProviderHealth as ReturnType<typeof vi.fn>;
+    markProviderRecoveredFn = ph.markProviderRecovered as ReturnType<typeof vi.fn>;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    mod.stopProviderHealthProbeCron();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("successful probe calls markProviderRecovered for generation providers", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 200, ok: true }));
+    await mod._runProbeCycleForTest();
+    // fal, anthropic, gemini all have keys or requiresKey=false in the test env mock
+    expect(markProviderRecoveredFn).toHaveBeenCalledWith("fal");
+  });
+
+  it("does not call setProviderHealth(degraded) on first failure (below ALERT_THRESHOLD=2)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection refused")));
+    await mod._runProbeCycleForTest();
+    expect(setProviderHealthFn).not.toHaveBeenCalledWith("fal", "degraded", expect.anything());
+  });
+
+  it("calls setProviderHealth(degraded) after ALERT_THRESHOLD consecutive failures", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("connection refused")));
+    await mod._runProbeCycleForTest();
+    await mod._runProbeCycleForTest();
+    expect(setProviderHealthFn).toHaveBeenCalledWith(
+      "fal",
+      "degraded",
+      expect.stringContaining("connection refused")
+    );
+  });
+
+  it("does not bridge infra providers to health store", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("infra down")));
+    await mod._runProbeCycleForTest();
+    await mod._runProbeCycleForTest();
+    expect(setProviderHealthFn).not.toHaveBeenCalledWith("supabase_auth", expect.anything(), expect.anything());
   });
 });
