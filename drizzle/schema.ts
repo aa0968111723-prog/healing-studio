@@ -2632,6 +2632,49 @@ export type AgentPerformanceMetric =
 export type InsertAgentPerformanceMetric =
   typeof agentPerformanceMetrics.$inferInsert;
 
+// ─── Agent DLQ ─────────────────────────────────────────────────────────────
+// Dead-letter queue for validation gate failures (AIDV-346).
+// lint/build failures → retry; test/unknown → decision; max-retry → escalate.
+
+export const agentDlq = mysqlTable(
+  "agent_dlq",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    issueKey: varchar("issue_key", { length: 64 }).notNull(),
+    agentId: varchar("agent_id", { length: 64 }),
+    userId: int("user_id").notNull(),
+    failureType: mysqlEnum("failure_type", [
+      "lint",
+      "test",
+      "build",
+      "unknown",
+    ]).notNull(),
+    routingAction: mysqlEnum("routing_action", [
+      "retry",
+      "decision",
+      "escalate",
+    ]).notNull(),
+    failureReason: text("failure_reason"),
+    payload: json("payload").$type<Record<string, unknown>>(),
+    retryCount: int("retry_count").notNull().default(0),
+    resolvedAt: timestamp("resolved_at"),
+    resolvedBy: varchar("resolved_by", { length: 64 }),
+    resolutionNote: text("resolution_note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    issueKeyIdx: index("adlq_issue_key_idx").on(table.issueKey),
+    pendingIdx: index("adlq_pending_idx").on(
+      table.routingAction,
+      table.resolvedAt
+    ),
+  })
+);
+
+export type AgentDlqEntry = typeof agentDlq.$inferSelect;
+export type InsertAgentDlqEntry = typeof agentDlq.$inferInsert;
+
 // ─── Orb Multi-Session Conversations ───────────────────────────────────────
 // Stores user-facing chat sessions so a single user can keep several parallel
 // conversations open in tabs. The chat itself stays stateless on the server
