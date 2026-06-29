@@ -88,6 +88,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | junction follow-up B：variant/rewrite/extended 寫入點（座艙重骰/改寫/延長） | 📋 To Do | — | 三種 relation 有實際寫入 | #864、導演台流程 |
 | junction follow-up C：prompt_library content 去重策略（每次生成新插一列） | ✅ Done `decision-resolved`（AIDV-10 拍板 upsert-by-content，scope=userId+category+content；content 走 BINARY 比對；命中累計 useCount） | 生成鏈 `findOrCreatePromptByContent` query-before-insert（非破壞性、不動 migration） | 同 content 生成 N 次→一列 prompt、N asset 連同一列；重用累計 useCount | feat/aidv-10-prompt-dedup |
 | 統一供應商門面＋免費 Cloudflare AI Gateway | 📋 To Do | Notion: 統一供應商門面 + Cloudflare AI Gateway | 所有生成呼叫過門面；Gateway 快取/觀測啟用 | — |
+| **LLM 聚合器（FreeLLMAPI）接入統一門面（評估→PoC）**（⑪／branch llm-aggregator-integration） | 📋 To Do `待議` | — | FreeLLMAPI 以 OpenAI 相容供應商註冊進 providerFacade（新增 `FacadeProvider`＋`PROVIDER_ROUTES` 一列）；旗標預設 OFF；僅 dev/test/prototype 走免費額度，**prod 不路由使用者 PII** | `server/_core/providerFacade.ts`（W1-2 #870）；Bruce 拍板採用與否＋自架 Docker／逐家免費金鑰 |
 | 其餘可接子系統接真實 procedure（18 子系統矩陣的 ✅8） | 🔄 部分 Done（在 #862） | [#862](https://github.com/aa0968111723-prog/healing-studio/pull/862) | 各子系統列實際 procedure 名 | #862 |
 
 ### 2.3 EPIC Wave 2 — 耐久任務／成本／血統【To Do 📋】
@@ -117,6 +118,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | 「可觀察/可審核/半唯讀」builder 先行 | 📋 To Do | Notion: Wave 3：開放代理建置區＋BYOMCP |
 | BYOMCP 權限/稽核 | 📋 To Do | — |
 | orchestrator＋專責 worker | 📋 To Do | — |
+| **Agentic Design Patterns（21 模式）方法論採納＝編排器/BYOMCP 設計檢查表**（⑪） | 📋 To Do `待議` | 文件/研究類、非程式依賴。把 21 模式對照既有 `agentCollaborationOrchestrator`/`orbWorkflowEngine`/確認門工具執行器/記憶/RAG，產出 BYOMCP 設計檢查表＋編排器硬化清單（補 reflection／eval&monitoring／resource optimization 缺口）。來源 github.com/xindoo/agentic-design-patterns（Google 書中譯，Jekyll 站） |
 
 ### 2.5b 平行軌（Jira 為準，此處僅鏡像索引）
 
@@ -349,6 +351,50 @@ AI Director 影片系統（空間首頁＝①）
 **🤝 需要 Bruce 動手**：
 1. **Confluence 重新授權**——目前 Atlassian OAuth 只授權 Jira（scope 僅 `read/write:jira-work`），Confluence 全回 403「app not installed」，本檔與 deep-plan 無法上 Confluence。請到 Settings → Connectors → Atlassian 重新 Connect 並勾選 Confluence 權限（`read/write:confluence-content`）。完成後代理把 deep-plan 原樣搬上 Confluence「⑩」並更新 AIDISC 討論區。
 2. 拍板 Wave I 九張卡是否納入、排程。
+
+## 6.10 ⑪ 外部資源評估：LLM 聚合器 × Agentic Design Patterns（2026-06-29）
+
+> 依 Bruce 指示「評估兩個外部資源能否融入開發計畫，可以的加入任務卡」。本節＝評估報告；
+> 兩張提案卡已加進 §2.2（Wave 1）與 §2.5（Wave 4）表＋ `jira-import.csv`，皆標 `待議`，
+> 待 Bruce 設計門拍板（碰 LLM 供應商層＝後端，依鐵律 6 不擅自進開發）。本框分支＝
+> `claude/llm-aggregator-integration-kuf12r`。
+
+### 資源 1：FreeLLMAPI（免費 LLM 聚合器，16 供應商）— ✅ **可融入（dev/test 優先）**
+- **是什麼**：把 16 家供應商的「免費額度」收斂在**單一 OpenAI 相容端點**（`/v1/chat/completions`）後面，
+  自動排程多家額度，號稱每月 ~17 億 token 免費；一行 Docker 自架，任何 OpenAI SDK 客戶端直連。
+  16 家＝Gemini／Groq／Cerebras／Mistral／OpenRouter／GitHub Models／Cloudflare／Cohere／NVIDIA NIM／
+  HuggingFace／Z.ai／Ollama Cloud／Kilo Gateway／Pollinations／LLM7／OVH AI Endpoints。
+  來源：[INSIDE 報導](https://www.inside.com.tw/article/41668-free-llm-aggregator-16-providers)。
+- **為何契合**：本 repo 已有**統一供應商門面** `server/_core/providerFacade.ts`（W1-2／AIDV-11，#870），
+  所有打供應商的碼一律從這張路由表解析 base URL——**加新供應商＝只改這裡**。FreeLLMAPI 是 OpenAI 相容端點，
+  恰好以新一列 `FacadeProvider`＋`PROVIDER_ROUTES` 註冊即接上；與 Wave 1 既有 To Do
+  「統一供應商門面＋免費 Cloudflare AI Gateway」同軌、互補（CF Gateway＝快取/觀測；FreeLLMAPI＝免費額度來源）。
+- **價值**：dev／test／prototype 階段大幅省成本（免費額度跑選型試生成、eval、demo）。
+- **避雷（為何先進 dev/test、不直接上 prod）**：免費層無 SLA／限流不可預期／各家 ToS 與資料留存不一；
+  **不得把使用者 PII／正式生成路由進免費聚合器**。每家仍需各自免費金鑰（貼 Railway，鐵律 3）或自架 Docker。
+- **建議**：Wave 1 加卡「LLM 聚合器接入統一門面（評估→PoC）」，旗標預設 OFF、僅 dev/test 走，
+  prod 維持 OpenRouter／CF Gateway。**待 Bruce 拍板**是否採用、自架 Docker 或逐家免費金鑰。
+
+### 資源 2：Agentic Design Patterns（21 代理設計模式）— ✅ **可融入（方法論/檢查表，非程式依賴）**
+- **是什麼**：Google《Agentic Design Patterns》一書的**中文翻譯站**（Jekyll/HTML 靜態站，非函式庫），
+  21 個模式：prompt chaining／routing／parallelization／reflection／tool use／planning／multi-agent／
+  memory／learning／goal setting／RAG／inter-agent comms／resource optimization／reasoning／guardrails／
+  eval & monitoring／prioritization／exploration＋7 附錄。來源：[github.com/xindoo/agentic-design-patterns](https://github.com/xindoo/agentic-design-patterns)。
+- **為何契合**：repo 已有成熟代理系統（`agentCollaborationOrchestrator.ts`／`orbTaskOrchestrator.ts`／
+  `orbWorkflowEngine.ts`／帶確認門的工具執行器／長期記憶／教材庫 RAG）——多數模式**已有對應實作**
+  （tool use＋guardrails＝確認門工具執行器；memory＋RAG＝記憶/教材庫；multi-agent＝編排器）。
+- **價值**：當作 **Wave 4 BYOMCP 設計檢查表**＋既有編排器硬化清單（對照 21 模式找缺口：
+  如 reflection／evaluation & monitoring／resource optimization 目前較弱）。**非程式依賴、不裝套件**，
+  只引用方法論；CP 值在「對齊既有 LIVE 系統、補設計缺口」，呼應 deep-plan「接線優先於新建」。
+- **建議**：Wave 4 加卡「Agentic Design Patterns 方法論採納＝編排器/BYOMCP 設計檢查表」，
+  文件/研究類、低優先、`待議`，於 Wave 4 設計階段引用。
+
+### 一句話結論
+兩個都「可融入」，但性質不同：**FreeLLMAPI＝可接的程式整合**（接既有門面，dev/test 先行、待拍板）；
+**Agentic Design Patterns＝可引用的方法論**（Wave 4 設計檢查表，非依賴）。兩卡皆 `待議`、預設 OFF、不碰 prod，
+等 Bruce 設計門拍板再進開發。
+
+---
 
 ## 7. Archive（過時內容移此，不刪）
 
