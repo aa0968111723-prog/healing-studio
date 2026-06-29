@@ -4290,6 +4290,70 @@ export async function transferResourceOwnership(
 }
 
 /**
+ * AIDV-186：原子化「移轉擁有權 ＋ 清掉該資源全部共享」。
+ *
+ * 為什麼要包進單一交易：rbac.transferOwnership 原本分兩步各自跑獨立
+ * UPDATE（移 owner）＋ DELETE（清 shares），中間沒有共用交易。若第二步
+ * 失敗（或兩步之間有 concurrent share 寫入），會出現「擁有權已轉走、舊
+ * owner 的共享卻殘存」的狀態——舊 owner 對一個已不屬於他的資源仍保有殘餘
+ * 存取，違背此操作「move ownership AND wipe all shares」的安全不變式。
+ *
+ * 包進一個 db.transaction 後：任一步失敗即整體 rollback，擁有權不變、無殘餘
+ * shares；成功則兩步原子提交。delete 在 update 之後、同一原子單元內執行，
+ * 兩步之間的 concurrent share 寫入也會被這次 DELETE 一併清掉。
+ */
+export async function transferResourceOwnershipAndWipeShares(
+  resourceType: ResourceShareType,
+  resourceId: number,
+  newOwnerUserId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async tx => {
+    // 1) 移轉擁有權（更新 owner 欄位）。各資源表 owner 欄位皆為 userId。
+    switch (resourceType) {
+      case "project":
+        await tx
+          .update(creativeProjects)
+          .set({ userId: newOwnerUserId })
+          .where(eq(creativeProjects.id, resourceId));
+        break;
+      case "asset":
+        await tx
+          .update(digitalAssetLibrary)
+          .set({ userId: newOwnerUserId })
+          .where(eq(digitalAssetLibrary.id, resourceId));
+        break;
+      case "prompt":
+        await tx
+          .update(promptLibrary)
+          .set({ userId: newOwnerUserId })
+          .where(eq(promptLibrary.id, resourceId));
+        break;
+      case "material":
+        await tx
+          .update(teachingMaterials)
+          .set({ userId: newOwnerUserId })
+          .where(eq(teachingMaterials.id, resourceId));
+        break;
+      default: {
+        const _exhaustive: never = resourceType;
+        throw new Error(`未知資源型別: ${String(_exhaustive)}`);
+      }
+    }
+    // 2) 清掉此資源的全部共享（同一原子單元內，舊 owner 不留殘餘存取）。
+    await tx
+      .delete(resourceShares)
+      .where(
+        and(
+          eq(resourceShares.resourceType, resourceType),
+          eq(resourceShares.resourceId, resourceId)
+        )
+      );
+  });
+}
+
+/**
  * 讀某資源的 owner facts（{ ownerId, visibility, teamId }），給 canAccess /
  * share/transfer 的擁有權驗證用。找不到回 null。不同資源表欄位略異，這裡
  * 投影成統一形狀（沒有 visibility/teamId 的型別回 null）。
