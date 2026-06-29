@@ -1156,6 +1156,23 @@ export async function getDigitalAsset(id: number) {
   return rows[0] || null;
 }
 
+export async function getDigitalAssetByUrl(userId: number, fileUrl: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(
+      and(
+        eq(digitalAssetLibrary.userId, userId),
+        eq(digitalAssetLibrary.fileUrl, fileUrl),
+        eq(digitalAssetLibrary.assetType, "video")
+      )
+    )
+    .limit(1);
+  return rows[0] || null;
+}
+
 export async function getDigitalAssetsByUser(userId: number, limit?: number) {
   const db = await getDb();
   if (!db) return [];

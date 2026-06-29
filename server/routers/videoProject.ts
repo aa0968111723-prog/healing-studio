@@ -489,4 +489,27 @@ export const videoProjectRouter = router({
   agentQuota: protectedProcedure.query(({ ctx }) => {
     return getAgentQuota(ctx.user.id);
   }),
+
+  /**
+   * AIDV-623: 透過 fileUrl 取得帶所有權驗證的成片下載連結。
+   * CompletionCanvas 以原始 outputUrl 呼叫，後端確認 userId 所有權後
+   * 回傳 7 天有效的 R2 presigned GET URL，避免直接暴露 R2 raw URL。
+   */
+  requestDownloadByUrl: protectedProcedure
+    .input(z.object({ assetUrl: z.string().url() }))
+    .mutation(async ({ ctx, input }) => {
+      const asset = await db.getDigitalAssetByUrl(ctx.user.id, input.assetUrl);
+      if (!asset) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "找不到對應的影片資產" });
+      }
+      if (!asset.fileKey) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "影片尚未儲存至儲存空間" });
+      }
+      if (!isR2Configured()) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "儲存空間未設定" });
+      }
+      const downloadUrl = await presignGetDownload(asset.fileKey);
+      const expiresAt = new Date(Date.now() + EXPORT_PRESIGN_EXPIRES_SECONDS * 1000).toISOString();
+      return { downloadUrl, expiresAt };
+    }),
 });

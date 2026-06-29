@@ -7,6 +7,7 @@
 // 純前端、零新後端、零金鑰；自動通過設計門。
 // WCAG 2.1 AA：video 有 aria-label；controls 可鍵盤操作。
 // ============================================================================
+import { useState } from "react";
 import { Download, PlayCircle, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { frameStyle } from "@/spine/seedVisual";
 import type { Shot } from "@/spine/types";
+import { trpc } from "@/lib/trpc";
 
 export function CompletionCanvas() {
   const spine = useProjectSpine();
@@ -57,6 +59,18 @@ export function CompletionCanvas() {
 // ── 線上播放器（outputUrl 存在時）────────────────────────────────────────────
 function VideoPlayer({ url, title }: { url: string; title: string }) {
   const isVideo = /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(url);
+  const requestDownload = trpc.videoProject.requestDownloadByUrl.useMutation();
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  async function handleDownload() {
+    setIsDownloading(true);
+    try {
+      const result = await requestDownload.mutateAsync({ assetUrl: url });
+      window.open(result.downloadUrl, "_blank");
+    } finally {
+      setIsDownloading(false);
+    }
+  }
 
   return (
     <div className="space-y-3 rounded-xl border border-primary/20 bg-card/60 p-3">
@@ -81,10 +95,14 @@ function VideoPlayer({ url, title }: { url: string; title: string }) {
       )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] text-muted-foreground">成片已就緒 · 可下載或分享</span>
-        <Button size="sm" variant="secondary" className="h-7 px-2.5 text-xs" asChild>
-          <a href={url} download target="_blank" rel="noopener noreferrer">
-            <Download className="size-3" /> 下載
-          </a>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="h-7 px-2.5 text-xs"
+          onClick={handleDownload}
+          disabled={isDownloading}
+        >
+          <Download className="size-3" /> {isDownloading ? "準備中…" : "下載"}
         </Button>
       </div>
     </div>
