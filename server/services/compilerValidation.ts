@@ -15,6 +15,13 @@ import { logger } from "../_core/logger";
 
 export type CompilerName = "audio" | "video" | "voice";
 
+// ─── AIDV-676: shared compiler contract ──────────────────────────────────────
+
+/** Structural contract all compiler classes must satisfy. */
+export interface ICompiler<TInput, TOutput> {
+  compile(input: TInput): TOutput;
+}
+
 function isEnabled() {
   return process.env.COMPILER_SCHEMA_VALIDATION !== "0";
 }
@@ -99,6 +106,7 @@ export const VoiceCompilerInputSchema = z.object({
       emoji: z.string().optional(),
       isCustom: z.boolean(),
       customBlockId: z.number().optional(),
+      emotionOverride: z.string().max(200).optional(),
     })
     .nullable()
     .optional(),

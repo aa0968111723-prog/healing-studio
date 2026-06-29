@@ -14,6 +14,7 @@
 import {
   validateCompilerInput,
   VoiceCompilerInputSchema,
+  type ICompiler,
 } from "./compilerValidation";
 import { ELEVENLABS_AVAILABLE } from "./providerHealth";
 import textToSpeech from "@google-cloud/text-to-speech";
@@ -675,7 +676,7 @@ function compileSegment(
 // Voice Compiler 主類別
 // ═══════════════════════════════════════════════════════════════════════════
 
-export class VoiceCompiler {
+export class VoiceCompiler implements ICompiler<VoiceCompilerInput, VoiceCompilerOutput> {
   private async synthesizeWithElevenLabs(
     text: string,
     voiceId: string
