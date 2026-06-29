@@ -16,6 +16,7 @@ vi.mock("../../db", () => ({
   createVideoProject: vi.fn(),
   getVideoProject: vi.fn(),
   getVideoProjectsByUser: vi.fn(),
+  getVideoProjectsByUserPaged: vi.fn(),
   updateVideoProject: vi.fn(),
 }));
 
@@ -55,12 +56,13 @@ describe("videoProjectRouter — 基本 CRUD", () => {
     expect(result.version).toBe(2);
   });
 
-  it("list 回傳 version 欄位", async () => {
-    (db.getVideoProjectsByUser as any).mockResolvedValue([baseProject]);
+  it("list 回傳 { items, nextCursor }，items 含 version 欄位", async () => {
+    (db.getVideoProjectsByUserPaged as any).mockResolvedValue({ items: [baseProject], nextCursor: null });
 
     const caller = videoProjectRouter.createCaller(ctx);
-    const list = await caller.list();
-    expect(list[0].version).toBe(2);
+    const res = await caller.list();
+    expect(res.items[0].version).toBe(2);
+    expect(res.nextCursor).toBeNull();
   });
 
   it("get 非本人 → FORBIDDEN", async () => {
@@ -128,5 +130,58 @@ describe("AIDV-241 樂觀鎖 — videoProject.update optimistic lock", () => {
     await expect(
       caller.update({ id: 55, title: "X" })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("AIDV-307 videoProject.list — 游標分頁", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("無輸入 → 預設 limit=20、cursor=null、search=null，限本人 userId", async () => {
+    (db.getVideoProjectsByUserPaged as any).mockResolvedValue({ items: [], nextCursor: null });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.list();
+    expect(db.getVideoProjectsByUserPaged).toHaveBeenCalledWith({
+      userId: 7,
+      limit: 20,
+      cursor: null,
+      search: null,
+    });
+  });
+
+  it("傳入 cursor/limit/search → 原樣下傳 DB 層", async () => {
+    (db.getVideoProjectsByUserPaged as any).mockResolvedValue({ items: [], nextCursor: null });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.list({ cursor: 100, limit: 5, search: "品牌" });
+    expect(db.getVideoProjectsByUserPaged).toHaveBeenCalledWith({
+      userId: 7,
+      limit: 5,
+      cursor: 100,
+      search: "品牌",
+    });
+  });
+
+  it("回傳 nextCursor 供前端載入下一頁", async () => {
+    (db.getVideoProjectsByUserPaged as any).mockResolvedValue({
+      items: [baseProject, { ...baseProject, id: 40 }],
+      nextCursor: 40,
+    });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    const res = await caller.list({ limit: 2 });
+    expect(res.items).toHaveLength(2);
+    expect(res.nextCursor).toBe(40);
+  });
+
+  it("limit 超過 50 → Zod 驗證失敗（BAD_REQUEST）", async () => {
+    const caller = videoProjectRouter.createCaller(ctx);
+    await expect(caller.list({ limit: 999 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(db.getVideoProjectsByUserPaged).not.toHaveBeenCalled();
+  });
+
+  it("cursor 非正整數 → Zod 驗證失敗（BAD_REQUEST）", async () => {
+    const caller = videoProjectRouter.createCaller(ctx);
+    await expect(caller.list({ cursor: -1 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });

@@ -4888,6 +4888,68 @@ export async function getVideoProjectsByUser(userId: number): Promise<VideoProje
     .orderBy(desc(videoProjects.updatedAt));
 }
 
+/**
+ * AIDV-307：跳脫 MySQL LIKE 萬用字元（`%` `_` `\`），讓使用者輸入只做「字面包含」搭配，
+ * 不會被當成萬用字元（例如搜尋「%」時不該命中全部）。SQL 注入由 drizzle 參數化負責，
+ * 此處僅處理萬用字元語意。
+ */
+export function escapeLikePattern(raw: string): string {
+  return raw.replace(/[\\%_]/g, ch => `\\${ch}`);
+}
+
+export interface VideoProjectsPage {
+  items: VideoProject[];
+  /** 下一頁游標（最後一筆 id）；無更多資料時為 null。 */
+  nextCursor: number | null;
+}
+
+/**
+ * AIDV-307：純函式 — 從「多取一筆」的查詢結果切出本頁與 nextCursor。
+ * 抽出便於單元測試邊界（剛好 limit 筆 / 多一筆 / 空）。
+ */
+export function sliceVideoProjectsPage(
+  rows: VideoProject[],
+  limit: number,
+): VideoProjectsPage {
+  const hasMore = rows.length > limit;
+  const items = hasMore ? rows.slice(0, limit) : rows;
+  const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+  return { items, nextCursor };
+}
+
+/**
+ * AIDV-307：游標分頁版的使用者影片專案列表。
+ * - 以 `id` 遞減排序（id 為 autoincrement，等同建立順序「最新在前」且穩定唯一，適合做游標）。
+ * - `cursor` 帶上一頁最後一筆 id，回傳 `id < cursor` 的下一批，避免 offset 漂移。
+ * - `search` 對 title 做字面包含（萬用字元已跳脫）。
+ * - 多取一筆判斷是否還有下一頁，回傳 nextCursor。
+ */
+export async function getVideoProjectsByUserPaged(opts: {
+  userId: number;
+  limit: number;
+  cursor?: number | null;
+  search?: string | null;
+}): Promise<VideoProjectsPage> {
+  const db = await getDb();
+  if (!db) return { items: [], nextCursor: null };
+
+  const conditions: SQL[] = [eq(videoProjects.userId, opts.userId)];
+  if (opts.cursor != null) conditions.push(lt(videoProjects.id, opts.cursor));
+  const trimmed = opts.search?.trim();
+  if (trimmed) {
+    conditions.push(like(videoProjects.title, `%${escapeLikePattern(trimmed)}%`));
+  }
+
+  const rows = await db
+    .select()
+    .from(videoProjects)
+    .where(and(...conditions))
+    .orderBy(desc(videoProjects.id))
+    .limit(opts.limit + 1);
+
+  return sliceVideoProjectsPage(rows, opts.limit);
+}
+
 export async function updateVideoProject(
   id: number,
   data: Partial<InsertVideoProject>,
