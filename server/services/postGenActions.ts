@@ -541,12 +541,11 @@ export async function runPostGenForJob(jobId: number): Promise<boolean> {
     relation,
   });
 
-  // 寫旗標。失敗時不重試 — 若 doPostGenComplete 已成功插入，重複呼叫的
-  // 風險就是少數情境下出現重複資產，比起完全沒存還是好得多。
+  // AIDV-577: 用 JSON_MERGE_PATCH 只更新 postGenComplete 旗標，不整包覆寫。
+  // 舊做法 { ...meta, postGenComplete: true } 帶入函式開頭的過期 meta，
+  // 若 refundJobIfBilled 剛好並發設了 refunded=true，整包覆寫會蓋掉它。
   try {
-    await db.updateBackgroundJob(jobId, {
-      resultJson: { ...meta, postGenComplete: true } as any,
-    });
+    await db.mergeBackgroundJobResultJson(jobId, { postGenComplete: true });
   } catch {
     // 靜默忽略
   }
@@ -572,8 +571,6 @@ export async function refundJobIfBilled(jobId: number): Promise<boolean> {
   if (!job) return false;
 
   const meta = (job.resultJson ?? {}) as Record<string, unknown>;
-  if (meta.refunded === true) return false;
-
   const costPointsRaw = meta.costPoints;
   const points =
     typeof costPointsRaw === "number" &&
@@ -583,25 +580,23 @@ export async function refundJobIfBilled(jobId: number): Promise<boolean> {
       : 0;
   if (points <= 0) return false;
 
+  // AIDV-577: CAS 原子搶鎖——先在 DB 設 refunded=true 旗標（WHERE NOT refunded）。
+  // 多條並發失敗路徑（webhook ERROR / polling FAILED / stale 超時）只有第一條
+  // UPDATE affectedRows=1，搶到鎖才繼續執行實際退款；其他條直接 return false。
+  // 旗標在前：若後續 refundUserPoints 拋例外，旗標仍留著供審計日誌對帳，
+  // 不會讓其他路徑再次搶到並雙退。
+  const claimed = await db.atomicClaimJobRefund(jobId, points);
+  if (!claimed) return false;
+
   try {
     await db.refundUserPoints(job.userId, points);
   } catch (err) {
-    // refund 失敗不要拋 — 若整個 DB layer 都掛掉，failure path 也救不回來。
-    // 記日誌讓後續審計可以對帳。
+    // 已搶到鎖但退款失敗 — 旗標留著防止重複，需人工審計。
     console.error(
-      `[refundJobIfBilled] Refund failed for job=${jobId} user=${job.userId} points=${points}:`,
+      `[refundJobIfBilled] Refund failed for job=${jobId} user=${job.userId} points=${points} (refunded flag already set — needs manual audit):`,
       err
     );
     return false;
-  }
-
-  try {
-    await db.updateBackgroundJob(jobId, {
-      resultJson: { ...meta, refunded: true, refundedPoints: points } as any,
-    });
-  } catch {
-    // 旗標寫失敗時下一次呼叫會再退一次 — 比起完全不退,寧可有少數重複退款,
-    // 至少使用者不會虧錢。
   }
 
   return true;
