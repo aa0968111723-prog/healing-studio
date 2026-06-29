@@ -7,7 +7,7 @@
  * `webViewLink`. Phase 2 may add inline preview / linking to schedule.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import { trpc } from "@/lib/trpc";
 import type { AppRouter } from "../../../server/routers";
@@ -31,6 +31,16 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type LibraryKind = "shoot" | "personal" | "other";
 
@@ -72,6 +82,9 @@ export function DriveLibrarySection() {
       toast.success("已移除素材庫");
     },
   });
+
+  const [pendingDisconnect, setPendingDisconnect] = useState(false);
+  const [pendingRemoveLibId, setPendingRemoveLibId] = useState<number | null>(null);
 
   if (status.isLoading) {
     return (
@@ -120,11 +133,7 @@ export function DriveLibrarySection() {
             size="sm"
             variant="ghost"
             className="text-xs gap-1.5 text-muted-foreground hover:text-red-400"
-            onClick={() => {
-              if (window.confirm("中止連結後，所有素材庫項目仍會保留，但需要重新授權才能再次瀏覽內容。確定？")) {
-                disconnect.mutate();
-              }
-            }}
+            onClick={() => setPendingDisconnect(true)}
           >
             <CloudOff className="w-3.5 h-3.5" />
             中止連結
@@ -166,11 +175,7 @@ export function DriveLibrarySection() {
                 library={lib}
                 active={activeFolderId === lib.driveFolderId}
                 onOpen={() => handleOpenLibrary(lib)}
-                onRemove={() => {
-                  if (window.confirm(`確定移除素材庫「${lib.label}」？（不會刪除 Drive 上的檔案）`)) {
-                    removeLibrary.mutate({ id: lib.id });
-                  }
-                }}
+                onRemove={() => setPendingRemoveLibId(lib.id)}
               />
             ))}
           </div>
@@ -205,6 +210,46 @@ export function DriveLibrarySection() {
           />
         </GlassCard>
       )}
+
+      <AlertDialog open={pendingDisconnect} onOpenChange={open => !open && setPendingDisconnect(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>中止 Drive 連結？</AlertDialogTitle>
+            <AlertDialogDescription>
+              中止連結後，所有素材庫項目仍會保留，但需要重新授權才能再次瀏覽內容。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { disconnect.mutate(); setPendingDisconnect(false); }}>
+              確認中止
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingRemoveLibId !== null} onOpenChange={open => !open && setPendingRemoveLibId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>移除素材庫？</AlertDialogTitle>
+            <AlertDialogDescription>
+              不會刪除 Drive 上的檔案，但素材庫連結將被移除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingRemoveLibId !== null) removeLibrary.mutate({ id: pendingRemoveLibId });
+                setPendingRemoveLibId(null);
+              }}
+            >
+              移除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
