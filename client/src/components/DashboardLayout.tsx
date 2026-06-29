@@ -56,9 +56,30 @@ const DOCK_IMMERSIVE_KEY = "apple-dock-immersive";
 const DOCK_DENSITY_KEY = "apple-dock-density";
 const DOCK_VARIANT_KEY = "apple-dock-variant";
 
+// AIDV-560：localStorage 在無痕模式 / 瀏覽器停用儲存時，連 getItem/setItem 都可能直接
+// throw（SecurityError）。先前各 readDock* 直接呼叫，任一拋錯就讓整個 DashboardLayout
+// render 崩潰白屏。以下兩個 safe wrapper 把存取包進 try/catch，讀失敗退回 null（→ 預設值）、
+// 寫失敗靜默忽略（偏好設定不持久化，但畫面照常運作）。
+function safeReadLS(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteLS(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* 無痕模式 / 配額滿 / 儲存停用：忽略，不影響畫面 */
+  }
+}
+
 function readDockPosition(): DockPosition {
-  if (typeof window === "undefined") return "left";
-  const v = window.localStorage.getItem(DOCK_POSITION_KEY);
+  const v = safeReadLS(DOCK_POSITION_KEY);
   if (v === "right" || v === "top" || v === "bottom" || v === "left") {
     return v;
   }
@@ -66,25 +87,21 @@ function readDockPosition(): DockPosition {
 }
 
 function readDockMinimized(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(DOCK_MINIMIZED_KEY) === "1";
+  return safeReadLS(DOCK_MINIMIZED_KEY) === "1";
 }
 
 function readDockImmersive(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(DOCK_IMMERSIVE_KEY) === "1";
+  return safeReadLS(DOCK_IMMERSIVE_KEY) === "1";
 }
 
 function readDockDensity(): DockDensity {
-  if (typeof window === "undefined") return "comfortable";
-  const v = window.localStorage.getItem(DOCK_DENSITY_KEY);
+  const v = safeReadLS(DOCK_DENSITY_KEY);
   if (v === "compact" || v === "comfortable" || v === "spacious") return v;
   return "comfortable";
 }
 
 function readDockVariant(): DockVariant {
-  if (typeof window === "undefined") return "dock";
-  const v = window.localStorage.getItem(DOCK_VARIANT_KEY);
+  const v = safeReadLS(DOCK_VARIANT_KEY);
   if (v === "dock" || v === "rail" || v === "panel") return v;
   return "dock";
 }
@@ -680,19 +697,19 @@ function DashboardLayoutContent({
   const [dockDensity, setDockDensity] = useState<DockDensity>(readDockDensity);
   const [dockVariant, setDockVariant] = useState<DockVariant>(readDockVariant);
   useEffect(() => {
-    window.localStorage.setItem(DOCK_POSITION_KEY, dockPosition);
+    safeWriteLS(DOCK_POSITION_KEY, dockPosition);
   }, [dockPosition]);
   useEffect(() => {
-    window.localStorage.setItem(DOCK_MINIMIZED_KEY, dockMinimized ? "1" : "0");
+    safeWriteLS(DOCK_MINIMIZED_KEY, dockMinimized ? "1" : "0");
   }, [dockMinimized]);
   useEffect(() => {
-    window.localStorage.setItem(DOCK_IMMERSIVE_KEY, dockImmersive ? "1" : "0");
+    safeWriteLS(DOCK_IMMERSIVE_KEY, dockImmersive ? "1" : "0");
   }, [dockImmersive]);
   useEffect(() => {
-    window.localStorage.setItem(DOCK_DENSITY_KEY, dockDensity);
+    safeWriteLS(DOCK_DENSITY_KEY, dockDensity);
   }, [dockDensity]);
   useEffect(() => {
-    window.localStorage.setItem(DOCK_VARIANT_KEY, dockVariant);
+    safeWriteLS(DOCK_VARIANT_KEY, dockVariant);
   }, [dockVariant]);
   const cycleDockPosition = useCallback(() => {
     setDockPosition(p => {

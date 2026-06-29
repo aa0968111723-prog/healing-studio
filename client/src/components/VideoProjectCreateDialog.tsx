@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 type AspectRatio = "16:9" | "9:16" | "1:1";
 
@@ -65,6 +66,13 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
     onSuccess(data) {
       onCreated(data.id, data.aspectRatio as AspectRatio);
       onClose();
+    },
+    // AIDV-560：失敗時給使用者可見的錯誤出口（非靜默把按鈕轉回原狀）。
+    // 對話框維持開啟，使用者可調整後再按「開始創作」重試。
+    onError(err) {
+      toast.error("建立影片專案失敗，請稍後重試。", {
+        description: err.message,
+      });
     },
   });
 
