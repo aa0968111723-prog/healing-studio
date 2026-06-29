@@ -62,3 +62,24 @@ If `npm install -g @openai/codex` fails with `403 Forbidden` in this environment
 1. **新監控/告警代碼** → 寫 Supabase `system_alerts`（用 Supabase client SDK），不用 Drizzle `orbSystemAlerts`
 2. **`drizzle/schema.ts` 的 `orb_*` 物件** → MySQL only，不代表 Supabase 有同名表
 3. 未來從 Drizzle scaffold migration 時，注意 table name 可能與 Supabase 表名不同
+
+## Wave T 速率限制器：creator_job_throttle — AIDV-742
+
+### 設計（別被空表嚇到）
+
+`creator_job_throttle` 是**計數表，不是設定表**：
+
+- 每次有 `agent_tasks` INSERT 時，觸發器 `agent_task_rate_limit_trigger` 自動呼叫 `check_creator_job_rate_limit(creator_id, 20)`
+- 函數在表裡做 `INSERT … ON CONFLICT DO UPDATE job_count + 1`，完全自我初始化
+- **表空（0 rows）= 本小時內還沒有 agent_task 被提交**，屬正常現象；不是設定遺失
+
+### 不需要預插設定行
+
+過去 QA 會因為 `creator_job_throttle = 0 rows` 誤判「速率限制器未初始化」。正確理解：
+- 表是每小時滾動計數窗口，`cleanup-throttle-stale-windows` cron 每小時第 5 分鐘清除前一小時的行
+- `check_creator_job_rate_limit()` 是 `SECURITY DEFINER`，通過 `video_projects.creator_id`（UUID）識別創作者，上限 20 tasks/hr
+- **偵測繞過**：`rate-limit-bypass-probe` cron 每 15 分鐘檢查：若本小時有 `agent_tasks` 但 `creator_job_throttle` 為空 → 寫 `system_alerts`
+
+### 應用程式層（MySQL side）速率限制
+
+主應用使用 `server/services/orbQuota.ts`（記憶體內日限額：generation 40 次/天）。這與 Supabase 的 `creator_job_throttle` 是**兩套獨立限制**，分別守護不同路徑。
