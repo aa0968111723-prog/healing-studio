@@ -97,15 +97,15 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
         </DialogHeader>
 
         <div role="radiogroup" aria-label="畫面比例" className="flex gap-3 mt-2">
-          {OPTIONS.map(opt => {
+          {ASPECT_OPTIONS.map(opt => {
             const Icon = opt.icon;
-            const isActive = selected === opt.value;
+            const isActive = aspectRatio === opt.value;
             return (
               <button
                 key={opt.value}
                 role="radio"
                 aria-checked={isActive}
-                onClick={() => setSelected(opt.value)}
+                onClick={() => setAspectRatio(opt.value)}
                 className={cn(
                   "flex-1 flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all",
                   isActive
@@ -114,25 +114,18 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
                 )}
               >
                 <div
-                  className={cn(
-                    "flex-1 flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all",
-                    isActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/40",
-                  )}
+                  className={cn("bg-muted rounded flex items-center justify-center w-full", opt.preview)}
+                  style={{ maxHeight: 72, maxWidth: 72, margin: "0 auto" }}
                 >
-                  <div
-                    className={cn("bg-muted rounded flex items-center justify-center w-full", opt.preview)}
-                    style={{ maxHeight: 72, maxWidth: 72, margin: "0 auto" }}
-                  >
-                    <Icon className="size-4 text-muted-foreground" />
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs font-medium">{opt.label}</div>
-                    <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                  <Icon className="size-4 text-muted-foreground" />
+                </div>
+                <div className="text-center">
+                  <div className="text-xs font-medium">{opt.label}</div>
+                  <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* 輸出解析度 */}
