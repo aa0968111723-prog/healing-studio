@@ -16,6 +16,13 @@ export interface OAuthState {
   purpose: OAuthPurpose;
   /** Bound to the user's session for incremental flows. */
   userOpenId?: string;
+  /**
+   * AIDV-580: anti-CSRF nonce for the login flow. Generated at `/start`,
+   * mirrored into a short-lived `oauth_state` cookie, and verified at the
+   * callback so a forged `code`+`state` from an attacker's Google account
+   * cannot be replayed into a victim's browser (login CSRF / session fixation).
+   */
+  nonce?: string;
 }
 
 const PURPOSES: ReadonlySet<OAuthPurpose> = new Set(["login", "drive"]);
@@ -25,6 +32,7 @@ export function encodeOAuthState(state: OAuthState): string {
     r: state.redirect,
     p: state.purpose,
     ...(state.userOpenId ? { u: state.userOpenId } : {}),
+    ...(state.nonce ? { n: state.nonce } : {}),
   });
   return Buffer.from(payload, "utf-8").toString("base64url");
 }
@@ -42,6 +50,7 @@ export function decodeOAuthState(raw: string | undefined | null): OAuthState {
         redirect: parsed.r,
         purpose,
         userOpenId: typeof parsed.u === "string" ? parsed.u : undefined,
+        nonce: typeof parsed.n === "string" ? parsed.n : undefined,
       };
     }
   } catch {

@@ -61,3 +61,27 @@ export function getSessionCookieOptions(
 
   return options;
 }
+
+/**
+ * AIDV-580: cookie options for the short-lived OAuth login `state` nonce.
+ *
+ * Differences from the session cookie, by design:
+ *  - `sameSite: "lax"` (NOT "none"): the cookie is set first-party at
+ *    `/api/oauth/google/start` and must survive Google's **top-level GET
+ *    redirect** back to `/api/oauth/callback`. Lax cookies ARE sent on
+ *    top-level navigations, so the nonce round-trips; "strict" would be
+ *    dropped on that cross-site-initiated navigation and break login.
+ *  - `path: "/api/oauth"`: only the OAuth routes ever need it.
+ *  - `secure` tracks the request scheme (prod HTTPS → true; plain-HTTP dev
+ *    → false so local login still works). Lax does not require Secure.
+ */
+export function getOAuthStateCookieOptions(
+  req: Request
+): Pick<CookieOptions, "httpOnly" | "path" | "sameSite" | "secure"> {
+  return {
+    httpOnly: true,
+    path: "/api/oauth",
+    sameSite: "lax",
+    secure: isSecureRequest(req),
+  };
+}

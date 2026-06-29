@@ -11,13 +11,15 @@
  */
 
 import { SignJWT, jwtVerify } from "jose";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import type { Request } from "express";
 import { parse as parseCookie } from "cookie";
 import { ENV } from "./env";
 import { COOKIE_NAME, THIRTY_DAYS_MS } from "@shared/const";
 import * as db from "../db";
 import { logger } from "./logger";
+import { encodeOAuthState } from "./oauthState";
+import { isFlagEnabled } from "./flags";
 
 // ─── Google OAuth 端點 ─────────────────────────────────────────────────────
 
@@ -124,6 +126,30 @@ export function hashSessionToken(token: string): string {
 /** Returns true when ENABLE_REFRESH_TOKEN_ROTATION=true is set in the environment. */
 export function isRefreshTokenRotationEnabled(): boolean {
   return process.env.ENABLE_REFRESH_TOKEN_ROTATION === "true";
+}
+
+// ─── AIDV-580：登入 OAuth state anti-CSRF nonce ──────────────────────────────
+
+/** Cookie name carrying the one-time login `state` nonce (mirrors `state.nonce`). */
+export const OAUTH_STATE_COOKIE = "oauth_state";
+
+/**
+ * High-entropy, URL-safe nonce bound to one login attempt. base64url so it
+ * round-trips cleanly inside the JSON `state` and an HTTP cookie value.
+ */
+export function generateOAuthStateNonce(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+/**
+ * Whether the callback ENFORCES the login `state` nonce against the
+ * `oauth_state` cookie. Default OFF: merging is a zero-behaviour change — the
+ * nonce is always minted and round-tripped, but rejection only kicks in once
+ * Bruce sets `OAUTH_LOGIN_STATE_CSRF=1` (or true/on) after a prod login smoke.
+ * Set to 0/false/off to disable as a kill-switch.
+ */
+export function isOAuthLoginStateCheckEnabled(): boolean {
+  return isFlagEnabled(process.env.OAUTH_LOGIN_STATE_CSRF, false);
 }
 
 export type SessionPayload = {
@@ -234,7 +260,8 @@ export function resolveRedirectUri(req?: Request): string {
 
 export function buildGoogleAuthUrl(
   redirectAfter?: string,
-  req?: Request
+  req?: Request,
+  nonce?: string
 ): string {
   const clientId = ENV.googleClientId;
   if (!clientId) {
@@ -248,12 +275,19 @@ export function buildGoogleAuthUrl(
     redirectUri,
     redirectAfter: redirectAfter || "/",
     hasClientId: !!clientId,
+    hasNonce: !!nonce,
     source: process.env.GOOGLE_REDIRECT_URI ? "env" : "request",
   });
 
-  const state = redirectAfter
-    ? Buffer.from(redirectAfter).toString("base64")
-    : "";
+  // AIDV-580: carry an anti-CSRF nonce in the structured `state` (decoded back
+  // by decodeOAuthState at the callback). Switched from the legacy plain
+  // base64(redirect) form to the JSON state so login matches the Drive flow's
+  // tamper-aware encoding; decodeOAuthState stays backward-compatible.
+  const state = encodeOAuthState({
+    redirect: redirectAfter || "/",
+    purpose: "login",
+    ...(nonce ? { nonce } : {}),
+  });
 
   const params = new URLSearchParams({
     client_id: clientId,

@@ -12,9 +12,10 @@
 import { COOKIE_NAME, THIRTY_DAYS_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
 import { parse as parseCookie } from "cookie";
+import { timingSafeEqual } from "crypto";
 import * as db from "../db";
 import { ENV } from "./env";
-import { getSessionCookieOptions } from "./cookies";
+import { getSessionCookieOptions, getOAuthStateCookieOptions } from "./cookies";
 import {
   buildGoogleAuthUrl,
   exchangeCodeForTokens,
@@ -26,6 +27,9 @@ import {
   GoogleTokenExchangeError,
   hashSessionToken,
   isRefreshTokenRotationEnabled,
+  generateOAuthStateNonce,
+  isOAuthLoginStateCheckEnabled,
+  OAUTH_STATE_COOKIE,
 } from "./googleAuth";
 import {
   insertRefreshToken,
@@ -59,6 +63,20 @@ function getAccessTokenLifetimeMs(): number {
 function getRedirectFromState(state?: string): string {
   const parsed = decodeOAuthState(state);
   return isSafeRedirectPath(parsed.redirect) ? parsed.redirect : "/";
+}
+
+/**
+ * AIDV-580: constant-time compare for the login `state` nonce vs the
+ * `oauth_state` cookie. Both absent/blank → false (never treat a missing
+ * nonce as a match). Length-guarded because timingSafeEqual throws on
+ * unequal-length buffers.
+ */
+function nonceMatches(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) return false;
+  const ba = Buffer.from(a, "utf-8");
+  const bb = Buffer.from(b, "utf-8");
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
 }
 
 async function getCurrentUserOpenIdFromCookie(
@@ -149,7 +167,16 @@ export function registerOAuthRoutes(app: Express) {
       if (!isSafeRedirectPath(redirectAfter)) {
         redirectAfter = "/";
       }
-      const authUrl = buildGoogleAuthUrl(redirectAfter, req);
+      // AIDV-580: mint a one-time anti-CSRF nonce, mirror it into a short-lived
+      // first-party cookie, and embed it in the `state`. The callback later
+      // refuses any `state` whose nonce doesn't match this cookie (login CSRF /
+      // session fixation defence). Always set — enforcement is flag-gated.
+      const nonce = generateOAuthStateNonce();
+      res.cookie(OAUTH_STATE_COOKIE, nonce, {
+        ...getOAuthStateCookieOptions(req),
+        maxAge: 10 * 60 * 1000, // 10 minutes — a login round-trip is short-lived
+      });
+      const authUrl = buildGoogleAuthUrl(redirectAfter, req, nonce);
       res.redirect(302, authUrl);
     } catch (error) {
       console.error("[OAuth] Failed to build Google auth URL", error);
@@ -218,6 +245,31 @@ export function registerOAuthRoutes(app: Express) {
     if (decodedState.purpose === "drive") {
       await handleDriveCallback(req, res, code, decodedState.redirect, decodedState.userOpenId);
       return;
+    }
+
+    // AIDV-580: login CSRF / session fixation guard. The `state` nonce must
+    // match the one-time `oauth_state` cookie minted at `/start`. A forged
+    // code+state replayed from an attacker's own Google account carries no
+    // matching cookie, so it is refused BEFORE the code is exchanged — no
+    // attacker session is ever minted into the victim's browser. The cookie
+    // is always cleared here (one-time use); enforcement is flag-gated so the
+    // merge is a zero-behaviour change until Bruce flips OAUTH_LOGIN_STATE_CSRF.
+    const cookieNonce = parseCookie(req.headers.cookie || "")[OAUTH_STATE_COOKIE];
+    if (cookieNonce !== undefined) {
+      res.clearCookie(OAUTH_STATE_COOKIE, {
+        ...getOAuthStateCookieOptions(req),
+        maxAge: 0,
+      });
+    }
+    if (isOAuthLoginStateCheckEnabled()) {
+      if (!nonceMatches(decodedState.nonce, cookieNonce)) {
+        console.warn("[OAuth] Login state nonce mismatch — refusing callback", {
+          hasStateNonce: !!decodedState.nonce,
+          hasCookieNonce: !!cookieNonce,
+        });
+        redirectWithAuthError(res, "oauth_state_mismatch", state);
+        return;
+      }
     }
 
     let stage: "token" | "userinfo" | "db" | "session" = "token";
