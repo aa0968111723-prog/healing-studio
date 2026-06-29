@@ -106,7 +106,6 @@ import {
 import {
   initProviderHealthProbeCron,
   stopProviderHealthProbeCron,
-  getProviderProbeStatus,
 } from "../jobs/providerHealthProbeJob";
 import {
   initGoTrueHealthMonitorCron,
@@ -590,26 +589,10 @@ async function startServer() {
   app.use(adminEventsRouter);
   app.use(toolsModelsRouter);
 
-  // AIDV-518: Provider key health status endpoint
-  app.get("/api/provider-health", (_req, res) => {
-    const results = getProviderProbeStatus();
-    res.json({
-      providers: results.map(r => ({
-        id: r.providerId,
-        ok: r.ok,
-        consecutiveFailures: r.consecutiveFailures,
-        latencyMs: r.latencyMs,
-        lastCheckedAt: r.lastCheckedAt ? new Date(r.lastCheckedAt).toISOString() : null,
-        status: r.ok ? "healthy" : r.consecutiveFailures >= 2 ? "critical" : "degraded",
-      })),
-      summary: {
-        healthy: results.filter(r => r.ok).length,
-        critical: results.filter(r => !r.ok && r.consecutiveFailures >= 2).length,
-        total: results.length,
-      },
-      checkedAt: new Date().toISOString(),
-    });
-  });
+  // AIDV-518: Provider key health status endpoint。
+  // AIDV-614：原本此 inline 路由零 auth，匿名即可取得 AI 供應商拓撲＋即時健康/連續失敗/延遲
+  //（與孿生的 /api/metrics、/api/health/detail 的 requireAdmin 門不一致）。已搬進 metricsRouter
+  // 並沿用同一道 fail-closed admin 守門（見 _core/metricsRoute.ts），對外不再洩漏供應商明細。
 
   // ── Maps proxy（隱藏 FRONTEND_FORGE_API_KEY，避免前端暴露）───────────────
   app.get("/api/maps/proxy/*", async (req, res) => {
