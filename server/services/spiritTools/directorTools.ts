@@ -39,6 +39,7 @@ import type {
   RunWorkflowAction,
 } from "../../../shared/agent-actions";
 import { logger } from "../../_core/logger";
+import type { OrbQuotaSnapshot } from "../orbQuota";
 
 // ─── Workflow templates ─────────────────────────────────────────────────────
 // 這些是 director 在沒有 LLM 補充時的安全 baseline。每個對應一條已驗證的
@@ -54,6 +55,8 @@ export type WorkflowKind =
   | "key_visual_to_video"
   | "tutorial_set";
 
+export type BudgetMode = "cheap" | "balanced" | "premium";
+
 export interface ComposeWorkflowInput {
   /** 使用者最終想交付什麼（一句話，會塞進每一步的 prompt） */
   brief: string;
@@ -62,7 +65,7 @@ export interface ComposeWorkflowInput {
   /** 平台規格 — 影響 aspect_ratio / 長度預設 */
   platform?: "instagram_reels" | "tiktok" | "youtube_shorts" | "youtube_long" | "general";
   /** 預算模式：cheap 走草稿級模型；balanced 預設；premium 走旗艦 */
-  budgetMode?: "cheap" | "balanced" | "premium";
+  budgetMode?: BudgetMode;
   /** 加入「需要使用者批准 step-by-step」的閘門 */
   stepByStep?: boolean;
 }
@@ -562,6 +565,79 @@ export function estimateWorkflowBudget(
     stepBudgets,
     savingsSuggestions,
     summary,
+  };
+}
+
+// ─── Resource-Aware Budget Selection (AIDV-660 ADP-3) ──────────────────────
+
+const BUDGET_TIGHT_RATIO = 0.33;    // < 33% remaining → cheap
+const BUDGET_MODERATE_RATIO = 0.66; // < 66% remaining → balanced
+
+export interface BudgetModeSelection {
+  mode: BudgetMode;
+  reason: string;
+  autoSelected: boolean;
+}
+
+/**
+ * Selects a budget mode (cheap / balanced / premium) based on the user's
+ * remaining generation quota. User-specified costPreference always wins.
+ *
+ * Thresholds:
+ *   remaining < 33% of daily limit → cheap  (quota pressure: high)
+ *   remaining < 66% of daily limit → balanced (quota pressure: moderate)
+ *   remaining >= 66%               → premium  (quota pressure: low)
+ */
+export function selectBudgetModeFromQuota(
+  quotaSnapshot: OrbQuotaSnapshot | null | undefined,
+  costPreference?: BudgetMode,
+): BudgetModeSelection {
+  if (costPreference) {
+    return {
+      mode: costPreference,
+      reason: `使用者指定 ${costPreference}，不自動調整`,
+      autoSelected: false,
+    };
+  }
+
+  if (!quotaSnapshot) {
+    return {
+      mode: "balanced",
+      reason: "無配額資訊，預設 balanced",
+      autoSelected: true,
+    };
+  }
+
+  const gen = quotaSnapshot.categories.find(c => c.category === "generation");
+  if (!gen || gen.limit === 0) {
+    return {
+      mode: "balanced",
+      reason: "無 generation 配額記錄，預設 balanced",
+      autoSelected: true,
+    };
+  }
+
+  const ratio = gen.remaining / gen.limit;
+  const pct = Math.round(ratio * 100);
+
+  if (ratio < BUDGET_TIGHT_RATIO) {
+    return {
+      mode: "cheap",
+      reason: `generation 配額剩餘 ${gen.remaining}/${gen.limit}（${pct}%），預算吃緊 → 自動選 cheap`,
+      autoSelected: true,
+    };
+  }
+  if (ratio < BUDGET_MODERATE_RATIO) {
+    return {
+      mode: "balanced",
+      reason: `generation 配額剩餘 ${gen.remaining}/${gen.limit}（${pct}%），預算適中 → 自動選 balanced`,
+      autoSelected: true,
+    };
+  }
+  return {
+    mode: "premium",
+    reason: `generation 配額剩餘 ${gen.remaining}/${gen.limit}（${pct}%），配額充足 → 自動選 premium`,
+    autoSelected: true,
   };
 }
 
