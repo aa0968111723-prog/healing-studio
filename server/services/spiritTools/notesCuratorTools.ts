@@ -243,7 +243,7 @@ export async function listNotes(input: {
     if (catFilter) conditions.push(catFilter);
     if (input.tag) {
       conditions.push(
-        sql`CAST(${projectNotesCalendar.tags} AS CHAR) LIKE ${`%"${input.tag}"%`}`
+        sql`CAST(${projectNotesCalendar.tags} AS CHAR) LIKE ${`%"${escapeLikePattern(input.tag)}"%`}`
       );
     }
 
@@ -847,7 +847,7 @@ export async function searchAssets(input: {
     }
     if (input.tag) {
       conditions.push(
-        sql`CAST(${digitalAssetLibrary.tags} AS CHAR) LIKE ${`%"${input.tag}"%`}`
+        sql`CAST(${digitalAssetLibrary.tags} AS CHAR) LIKE ${`%"${escapeLikePattern(input.tag)}"%`}`
       );
     }
     if (input.category) {
