@@ -51,32 +51,12 @@ export const assetsRouter = router({
         .optional()
     )
     .query(async ({ ctx, input }) => {
-      try {
-        const all = await db.getDigitalAssetsByUser(ctx.user.id);
-        let result = all;
-        if (input?.assetType && input.assetType !== "all") {
-          result = result.filter(a => a.assetType === input.assetType);
-        }
-        if (input?.sourceStudio && input.sourceStudio !== "all") {
-          if (input.sourceStudio === "unknown") {
-            result = result.filter(a => !a.sourceStudio);
-          } else {
-            result = result.filter(a => a.sourceStudio === input.sourceStudio);
-          }
-        }
-        if (input?.search) {
-          const q = input.search.toLowerCase();
-          result = result.filter(
-            a =>
-              a.title.toLowerCase().includes(q) ||
-              (a.description || "").toLowerCase().includes(q) ||
-              (a.promptUsed || "").toLowerCase().includes(q)
-          );
-        }
-        return result;
-      } catch {
-        return [];
-      }
+      return db.getDigitalAssetsByUserFiltered({
+        userId: ctx.user.id,
+        assetType: input?.assetType,
+        sourceStudio: input?.sourceStudio,
+        search: input?.search,
+      });
     }),
 
   // ── 此資產用過哪些 prompt（prompt_assets junction, migration 0075）──────
