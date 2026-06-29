@@ -28,6 +28,19 @@ import {
 import { orbUserAnswerPatterns } from "../../drizzle/schema";
 
 const SEARCH_KIND_SCHEMA = z.enum(["asset", "note", "history", "tutorial"]);
+
+type CommonAnswer = { answer: string; frequency: number; lastUsed: string };
+
+function parseCommonAnswers(raw: unknown): CommonAnswer[] {
+  if (Array.isArray(raw)) return raw as CommonAnswer[];
+  if (typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as CommonAnswer[]) : [];
+  } catch {
+    return [];
+  }
+}
 const PREFERENCE_KEY_SCHEMA = z.enum(["styles", "platforms", "outputs", "models"]);
 
 export const orbProxyRouter = router({
@@ -142,11 +155,7 @@ export const orbProxyRouter = router({
       patterns: rows.map(row => ({
         id: String(row.id),
         questionType: row.questionType,
-        commonAnswers: JSON.parse(row.commonAnswers as any) as Array<{
-          answer: string;
-          frequency: number;
-          lastUsed: string;
-        }>,
+        commonAnswers: parseCommonAnswers(row.commonAnswers),
         defaultPreference: row.defaultPreference ?? null,
         confidenceScore: parseFloat(row.confidenceScore),
         sampleCount: row.sampleCount,
