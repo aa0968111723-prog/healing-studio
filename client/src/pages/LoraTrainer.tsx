@@ -61,16 +61,6 @@ import {
 } from "lucide-react";
 import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
 import ConsentFormDialog from "@/components/ConsentFormDialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import type {
