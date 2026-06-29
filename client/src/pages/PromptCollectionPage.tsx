@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import {
   Plus,
   Search,
@@ -202,10 +203,11 @@ export default function PromptCollectionPage() {
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
-  const handleCopy = (content: string, id: number) => {
-    navigator.clipboard.writeText(content);
-    toast.success("已複製到剪貼簿");
-    incUseMut.mutate({ id });
+  const handleCopy = async (content: string, id: number) => {
+    const ok = await copyToClipboard(content, {
+      successMessage: "已複製到剪貼簿",
+    });
+    if (ok) incUseMut.mutate({ id });
   };
 
   const handleCollectManual = () => {
@@ -570,10 +572,11 @@ export default function PromptCollectionPage() {
                       sourceRef: entry.sourceRef,
                     })
                   }
-                  onCopy={() => {
-                    navigator.clipboard.writeText(entry.content);
-                    toast.success("已複製到剪貼簿");
-                  }}
+                  onCopy={() =>
+                    void copyToClipboard(entry.content, {
+                      successMessage: "已複製到剪貼簿",
+                    })
+                  }
                 />
               );
             })}

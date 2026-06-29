@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/ZenCoPilot";
 import { LocationPicker, type ScheduleLocation } from "@/components/LocationPicker";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import {
   CalendarDays,
   Plus,
@@ -1495,10 +1496,7 @@ function PhoneSubscribePanel() {
               size="sm"
               variant="outline"
               className="h-9 px-2 shrink-0"
-              onClick={() => {
-                navigator.clipboard.writeText(fullUrl);
-                toast.success("已複製訂閱連結");
-              }}
+              onClick={() => void copyToClipboard(fullUrl, "訂閱連結")}
               title="複製連結"
             >
               <Copy className="w-3.5 h-3.5" />

@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import {
   Plus,
   Search,
@@ -313,10 +314,11 @@ export default function PromptLibraryPage() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  function handleCopy(content: string, id: number) {
-    navigator.clipboard.writeText(content);
-    toast.success("提示詞已複製到剪貼簿");
-    incUseMut.mutate({ id });
+  async function handleCopy(content: string, id: number) {
+    const ok = await copyToClipboard(content, {
+      successMessage: "提示詞已複製到剪貼簿",
+    });
+    if (ok) incUseMut.mutate({ id });
   }
 
   function handleSubmit() {

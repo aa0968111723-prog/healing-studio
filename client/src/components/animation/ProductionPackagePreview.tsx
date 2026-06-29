@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,7 +14,7 @@ export function ProductionPackagePreview({ world, storyboards, readinessPercent,
   const pkg = useMemo(() => buildWorldbuildingProductionPackage(world, storyboards), [world, storyboards]);
   const mergedWarnings = [...(warnings ?? []), ...pkg.warnings];
   const taskList = useMemo(() => buildWorldbuildingGenerationTasks({ world, productionPackage: pkg, storyboards: storyboards as any[] }), [world, pkg, storyboards]);
-  const copy = (text: string, label: string) => navigator.clipboard.writeText(text).then(() => toast.success(`已複製${label}`));
+  const copy = (text: string, label: string) => void copyToClipboard(text, label);
   const download = (name: string, text: string, type: string) => { const blob = new Blob([text], { type }); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); };
 
   return (

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { trpc } from "@/lib/trpc";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { PanelError, PanelLoading } from "@/shells/_shared/PanelState";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import { Check, Copy, Link2 } from "lucide-react";
@@ -19,7 +20,8 @@ import { Check, Copy, Link2 } from "lucide-react";
 function useCopy() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const copy = (text: string, key: string) => {
-    void navigator.clipboard.writeText(text).then(() => {
+    void copyToClipboard(text, { silent: true }).then(ok => {
+      if (!ok) return;
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(k => (k === key ? null : k)), 1800);
     });

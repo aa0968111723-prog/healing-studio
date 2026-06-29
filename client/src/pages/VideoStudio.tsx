@@ -32,6 +32,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useEmptyPromptHelper } from "@/lib/emptyPromptHelper";
 import {
   Film,
@@ -241,10 +242,7 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
         </button>
         <button
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
-          onClick={() => {
-            navigator.clipboard.writeText(url);
-            toast.success("已複製影片 URL");
-          }}
+          onClick={() => void copyToClipboard(url, "影片 URL")}
         >
           <Copy className="w-3 h-3" />
           複製 URL
@@ -4332,10 +4330,7 @@ function SmartPromptDialog({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    navigator.clipboard.writeText(result);
-                    toast.success("已複製提詞");
-                  }}
+                  onClick={() => void copyToClipboard(result, "提詞")}
                 >
                   <Copy className="w-3 h-3 mr-1" /> 複製
                 </Button>
