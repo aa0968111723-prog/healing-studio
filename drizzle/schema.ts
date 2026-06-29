@@ -4646,3 +4646,40 @@ export const apiKeys = mysqlTable(
 
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertApiKey = typeof apiKeys.$inferInsert;
+
+// ─── Video Analytics (AIDV-272) ───────────────────────────────────────────────
+// 影片播放事件追蹤表；匿名觀看者透過 visitorId（SHA-256 hash，無 PII），已登入
+// 用戶透過 userId（可為 null 表示退出追蹤）。資料保留 90 天滾動視窗。
+
+export const VIDEO_ANALYTICS_EVENT_TYPES = [
+  "play",
+  "pause",
+  "pct25",
+  "pct50",
+  "pct75",
+  "complete",
+] as const;
+export type VideoAnalyticsEventType = typeof VIDEO_ANALYTICS_EVENT_TYPES[number];
+
+export const videoAnalytics = mysqlTable(
+  "video_analytics",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    videoProjectId: int("video_project_id").notNull(),
+    /** null ＝ 匿名訪客或用戶已退出追蹤（GDPR opt-out）*/
+    userId: int("user_id"),
+    /** 匿名訪客識別符（SHA-256 of sessionToken，無 IP/PII）；已登入時可為 null */
+    visitorId: varchar("visitor_id", { length: 64 }),
+    eventType: mysqlEnum("event_type", VIDEO_ANALYTICS_EVENT_TYPES).notNull(),
+    /** 播放至事件發生時的累計秒數（0 = 不適用，如 pause 時 durationWatched=播放秒數） */
+    durationWatched: int("duration_watched").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => ({
+    videoProjectIdx: index("va_video_project_id_idx").on(table.videoProjectId),
+    createdAtIdx: index("va_created_at_idx").on(table.createdAt),
+  })
+);
+
+export type VideoAnalytic = typeof videoAnalytics.$inferSelect;
+export type InsertVideoAnalytic = typeof videoAnalytics.$inferInsert;
