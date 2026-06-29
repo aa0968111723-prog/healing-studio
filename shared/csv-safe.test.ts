@@ -27,6 +27,21 @@ describe("sanitizeCsvCell — 公式前綴中和（CWE-1236）", () => {
       '"\'=HYPERLINK(""http://evil"",""x"")"'
     );
   });
+
+  it("前導空白繞過：空白後接公式字元仍中和（CWE-1236）", () => {
+    expect(sanitizeCsvCell(" =cmd")).toBe("' =cmd");
+    expect(sanitizeCsvCell("   +1+1")).toBe("'   +1+1");
+    expect(sanitizeCsvCell(" @x")).toBe("' @x"); // NBSP 前導
+  });
+
+  it("前導空白後接一般文字 → 不誤中和（保留原樣）", () => {
+    expect(sanitizeCsvCell("  hello")).toBe("  hello");
+    expect(sanitizeCsvCell(" 你好")).toBe(" 你好");
+  });
+
+  it("前導換行後接公式 → 中和 + 引號包裹（\\n 屬 RFC-4180 觸發）", () => {
+    expect(sanitizeCsvCell("\n=cmd")).toBe('"\'\n=cmd"');
+  });
 });
 
 describe("sanitizeCsvCell — 純數值豁免（不破壞成本/數字欄）", () => {

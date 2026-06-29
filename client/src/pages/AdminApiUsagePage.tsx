@@ -605,11 +605,10 @@ function DeepCostTab() {
   const handleCsvExport = () => {
     // 前端聚合 CSV（資料已都在 data 裡，省一次 round-trip）
     const sections: string[][] = [];
+    // 每格走 @shared/csv-safe：公式注入中和 + RFC-4180（含 provider/endpoint/userId
+    // 等使用者可控欄位，原內嵌跳脫只做引號未防公式注入）— AIDV-562
     const push = (rows: (string | number)[][]) =>
-      sections.push(rows.map(r => r.map(v => {
-        const s = String(v ?? "");
-        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-      }).join(",")));
+      sections.push(rows.map(r => toCsvRow(r)));
 
     push([[`# Healing Studio 深度成本報表`]]);
     push([[`# 視窗：${w.start} → ${w.end}`]]);
