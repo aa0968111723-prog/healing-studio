@@ -906,6 +906,30 @@ export async function getFineTunedModel(id: number) {
   return rows[0] || null;
 }
 
+/**
+ * AIDV-609 — 依 Replicate trainingId（存於 replicatePredictionId 欄）取本人擁有的訓練模型。
+ * WHERE 同時鎖 userId，用於 loraTrainer.replicateTrainingStatus 的擁有權守門，
+ * 避免任何登入者拿他人 trainingId 查訓練狀態。命中 0 回 null（呼叫端轉 NOT_FOUND）。
+ */
+export async function getFineTunedModelByReplicateId(
+  replicatePredictionId: string,
+  userId: number
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(fineTunedModels)
+    .where(
+      and(
+        eq(fineTunedModels.replicatePredictionId, replicatePredictionId),
+        eq(fineTunedModels.userId, userId)
+      )
+    )
+    .limit(1);
+  return rows[0] || null;
+}
+
 /** 列出某團隊的 team_shared 模型（M 訓練 track）。 */
 export async function getFineTunedModelsByTeam(teamId: number) {
   const db = await getDb();

@@ -82,12 +82,37 @@ describe("history.rate → agentModelPicks feedback loop (AIDV-62)", () => {
     );
   });
 
-  it("does NOT record a model pick when rating < 4", async () => {
-    const caller = appRouter.createCaller(createMockContext({ id: 7, email: "t@t.com" }) as never);
-    await caller.history.rate({ id: 42, rating: 3 });
+  it("does NOT record a model pick when rating < 4 (but still verifies ownership)", async () => {
+    // AIDV-609: rate now verifies ownership up-front via getHistoryEntry(id, userId).
+    // The entry exists & is owned → mutation proceeds; rating < 4 → no model pick.
+    vi.mocked(dbMod.getHistoryEntry).mockResolvedValueOnce({
+      id: 42,
+      userId: 7,
+      modality: "image",
+      parameterSnapshot: { modelId: "fal-flux-schnell" },
+      userRating: null,
+      isBookmarked: false,
+      costCredits: 1,
+      prompt: null,
+      compiledPrompt: null,
+      resultUrl: null,
+      thumbnailUrl: null,
+      durationMs: null,
+      requestId: null,
+      sourceUrl: null,
+      provider: null,
+      archivedAt: null,
+      expiresAt: null,
+      archivalChecksum: null,
+      createdAt: new Date(),
+    });
 
+    const caller = appRouter.createCaller(createMockContext({ id: 7, email: "t@t.com" }) as never);
+    const result = await caller.history.rate({ id: 42, rating: 3 });
+
+    expect(result).toEqual({ success: true });
+    expect(dbMod.getHistoryEntry).toHaveBeenCalledWith(42, 7);
     await new Promise(r => setTimeout(r, 20));
-    expect(dbMod.getHistoryEntry).not.toHaveBeenCalled();
     expect(agentPicksMod.recordModelPick).not.toHaveBeenCalled();
   });
 
