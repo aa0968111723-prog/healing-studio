@@ -12,6 +12,37 @@ const scheduleLocationSchema = z.object({
   lng: z.number().min(-180).max(180).optional(),
 });
 
+// ─── scriptJson 邊界驗證（AIDV-652） ─────────────────────────────────────────
+// 序列化後 ≤256KB、巢狀深度 ≤20，超限回 400。保守值確保現存歷史筆記不受影響。
+const SCRIPT_JSON_MAX_BYTES = 256 * 1024; // 256 KB
+const SCRIPT_JSON_MAX_DEPTH = 20;
+
+function jsonDepth(v: unknown, d = 0): number {
+  if (d > SCRIPT_JSON_MAX_DEPTH) return d;
+  if (Array.isArray(v)) return Math.max(d, ...v.map(i => jsonDepth(i, d + 1)));
+  if (v !== null && typeof v === "object")
+    return Math.max(d, ...Object.values(v as object).map(i => jsonDepth(i, d + 1)));
+  return d;
+}
+
+const scriptJsonSchema = z
+  .record(z.string(), z.unknown())
+  .superRefine((val, ctx) => {
+    const bytes = Buffer.byteLength(JSON.stringify(val), "utf8");
+    if (bytes > SCRIPT_JSON_MAX_BYTES) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `scriptJson 序列化後超過 ${SCRIPT_JSON_MAX_BYTES} bytes 上限（實際 ${bytes} bytes）`,
+      });
+    }
+    if (jsonDepth(val) > SCRIPT_JSON_MAX_DEPTH) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `scriptJson 巢狀深度超過 ${SCRIPT_JSON_MAX_DEPTH} 層上限`,
+      });
+    }
+  });
+
 // ─── Project Notes ────────────────────────────────────────────────────────────
 
 export const notesRouter = router({
@@ -166,7 +197,7 @@ export const notesRouter = router({
       z.object({
         title: z.string().min(1).max(255),
         content: z.string().optional(),
-        scriptJson: z.any().optional(),
+        scriptJson: scriptJsonSchema.optional(),
         noteType: z
           .enum(["note", "script", "calendar_event"])
           .default("note"),
@@ -205,7 +236,7 @@ export const notesRouter = router({
         id: z.number(),
         title: z.string().min(1).max(255).optional(),
         content: z.string().optional(),
-        scriptJson: z.any().optional(),
+        scriptJson: scriptJsonSchema.optional(),
         scheduledDate: z.number().nullable().optional(),
         endDate: z.number().nullable().optional(),
         reminderMinutes: z
