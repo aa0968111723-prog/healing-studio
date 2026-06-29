@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import {
   BookOpen,
   Copy,
@@ -149,7 +150,7 @@ export default function AgentCodexPage() {
         toast.error("此瀏覽器不支援剪貼簿 API");
       }
     } catch (err) {
-      toast.error(`複製失敗：${err instanceof Error ? err.message : String(err)}`);
+      toastError(err, "複製失敗");
     }
   };
 

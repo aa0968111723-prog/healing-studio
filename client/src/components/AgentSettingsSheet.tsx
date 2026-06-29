@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import {
   Sheet,
@@ -166,7 +167,7 @@ export default function AgentSettingsSheet({
       toast.success("已儲存代理設定");
       prefsQuery.refetch();
     },
-    onError: error => toast.error(`儲存失敗：${error.message ?? "未知錯誤"}`),
+    onError: error => toastError(error, "儲存失敗"),
   });
 
   const initial = prefsQuery.data ?? DEFAULT_AGENT_PREFERENCES;
@@ -767,18 +768,18 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
       toast.success("排程已建立");
       jobsQuery.refetch();
     },
-    onError: error => toast.error(`建立失敗：${error.message ?? "未知錯誤"}`),
+    onError: error => toastError(error, "建立失敗"),
   });
   const unscheduleMutation = trpc.orbScheduler.unscheduleJob.useMutation({
     onSuccess: () => {
       toast.success("已取消排程");
       jobsQuery.refetch();
     },
-    onError: error => toast.error(`取消失敗：${error.message ?? "未知錯誤"}`),
+    onError: error => toastError(error, "取消失敗"),
   });
   const setEnabledMutation = trpc.orbScheduler.setEnabled.useMutation({
     onSuccess: () => jobsQuery.refetch(),
-    onError: error => toast.error(`切換失敗：${error.message ?? "未知錯誤"}`),
+    onError: error => toastError(error, "切換失敗"),
   });
   const runNowMutation = trpc.orbScheduler.runNow.useMutation({
     onSuccess: () => {
@@ -786,7 +787,7 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
       // Give the orb a beat before refetching so lastRunAt updates show up.
       setTimeout(() => jobsQuery.refetch(), 1500);
     },
-    onError: error => toast.error(`執行失敗：${error.message ?? "未知錯誤"}`),
+    onError: error => toastError(error, "執行失敗"),
   });
 
   const [id, setId] = useState("");

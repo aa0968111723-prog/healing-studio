@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import {
   User,
   Mountain,
@@ -384,7 +385,7 @@ export function ConsistencyVault({
       utils.vault.list.invalidate();
     },
     onError: err => {
-      toast.error("刪除失敗：" + err.message);
+      toastError(err, "刪除失敗");
     },
   });
 

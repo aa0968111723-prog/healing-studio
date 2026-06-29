@@ -12,6 +12,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -156,7 +157,7 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
       }));
       toast.success(`AI 已拆出 ${data.segments.length} 段分鏡`);
     },
-    onError: e => toast.error(`分析失敗：${e.message}`),
+    onError: e => toastError(e, "分析失敗"),
   });
 
   // 取得當前世界資料，用於與腳本中偵測到的角色/場景比對
@@ -173,7 +174,7 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
       utils.worldbuilding.get.invalidate({ id: worldId });
       utils.worldbuilding.list.invalidate();
     },
-    onError: e => toast.error(`更新世界觀失敗：${e.message}`),
+    onError: e => toastError(e, "更新世界觀失敗"),
   });
 
   const createStoryboard = trpc.worldStoryboard.create.useMutation({
@@ -182,7 +183,7 @@ export const ScriptEditorTab = memo(function ScriptEditorTab({
       utils.worldStoryboard.listByWorld.invalidate();
       navigate(`/animation/${id}`);
     },
-    onError: e => toast.error(`派生分鏡失敗：${e.message}`),
+    onError: e => toastError(e, "派生分鏡失敗"),
   });
 
   // ─── 腳本實體偵測 ───────────────────────────────────────────────────────
