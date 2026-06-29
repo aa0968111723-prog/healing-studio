@@ -4,6 +4,7 @@ import { checkAndConsumeQuota } from "./orbQuota";
 import { injectModelPrompt } from "../../shared/modelPromptTemplates";
 import { moderateOrbContent } from "../../shared/orb-content-moderation";
 import type { AgentRole } from "../../shared/orb-agent-roles";
+import * as falRecoveryPolicy from "./falRecoveryPolicy";
 
 /** Tool names that consume a `generation` daily slot when executed. */
 const GENERATION_SLOT_TOOLS = new Set([
@@ -104,18 +105,54 @@ async function awaitFalForOrb(
   args: Record<string, unknown>,
   // F2/F6: 加 opts 給 postgen 寫資產庫 / 歷史 / 提示詞庫用。
   // 不帶就退化為 legacy 行為(只 await + return),向後相容。
-  opts?: { userId?: number; prompt?: string }
+  // ADP-2: retryDispatch — if provided, called on transient fal failures to
+  // re-submit the job and obtain a fresh request_id before re-polling.
+  opts?: {
+    userId?: number;
+    prompt?: string;
+    retryDispatch?: () => Promise<Pick<FalDispatchEnvelope, "request_id" | "modelId"> & { degraded?: boolean }>;
+  }
 ): Promise<FalDispatchEnvelope & Partial<FalAwaitResult>> {
   if (args.wait === false) return { ...envelope, status: "pending" };
   const timeoutMs =
     typeof args.timeoutMs === "number" && args.timeoutMs > 0
       ? Math.min(args.timeoutMs, 5 * 60_000)
       : ORB_FAL_AWAIT_TIMEOUT_MS;
-  const awaited = await awaitFalQueueResult(
-    envelope.request_id,
-    envelope.modelId,
+
+  let currentEnvelope = envelope;
+  let awaited = await awaitFalQueueResult(
+    currentEnvelope.request_id,
+    currentEnvelope.modelId,
     { timeoutMs }
   );
+
+  // ADP-2: bounded retry on transient fal failures.
+  // Content/hard failures are not retried; only re-dispatch on transient errors.
+  if (
+    awaited.status === "failed" &&
+    opts?.retryDispatch &&
+    falRecoveryPolicy.isAdp2RetryEnabled()
+  ) {
+    const maxRetries = falRecoveryPolicy.getAdp2MaxRetries();
+    let attempt = 0;
+    while (awaited.status === "failed" && attempt < maxRetries) {
+      const category = falRecoveryPolicy.classifyFalFailure(awaited.error, awaited.raw);
+      if (category !== "transient") break;
+      attempt++;
+      await falRecoveryPolicy._adp2SleepFn(falRecoveryPolicy.adp2BackoffMs(attempt));
+      const newEnv = await opts.retryDispatch();
+      currentEnvelope = {
+        request_id: newEnv.request_id,
+        modelId: newEnv.modelId,
+        degraded: newEnv.degraded ?? currentEnvelope.degraded ?? false,
+      };
+      awaited = await awaitFalQueueResult(
+        currentEnvelope.request_id,
+        currentEnvelope.modelId,
+        { timeoutMs }
+      );
+    }
+  }
   // F1/F8 修復:fal 偶爾回 status="completed" 但 output_url / image_url /
   // video_url / audio_url 都拿不到(fal SDK 異常 shape / 模型輸出格式變更)。
   // 原本照搬 awaited.status,使用者在對話看到「✅ 已完成」卻點不到任何
@@ -130,9 +167,9 @@ async function awaitFalForOrb(
   );
   if (awaited.status === "completed" && !hasAnyUrl) {
     return {
-      request_id: envelope.request_id,
-      modelId: envelope.modelId,
-      degraded: envelope.degraded ?? false,
+      request_id: currentEnvelope.request_id,
+      modelId: currentEnvelope.modelId,
+      degraded: currentEnvelope.degraded ?? false,
       status: "failed",
       output_url: undefined,
       image_url: undefined,
@@ -153,7 +190,7 @@ async function awaitFalForOrb(
     void (async () => {
       try {
         const { getFalModelById } = await import("./falModels");
-        const cfg = getFalModelById(envelope.modelId);
+        const cfg = getFalModelById(currentEnvelope.modelId);
         const modality = modalityForFalCategory(cfg?.category);
         if (!modality) return; // 不在 image/video/audio/voice 範圍就跳過(3D / 轉文字 / 訓練)
         const resultUrl =
@@ -163,7 +200,7 @@ async function awaitFalForOrb(
         await doPostGenComplete({
           userId: opts.userId!,
           modality,
-          modelId: envelope.modelId,
+          modelId: currentEnvelope.modelId,
           prompt: opts.prompt,
           resultUrl,
           sourceStudio: "orb",
@@ -174,9 +211,9 @@ async function awaitFalForOrb(
     })();
   }
   return {
-    request_id: envelope.request_id,
-    modelId: envelope.modelId,
-    degraded: envelope.degraded ?? false,
+    request_id: currentEnvelope.request_id,
+    modelId: currentEnvelope.modelId,
+    degraded: currentEnvelope.degraded ?? false,
     status: awaited.status,
     output_url: awaited.output_url,
     image_url: awaited.image_url,
@@ -1084,18 +1121,26 @@ async function dispatchStudioTool(
         // ControlNet field
         if (typeof args.controlnet_conditioning_scale === "number")
           input.controlnet_conditioning_scale = args.controlnet_conditioning_scale;
-        const r = await dispatchFalQueueTask({
+        const imageDispatchParams = {
           modelId,
           category,
           input,
           route: "orb-tool/studio.generateImage",
-          modality: "image",
+          modality: "image" as const,
           userId: opts.userId,
-        });
+        };
+        const r = await dispatchFalQueueTask(imageDispatchParams);
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
           args,
-          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
+          {
+            userId: opts.userId,
+            prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+            retryDispatch: async () => {
+              const nr = await dispatchFalQueueTask(imageDispatchParams);
+              return { request_id: nr.request_id, modelId: nr.modelId, degraded: nr.degraded ?? false };
+            },
+          }
         );
         return {
           name: call.name,
@@ -1261,18 +1306,26 @@ async function dispatchStudioTool(
         if (typeof args.fps === "number") input.fps = args.fps;
         if (typeof args.width === "number") input.width = args.width;
         if (typeof args.height === "number") input.height = args.height;
-        const r = await dispatchFalQueueTask({
+        const videoDispatchParams = {
           modelId,
           category,
           input,
           route: "orb-tool/studio.generateVideo",
-          modality: "video",
+          modality: "video" as const,
           userId: opts.userId,
-        });
+        };
+        const r = await dispatchFalQueueTask(videoDispatchParams);
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
           args,
-          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
+          {
+            userId: opts.userId,
+            prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+            retryDispatch: async () => {
+              const nr = await dispatchFalQueueTask(videoDispatchParams);
+              return { request_id: nr.request_id, modelId: nr.modelId, degraded: nr.degraded ?? false };
+            },
+          }
         );
         return {
           name: call.name,
@@ -1488,18 +1541,26 @@ async function dispatchStudioTool(
           // 未知音樂引擎：保守傳 prompt + duration，由 dispatcher 的 fallback chain 處理。
           if (typeof args.duration === "number") input.duration = args.duration;
         }
-        const r = await dispatchFalQueueTask({
+        const audioDispatchParams = {
           modelId,
-          category: "text-to-audio",
+          category: "text-to-audio" as const,
           input,
           route: "orb-tool/studio.generateAudio",
-          modality: "audio",
+          modality: "audio" as const,
           userId: opts.userId,
-        });
+        };
+        const r = await dispatchFalQueueTask(audioDispatchParams);
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
           args,
-          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
+          {
+            userId: opts.userId,
+            prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+            retryDispatch: async () => {
+              const nr = await dispatchFalQueueTask(audioDispatchParams);
+              return { request_id: nr.request_id, modelId: nr.modelId, degraded: nr.degraded ?? false };
+            },
+          }
         );
         return {
           name: call.name,
@@ -1570,19 +1631,27 @@ async function dispatchStudioTool(
           finalIsElevenLabs && process.env.ELEVENLABS_API_KEY
             ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY }
             : undefined;
-        const r = await dispatchFalQueueTask({
+        const sfxDispatchParams = {
           modelId,
-          category: "text-to-audio",
+          category: "text-to-audio" as const,
           input: sfxInput,
           route: "orb-tool/studio.generateSfx",
-          modality: "audio",
+          modality: "audio" as const,
           userId: opts.userId,
           ...(elevenLabsHeaders ? { extraHeaders: elevenLabsHeaders } : {}),
-        });
+        };
+        const r = await dispatchFalQueueTask(sfxDispatchParams);
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
           args,
-          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
+          {
+            userId: opts.userId,
+            prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+            retryDispatch: async () => {
+              const nr = await dispatchFalQueueTask(sfxDispatchParams);
+              return { request_id: nr.request_id, modelId: nr.modelId, degraded: nr.degraded ?? false };
+            },
+          }
         );
         return {
           name: call.name,
@@ -2204,19 +2273,28 @@ async function dispatchStudioTool(
         }
         const elevenLabsHeaders = finalIsElevenLabs
           ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY! }
-          : undefined;        const r = await dispatchFalQueueTask({
+          : undefined;
+        const voiceDispatchParams = {
           modelId,
-          category: "text-to-speech",
+          category: "text-to-speech" as const,
           input,
           route: "orb-tool/studio.generateVoice",
-          modality: "voice",
+          modality: "voice" as const,
           userId: opts.userId,
           ...(elevenLabsHeaders ? { extraHeaders: elevenLabsHeaders } : {}),
-        });
+        };
+        const r = await dispatchFalQueueTask(voiceDispatchParams);
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
           args,
-          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
+          {
+            userId: opts.userId,
+            prompt: typeof args.prompt === "string" ? args.prompt : undefined,
+            retryDispatch: async () => {
+              const nr = await dispatchFalQueueTask(voiceDispatchParams);
+              return { request_id: nr.request_id, modelId: nr.modelId, degraded: nr.degraded ?? false };
+            },
+          }
         );
         return {
           name: call.name,
