@@ -98,6 +98,26 @@ async function deliverWithRetry(
 }
 
 /**
+ * Deliver a test event directly to a single subscription, bypassing the
+ * fan-out loop. Respects SSRF guard; silently skips blocked URLs.
+ * Fire-and-forget: caller should not await.
+ */
+export async function deliverDirectToSubscription(
+  sub: { id: number; url: string; secret: string },
+  event: string,
+  payload: Record<string, unknown>,
+  fetchFn?: typeof fetch,
+  sleepFn?: (ms: number) => Promise<void>
+): Promise<void> {
+  try {
+    assertSafeExternalUrl(sub.url);
+  } catch {
+    return;
+  }
+  await deliverWithRetry(sub.id, sub.url, sub.secret, event, payload, fetchFn, sleepFn);
+}
+
+/**
  * Dispatch a creator-facing webhook event to all active subscriptions for a user.
  * Fire-and-forget: errors are swallowed and recorded in delivery history.
  * SSRF-blocked URLs are silently skipped.

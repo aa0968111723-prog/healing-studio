@@ -15,7 +15,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { webhookSubscriptions, webhookDeliveryHistory } from "../../drizzle/schema";
 import { assertSafeExternalUrl, SsrfBlockedError } from "../_core/ssrfGuard";
-import { dispatchWebhookEvent } from "../services/webhookDispatcher";
+import { dispatchWebhookEvent, deliverDirectToSubscription } from "../services/webhookDispatcher";
 
 const MAX_WEBHOOKS_PER_USER = 5;
 export const VALID_WEBHOOK_EVENTS = ["video.completed", "video.failed"] as const;
@@ -212,8 +212,7 @@ export const webhookRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Webhook 不存在" });
       }
 
-      // Dispatch a test ping directly to this subscription only
-      void dispatchWebhookEvent(ctx.user.id, "video.completed", {
+      void deliverDirectToSubscription(sub, "video.completed", {
         test: true,
         jobId: 0,
         message: "這是測試 webhook 事件，用於驗證 URL 是否可正常接收通知",
