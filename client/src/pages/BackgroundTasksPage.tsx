@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AgentAction, AgentActionResult, AgentCapability } from "../../../shared/agent-actions";
+import { extractResultUrl } from "@/lib/falResultParser";
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 
@@ -172,22 +173,14 @@ function ResultPreview({ job }: { job: JobRow }) {
 
   const resultUrl = (meta.resultUrl as string) ?? null;
   // Also check nested result data for URLs
-  const resultData = meta.result as Record<string, unknown> | null;
-  const imageUrl =
-    resultUrl ??
-    (resultData?.images as any)?.[0]?.url ??
-    (resultData?.image as any)?.url ??
-    null;
+  const resultData = meta.result as unknown;
+  const imageUrl = resultUrl ?? extractResultUrl("image", resultData);
   const videoUrl =
     (job.jobType === "video" ? resultUrl : null) ??
-    (resultData?.video as any)?.url ??
-    (resultData as any)?.video_url ??
-    null;
+    extractResultUrl("video", resultData);
   const audioUrl =
     (job.jobType === "audio" || job.jobType === "voice" ? resultUrl : null) ??
-    (resultData?.audio as any)?.url ??
-    (resultData as any)?.audio_url ??
-    null;
+    extractResultUrl("audio", resultData);
 
   if (job.jobType === "image" && imageUrl) {
     return (

@@ -87,6 +87,7 @@ import { useLocation, useSearch } from "wouter";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
+import { parsePollStatus } from "@/lib/falResultParser";
 import { PromptVaultAdoption } from "@/components/promptVault";
 import { ENABLE_PROMPT_VAULT } from "@/config/promptVaultFlags";
 
@@ -689,7 +690,8 @@ function AsyncVideoPoller({
   onUpdate: (r: VideoResult) => void;
   label?: string;
 }) {
-  const modelId = (result.raw as any)?.raw_model_id ?? "";
+  const modelId =
+    (result.raw as Record<string, unknown> | undefined)?.raw_model_id as string ?? "";
   const [dismissed, setDismissed] = useState(false);
 
   const { data, isError, error } = trpc.videoStudio.checkVideoStatus.useQuery(
@@ -697,7 +699,7 @@ function AsyncVideoPoller({
     {
       enabled: !!(result.request_id && !result.video_url && modelId),
       refetchInterval: query => {
-        const s = (query.state.data as any)?.status;
+        const s = parsePollStatus(query.state.data)?.status;
         return s === "COMPLETED" || s === "FAILED" ? false : 3000;
       },
       refetchIntervalInBackground: false,
@@ -706,19 +708,20 @@ function AsyncVideoPoller({
   );
 
   useEffect(() => {
-    if ((data as any)?.status === "COMPLETED" && (data as any)?.video_url) {
+    const poll = parsePollStatus(data);
+    if (poll?.status === "COMPLETED" && poll.video_url) {
       setDismissed(false); // 完成時自動顯示結果
       toast.success(`✅ ${label ?? "影片"} 生成完成！`);
       onUpdate({
         ...result,
-        video_url: (data as any).video_url,
-        raw: (data as any).raw,
+        video_url: poll.video_url,
+        raw: poll.raw,
       });
-    } else if ((data as any)?.status === "FAILED") {
+    } else if (poll?.status === "FAILED") {
       toast.error(`❌ ${label ?? "影片"} 生成失敗`);
-      onUpdate({ ...result, raw: { ...(result.raw as any), failed: true } });
+      onUpdate({ ...result, raw: { ...(result.raw as Record<string, unknown>), failed: true } });
     }
-  }, [(data as any)?.status, (data as any)?.video_url, label]);
+  }, [data, label]);
 
   // 已有影片 URL → 直接顯示
   if (result.video_url) {
