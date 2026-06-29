@@ -2271,8 +2271,12 @@ async function dispatchStudioTool(
           const nativeId = nativeElevenLabsModelId(modelId);
           if (nativeId) input.model_id = nativeId;
         }
+        const elevenlabsKey = process.env.ELEVENLABS_API_KEY;
+        if (finalIsElevenLabs && !elevenlabsKey) {
+          throw new Error("ELEVENLABS_API_KEY 未設定，請聯繫管理員");
+        }
         const elevenLabsHeaders = finalIsElevenLabs
-          ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY! }
+          ? { "x-fal-client-credentials": elevenlabsKey as string }
           : undefined;
         const voiceDispatchParams = {
           modelId,

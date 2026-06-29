@@ -25,6 +25,7 @@ import { enqueueAttribution, isCostAttributionEnabled } from "./cost/costAttribu
 import { getSkillEntry } from "./skillRegistryService";
 import { runSandboxedSkill, SandboxViolation } from "./skillSandbox";
 import type { SkillPermissions, SkillInstance, SkillManifest } from "../../shared/skill-manifest";
+import { sleep } from "./_util/sleep";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -447,10 +448,6 @@ function flattenOutput(output: unknown): Record<string, unknown> {
     return output as Record<string, unknown>;
   }
   return {};
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export const skillOrchestrator = new SkillOrchestrator();
