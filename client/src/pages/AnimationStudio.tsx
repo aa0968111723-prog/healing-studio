@@ -5687,6 +5687,26 @@ export default function AnimationStudio() {
     },
     onError: e => toast.error(`編排失敗：${e.message}`),
   });
+  const exportShotListQuery = trpc.worldStoryboard.exportShotList.useQuery(
+    detailStoryboardId ? { id: detailStoryboardId, format: "csv" } : skipToken,
+    { enabled: false }
+  );
+  const handleExportShotList = async () => {
+    const result = await exportShotListQuery.refetch();
+    if (!result.data) {
+      toast.error("匯出鏡頭表失敗");
+      return;
+    }
+    const blob = new Blob([result.data.body], { type: result.data.mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shot-list-${detailStoryboardId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("鏡頭表已匯出（CSV）");
+  };
+
   const deleteStoryboard = trpc.worldStoryboard.delete.useMutation({
     onSuccess: () => {
       toast.success("分鏡草稿已刪除");
@@ -5809,6 +5829,15 @@ export default function AnimationStudio() {
 
             <h1 className="text-lg font-semibold flex-1">{sb.name}</h1>
             <Badge variant="outline">{sb.productionStatus}</Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportShotList}
+              disabled={exportShotListQuery.isFetching}
+            >
+              <Download className="w-3.5 h-3.5 mr-1" />
+              匯出鏡頭表
+            </Button>
             <Button
               size="sm"
               onClick={() =>
