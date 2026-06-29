@@ -510,7 +510,7 @@ export default function AiBrainSettings() {
       setVoiceEnabled(g.voiceEngine.enabled);
       setVoiceEngineParams(g.voiceEngine.params ? JSON.stringify(g.voiceEngine.params, null, 2) : "");
     }
-    const fal = (brainQuery.data as any).falTasks;
+    const fal = brainQuery.data?.falTasks;
     if (fal) {
       setFalTaskEngines(prev => ({
         ...prev,
