@@ -44,6 +44,26 @@ function pruneWindow(values: number[], windowMs: number) {
   while (values.length && values[0] < cutoff) values.shift();
 }
 
+// Evict stale entries so the Maps don't grow unbounded across days / sessions.
+// Runs every 5 minutes; .unref() lets the process exit without waiting for it.
+if (process.env.NODE_ENV !== "test") {
+  setInterval(() => {
+    const today = dayKey();
+    // userDailyCounters key format: `${userId}:${YYYY-MM-DD}:${category}`
+    for (const k of userDailyCounters.keys()) {
+      if (k.split(":")[1] !== today) userDailyCounters.delete(k);
+    }
+    for (const [k, v] of sessionClicks) {
+      pruneWindow(v, 10_000);
+      if (!v.length) sessionClicks.delete(k);
+    }
+    for (const [k, v] of providerRateCounters) {
+      pruneWindow(v, 60_000);
+      if (!v.length) providerRateCounters.delete(k);
+    }
+  }, 5 * 60 * 1000).unref();
+}
+
 export function checkAndConsumeQuota(category: OrbQuotaCategory, ctx: OrbQuotaContext): OrbQuotaResult {
   if (category === "task_retry") {
     if ((ctx.retryCount ?? 0) > 1) {
