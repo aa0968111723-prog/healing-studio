@@ -1,6 +1,6 @@
 # SSE Bus Routing Contract — AIDV-708
 
-> **Status**: Phase 1 complete (inventory + types). Phase 2 (unified router) tracked in AIDV-731.
+> **Status**: Phase 1 complete (inventory + types). Phase 2 (unified router) tracked in AIDV-716.
 
 ## Overview
 
