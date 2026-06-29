@@ -15,6 +15,7 @@
 
 import { z } from "zod";
 import { safeMediaUrl, safeMediaUrlOptional } from "../lib/urlValidator";
+import { logger } from "../_core/logger";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { router, brainProcedure, aiChatProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -2079,7 +2080,7 @@ ${segmentSummaries}
               voiceStability: z.number().optional(),
               /** ElevenLabs / Kling voice_id 或 Qwen speaker embedding URL（聲音克隆復用） */
               cloneVoiceId: z.string().optional(),
-              cloneEmbeddingUrl: z.string().url().optional(),
+              cloneEmbeddingUrl: safeMediaUrlOptional,
             })
             .optional(),
           /** Generation mode for all tasks */
@@ -2480,7 +2481,7 @@ ${segmentSummaries}
               voiceSpeed: z.number().optional(),
               voiceStability: z.number().optional(),
               cloneVoiceId: z.string().optional(),
-              cloneEmbeddingUrl: z.string().url().optional(),
+              cloneEmbeddingUrl: safeMediaUrlOptional,
             })
             .optional(),
           mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
@@ -3288,8 +3289,8 @@ ${segmentSummaries}
           if (chargedPoints !== null) {
             try {
               await dbModule.refundUserPoints(ctx.user.id, chargedPoints);
-            } catch {
-              /* 退款失敗時不阻擋 — 主要訴求是把任務標記為失敗 */
+            } catch (refundErr) {
+              logger.error("refund failed (chargedPoints path)", { userId: ctx.user.id, chargedPoints, error: refundErr });
             }
           } else {
             const { estimatePoints } = await import("../services/modelPricing");
@@ -3302,8 +3303,8 @@ ${segmentSummaries}
             try {
               const refund = estimatePoints(modelId, { durationSec });
               await dbModule.refundUserPoints(ctx.user.id, refund.totalPoints);
-            } catch {
-              /* 退款失敗時不阻擋 */
+            } catch (refundErr) {
+              logger.error("refund failed (recompute path)", { userId: ctx.user.id, durationSec, error: refundErr });
             }
           }
         }

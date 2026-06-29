@@ -694,6 +694,11 @@ function AsyncVideoPoller({
     (result.raw as Record<string, unknown> | undefined)?.raw_model_id as string ?? "";
   const [dismissed, setDismissed] = useState(false);
 
+  const onUpdateRef = useRef(onUpdate);
+  const resultRef = useRef(result);
+  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+  useEffect(() => { resultRef.current = result; }, [result]);
+
   const { data, isError, error } = trpc.videoStudio.checkVideoStatus.useQuery(
     { requestId: result.request_id ?? "", modelId },
     {
@@ -712,14 +717,14 @@ function AsyncVideoPoller({
     if (poll?.status === "COMPLETED" && poll.video_url) {
       setDismissed(false); // 完成時自動顯示結果
       toast.success(`✅ ${label ?? "影片"} 生成完成！`);
-      onUpdate({
-        ...result,
+      onUpdateRef.current({
+        ...resultRef.current,
         video_url: poll.video_url,
         raw: poll.raw,
       });
     } else if (poll?.status === "FAILED") {
       toast.error(`❌ ${label ?? "影片"} 生成失敗`);
-      onUpdate({ ...result, raw: { ...(result.raw as Record<string, unknown>), failed: true } });
+      onUpdateRef.current({ ...resultRef.current, raw: { ...(resultRef.current.raw as Record<string, unknown>), failed: true } });
     }
   }, [data, label]);
 
