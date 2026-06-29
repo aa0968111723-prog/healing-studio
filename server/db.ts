@@ -5027,7 +5027,7 @@ export async function updateVideoProject(
 export async function createProjectSnapshot(
   projectId: number,
   snapshot: Record<string, unknown>,
-  source: "auto" | "manual" | "pre-restore" = "auto"
+  source: "auto" | "manual" | "pre-restore" | `agent:${string}` = "auto"
 ): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

@@ -20,6 +20,7 @@ import {
   isR2Configured,
 } from "../signedUpload";
 import { recordAuditEvent, extractRequestSource } from "../services/audit/auditLog";
+import { checkAgentRateLimit, getAgentQuota } from "../_core/trpcRateLimit";
 
 const aspectRatioSchema = z.enum(["16:9", "9:16", "1:1"]);
 
@@ -51,6 +52,7 @@ export const videoProjectRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      checkAgentRateLimit(ctx.user.id, ctx.req, ctx.res);
       const id = await db.createVideoProject({
         userId: ctx.user.id,
         title: input.title,
@@ -203,6 +205,7 @@ export const videoProjectRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      checkAgentRateLimit(ctx.user.id, ctx.req, ctx.res);
       const source = await db.getVideoProject(input.sourceId);
       if (!source) throw new TRPCError({ code: "NOT_FOUND", message: "來源專案不存在" });
       if (source.userId !== ctx.user.id)
@@ -309,6 +312,7 @@ export const videoProjectRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      checkAgentRateLimit(ctx.user.id, ctx.req, ctx.res);
       const row = await db.getVideoProject(input.id);
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
       if (row.userId !== ctx.user.id)
@@ -413,4 +417,12 @@ export const videoProjectRouter = router({
         format: input.format,
       };
     }),
+
+  /**
+   * AIDV-354: 取得目前使用者的代理呼叫額度狀態。
+   * 前端 /video 頁面可用此資料顯示「本小時代理呼叫：X/Y」進度條。
+   */
+  agentQuota: protectedProcedure.query(({ ctx }) => {
+    return getAgentQuota(ctx.user.id);
+  }),
 });
