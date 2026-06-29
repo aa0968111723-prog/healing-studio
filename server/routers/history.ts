@@ -49,22 +49,24 @@ export const historyRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      const entry = await db.getHistoryEntry(input.id, ctx.user.id);
+      if (!entry) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "找不到歷史紀錄" });
+      }
       await db.updateHistoryEntry(input.id, { userRating: input.rating });
       if (input.rating >= 4) {
-        void db.getHistoryEntry(input.id, ctx.user.id).then(entry => {
-          const snap = entry?.parameterSnapshot as Record<string, unknown> | null;
-          const modelId = snap?.modelId;
-          if (entry && typeof modelId === "string" && modelId.trim()) {
-            void recordModelPick({
-              userId: ctx.user.id,
-              modality: entry.modality,
-              modelId: modelId.trim(),
-              source: "history",
-              accepted: true,
-              context: { fromRating: input.rating },
-            });
-          }
-        }).catch(() => {});
+        const snap = entry.parameterSnapshot as Record<string, unknown> | null;
+        const modelId = snap?.modelId;
+        if (typeof modelId === "string" && modelId.trim()) {
+          void recordModelPick({
+            userId: ctx.user.id,
+            modality: entry.modality,
+            modelId: modelId.trim(),
+            source: "history",
+            accepted: true,
+            context: { fromRating: input.rating },
+          });
+        }
       }
       return { success: true };
     }),
