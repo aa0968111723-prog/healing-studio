@@ -60,6 +60,12 @@ vi.mock("./featureFlags", () => ({
   featureFlags: { getAllStatuses: () => ({ FEATURE_X: true }) },
 }));
 
+// providerHealthProbeJob：/api/provider-health 的資料來源，stub 成可控的兩家供應商。
+const getProviderProbeStatusMock = vi.fn();
+vi.mock("../jobs/providerHealthProbeJob", () => ({
+  getProviderProbeStatus: () => getProviderProbeStatusMock(),
+}));
+
 import { metricsRouter } from "./metricsRoute";
 
 async function startTestServer() {
@@ -74,6 +80,23 @@ async function startTestServer() {
 
 beforeEach(() => {
   authenticateRequestMock.mockReset();
+  getProviderProbeStatusMock.mockReset();
+  getProviderProbeStatusMock.mockReturnValue([
+    {
+      providerId: "gemini",
+      ok: true,
+      consecutiveFailures: 0,
+      latencyMs: 42,
+      lastCheckedAt: 1_700_000_000_000,
+    },
+    {
+      providerId: "claudeCode",
+      ok: false,
+      consecutiveFailures: 3,
+      latencyMs: 999,
+      lastCheckedAt: 1_700_000_000_000,
+    },
+  ]);
 });
 
 afterEach(() => {
@@ -184,6 +207,70 @@ describe("GET /api/health/detail — admin-only DB 內部狀態守門", () => {
     authenticateRequestMock.mockRejectedValue(new Error("DB connection error"));
     const { server, baseUrl } = await startTestServer();
     const res = await fetch(`${baseUrl}/api/health/detail`);
+    expect(res.status).toBe(401);
+    server.close();
+  });
+});
+
+describe("GET /api/provider-health — admin-only AI 供應商健康守門（AIDV-614）", () => {
+  it("未登入 → 401，回應不含 providers（供應商拓撲不外洩）", async () => {
+    authenticateRequestMock.mockResolvedValue(null);
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/provider-health`);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.providers).toBeUndefined();
+    expect(body.summary).toBeUndefined();
+    server.close();
+  });
+
+  it("已登入但 role=user（含 demo DEMO_USER）→ 403，不外洩 providers", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 1, role: "user" });
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/provider-health`);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.providers).toBeUndefined();
+    server.close();
+  });
+
+  it("已登入但 role=leader → 403（leader 不算 admin）", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 2, role: "leader" });
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/provider-health`);
+    expect(res.status).toBe(403);
+    server.close();
+  });
+
+  it("role=admin → 200 + providers 明細與 summary（行為與遷移前一致）", async () => {
+    authenticateRequestMock.mockResolvedValue({ id: 3, role: "admin" });
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/provider-health`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.providers).toHaveLength(2);
+    expect(body.providers[0]).toMatchObject({
+      id: "gemini",
+      ok: true,
+      consecutiveFailures: 0,
+      latencyMs: 42,
+      status: "healthy",
+    });
+    // consecutiveFailures>=2 且 !ok → critical
+    expect(body.providers[1]).toMatchObject({
+      id: "claudeCode",
+      ok: false,
+      status: "critical",
+    });
+    expect(body.providers[0].lastCheckedAt).toBe(new Date(1_700_000_000_000).toISOString());
+    expect(body.summary).toEqual({ healthy: 1, critical: 1, total: 2 });
+    server.close();
+  });
+
+  it("authenticateRequest throw（DB 短暫錯誤）→ fail-closed 401", async () => {
+    authenticateRequestMock.mockRejectedValue(new Error("DB connection error"));
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/provider-health`);
     expect(res.status).toBe(401);
     server.close();
   });

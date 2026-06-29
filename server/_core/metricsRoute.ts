@@ -23,6 +23,7 @@ import { metrics } from "./metrics";
 import { cache } from "./cache";
 import { featureFlags } from "./featureFlags";
 import { checkDrizzleHealth, getDrizzlePoolStats } from "../db";
+import { getProviderProbeStatus } from "../jobs/providerHealthProbeJob";
 
 export const metricsRouter = Router();
 
@@ -112,4 +113,37 @@ metricsRouter.get("/api/health/detail", async (req: Request, res: Response) => {
   }
 
   res.json({ ok: true, ts: Date.now(), database: dbHealth });
+});
+
+/**
+ * /api/provider-health — admin-only AI 供應商健康狀態（AIDV-614 資安巡檢鎖門）。
+ *
+ * 原本此端點為 _core/index.ts 的 inline 路由且零 auth → 匿名即可取得平台 AI 供應商清單
+ * （拓撲）、即時 healthy/degraded/critical 狀態、連續失敗計數與延遲，屬基礎設施/維運資訊
+ * 洩漏，且與孿生的 /api/metrics、/api/health/detail（皆 requireAdmin）門檻不一致
+ *（AIDV-518 上線時漏掛同一道門）。搬進此 router 並沿用同源 fail-closed admin 守門：
+ *  - authenticateRequest throw（DB 短暫錯誤）→ 視為未登入 → 401。
+ *  - 未登入 → 401；已登入但非 admin（含 demo DEMO_USER role="user"、leader）→ 403。
+ * 回應內容（providers 明細 + summary）維持與遷移前一致，僅前置加上 admin 門。
+ */
+metricsRouter.get("/api/provider-health", async (req: Request, res: Response) => {
+  if (!(await requireAdmin(req, res))) return;
+
+  const results = getProviderProbeStatus();
+  res.json({
+    providers: results.map(r => ({
+      id: r.providerId,
+      ok: r.ok,
+      consecutiveFailures: r.consecutiveFailures,
+      latencyMs: r.latencyMs,
+      lastCheckedAt: r.lastCheckedAt ? new Date(r.lastCheckedAt).toISOString() : null,
+      status: r.ok ? "healthy" : r.consecutiveFailures >= 2 ? "critical" : "degraded",
+    })),
+    summary: {
+      healthy: results.filter(r => r.ok).length,
+      critical: results.filter(r => !r.ok && r.consecutiveFailures >= 2).length,
+      total: results.length,
+    },
+    checkedAt: new Date().toISOString(),
+  });
 });
