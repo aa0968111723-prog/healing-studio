@@ -136,7 +136,7 @@ ErrorBoundary
 
 | 檔案 | 行數 | 狀況 |
 |---|---|---|
-| `client/src/pages/admin/AgentEvalPage.tsx` | 34 | 未在 App.tsx 路由、未被任何處 import；直接 `fetch("/api/trpc/...")`，不用 trpc client。建議於後續 PR 刪除或接上路由 |
+| ~~`client/src/pages/admin/AgentEvalPage.tsx`~~ | — | 已刪除（AIDV-585）：孤兒頁、零 import、手寫 `fetch("/api/trpc/...")` 缺 `x-trpc-source` 標頭會被 CSRF 守門擋 403。 |
 
 ---
 
