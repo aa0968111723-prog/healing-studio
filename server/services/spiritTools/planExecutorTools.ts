@@ -371,8 +371,12 @@ export async function planFromGoal(input: PlanFromGoalInput): Promise<{
       messages: [{ role: "user", content: input.goal }],
       context: input.context,
       // 步步：規劃 + 跨頁執行需要強推理保證每步參數正確（見 SPIRIT_PREFERRED_PROVIDER）。
-      // 開 critique 讓 plan-critic 自動跑一輪修補：score < 75 或有 blocker 就 refine。
+      // 開 critique 讓 plan-critic 自動修補：score < 75 或有 blocker 就 refine。
+      // 這是 agent-task 路徑（非聊天），多花一次 LLM call 換每步參數正確很划算，
+      // 故 opt-in 有界迭代 2 輪；best-of + no-improvement 早停護欄會在計畫不再
+      // 進步時自動收手，不會白燒第二次。聊天路徑 (routers/ai.ts) 維持預設 1 輪。
       enableCritique: true,
+      maxRefineRounds: 2,
     };
     const result = await runSchemaFirstAgentPlannerWithCritique(plannerInput);
     if (
