@@ -35,7 +35,7 @@
  */
 
 import { z } from "zod";
-import { brainProcedure, publicProcedure, router } from "../_core/trpc";
+import { audioGenerationProcedure, brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { signWebhookToken, signFalWebhookNonce } from "../_core/webhookTokens";
 import { FAL_QUEUE_BASE, FAL_RUN_BASE } from "../_core/providerFacade";
@@ -507,7 +507,7 @@ export const proStudioRouter = router({
    *
    * 當主模型失敗時前端可切換至其他備選模型重試。
    */
-  textToMusic: brainProcedure
+  textToMusic: audioGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000).optional(),
@@ -678,7 +678,7 @@ export const proStudioRouter = router({
    * ⚠️ 原先使用 ElevenLabs Sound Effects 會產生「配音說話」而非音效，
    *    已改為 Stable Audio 作為預設模型。
    */
-  soundEffects: brainProcedure
+  soundEffects: audioGenerationProcedure
     .input(
       z.object({
         text: z.string().min(1).max(500),
@@ -776,7 +776,7 @@ export const proStudioRouter = router({
    *  - multilingual-v2 — 29 語言、品質穩定（pricing: multilingual-v2）
    *  - eleven-v3 — 最強情緒表達、最高品質（pricing: eleven-v3）
    */
-  elevenLabsTTS: brainProcedure
+  elevenLabsTTS: audioGenerationProcedure
     .input(
       z.object({
         text: z.string().min(1).max(5000),
@@ -943,7 +943,7 @@ export const proStudioRouter = router({
    * 要合成語音需取得 speaker_embedding.url，再呼叫 qwenTTS
    * 並傳入 speaker_voice_embedding_file_url。
    */
-  qwenCloneVoice: brainProcedure
+  qwenCloneVoice: audioGenerationProcedure
     .input(
       z.object({
         audio_url: z.string().url(), // 參考音訊 URL（3-30秒）
@@ -970,7 +970,7 @@ export const proStudioRouter = router({
    * 步驟：clone → 取得 embedding → TTS
    * ⚠️ 使用非同步 queue 避免超時
    */
-  qwenCloneAndSpeak: brainProcedure
+  qwenCloneAndSpeak: audioGenerationProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -1086,7 +1086,7 @@ export const proStudioRouter = router({
    * 只接受 { text }，用 [S1]/[S2] 標籤標注不同說話者。
    * 例如："[S1] 你好 [S2] 我很好"
    */
-  diaTTSVoiceClone: brainProcedure
+  diaTTSVoiceClone: audioGenerationProcedure
     .input(
       z.object({
         text: z.string().min(1).max(5000),
@@ -1120,7 +1120,7 @@ export const proStudioRouter = router({
    *  - Qwen 回 .safetensors embedding（only Qwen TTS 可用）
    *  - ElevenLabs 回 voice_id（可走 ElevenLabs 全家族 TTS / dubbing / voice-changer）
    */
-  elevenLabsVoiceClone: brainProcedure
+  elevenLabsVoiceClone: audioGenerationProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -1791,7 +1791,7 @@ export const proStudioRouter = router({
    * 流程：AudioBlock[] → AudioCompiler.compile() → textToMusic (ace-step / sonauto)
    * 解決：proStudio.textToMusic 只接受純文字，繞過了 28KB 的 audioCompiler 邏輯。
    */
-  compiledTextToMusic: brainProcedure
+  compiledTextToMusic: audioGenerationProcedure
     .input(
       z.object({
         blocks: z.array(
@@ -1973,7 +1973,7 @@ export const proStudioRouter = router({
    *
    * 完成後使用 checkMusicSunoStatus 輪詢結果。
    */
-  generateMusicSuno: brainProcedure
+  generateMusicSuno: audioGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
