@@ -294,7 +294,8 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     }
   }), [gateway, patchProject, runExclusive]);
 
-  const changeCharacterSetting = useCallback(async (charId: string) => {
+  // AIDV-619: runExclusive prevents duplicate saves when button is tapped rapidly
+  const changeCharacterSetting = useCallback((charId: string) => runExclusive(`changeCharacterSetting:${charId}`, async () => {
     const p = projRef.current; if (!p) return;
     const affected = p.shots.filter((sh) => sh.characterIds.includes(charId) && sh.gen.status === "done").length;
     patchProject((pp) => ({
@@ -306,7 +307,7 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     // AIDV-162：worldbuilding.update 以連結的世界觀 id 為回寫鍵（未連結則 gateway 跳過）。
     try { await gateway.saveCharacterEdit({ projectId: p.id, characterId: charId, worldFrameworkId: p.worldFrameworkId }); }
     catch (e) { console.error("[spine] changeCharacterSetting 回寫失敗（級聯由後端落實；本地已標 stale）", e); }
-  }, [gateway, patchProject]);
+  }), [gateway, patchProject, runExclusive]);
 
   const toggleLock = useCallback(async (charId: string, key: keyof Character["locks"]) => {
     const p = projRef.current; if (!p) return;
@@ -342,7 +343,8 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     }
   }), [gateway, patchShot, runExclusive]);
 
-  const toggleSceneLock = useCallback(async (sceneId: string) => {
+  // AIDV-619: runExclusive prevents duplicate saves when button is tapped rapidly
+  const toggleSceneLock = useCallback((sceneId: string) => runExclusive(`toggleSceneLock:${sceneId}`, async () => {
     const p = projRef.current; if (!p) return;
     let lockedNow = false;
     patchProject((pp) => ({
@@ -357,7 +359,7 @@ export function ProjectSpineProvider({ children }: { children: ReactNode }) {
     // AIDV-162：以連結的世界觀 id 為回寫鍵（未連結則 gateway 跳過）。
     try { await gateway.saveCharacterEdit({ projectId: p.id, characterId: sceneId, worldFrameworkId: p.worldFrameworkId }); }
     catch (e) { console.error("[spine] toggleSceneLock 回寫失敗（本地已更新）", e); }
-  }, [gateway, patchProject]);
+  }), [gateway, patchProject, runExclusive]);
 
   // AIDV-239：分鏡拖曳重排序——樂觀本地更新 + best-effort 持久化至 creativeProject.metadata.shotOrder。
   const reorderShots = useCallback((orderedIds: string[]) => runExclusive("reorderShots", async () => {
