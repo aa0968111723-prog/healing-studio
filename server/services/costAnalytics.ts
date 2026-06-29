@@ -30,6 +30,7 @@ import {
   MODEL_PRICING_CATALOG,
   type ModelCategory,
 } from "./modelPricing";
+import { toCsvRow } from "../../shared/csv-safe";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -1055,13 +1056,8 @@ export interface DeepCostReportInput {
   projection: MonthlyProjection;
 }
 
-const csvEscape = (v: unknown): string => {
-  const s = v == null ? "" : String(v);
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-};
-
-const csvLine = (cells: unknown[]): string => cells.map(csvEscape).join(",");
+// CSV 行組裝統一走 @shared/csv-safe（公式注入中和 + RFC-4180）— AIDV-562
+const csvLine = (cells: unknown[]): string => toCsvRow(cells);
 
 export function buildDeepCostCsvReport(input: DeepCostReportInput): string {
   const lines: string[] = [];

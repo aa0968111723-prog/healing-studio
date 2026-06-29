@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { toCsvRow } from "@shared/csv-safe";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 import { Badge } from "@/components/ui/badge";
@@ -464,9 +465,19 @@ function BillingTab() {
   const handleCsvExport = () => {
     if (!query.data?.rows?.length) return;
     const header = "Provider,Endpoint,Date,Calls,Units,Cost (USD)";
-    const lines = query.data.rows.map(
-      r =>
-        `${r.provider},"${r.endpoint}",${typeof r.date === "string" ? r.date : new Date(r.date).toISOString().slice(0, 10)},${r.callCount},${r.totalUnits},${r.totalCostUsd.toFixed(6)}`
+    // 每格走 @shared/csv-safe：中和公式注入 + RFC-4180 引號跳脫（順修 provider 欄
+    // 原本未引號、含逗號即錯欄的結構破壞 bug）— AIDV-562
+    const lines = query.data.rows.map(r =>
+      toCsvRow([
+        r.provider,
+        r.endpoint,
+        typeof r.date === "string"
+          ? r.date
+          : new Date(r.date).toISOString().slice(0, 10),
+        r.callCount,
+        r.totalUnits,
+        r.totalCostUsd.toFixed(6),
+      ])
     );
     const csv = [header, ...lines].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
