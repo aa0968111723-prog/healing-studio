@@ -137,7 +137,11 @@ describe("videoProject.restoreSnapshot", () => {
     const result = await caller.restoreSnapshot({ projectId: 10, snapshotId: 5 });
 
     expect(result.ok).toBe(true);
-    expect(mockCreateProjectSnapshot).toHaveBeenCalledWith(10, {}, "pre-restore");
+    expect(mockCreateProjectSnapshot).toHaveBeenCalledWith(
+      10,
+      expect.objectContaining({ title: "測試影片", aspectRatio: "16:9" }),
+      "pre-restore"
+    );
     expect(mockUpdateVideoProject).toHaveBeenCalledWith(10, { title: "old" });
   });
 
