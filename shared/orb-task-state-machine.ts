@@ -156,4 +156,8 @@ export interface OrbAgentTask {
   iterationIndex?: number;
   /** Trace id of predecessor task when this task is a continuation/replan. */
   parentTraceId?: string;
+  /** Scheduling priority declared by the submitting agent (AIDV-324).
+   *  urgent → inserted ahead of normal tasks; background → deferred.
+   *  Defaults to "normal" when not supplied. */
+  priority?: "urgent" | "normal" | "background";
 }

@@ -5,6 +5,7 @@ import type {
   OrbTaskAuditEvent,
   InterAgentMessage,
 } from "../../shared/orb-task-state-machine";
+import { enqueuePriorityJob } from "./priorityQueue";
 import {
   computeRetryBackoffMs,
   DEFAULT_STEP_TIMEOUT_MS,
@@ -68,7 +69,9 @@ export function createOrbAgentTaskFromPlanner(
    * brain-router callers MUST pass it so chain memory + per-user
    * observer queries stay scoped.
    */
-  userId?: number
+  userId?: number,
+  /** Scheduling priority declared by the submitting agent (AIDV-324). */
+  priority: "urgent" | "normal" | "background" = "normal"
 ): OrbAgentTask | null {
   if (result.status !== "tasked" || !result.task) return null;
   const plan = result.plan && typeof result.plan === "object" ? (result.plan as Record<string, unknown>) : null;
@@ -132,6 +135,7 @@ export function createOrbAgentTaskFromPlanner(
     riskLevel: result.riskEvaluation?.riskLevel,
     capabilities,
     isolation: claudeCodeTask ? "code" : result.task.isolation,
+    priority,
   };
   pushEvent(task, "task.created", "Task created from planner");
   if (task.status === "awaiting_approval") {
@@ -165,6 +169,8 @@ export function createOrbAgentTaskFromPlanner(
     });
   }
   taskStore.set(task.taskId, task);
+  // Fire-and-forget: fail-open when Redis is unavailable (no-op)
+  void enqueuePriorityJob(task.taskId, priority);
   return task;
 }
 
