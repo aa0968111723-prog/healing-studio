@@ -23,12 +23,21 @@ import {
   ChevronDown,
   ExternalLink,
   Clock,
+  RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCallback } from "react";
+import { useLocation } from "wouter";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const STUDIO_ROUTE: Record<StudioJobType, string> = {
+  image: "/image-studio",
+  video: "/video-studio",
+  audio: "/pro-studio",
+  voice: "/pro-studio",
+};
 
 const STUDIO_ICON: Record<StudioJobType, React.ReactNode> = {
   image: <Image className="w-4 h-4" />,
@@ -90,12 +99,17 @@ function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: stri
   const videoPreviewUrl = previewUrl || resultUrl;
   const isCompletedVideo =
     task.status === "completed" && task.studioType === "video";
+  const [, navigate] = useLocation();
 
   const handleOpenResult = useCallback(() => {
     if (resultUrl) {
       window.open(resultUrl, "_blank", "noopener,noreferrer");
     }
   }, [resultUrl]);
+
+  const handleRetry = useCallback(() => {
+    navigate(STUDIO_ROUTE[task.studioType] ?? "/studio");
+  }, [navigate, task.studioType]);
 
   return (
     <div className="rounded-lg hover:bg-accent/50 transition-colors">
@@ -124,6 +138,15 @@ function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: stri
               </span>
             )}
           </div>
+          {/* F010: show failure reason so users know what went wrong */}
+          {task.status === "failed" && task.errorMessage && (
+            <p
+              className="text-[10px] text-destructive mt-0.5 truncate"
+              title={task.errorMessage}
+            >
+              {task.errorMessage}
+            </p>
+          )}
         </div>
 
         {/* Result link (non-video or as additional open button) */}
@@ -139,13 +162,30 @@ function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: stri
           </Button>
         )}
 
-        {/* Progress bar for processing */}
+        {/* F010: retry button for failed tasks — navigates to the relevant studio */}
+        {task.status === "failed" && (
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="前往工作室重新生成"
+            className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={handleRetry}
+          >
+            <RotateCcw className="w-3.5 h-3.5" aria-hidden />
+          </Button>
+        )}
+
+        {/* F011: real progress when available, indeterminate pulse when 0 */}
         {task.status === "processing" && (
           <div className="w-8 h-1 rounded-full bg-muted overflow-hidden flex-shrink-0">
-            <div
-              className="h-full bg-primary rounded-full animate-pulse"
-              style={{ width: "60%" }}
-            />
+            {task.progress > 0 ? (
+              <div
+                className="h-full bg-primary rounded-full transition-all duration-500"
+                style={{ width: `${task.progress}%` }}
+              />
+            ) : (
+              <div className="h-full w-full bg-primary/50 rounded-full animate-pulse" />
+            )}
           </div>
         )}
       </div>
