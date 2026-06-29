@@ -170,11 +170,18 @@ export async function awaitFalQueueResult(
 
   while (nowFn() < deadline) {
     let statusPayload: { status?: string; error?: string } | null = null;
+    let extraSleepMs = 0;
     try {
       const res = await fetchFn(statusUrl, { headers });
       if (!res.ok) {
-        // 404 right after submit happens in practice; ride through it.
-        if (res.status !== 404) {
+        if (res.status === 404) {
+          // 404 right after submit happens in practice; ride through it.
+        } else if (res.status === 429 || res.status >= 500) {
+          // ADP-2: 暫態 HTTP 錯誤（限速 / 伺服器過載）— 繼續輪詢，
+          // 但下次 sleep 加倍以避免打爆限速。
+          extraSleepMs = Math.min(interval * 2, maxInterval);
+        } else {
+          // 永久客戶端錯誤（400/403 等）→ 立即回傳 failed。
           return {
             status: "failed",
             request_id,
@@ -229,7 +236,7 @@ export async function awaitFalQueueResult(
       }
     }
 
-    await sleepFn(interval);
+    await sleepFn(interval + extraSleepMs);
     interval = Math.min(interval * 2, maxInterval);
   }
 
