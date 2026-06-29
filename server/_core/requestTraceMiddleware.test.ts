@@ -8,7 +8,7 @@
  *   4. getRequestId() 在 middleware 執行期間可取得值
  */
 import { describe, it, expect, vi } from "vitest";
-import { requestTraceMiddleware, getRequestId } from "./logger";
+import { requestTraceMiddleware, getRequestId, redactUrl } from "./logger";
 import type { Request, Response } from "express";
 
 function makeReq(headers: Record<string, string> = {}): Request {
@@ -81,5 +81,81 @@ describe("requestTraceMiddleware (AIDV-289)", () => {
     requestTraceMiddleware(req, res, () => {});
     expect(headers["x-request-id"]).toBe("req-111");
     expect(headers["x-trace-id"]).toBe("trace-222");
+  });
+});
+
+// ─── AIDV-673: redactUrl ──────────────────────────────────────────────────────
+
+describe("redactUrl (AIDV-673)", () => {
+  it("token param → value replaced with ***", () => {
+    const redacted = redactUrl("/api/webhook/fal?token=abc123secret");
+    expect(redacted).not.toContain("abc123secret");
+    expect(redacted).toContain("token=***");
+  });
+
+  it("key param → value replaced with ***", () => {
+    const redacted = redactUrl("/api/foo?key=sk-live-abcdef");
+    expect(redacted).not.toContain("sk-live-abcdef");
+    expect(redacted).toContain("key=***");
+  });
+
+  it("secret param → redacted", () => {
+    expect(redactUrl("/x?secret=mysecret")).toContain("secret=***");
+    expect(redactUrl("/x?secret=mysecret")).not.toContain("mysecret");
+  });
+
+  it("password param → redacted", () => {
+    expect(redactUrl("/x?password=hunter2")).toContain("password=***");
+    expect(redactUrl("/x?password=hunter2")).not.toContain("hunter2");
+  });
+
+  it("non-sensitive params preserved as-is", () => {
+    const redacted = redactUrl("/api/webhook/fal?modelId=flux&token=abc");
+    expect(redacted).toContain("modelId=flux");
+    expect(redacted).toContain("token=***");
+    expect(redacted).not.toContain("abc");
+  });
+
+  it("URL without query string returned unchanged", () => {
+    expect(redactUrl("/api/health")).toBe("/api/health");
+  });
+
+  it("multiple sensitive params all redacted", () => {
+    const redacted = redactUrl("/x?token=t1&key=k1&other=ok");
+    expect(redacted).toContain("token=***");
+    expect(redacted).toContain("key=***");
+    expect(redacted).toContain("other=ok");
+    expect(redacted).not.toContain("t1");
+    expect(redacted).not.toContain("k1");
+  });
+});
+
+// ─── AIDV-673: middleware logs redacted path ──────────────────────────────────
+
+describe("requestTraceMiddleware — AIDV-673 token redaction", () => {
+  it("webhook URL with ?token=<secret> not written to logger output", () => {
+    const lines: string[] = [];
+    const origWrite = process.stdout.write.bind(process.stdout);
+    vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      lines.push(String(chunk));
+      return true;
+    });
+
+    const req = {
+      header: (_: string) => undefined,
+      method: "POST",
+      originalUrl: "/api/webhook/fal?token=supersecrettoken",
+      ip: "1.2.3.4",
+      get: (_: string) => undefined,
+    } as unknown as import("express").Request;
+    const { res } = makeRes();
+
+    requestTraceMiddleware(req, res, () => {});
+
+    vi.restoreAllMocks();
+
+    const logged = lines.join("");
+    expect(logged).not.toContain("supersecrettoken");
+    expect(logged).toContain("token=***");
   });
 });

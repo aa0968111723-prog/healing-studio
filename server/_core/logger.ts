@@ -59,6 +59,46 @@ type Serializable = unknown;
 
 const contextStorage = new AsyncLocalStorage<RequestContext>();
 
+// ─── AIDV-673: URL redaction ─────────────────────────────────────────────────
+
+const SENSITIVE_QUERY_PARAMS = new Set([
+  "token", "key", "secret", "sig", "signature", "access_token", "password",
+  "apikey", "api_key", "auth", "authorization",
+]);
+
+// Redact sensitive query parameter values before logging URLs.
+// Preserves param names (for debugging) but hides values to prevent
+// webhook token / password-reset token / API key leakage in logs.
+export function redactUrl(url: string): string {
+  const qIdx = url.indexOf("?");
+  if (qIdx === -1) return url;
+  const path = url.slice(0, qIdx);
+  const qs = url.slice(qIdx + 1);
+  const redacted = qs
+    .split("&")
+    .map(pair => {
+      const eqIdx = pair.indexOf("=");
+      if (eqIdx === -1) return pair;
+      const name = pair.slice(0, eqIdx).toLowerCase();
+      return SENSITIVE_QUERY_PARAMS.has(name)
+        ? `${pair.slice(0, eqIdx)}=***`
+        : pair;
+    })
+    .join("&");
+  return `${path}?${redacted}`;
+}
+
+// ─── AIDV-673: metadata key redaction ────────────────────────────────────────
+
+const SENSITIVE_META_KEYS = new Set([
+  "token", "key", "secret", "password", "apikey", "api_key",
+  "accesstoken", "access_token", "authorization", "sig", "signature",
+]);
+
+function isSensitiveKey(key: string): boolean {
+  return SENSITIVE_META_KEYS.has(key.toLowerCase());
+}
+
 function serializeError(error: Error): Record<string, Serializable> {
   const source = error as Error & {
     code?: string;
@@ -96,7 +136,7 @@ function safeSerialize(value: unknown): Serializable {
   if (typeof value === "object") {
     const mapped: Record<string, Serializable> = {};
     for (const [key, innerValue] of Object.entries(value as object)) {
-      mapped[key] = safeSerialize(innerValue);
+      mapped[key] = isSensitiveKey(key) ? "***" : safeSerialize(innerValue);
     }
     return mapped;
   }
@@ -175,7 +215,7 @@ export function requestTraceMiddleware(
     res.setHeader("x-request-id", requestId);
     logger.info("HTTP request received", {
       method: req.method,
-      path: req.originalUrl,
+      path: redactUrl(req.originalUrl),
       ip: req.ip,
       userAgent: req.get("user-agent") ?? "",
     });
@@ -183,7 +223,7 @@ export function requestTraceMiddleware(
     res.on("finish", () => {
       logger.info("HTTP request completed", {
         method: req.method,
-        path: req.originalUrl,
+        path: redactUrl(req.originalUrl),
         statusCode: res.statusCode,
       });
     });
