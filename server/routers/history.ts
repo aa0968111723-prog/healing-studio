@@ -34,7 +34,11 @@ export const historyRouter = router({
         isBookmarked: z.boolean(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const entry = await db.getHistoryEntry(input.id, ctx.user.id);
+      if (!entry) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "找不到歷史紀錄" });
+      }
       await db.updateHistoryEntry(input.id, {
         isBookmarked: input.isBookmarked,
       });
@@ -73,7 +77,11 @@ export const historyRouter = router({
 
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const entry = await db.getHistoryEntry(input.id, ctx.user.id);
+      if (!entry) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "找不到歷史紀錄" });
+      }
       await db.deleteHistoryEntry(input.id);
       return { success: true };
     }),
