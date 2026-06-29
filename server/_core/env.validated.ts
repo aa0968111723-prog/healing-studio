@@ -332,6 +332,8 @@ const coreSchema = z.object({
   REDIS_KEY_PREFIX: z.string().optional().default("healing-studio:"),
   // AIDV-343：Supabase Auth 健康探測用。留空則跳過 supabase_auth 探測。
   SUPABASE_URL: z.string().optional().default(""),
+  // AIDV-318：handoff-trace API 用。留空則 /api/video/project/:id/handoff-trace 回 503。
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default(""),
 
   // ── 生成防重複提交鎖（AIDV-20）────────────────────────────
   // ENABLE_GENERATION_LOCK：預設 ON（"" / 任何非 "false"/"0" 皆視為開啟）。
