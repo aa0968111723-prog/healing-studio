@@ -30,6 +30,38 @@ import { orbUserAnswerPatterns } from "../../drizzle/schema";
 const SEARCH_KIND_SCHEMA = z.enum(["asset", "note", "history", "tutorial"]);
 const PREFERENCE_KEY_SCHEMA = z.enum(["styles", "platforms", "outputs", "models"]);
 
+export interface LearnedCommonAnswer {
+  answer: string;
+  frequency: number;
+  lastUsed: string;
+}
+
+/**
+ * Defensively decode a single `commonAnswers` cell from `orbUserAnswerPatterns`.
+ *
+ * The only current writer (orbClarificationEngine) JSON.stringifies on insert, so
+ * mysql2 reads it back as a string and the round-trip is self-consistent. But any
+ * other write path (typed insert / migration / manual seed) could store the array
+ * raw, in which case mysql2 hands back an object and a naked `JSON.parse(object)`
+ * throws SyntaxError — failing the whole panel query with a 500 instead of skipping
+ * the one bad row. This helper makes the read robust:
+ *   - already an array → use as-is
+ *   - a string → parse (and tolerate parse failure)
+ *   - anything else / parse error → empty array (skip the row's payload)
+ */
+export function decodeCommonAnswers(raw: unknown): LearnedCommonAnswer[] {
+  if (Array.isArray(raw)) return raw as LearnedCommonAnswer[];
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as LearnedCommonAnswer[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export const orbProxyRouter = router({
   /**
    * Surface what the orb currently remembers about the user — the
@@ -142,11 +174,7 @@ export const orbProxyRouter = router({
       patterns: rows.map(row => ({
         id: String(row.id),
         questionType: row.questionType,
-        commonAnswers: JSON.parse(row.commonAnswers as any) as Array<{
-          answer: string;
-          frequency: number;
-          lastUsed: string;
-        }>,
+        commonAnswers: decodeCommonAnswers(row.commonAnswers),
         defaultPreference: row.defaultPreference ?? null,
         confidenceScore: parseFloat(row.confidenceScore),
         sampleCount: row.sampleCount,
