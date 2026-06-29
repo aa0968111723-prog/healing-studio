@@ -8,7 +8,7 @@
  */
 
 import { logger } from "../_core/logger";
-import { getDb } from "../db";
+import { getDb, escapeLikePattern } from "../db";
 import {
   orbLongTermMemories,
   orbMemoryAssociations,
@@ -211,7 +211,7 @@ export class OrbLongTermMemory {
           .where(
             and(
               ...conditions,
-              sql`${orbLongTermMemories.content} LIKE ${`%${input.query}%`}`
+              sql`${orbLongTermMemories.content} LIKE ${`%${escapeLikePattern(input.query)}%`}`
             )
           )
           .orderBy(desc(orbLongTermMemories.importanceScore))
