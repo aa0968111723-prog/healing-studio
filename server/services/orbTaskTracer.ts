@@ -71,6 +71,8 @@ export interface ExecutionTrace {
   userFeedback?: "positive" | "negative" | "neutral";
 }
 
+import { genId } from "../../shared/genId";
+
 class OrbTaskTracer {
   private traces = new Map<string, ExecutionTrace>();
   private readonly MAX_TRACES = 1000; // In-memory cap
@@ -79,7 +81,7 @@ class OrbTaskTracer {
    * Generate a unique trace ID for a new task execution
    */
   generateTraceId(): string {
-    return `trace_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    return genId("trace", 8);
   }
 
   /**
@@ -129,7 +131,7 @@ class OrbTaskTracer {
     const fullSpan: TraceSpan = {
       ...span,
       traceId,
-      spanId: span.spanId || `span_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      spanId: span.spanId || genId("span", 6),
       startedAt: span.startedAt || Date.now(),
     };
 

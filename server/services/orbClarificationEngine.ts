@@ -20,6 +20,7 @@ import {
   type InsertOrbUserAnswerPattern,
 } from "../../drizzle/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { genId } from "../../shared/genId";
 
 export type QuestionType =
   | "choice"
@@ -419,7 +420,7 @@ Return exactly:
       }
 
       const question: ClarificationQuestion = {
-        id: `clarif_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+        id: genId("clarif", 8),
         intentLogId: intentLog.id,
         userId: intentLog.userId,
         conversationId: intentLog.conversationId,

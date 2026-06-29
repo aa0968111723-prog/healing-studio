@@ -7,6 +7,7 @@ import { executeCurrentStepTools } from "../services/orbTaskOrchestrator";
 import { loadAgentPreferencesForUser } from "../services/agentPreferenceService";
 import { getOrbToolRegistry } from "../config/orbToolRegistry";
 import type { OrbTask } from "../../shared/orb-agent-contract";
+import { genId } from "../../shared/genId";
 
 const bodySchema = z.object({
   webhookSecret: z.string(),
@@ -46,7 +47,7 @@ webhooksRouter.post("/orb", limiter, async (req, res) => {
     return;
   }
 
-  const taskId = `orb_webhook_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const taskId = genId("orb_webhook");
   res.status(202).json({ taskId });
 
   void (async () => {
