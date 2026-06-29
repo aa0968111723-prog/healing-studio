@@ -7,18 +7,27 @@
 //   admin.apiKeysStatus() → 平台金鑰是否設定（只報 isSet，不暴露 secret）✅
 // RBAC：本分頁僅 admin（rbac.ADMIN_TAB_MIN_ROLE.audit = admin）。
 // ============================================================================
-import { ScrollText, KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
+import { useState } from "react";
+import { ScrollText, KeyRound, ShieldCheck, ShieldOff, ChevronLeft, ChevronRight } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PanelError } from "@/shells/_shared/PanelState";
 
+const AUDIT_PAGE_SIZE = 20;
+
 export function AuditTab() {
+  const [logPage, setLogPage] = useState(0);
   const logsQ = trpc.admin.usageLogs.useQuery({ limit: 100 }, { retry: false });
   const keysQ = trpc.admin.apiKeysStatus.useQuery(undefined, { retry: false });
 
-  const logs: any[] = (logsQ.data as any[]) ?? (logsQ.data as any)?.items ?? [];
+  const allLogs: any[] = (logsQ.data as any[]) ?? (logsQ.data as any)?.items ?? [];
+  // AIDV-618: slice to page window instead of rendering all 100 rows at once
+  const totalPages = Math.max(1, Math.ceil(allLogs.length / AUDIT_PAGE_SIZE));
+  const safePage = Math.min(logPage, totalPages - 1);
+  const logs = allLogs.slice(safePage * AUDIT_PAGE_SIZE, (safePage + 1) * AUDIT_PAGE_SIZE);
   const keys: any[] = (keysQ.data as any[]) ?? [];
 
   return (
@@ -50,30 +59,43 @@ export function AuditTab() {
       <Card className="p-5 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold"><ScrollText className="h-4 w-4" />稽核 / 活動日誌</div>
-          <Badge variant="outline">{logsQ.isLoading ? "…" : `${logs.length} 筆`}</Badge>
+          <Badge variant="outline">{logsQ.isLoading ? "…" : `${allLogs.length} 筆`}</Badge>
         </div>
         {logsQ.isError ? (
           <PanelError compact message="讀取稽核日誌失敗（需管理員權限）。" onRetry={() => logsQ.refetch()} />
         ) : logsQ.isLoading ? (
           <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8 rounded" />)}</div>
-        ) : logs.length === 0 ? (
+        ) : allLogs.length === 0 ? (
           <div className="py-6 text-center text-xs text-muted-foreground">無日誌（或需管理員權限）。</div>
         ) : (
-          <div className="max-h-80 overflow-auto divide-y">
-            {logs.map((a, i) => {
-              const ts = a.createdAt ?? a.ts ?? a.date;
-              const actor = a.userId ?? a.actor ?? a.userEmail ?? "—";
-              const action = a.requestType ?? a.action ?? a.kind ?? a.type ?? "事件";
-              const detail = a.model ?? a.detail ?? a.apiProvider ?? "";
-              return (
-                <div key={a.id ?? i} className="flex items-center gap-2 py-1.5 text-xs">
-                  <span className="text-[10px] text-muted-foreground w-20 shrink-0">{ts ? new Date(ts).toLocaleDateString("zh-TW") : "—"}</span>
-                  <span className="text-[10px] text-muted-foreground w-16 truncate shrink-0">{String(actor)}</span>
-                  <span className="flex-1 truncate"><b>{action}</b>{detail ? <span className="text-muted-foreground"> · {detail}</span> : null}</span>
-                </div>
-              );
-            })}
-          </div>
+          <>
+            <div className="divide-y">
+              {logs.map((a, i) => {
+                const ts = a.createdAt ?? a.ts ?? a.date;
+                const actor = a.userId ?? a.actor ?? a.userEmail ?? "—";
+                const action = a.requestType ?? a.action ?? a.kind ?? a.type ?? "事件";
+                const detail = a.model ?? a.detail ?? a.apiProvider ?? "";
+                return (
+                  <div key={a.id ?? i} className="flex items-center gap-2 py-1.5 text-xs">
+                    <span className="text-[10px] text-muted-foreground w-20 shrink-0">{ts ? new Date(ts).toLocaleDateString("zh-TW") : "—"}</span>
+                    <span className="text-[10px] text-muted-foreground w-16 truncate shrink-0">{String(actor)}</span>
+                    <span className="flex-1 truncate"><b>{action}</b>{detail ? <span className="text-muted-foreground"> · {detail}</span> : null}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-1">
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" disabled={safePage === 0} onClick={() => setLogPage(safePage - 1)}>
+                  <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />上頁
+                </Button>
+                <span className="text-[11px] text-muted-foreground">{safePage + 1} / {totalPages}</span>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" disabled={safePage >= totalPages - 1} onClick={() => setLogPage(safePage + 1)}>
+                  下頁<ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </Card>
     </div>

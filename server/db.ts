@@ -531,6 +531,23 @@ export async function getAllUsers() {
   return db.select().from(users).orderBy(desc(users.createdAt));
 }
 
+// AIDV-618: cursor pagination — cursor = id of last fetched row; orderBy desc(id)
+export async function getAllUsersPaginated(opts?: { cursor?: number; limit?: number }) {
+  const db = await getDb();
+  if (!db) return { items: [] as (typeof users.$inferSelect)[], nextCursor: null as number | null };
+  const limit = Math.min(opts?.limit ?? 50, 100);
+  const q = db
+    .select()
+    .from(users)
+    .where(opts?.cursor ? lt(users.id, opts.cursor) : undefined)
+    .orderBy(desc(users.id))
+    .limit(limit + 1);
+  const rows = await q;
+  const hasNext = rows.length > limit;
+  const items = rows.slice(0, limit);
+  return { items, nextCursor: hasNext ? (items[items.length - 1]?.id ?? null) : null };
+}
+
 export async function updateUserQuota(userId: number, amount: number) {
   const db = await getDb();
   if (!db) return;
