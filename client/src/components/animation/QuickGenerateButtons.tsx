@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import { useMemo, useState } from "react";
 
 // ─── 圖像生成（同步回 URL） ────────────────────────────────────────────────
@@ -133,7 +134,7 @@ export function GenerateImageButton({
             },
             {
               onSuccess: onMutSuccess,
-              onError: e => toast.error(`生成失敗：${e.message}`),
+              onError: e => toastError(e, "生成失敗"),
             }
           )
         }
@@ -174,7 +175,7 @@ export function GenerateVideoButton({
       toast.success("已送出 i2v 任務，等待背景處理");
       onJobStarted(data.request_id);
     },
-    onError: e => toast.error(`送出失敗：${e.message}`),
+    onError: e => toastError(e, "送出失敗"),
   });
   // 該模型僅接受 "5" 或 "10"
   const kdur: "5" | "10" = durationSec > 7 ? "10" : "5";
@@ -223,7 +224,7 @@ export function GenerateMusicButton({
       toast.success(`已送出音樂生成任務（${data.model}），預估 ${data.estimated_credits} 點`);
       onJobStarted(data.request_id);
     },
-    onError: e => toast.error(`送出失敗：${e.message}`),
+    onError: e => toastError(e, "送出失敗"),
   });
   return (
     <Button
@@ -271,7 +272,7 @@ export function GenerateVoiceButton({
       toast.success(`已送出 TTS 任務，預估 ${data.estimated_credits} 點`);
       onJobStarted(data.request_id);
     },
-    onError: e => toast.error(`送出失敗：${e.message}`),
+    onError: e => toastError(e, "送出失敗"),
   });
   return (
     <Button
