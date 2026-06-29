@@ -30,8 +30,42 @@ function isOwnershipLockdownEnabled(): boolean {
 /** Maximum SSE connection lifetime (5 minutes). Prevents stale connections. */
 const SSE_MAX_LIFETIME_MS = 5 * 60 * 1000;
 
+/** Heartbeat interval — keeps the connection alive through proxies. */
+const SSE_HEARTBEAT_INTERVAL_MS = 15_000;
+
 /** MySQL signed INT 上限；超過會在 driver 拋 out-of-range，所以在進 DB 前先擋掉。 */
 const MAX_SIGNED_INT = 2147483647;
+
+// ─── AIDV-632: per-user concurrent SSE connection limit ─────────────────────
+// In-memory counter — single-process guard; note for future: move to Redis for multi-instance.
+
+/** Active SSE connection counts keyed by userId. */
+const activeSseConnections = new Map<number, number>();
+
+function getSseMaxConnectionsPerUser(): number {
+  const raw = serverEnv.SSE_MAX_CONNECTIONS_PER_USER.trim().toLowerCase();
+  if (raw === "0" || raw === "false" || raw === "off") return Infinity;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : 5;
+}
+
+/** Attempt to claim a slot for userId. Returns false (→ 429) if limit reached. */
+function acquireSseSlot(userId: number): boolean {
+  const max = getSseMaxConnectionsPerUser();
+  if (max === Infinity) return true;
+  const current = activeSseConnections.get(userId) ?? 0;
+  if (current >= max) return false;
+  activeSseConnections.set(userId, current + 1);
+  return true;
+}
+
+/** Release one slot for userId on connection close. */
+function releaseSseSlot(userId: number): void {
+  const current = activeSseConnections.get(userId) ?? 0;
+  const next = Math.max(0, current - 1);
+  if (next === 0) activeSseConnections.delete(userId);
+  else activeSseConnections.set(userId, next);
+}
 
 /**
  * 解析並驗證路徑上的數字 id（jobId / modelId）。
@@ -64,7 +98,7 @@ sseRouter.get(
       // getBackgroundJob 會回 undefined → 永遠 403。此模式無法驗擁有權，
       // 放行已驗證（DEMO_USER）的請求，維持 demo 串流不被擋。
       if (isDemoMode()) {
-        openGenerationStream(req, res, jobId);
+        openGenerationStream(req, res, jobId, null);
         return;
       }
 
@@ -84,18 +118,22 @@ sseRouter.get(
           return;
         }
       }
+      // 3) AIDV-632: 並發連線上限。demo 模式跳過（無 userId）。
+      if (!acquireSseSlot(user.id)) {
+        res.status(429).json({ error: "Too many SSE connections" });
+        return;
+      }
+      openGenerationStream(req, res, jobId, user.id);
     } catch (err) {
       console.error("[SSE] generation-events pre-stream error:", err);
       if (!res.headersSent) res.status(500).json({ error: "Internal error" });
       return;
     }
-
-    openGenerationStream(req, res, jobId);
   }
 );
 
 /** 開啟 /api/generation-events 的 SSE 串流（已通過驗證後呼叫）。 */
-function openGenerationStream(req: Request, res: Response, jobId: number): void {
+function openGenerationStream(req: Request, res: Response, jobId: number, userId: number | null): void {
   // SSE headers
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -116,6 +154,7 @@ function openGenerationStream(req: Request, res: Response, jobId: number): void 
     clearInterval(heartbeat);
     clearTimeout(maxLifetimeTimer);
     unsubscribe();
+    if (userId !== null) releaseSseSlot(userId);
   };
 
   // Subscribe to generation events for this job
@@ -141,7 +180,7 @@ function openGenerationStream(req: Request, res: Response, jobId: number): void 
   // Heartbeat to keep connection alive
   const heartbeat = setInterval(() => {
     if (!cleaned) res.write(": heartbeat\n\n");
-  }, 15000);
+  }, SSE_HEARTBEAT_INTERVAL_MS);
 
   // Auto-close connection after max lifetime to prevent stale connections
   const maxLifetimeTimer = setTimeout(() => {
@@ -173,7 +212,7 @@ sseRouter.get(
     try {
       // Demo / 無 DATABASE_URL：getFineTunedModel 回 null → 永遠 403，放行已驗證請求。
       if (isDemoMode()) {
-        openTrainingStream(req, res, modelId);
+        openTrainingStream(req, res, modelId, null);
         return;
       }
 
@@ -190,18 +229,22 @@ sseRouter.get(
           return;
         }
       }
+      // AIDV-632: 並發連線上限。
+      if (!acquireSseSlot(user.id)) {
+        res.status(429).json({ error: "Too many SSE connections" });
+        return;
+      }
+      openTrainingStream(req, res, modelId, user.id);
     } catch (err) {
       console.error("[SSE] model-training-events pre-stream error:", err);
       if (!res.headersSent) res.status(500).json({ error: "Internal error" });
       return;
     }
-
-    openTrainingStream(req, res, modelId);
   }
 );
 
 /** 開啟 /api/model-training-events 的 SSE 串流（已通過驗證後呼叫）。 */
-function openTrainingStream(req: Request, res: Response, modelId: number): void {
+function openTrainingStream(req: Request, res: Response, modelId: number, userId: number | null): void {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache",
@@ -218,6 +261,7 @@ function openTrainingStream(req: Request, res: Response, modelId: number): void 
     clearInterval(heartbeat);
     clearTimeout(maxLifetimeTimer);
     unsubscribe();
+    if (userId !== null) releaseSseSlot(userId);
   };
 
   const unsubscribe = generationBus.subscribeTraining(
@@ -238,7 +282,7 @@ function openTrainingStream(req: Request, res: Response, modelId: number): void 
 
   const heartbeat = setInterval(() => {
     if (!cleaned) res.write(": heartbeat\n\n");
-  }, 15000);
+  }, SSE_HEARTBEAT_INTERVAL_MS);
 
   const maxLifetimeTimer = setTimeout(() => {
     if (!cleaned) {

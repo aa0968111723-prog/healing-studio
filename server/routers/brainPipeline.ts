@@ -1416,6 +1416,15 @@ const CRON_JOBS: CronJobMeta[] = [
     downstream: ["db:main"],
   },
   {
+    id: "cron:background-job-purge",
+    label: "背景工作 TTL 清理（每日 04:23 UTC）",
+    schedule: "23 4 * * *",
+    description:
+      "刪除 background_jobs 中 expiresAt 已到期且狀態為 completed/failed/cancelled 的舊工作（AIDV-231 Gap B；預設 ON，BACKGROUND_JOB_PURGE_ENABLED=false 可停用）",
+    files: ["server/jobs/backgroundJobPurgeJob.ts"],
+    downstream: ["db:main"],
+  },
+  {
     id: "cron:credential-expiry-alert",
     label: "外部服務憑證到期預警（每日 09:00 UTC）",
     schedule: "0 9 * * *",
