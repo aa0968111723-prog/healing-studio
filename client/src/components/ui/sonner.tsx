@@ -9,6 +9,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme={theme}
+      // AIDV-573: toast 統一移到右上角，避開右下角光球助手（ProactiveOrbWidget 預設 bottom-right），
+      // 不再堆疊蓋住光球。預設 6 秒自動消失 + closeButton 可手動關閉，避免失敗 toast 卡整分鐘不退。
+      position="top-right"
+      duration={6000}
+      closeButton
       className="toaster group"
       style={
         {

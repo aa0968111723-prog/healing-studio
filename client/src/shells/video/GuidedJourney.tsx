@@ -8,7 +8,7 @@
 // 抽出的角色預設「⚠ 估算」未定版 → 確認門擋住，需到角色頁上傳參考升「✅ 精準」解鎖。
 // ============================================================================
 import { useRef, useState } from "react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/toastError";
 import { Wand2, Loader2, Check, Plus, Lock, ArrowLeft } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -53,9 +53,9 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
       setStep("review");
     } catch (err) {
       if (runSeq.current !== token) return;
-      toast.error("腳本拆解失敗，請稍後再試", {
-        description: err instanceof Error ? err.message : "請稍後重試，或先按「填入範例腳本」測試流程。",
-      });
+      // AIDV-573: 走白話 toast（humanizeError），不外洩 "breakdownScript failed" 等原始工程字串；
+      // 工程細節只進 console.error 給開發者。
+      toastError(err, "腳本拆解失敗");
       setStep("input");
     }
   };
@@ -72,9 +72,8 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
         await spine.ingestBreakdown(name || spine.project?.name || "引導式新專案", bd, { newProject });
       } catch (err) {
         // 寫入失敗不關窗：拆解結果還在，使用者可改名或換目標重試。
-        toast.error("寫入分鏡失敗（worldStoryboard.createFromSegments）", {
-          description: err instanceof Error ? err.message : "請稍後重試。",
-        });
+        // AIDV-573: 白話 toast，不外洩 worldStoryboard.createFromSegments 等工程字串。
+        toastError(err, "寫入分鏡失敗");
         return;
       }
     }
