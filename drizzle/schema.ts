@@ -311,6 +311,7 @@ export const backgroundJobs = mysqlTable(
     errorMessage: text("errorMessage"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    expiresAt: timestamp("expiresAt"),
   },
   table => ({
     userIdStatusIdx: index("userId_status_idx").on(table.userId, table.status),

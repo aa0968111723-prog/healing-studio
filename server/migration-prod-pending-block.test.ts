@@ -91,6 +91,8 @@ const PENDING_BLOCK = [
   "0097_video_project_deadline",
   // AIDV-684：影片輸出交付欄位 — output_storage_path / output_signed_url / output_expires_at（information_schema 守門）。
   "0098_video_output_delivery",
+  // AIDV-231 Gap B：background_jobs 加 expiresAt TTL 欄位，供每日清理 cron 使用（information_schema 守門）。
+  "0099_background_jobs_expires_at",
 ];
 
 function readSql(tag: string): string {
