@@ -31,19 +31,11 @@ export const historyRouter = router({
   list: protectedProcedure
     .input(z.object({ limit: z.number().default(50) }).optional())
     .query(async ({ ctx, input }) => {
-      try {
-        return await db.getHistoryByUser(ctx.user.id, input?.limit ?? 50);
-      } catch {
-        return [];
-      }
+      return db.getHistoryByUser(ctx.user.id, input?.limit ?? 50);
     }),
 
   bookmarked: protectedProcedure.query(async ({ ctx }) => {
-    try {
-      return await db.getBookmarkedHistory(ctx.user.id);
-    } catch {
-      return [];
-    }
+    return db.getBookmarkedHistory(ctx.user.id);
   }),
 
   toggleBookmark: protectedProcedure

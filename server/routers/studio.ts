@@ -20,11 +20,7 @@ export const studioRouter = router({
           .optional()
       )
       .query(async ({ ctx, input }) => {
-        try {
-          return await db.listStudioRecipes(ctx.user.id, input?.modality);
-        } catch {
-          return [];
-        }
+        return db.listStudioRecipes(ctx.user.id, input?.modality);
       }),
 
     create: protectedProcedure
@@ -66,15 +62,11 @@ export const studioRouter = router({
           .optional()
       )
       .query(async ({ ctx, input }) => {
-        try {
-          return await db.listStudioVersions(
-            ctx.user.id,
-            input?.modality,
-            input?.limit ?? 50
-          );
-        } catch {
-          return [];
-        }
+        return db.listStudioVersions(
+          ctx.user.id,
+          input?.modality,
+          input?.limit ?? 50
+        );
       }),
 
     create: protectedProcedure

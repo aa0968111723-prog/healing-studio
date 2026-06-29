@@ -18,11 +18,7 @@ export const modelsRouter = router({
   }),
 
   teamModels: protectedProcedure.query(async () => {
-    try {
-      return await db.getTeamSharedModels();
-    } catch {
-      return [];
-    }
+    return db.getTeamSharedModels();
   }),
 
   getById: protectedProcedure
