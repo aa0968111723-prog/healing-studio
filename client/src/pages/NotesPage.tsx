@@ -242,6 +242,7 @@ export default function NotesPage() {
   const [editTags, setEditTags] = useState("");
 
   // ── Data ──
+  const utils = trpc.useUtils();
   const notesQuery = trpc.notes.list.useQuery(undefined, { retry: false });
   const summaryQuery = trpc.notes.summary.useQuery(
     { todayStart: startOfTodayMs(), upcomingDays: 7 },
@@ -273,15 +274,30 @@ export default function NotesPage() {
     },
   });
 
+  // AIDV-619: optimistic update — patch cache immediately, rollback on error
   const updateNote = trpc.notes.update.useMutation({
+    onMutate: async (input) => {
+      await utils.notes.list.cancel();
+      const prev = utils.notes.list.getData(undefined);
+      utils.notes.list.setData(undefined, (old) =>
+        old?.map((n) => (n.id === input.id ? { ...n, ...input } : n))
+      );
+      return { prev };
+    },
+    onError: (e, _vars, context) => {
+      if (context?.prev !== undefined) utils.notes.list.setData(undefined, context.prev);
+      toast.error(e.message);
+    },
+    onSettled: () => {
+      utils.notes.list.invalidate();
+      summaryQuery.refetch();
+    },
     onSuccess: (_data, variables) => {
-      refetchAll();
       setEditingId(null);
       if (variables?.status === "done") toast.success("已標記完成 ✓");
       else if (variables?.status) toast.success("狀態已更新");
       else toast.success("筆記已更新");
     },
-    onError: e => toast.error(e.message),
   });
 
   const cycleStatus = useCallback(
