@@ -4093,14 +4093,16 @@ export async function updateTeam(id: number, data: Partial<InsertTeam>) {
 export async function deleteTeam(id: number) {
   const db = await getDb();
   if (!db) return;
-  // 順序很重要：先把該團隊的素材 teamId 退回 null（轉成個人素材），再砍 membership，
-  // 最後刪 team row。沒有 FK CASCADE 因為素材要留下來。
-  await db
-    .update(teachingMaterials)
-    .set({ teamId: null, visibility: "private" })
-    .where(eq(teachingMaterials.teamId, id));
-  await db.delete(teamMemberships).where(eq(teamMemberships.teamId, id));
-  await db.delete(teams).where(eq(teams.id, id));
+  // AIDV-629: 三步包進 transaction，部分失敗全回滾，不留孤兒 membership 或脫鉤素材。
+  // 順序：先退材料 teamId → 再刪 membership → 再刪 team row（素材保留，無 FK CASCADE）。
+  await db.transaction(async (tx) => {
+    await tx
+      .update(teachingMaterials)
+      .set({ teamId: null, visibility: "private" })
+      .where(eq(teachingMaterials.teamId, id));
+    await tx.delete(teamMemberships).where(eq(teamMemberships.teamId, id));
+    await tx.delete(teams).where(eq(teams.id, id));
+  });
 }
 
 /** 列出 user 加入的所有團隊（含 owner 自己建的）。 */
@@ -4144,6 +4146,23 @@ export async function addTeamMember(
   if (!db) throw new Error("Database not available");
   const result = await db.insert(teamMemberships).values(data);
   return result[0].insertId;
+}
+
+/** AIDV-629: createTeam + addTeamMember (owner) 包進單一 transaction。
+ *  addTeamMember 失敗時整個 team row 一起回滾，不留沒成員的孤兒 team。 */
+export async function createTeamWithOwner(data: InsertTeam): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (tx) => {
+    const [{ insertId: teamId }] = await tx.insert(teams).values(data);
+    await tx.insert(teamMemberships).values({
+      teamId,
+      userId: data.ownerId,
+      role: "owner",
+      invitedBy: data.ownerId,
+    });
+    return teamId;
+  });
 }
 
 export async function removeTeamMember(teamId: number, userId: number) {
