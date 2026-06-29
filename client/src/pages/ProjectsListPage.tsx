@@ -26,6 +26,7 @@ import {
 } from "@/types/projects";
 import { ArrowRight, Copy, FolderOpen, FolderPlus, MoreVertical } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 function formatUpdatedAt(iso: string): string {
   const d = new Date(iso);
@@ -47,6 +48,9 @@ export default function ProjectsListPage() {
       utils.creativeProject.list.invalidate();
       setActiveProjectId(String(data.id));
       setLocation(`/projects/${data.id}`);
+    },
+    onError: () => {
+      toast.error("複製專案失敗，請稍後再試");
     },
   });
 
