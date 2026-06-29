@@ -7,7 +7,7 @@
  */
 
 import { useState } from "react";
-import { Monitor, Smartphone, Square, Loader2, Lock } from "lucide-react";
+import { Monitor, Smartphone, Square, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,14 +16,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { toastError } from "@/lib/toastError";
+import {
+  OutputSpecSelector,
+  OUTPUT_SPEC_DEFAULT,
+  type OutputSpecValue,
+} from "@/components/OutputSpecSelector";
 
 type AspectRatio = "16:9" | "9:16" | "1:1";
-type Resolution = "720p" | "1080p" | "4K";
-type Fps = 24 | 30 | 60;
 
 interface AspectOption {
   value: AspectRatio;
@@ -39,25 +41,6 @@ const ASPECT_OPTIONS: AspectOption[] = [
   { value: "1:1", label: "方形 1:1", desc: "Instagram", icon: Square, preview: "aspect-square" },
 ];
 
-interface ResOption {
-  value: Resolution;
-  label: string;
-  desc: string;
-  pro?: boolean;
-}
-
-const RESOLUTION_OPTIONS: ResOption[] = [
-  { value: "720p", label: "720p HD", desc: "社群 / 快速預覽" },
-  { value: "1080p", label: "1080p FHD", desc: "YouTube / 廣告（推薦）" },
-  { value: "4K", label: "4K UHD", desc: "數位看板 / 廣播", pro: true },
-];
-
-const FPS_OPTIONS: { value: Fps; label: string }[] = [
-  { value: 24, label: "24 fps（電影感）" },
-  { value: 30, label: "30 fps（標準）" },
-  { value: 60, label: "60 fps（流暢動作）" },
-];
-
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -66,8 +49,12 @@ interface Props {
 
 export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
-  const [resolution, setResolution] = useState<Resolution>("1080p");
-  const [fps, setFps] = useState<Fps>(30);
+  const [outputSpec, setOutputSpec] = useState<OutputSpecValue>(OUTPUT_SPEC_DEFAULT);
+
+  const entitlement = trpc.videoProject.outputSpecEntitlement.useQuery(undefined, {
+    enabled: open,
+  });
+  const isPaid = entitlement.data?.isPaid ?? false;
 
   const createMut = trpc.videoProject.create.useMutation({
     onSuccess(data) {
@@ -80,10 +67,12 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
   });
 
   function handleConfirm() {
-    createMut.mutate({
-      aspectRatio,
-      outputSpec: { resolution, fps, codec: "h264" },
-    });
+    // 防呆：非付費方案若殘留 4K（理論上 selector 已停用），降回 1080p。
+    const safeSpec: OutputSpecValue =
+      !isPaid && outputSpec.resolution === "4K"
+        ? { ...outputSpec, resolution: "1080p" }
+        : outputSpec;
+    createMut.mutate({ aspectRatio, outputSpec: safeSpec });
   }
 
   return (
@@ -128,61 +117,19 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
           })}
         </div>
 
-        {/* 輸出解析度 */}
-        <div className="space-y-1.5">
-          <div className="text-xs font-medium text-muted-foreground">輸出解析度</div>
-          <div className="flex gap-2">
-            {RESOLUTION_OPTIONS.map(opt => {
-              const isActive = resolution === opt.value && !opt.pro;
-              return (
-                <button
-                  key={opt.value}
-                  disabled={opt.pro}
-                  onClick={() => !opt.pro && setResolution(opt.value)}
-                  className={cn(
-                    "flex-1 rounded-lg border-2 px-2.5 py-2 text-left text-xs transition-all",
-                    opt.pro
-                      ? "cursor-not-allowed border-dashed border-border opacity-50"
-                      : isActive
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/40",
-                  )}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-medium">{opt.label}</span>
-                    {opt.pro && (
-                      <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                        <Lock className="size-2.5" /> Pro
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-0.5 text-[10px] text-muted-foreground">{opt.desc}</div>
-                </button>
-              );
-            })}
-          </div>
+        <div className="mt-4 border-t border-border pt-4">
+          <div className="text-sm font-medium mb-2">輸出規格</div>
+          <OutputSpecSelector
+            value={outputSpec}
+            onChange={setOutputSpec}
+            isPaid={isPaid}
+          />
         </div>
 
-        {/* 幀率 */}
-        <div className="space-y-1.5">
-          <div className="text-xs font-medium text-muted-foreground">幀率</div>
-          <select
-            aria-label="幀率選擇"
-            value={fps}
-            onChange={e => setFps(Number(e.target.value) as Fps)}
-            className="w-full rounded-md border bg-background px-3 py-1.5 text-xs"
-          >
-            {FPS_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <p className="text-[10px] text-muted-foreground">
-            預設 1080p 30fps H.264 為最高相容性設定，適合大多數平台。
-          </p>
-        </div>
-
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={createMut.isPending}>取消</Button>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={onClose} disabled={createMut.isPending}>
+            取消
+          </Button>
           <Button onClick={handleConfirm} disabled={createMut.isPending}>
             {createMut.isPending && <Loader2 className="size-4 animate-spin mr-1" />}
             開始創作

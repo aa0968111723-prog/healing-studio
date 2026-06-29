@@ -512,4 +512,17 @@ export const videoProjectRouter = router({
       const expiresAt = new Date(Date.now() + EXPORT_PRESIGN_EXPIRES_SECONDS * 1000).toISOString();
       return { downloadUrl, expiresAt };
     }),
+
+  /**
+   * AIDV-255：回傳使用者是否為付費方案，供前端解析度選擇器決定 4K 是否鎖定。
+   * 付費 = planId !== "free" 且 status ∈ {active, trialing}。查不到 → 視為免費。
+   */
+  outputSpecEntitlement: protectedProcedure.query(async ({ ctx }) => {
+    const plan = await db.getUserSubscription(ctx.user.id);
+    const isPaid =
+      !!plan &&
+      (plan.status === "active" || plan.status === "trialing") &&
+      plan.planId.toLowerCase() !== "free";
+    return { isPaid, planId: plan?.planId ?? "free" };
+  }),
 });

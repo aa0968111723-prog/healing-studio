@@ -27,6 +27,7 @@ vi.mock("../../db", () => ({
   listProjectSnapshots: vi.fn(),
   getProjectSnapshot: vi.fn(),
   getDigitalAsset: vi.fn(),
+  getUserSubscription: vi.fn(),
 }));
 
 vi.mock("../../services/audit/auditLog", () => ({
@@ -341,5 +342,39 @@ describe("AIDV-337 videoProject — 代理操作稽核軌跡", () => {
         metadata: expect.objectContaining({ snapshotId: 3 }),
       })
     );
+  });
+});
+
+describe("AIDV-255 outputSpecEntitlement — 4K 付費判定", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("付費方案（premium/active）→ isPaid=true", async () => {
+    (db.getUserSubscription as any).mockResolvedValue({ planId: "premium", status: "active" });
+    const caller = videoProjectRouter.createCaller(ctx);
+    const res = await caller.outputSpecEntitlement();
+    expect(res.isPaid).toBe(true);
+    expect(res.planId).toBe("premium");
+  });
+
+  it("免費方案 → isPaid=false", async () => {
+    (db.getUserSubscription as any).mockResolvedValue({ planId: "free", status: "active" });
+    const caller = videoProjectRouter.createCaller(ctx);
+    const res = await caller.outputSpecEntitlement();
+    expect(res.isPaid).toBe(false);
+  });
+
+  it("查無方案（null）→ fail-closed isPaid=false", async () => {
+    (db.getUserSubscription as any).mockResolvedValue(null);
+    const caller = videoProjectRouter.createCaller(ctx);
+    const res = await caller.outputSpecEntitlement();
+    expect(res.isPaid).toBe(false);
+    expect(res.planId).toBe("free");
+  });
+
+  it("付費方案但已取消（cancelled）→ isPaid=false", async () => {
+    (db.getUserSubscription as any).mockResolvedValue({ planId: "premium", status: "cancelled" });
+    const caller = videoProjectRouter.createCaller(ctx);
+    const res = await caller.outputSpecEntitlement();
+    expect(res.isPaid).toBe(false);
   });
 });

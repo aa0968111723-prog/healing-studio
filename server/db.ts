@@ -29,6 +29,7 @@ import {
   consistencyVault,
   InsertConsistencyVaultItem,
   subscriptionPlans,
+  userSubscriptions,
   aiDirectorPreferences,
   InsertAiDirectorPreference,
   generationHistory,
@@ -2312,6 +2313,26 @@ export async function getPlanById(id: number) {
     .where(eq(subscriptionPlans.id, id))
     .limit(1);
   return result[0];
+}
+
+/**
+ * AIDV-255：取得使用者目前訂閱（planId / status），供 4K 付費守門判定。
+ * 查不到（無列）→ 回 null（呼叫端 fail-closed 視為免費方案）。
+ */
+export async function getUserSubscription(
+  userId: number
+): Promise<{ planId: string; status: string | null } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db
+    .select({
+      planId: userSubscriptions.planId,
+      status: userSubscriptions.status,
+    })
+    .from(userSubscriptions)
+    .where(eq(userSubscriptions.userId, userId))
+    .limit(1);
+  return result[0] ?? null;
 }
 
 // ─── AI Director Preferences ────────────────────────────────────────────────
