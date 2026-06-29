@@ -163,4 +163,55 @@ describe("webhookReplicate /api/webhook/replicate", () => {
     expect(updateFineTunedModelMock).not.toHaveBeenCalled();
     server.close();
   });
+
+  // AIDV-610: 終態守門 —— 已 ready 的模型收到遲到/重送的 failed 回呼不得被覆寫。
+  it("已 ready 後再收 failed/canceled 回呼 → 維持 ready、不寫 DB、不發 error SSE", async () => {
+    getFineTunedModelMock.mockResolvedValue({
+      id: 11,
+      userId: 99,
+      status: "ready",
+      configJson: { triggerWord: "xyz" },
+    } as any);
+    const events: unknown[] = [];
+    const unsubscribe = generationBus.subscribeTraining(11, e => events.push(e));
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/webhook/replicate?modelId=11`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "rep-train-xyz",
+        status: "failed",
+        error: "late duplicate failure",
+      }),
+    });
+    expect(res.status).toBe(200);
+    await new Promise(r => setTimeout(r, 30));
+    expect(updateFineTunedModelMock).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+    unsubscribe();
+    server.close();
+  });
+
+  // AIDV-610: 已 failed 的模型也不應被遲到的 succeeded 回呼改回 ready。
+  it("已 failed 後再收遲到的 succeeded 回呼 → 維持 failed、不寫 DB", async () => {
+    getFineTunedModelMock.mockResolvedValue({
+      id: 11,
+      userId: 99,
+      status: "failed",
+      configJson: { triggerWord: "xyz" },
+    } as any);
+    const { server, baseUrl } = await startTestServer();
+    await fetch(`${baseUrl}/api/webhook/replicate?modelId=11`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "rep-train-xyz",
+        status: "succeeded",
+        output: { weights: "https://replicate.delivery/lora.safetensors" },
+      }),
+    });
+    await new Promise(r => setTimeout(r, 30));
+    expect(updateFineTunedModelMock).not.toHaveBeenCalled();
+    server.close();
+  });
 });
