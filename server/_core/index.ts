@@ -125,6 +125,7 @@ import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
 import { jsonDepthGuard } from "./inputGuard";
+import { createCsrfOriginGuard } from "./csrfOriginGuard";
 import { closeDatabaseManager } from "./DatabaseManager";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { runOrbToolExecutorStartupSelfCheck } from "../services/agentToolExecutor";
@@ -543,6 +544,12 @@ async function startServer() {
     })
   );
   app.use(express.urlencoded({ limit: "4mb", extended: true }));
+  // AIDV-558：全域 Origin/Referer CSRF guard — 補上「非 tRPC 變更型 Express 路由」缺口
+  //（/api/oauth/logout、/api/auth/* 等）。只在請求帶 session cookie 時對非 GET、
+  // 非 webhook、非 /api/trpc 路由要求 Origin/Referer 落在信任清單，否則 403。
+  // webhook（fal/suno/replicate/stripe）與 /api/trpc 由各自既有防護負責、此處排除。
+  // 退路：CSRF_PROTECTION=0（與 tRPC guard 同旗標）可秒關；CSRF_TRUSTED_ORIGINS 追加來源。
+  app.use(createCsrfOriginGuard());
   app.use(googleAuthRouter);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
