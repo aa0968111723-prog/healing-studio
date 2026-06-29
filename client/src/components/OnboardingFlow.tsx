@@ -151,10 +151,16 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
   const generateMutation = trpc.generate.multimodal.useMutation({
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
-      setResultUrl(data.resultUrl || null);
+      const url = data.resultUrl || null;
+      setResultUrl(url);
       setThoughtChain((data as any).thoughtChain || []);
       setAIState("idle");
-      setStep("result");
+      if (!url) {
+        toast.error("生成未產出圖片，請再試一次");
+        setStep("input");
+      } else {
+        setStep("result");
+      }
     },
     onError: err => {
       setAIState("idle");
