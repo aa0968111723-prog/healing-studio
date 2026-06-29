@@ -91,6 +91,8 @@ const PENDING_BLOCK = [
   "0097_video_project_deadline",
   // AIDV-684：影片輸出交付欄位 — output_storage_path / output_signed_url / output_expires_at（information_schema 守門）。
   "0098_video_output_delivery",
+  // AIDV-496：agent_dynamic_registry 加 maxLoad 並發容量欄位（information_schema 守門）。
+  "0099_agent_registry_max_load",
 ];
 
 function readSql(tag: string): string {
