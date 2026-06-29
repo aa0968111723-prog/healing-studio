@@ -78,6 +78,7 @@ import { useLocation } from "wouter";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
+import { parsePollStatus } from "@/lib/falResultParser";
 
 // ─── Agent Bridge：讓光球代理人能深度控制各分頁參數 ─────────────────────────────
 
@@ -266,7 +267,7 @@ function AsyncAudioPoller({
   label?: string;
 }) {
   const modelId = result.model ?? "";
-  const audioUrl = result.audio_url ?? (result.audio as any)?.url ?? result.url;
+  const audioUrl = result.audio_url ?? result.audio?.url ?? result.url;
   const [dismissed, setDismissed] = useState(false);
   // 記錄提交時間，用於超時偵測
   const [submittedAt] = useState(() => Date.now());
@@ -276,7 +277,7 @@ function AsyncAudioPoller({
     {
       enabled: !!(result.request_id && !audioUrl && modelId),
       refetchInterval: query => {
-        const s = (query.state.data as any)?.status;
+        const s = parsePollStatus(query.state.data)?.status;
         return s === "COMPLETED" || s === "FAILED" ? false : 3000;
       },
       refetchIntervalInBackground: false,
@@ -285,17 +286,18 @@ function AsyncAudioPoller({
   );
 
   useEffect(() => {
-    if ((data as any)?.status === "COMPLETED") {
-      const newUrl = (data as any)?.audio_url ?? (data as any)?.text;
+    const poll = parsePollStatus(data);
+    if (poll?.status === "COMPLETED") {
+      const newUrl = poll.audio_url ?? poll.text;
       if (newUrl) {
         setDismissed(false); // 完成時自動顯示結果
         toast.success(`✅ ${label ?? "音訊"} 生成完成！`);
         onUpdate({ ...result, audio_url: newUrl });
       }
-    } else if ((data as any)?.status === "FAILED") {
+    } else if (poll?.status === "FAILED") {
       toast.error(`❌ ${label ?? "音訊"} 生成失敗`);
     }
-  }, [(data as any)?.status, label]);
+  }, [data, label]);
 
   if (audioUrl) return <AudioPlayer url={audioUrl as string} label={label} />;
 
@@ -1091,7 +1093,8 @@ function MusicTab() {
     onSuccess: data => {
       setResult(data as AudioResult);
       registerBgTask(data, "audio", "🎵 音樂生成", prompt);
-      const immediate = (data as any)?.audio_url ?? (data as any)?.url;
+      const r = data as { audio_url?: string; url?: string };
+      const immediate = r.audio_url ?? r.url;
       if (immediate) toast.success("🎵 音樂生成完成！");
       else toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
@@ -1135,7 +1138,7 @@ function MusicTab() {
     {
       enabled: !!sunoJob?.taskId,
       refetchInterval: query => {
-        const s = (query.state.data as any)?.status;
+        const s = parsePollStatus(query.state.data)?.status;
         return s === "COMPLETED" || s === "completed" ? false : 5000;
       },
       refetchIntervalInBackground: false,
@@ -1145,12 +1148,12 @@ function MusicTab() {
 
   useEffect(() => {
     if (!sunoJob) return;
-    const data = sunoStatusQuery.data as any;
-    if (!data) return;
-    if (data.status === "COMPLETED" && data.audioUrl) {
+    const poll = parsePollStatus(sunoStatusQuery.data);
+    if (!poll) return;
+    if (poll.status === "COMPLETED" && poll.audioUrl) {
       setResult({
-        audio_url: data.audioUrl,
-        url: data.audioUrl,
+        audio_url: poll.audioUrl,
+        url: poll.audioUrl,
         request_id: sunoJob.taskId,
         model: `suno/${sunoJob.modelVersion}`,
       });
@@ -1158,8 +1161,7 @@ function MusicTab() {
     }
   }, [sunoStatusQuery.data, sunoJob]);
 
-  const audioUrl =
-    result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+  const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
   // Sonauto 不支援 duration；Suno 由 API 控制時長
   const showDuration = !isSunoModel && musicModel !== "sonauto";
   // 支援歌詞的模型：sonauto / ace-step / suno
@@ -1582,8 +1584,7 @@ function SoundEffectsTab() {
     onSettled: () => setAIState("idle"),
   });
 
-  const audioUrl =
-    result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+  const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
   // ElevenLabs max 22s, others up to 180s
   const maxDuration = sfxModel === "elevenlabs" ? 22 : 180;
   const showInfluence = sfxModel === "elevenlabs"; // 只有 ElevenLabs 支援 prompt_influence
@@ -1890,8 +1891,7 @@ function TTSTab() {
   });
 
   const isPending = elevenMutation.isPending || qwenMutation.isPending;
-  const audioUrl =
-    result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+  const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
 
   const handleGenerate = () => {
     setResult(null);
@@ -2433,8 +2433,7 @@ function CloneTab() {
     voiceDesign.isPending ||
     klingVoice.isPending ||
     elevenLabsClone.isPending;
-  const audioUrl =
-    result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+  const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
 
   const handleGenerate = () => {
     setResult(null);
