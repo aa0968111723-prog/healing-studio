@@ -48,6 +48,19 @@ const CODEC_OPTIONS: { value: OutputCodec; label: string; desc: string }[] = [
   { value: "vp9", label: "VP9", desc: "WebM" },
 ];
 
+/**
+ * 各維度對「生成輸出」的實際生效性（對齊後端 mapper 能力矩陣）：
+ *  - 解析度：僅部分模型（如 Veo3）透過 outputSpec 生效，其餘由模型/方案隱含。
+ *  - 幀率：僅部分模型可控；多數模型由平台預設，選擇可能被調整或忽略。
+ *  - 編碼：所有文生影模型皆不暴露 codec → 僅作專案標註，不影響實際輸出。
+ * 在此明確標示，避免承諾無法兌現的「假功能」。
+ */
+const DIMENSION_NOTES = {
+  resolution: "部分模型支援；其餘由模型/方案決定，可能自動調整",
+  fps: "部分模型支援；其餘以平台預設輸出，可能被調整",
+  codec: "目前僅作專案標註，不影響實際生成輸出",
+} as const;
+
 interface Props {
   value: OutputSpecValue;
   onChange: (next: OutputSpecValue) => void;
@@ -62,16 +75,25 @@ function Row<T extends string | number>({
   selected,
   onSelect,
   isPaid,
+  note,
 }: {
   label: string;
   options: { value: T; label: string; desc: string; paidOnly?: boolean }[];
   selected: T;
   onSelect: (v: T) => void;
   isPaid: boolean;
+  note?: string;
 }) {
   return (
     <div>
-      <div className="text-xs font-medium text-muted-foreground mb-1.5">{label}</div>
+      <div className="text-xs font-medium text-muted-foreground mb-1.5">
+        {label}
+        {note && (
+          <span className="ml-1.5 font-normal text-[10px] text-muted-foreground/70">
+            （{note}）
+          </span>
+        )}
+      </div>
       <div className="flex gap-2">
         {options.map(opt => {
           const locked = !!opt.paidOnly && !isPaid;
@@ -114,6 +136,7 @@ export function OutputSpecSelector({ value, onChange, isPaid, className }: Props
         selected={value.resolution}
         onSelect={v => onChange({ ...value, resolution: v })}
         isPaid={isPaid}
+        note={DIMENSION_NOTES.resolution}
       />
       <Row
         label="幀率"
@@ -121,6 +144,7 @@ export function OutputSpecSelector({ value, onChange, isPaid, className }: Props
         selected={value.fps}
         onSelect={v => onChange({ ...value, fps: v })}
         isPaid={isPaid}
+        note={DIMENSION_NOTES.fps}
       />
       <Row
         label="編碼"
@@ -128,6 +152,7 @@ export function OutputSpecSelector({ value, onChange, isPaid, className }: Props
         selected={value.codec}
         onSelect={v => onChange({ ...value, codec: v })}
         isPaid={isPaid}
+        note={DIMENSION_NOTES.codec}
       />
       {!isPaid && (
         <p className="text-[11px] text-muted-foreground">

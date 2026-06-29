@@ -46,8 +46,9 @@ import {
 } from "../services/videoCompiler";
 import { resolveFalSafetyChecker } from "../services/security/contentModeration";
 import {
-  mapOutputSpecToFalParams,
+  mapOutputSpecWithMeta,
   assertResolutionAllowed,
+  type OutputSpecDowngrades,
 } from "../services/videoOutputSpec";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式；base URL 來自 providerFacade）───
@@ -338,14 +339,24 @@ const videoOutputSpecSchema = z.object({
  * 合併順序：{ ...mapper 結果, ...basePayload } —— basePayload 在後，
  * 端點專屬欄位（如 wan/minimax 的 resolution）永遠勝出。
  */
+/** outputSpec 套用結果：合併後 payload + 被靜默調整的維度（給前端提示用）。 */
+interface ApplyOutputSpecResult {
+  payload: Record<string, unknown>;
+  /**
+   * 被靜默調整的維度（相對使用者「請求值」與「實際送 fal 值」），
+   * 無調整 / 未帶 outputSpec → undefined。讓前端避免「已選 4K 卻產出非 4K」的無聲謊報。
+   */
+  outputSpecDowngrades?: OutputSpecDowngrades;
+}
+
 async function applyOutputSpec(
   modelId: string,
   basePayload: Record<string, unknown>,
   outputSpec: z.infer<typeof videoOutputSpecSchema> | undefined,
   userId: number
-): Promise<Record<string, unknown>> {
+): Promise<ApplyOutputSpecResult> {
   // 未帶 outputSpec → 完全不動原 payload（HARD SAFETY #1：位元級零變化）。
-  if (!outputSpec) return basePayload;
+  if (!outputSpec) return { payload: basePayload };
 
   // 4K 付費守門（唯一允許 throw 的地方）。
   if (outputSpec.resolution === "4K") {
@@ -353,9 +364,28 @@ async function applyOutputSpec(
     assertResolutionAllowed(outputSpec.resolution, plan);
   }
 
-  const mapped = mapOutputSpecToFalParams(modelId, outputSpec);
+  const { params, downgrades } = mapOutputSpecWithMeta(modelId, outputSpec);
   // mapper 在前、basePayload 在後：端點專屬欄位不被覆蓋。
-  return { ...mapped, ...basePayload };
+  const payload = { ...params, ...basePayload };
+
+  // 以「最終送 fal 的值」為準重算 resolution 降級（basePayload 自帶 resolution
+  // 會勝出，故 mapper 算出的降級可能不是真正生效的值）。
+  let finalDowngrades: OutputSpecDowngrades | undefined = downgrades
+    ? { ...downgrades }
+    : undefined;
+  const appliedResolution = payload.resolution;
+  if (typeof appliedResolution === "string" && appliedResolution !== outputSpec.resolution) {
+    finalDowngrades = {
+      ...(finalDowngrades ?? {}),
+      resolution: { requested: outputSpec.resolution, applied: appliedResolution },
+    };
+  } else if (finalDowngrades?.resolution && appliedResolution === outputSpec.resolution) {
+    // mapper 想降級但 basePayload 反而把它拉回到請求值 → 不算降級。
+    const { resolution: _r, ...rest } = finalDowngrades;
+    finalDowngrades = Object.keys(rest).length ? rest : undefined;
+  }
+
+  return { payload, outputSpecDowngrades: finalDowngrades };
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -558,7 +588,7 @@ export const videoStudioRouter = router({
       const resolved = resolveModelOrThrow(
         "fal-ai/kling-video/v2.1/standard/text-to-video"
       );
-      const finalPayload = await applyOutputSpec(
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
         resolved.modelId,
         payload,
         input.outputSpec,
@@ -570,6 +600,7 @@ export const videoStudioRouter = router({
           video_url: extractVideoUrl(result),
           request_id: result?.request_id ?? null,
           raw: result,
+          ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
         },
         resolved
       );
@@ -610,7 +641,7 @@ export const videoStudioRouter = router({
       if (input.seed !== undefined) payload.seed = input.seed;
 
       assertModelEnabled(modelId);
-      const finalPayload = await applyOutputSpec(
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
         modelId,
         payload,
         input.outputSpec,
@@ -621,6 +652,7 @@ export const videoStudioRouter = router({
         video_url: extractVideoUrl(result),
         request_id: result?.request_id ?? null,
         raw: result,
+        ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
       };
     }),
 
@@ -652,7 +684,7 @@ export const videoStudioRouter = router({
       };
       // MiniMax Hailuo-02 Pro 升級版端點（原 video-01 已升級）
       assertModelEnabled(modelId);
-      const finalPayload = await applyOutputSpec(
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
         modelId,
         payload,
         input.outputSpec,
@@ -663,6 +695,7 @@ export const videoStudioRouter = router({
         video_url: extractVideoUrl(result),
         request_id: result?.request_id ?? null,
         raw: result,
+        ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
       };
     }),
 
@@ -698,7 +731,7 @@ export const videoStudioRouter = router({
       if (input.seed !== undefined) payload.seed = input.seed;
 
       assertModelEnabled(modelId);
-      const finalPayload = await applyOutputSpec(
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
         modelId,
         payload,
         input.outputSpec,
@@ -709,6 +742,7 @@ export const videoStudioRouter = router({
         video_url: extractVideoUrl(result),
         request_id: result?.request_id ?? null,
         raw: result,
+        ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
       };
     }),
 

@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import { TRPCError } from "@trpc/server";
 import {
   mapOutputSpecToFalParams,
+  mapOutputSpecWithMeta,
   assertResolutionAllowed,
 } from "../videoOutputSpec";
 import {
@@ -74,37 +75,48 @@ describe("mapOutputSpecToFalParams — codec 永不注入（所有模型）", ()
   }
 });
 
-describe("mapOutputSpecToFalParams — Wan 系 resolution + fps 可控", () => {
-  it("wan-t2v(v2.1) 注入 resolution + frames_per_second，fps clamp 至 5–24", () => {
-    expect(mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ resolution: "720p", fps: 30 })))
-      .toEqual({ resolution: "720p", frames_per_second: 24 });
-    expect(mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ resolution: "720p", fps: 60 })))
-      .toEqual({ resolution: "720p", frames_per_second: 24 });
-    expect(mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ resolution: "720p", fps: 24 })))
-      .toEqual({ resolution: "720p", frames_per_second: 24 });
+describe("mapOutputSpecToFalParams — Wan 版本差異（v2.1 no-op、v2.2 可控）", () => {
+  it("wan-t2v(v2.1) 全 no-op：真實 schema 無 frames_per_second，resolution 由端點自帶 → 回空物件", () => {
+    // v2.1 的幀率由 num_frames 控制、resolution 由端點 enum 控制（router basePayload
+    // 永遠勝出），故 mapper 對 v2.1 不該注入任何 key，避免謊報能力 / 送非該端點參數。
+    expect(mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ resolution: "720p", fps: 30 }))).toEqual({});
+    expect(mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ resolution: "4K", fps: 60 }))).toEqual({});
+    expect(mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ resolution: "1080p", fps: 24 }))).toEqual({});
   });
 
-  it("wan v2.2 fps clamp 至 4–60（60 可達）", () => {
+  it("wan-t2v(v2.1) 不注入 frames_per_second（HARD SAFETY 回歸守護）", () => {
+    const out = mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ fps: 30 }));
+    expect(out).not.toHaveProperty("frames_per_second");
+    expect(out).not.toHaveProperty("resolution");
+  });
+
+  it("wan v2.2 注入 resolution + frames_per_second，fps clamp 至 4–60（60 可達）", () => {
     expect(
       mapOutputSpecToFalParams("fal-ai/wan/v2.2-a14b/text-to-video", spec({ resolution: "720p", fps: 60 }))
     ).toEqual({ resolution: "720p", frames_per_second: 60 });
   });
 
-  it("Wan 4K 降級為模型最高支援解析度 720p（不謊報 4K）", () => {
-    const out = mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ resolution: "4K", fps: 30 }));
+  it("wan v2.2 4K 降級為模型最高支援解析度 720p（不謊報 4K）", () => {
+    const out = mapOutputSpecToFalParams("fal-ai/wan/v2.2-a14b/text-to-video", spec({ resolution: "4K", fps: 30 }));
     expect(out.resolution).toBe("720p");
     expect(out.resolution).not.toBe("4K");
   });
 
-  it("Wan 1080p 不在接受集合 → 降級為 720p", () => {
+  it("wan v2.2 1080p 不在接受集合 → 降級為 720p", () => {
     expect(
-      mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ resolution: "1080p", fps: 24 })).resolution
+      mapOutputSpecToFalParams("fal-ai/wan/v2.2-a14b/text-to-video", spec({ resolution: "1080p", fps: 24 })).resolution
     ).toBe("720p");
   });
 
-  it("fps 為整數型別", () => {
-    const out = mapOutputSpecToFalParams("fal-ai/wan-t2v", spec({ fps: 30 }));
+  it("wan v2.2 fps 為整數型別", () => {
+    const out = mapOutputSpecToFalParams("fal-ai/wan/v2.2-a14b/text-to-video", spec({ fps: 30 }));
     expect(Number.isInteger(out.frames_per_second)).toBe(true);
+  });
+
+  it("版本偵測收緊：裸 '2.2' 子字串（如日期/build tag）不誤命中 v2.2，仍走 v2.1 no-op", () => {
+    // 例如未來變體 modelId 含 '2.2' 但非真正的 wan v2.2 端點。
+    expect(mapOutputSpecToFalParams("fal-ai/wan-t2v-build-2024.2.2", spec({ fps: 60 }))).toEqual({});
+    expect(mapOutputSpecToFalParams("fal-ai/wan-something-2.2-foo", spec({ fps: 60 }))).toEqual({});
   });
 });
 
@@ -153,6 +165,33 @@ describe("mapOutputSpecToFalParams — 笛卡兒積確定性（27 組合）", ()
       }
     }
   }
+});
+
+describe("mapOutputSpecWithMeta — 回報被靜默調整的維度（不謊報）", () => {
+  it("無調整 → downgrades 為 undefined", () => {
+    const r = mapOutputSpecWithMeta("fal-ai/veo3", spec({ resolution: "720p" }));
+    expect(r.downgrades).toBeUndefined();
+    expect(r.params).toEqual({ resolution: "720p" });
+  });
+
+  it("veo3 4K → 降級 1080p 並回報 resolution downgrade", () => {
+    const r = mapOutputSpecWithMeta("fal-ai/veo3", spec({ resolution: "4K" }));
+    expect(r.params.resolution).toBe("1080p");
+    expect(r.downgrades?.resolution).toEqual({ requested: "4K", applied: "1080p" });
+  });
+
+  it("wan v2.2 fps 60→24（v2.1 範圍時）/ 4K 降級皆回報", () => {
+    const r = mapOutputSpecWithMeta("fal-ai/wan/v2.2-a14b/text-to-video", spec({ resolution: "4K", fps: 60 }));
+    // v2.2 fps 60 在範圍內不夾擠；resolution 4K→720p 應回報。
+    expect(r.downgrades?.resolution).toEqual({ requested: "4K", applied: "720p" });
+    expect(r.downgrades?.fps).toBeUndefined();
+  });
+
+  it("wan-t2v(v2.1) no-op → params 空、downgrades undefined", () => {
+    const r = mapOutputSpecWithMeta("fal-ai/wan-t2v", spec({ resolution: "4K", fps: 60 }));
+    expect(r.params).toEqual({});
+    expect(r.downgrades).toBeUndefined();
+  });
 });
 
 describe("assertResolutionAllowed — 4K 付費守門", () => {

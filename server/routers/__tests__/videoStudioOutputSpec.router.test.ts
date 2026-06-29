@@ -95,7 +95,7 @@ describe("HARD SAFETY #1 — 未帶 outputSpec → payload 零變化", () => {
 });
 
 describe("HARD SAFETY #2 — wan/minimax 自帶 resolution 不被覆蓋", () => {
-  it("wanTextToVideo 帶 outputSpec resolution=4K，最終 resolution 仍為端點自帶 480p", async () => {
+  it("wanTextToVideo(v2.1) 帶 outputSpec resolution=4K，最終 resolution 仍為端點自帶 480p，且 mapper 全 no-op", async () => {
     const caller = videoStudioRouter.createCaller(ctx);
     await caller.wanTextToVideo({
       prompt: "w",
@@ -108,8 +108,9 @@ describe("HARD SAFETY #2 — wan/minimax 自帶 resolution 不被覆蓋", () => 
     const input = lastInput();
     // 端點自帶 480p 必須勝出（不被 mapper 的降級值覆蓋）
     expect(input.resolution).toBe("480p");
-    // fps 仍可由 mapper 補（端點本身無 fps）
-    expect(input).toHaveProperty("frames_per_second");
+    // v2.1（fal-ai/wan-t2v）真實 schema 無 frames_per_second，幀率由 num_frames 控制 →
+    // mapper 不得注入非該端點參數的 frames_per_second（HARD SAFETY 回歸守護）。
+    expect(input).not.toHaveProperty("frames_per_second");
     expect(input).not.toHaveProperty("codec");
   });
 
@@ -161,10 +162,10 @@ describe("4K 付費守門", () => {
     expect(dispatchSpy).not.toHaveBeenCalled();
   });
 
-  it("4K + 付費方案 → 放行（Veo3 降級 1080p）", async () => {
+  it("4K + 付費方案 → 放行（Veo3 降級 1080p），且回傳 output_spec_downgrades 告知降級（不無聲謊報）", async () => {
     getUserSubscriptionMock.mockResolvedValue({ planId: "ultra", status: "active" });
     const caller = videoStudioRouter.createCaller(ctx);
-    await caller.veo3TextToVideo({
+    const res = await caller.veo3TextToVideo({
       prompt: "hi",
       aspectRatio: "16:9",
       generateAudio: true,
@@ -173,6 +174,10 @@ describe("4K 付費守門", () => {
     });
     expect(dispatchSpy).toHaveBeenCalled();
     expect(lastInput().resolution).toBe("1080p"); // 4K 降級
+    // 付費使用者明確選 4K、過了 paywall，但實際送 1080p → 必須回報降級。
+    expect((res as any).output_spec_downgrades).toEqual({
+      resolution: { requested: "4K", applied: "1080p" },
+    });
   });
 });
 

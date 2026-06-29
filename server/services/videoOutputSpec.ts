@@ -58,16 +58,33 @@ const RESOLUTION_RANK: Record<string, number> = {
 function resolveCapability(modelId: string): OutputSpecCapability {
   const id = modelId.toLowerCase();
 
-  // ── Wan 系（fal-ai/wan-t2v、wan v2.2-a14b 等）：resolution + fps 皆可控 ──
+  // ── Wan 系 ──────────────────────────────────────────────────────────────
+  // 真實 fal schema 差異（已對照 falModels.ts:1633-1639 與 fal 官方）：
+  //  - v2.1（fal-ai/wan-t2v）：inputSchema 只有 num_frames/aspect_ratio/seed/
+  //    negative_prompt，「沒有」frames_per_second；幀率由 num_frames 控制。
+  //    且其 resolution 由端點自帶 enum（480p/720p）控制 —— router basePayload
+  //    永遠帶 input.resolution 並在淺合併時勝出，故 mapper 對 v2.1 注入
+  //    resolution 是死碼。因此 v2.1：resolutionKey/fpsKey 皆 null（全 no-op），
+  //    不謊報任何能力。
+  //  - v2.2（fal-ai/wan/v2.2-*）：才真正接受 frames_per_second（4–60）。
   if (id.includes("wan")) {
-    // v2.1 (wan-t2v) fps 5–24；v2.2 fps 4–60。取保守交集上限以避免越界，
-    // 但 v2.2 需要到 60 → 以 id 區分。
-    const isV22 = id.includes("v2.2") || id.includes("2.2");
+    // 僅精確的 v2.2 版本標記才視為 v2.2，避免裸 '2.2' 子字串誤命中
+    // 未來 build tag / 日期 / 其他變體（edge-precision）。
+    const isV22 =
+      id.includes("wan/v2.2") ||
+      id.includes("wan-v2.2") ||
+      id.includes("v2.2-") ||
+      id.includes("v2.2/");
+    if (!isV22) {
+      // v2.1（fal-ai/wan-t2v）：fps 由 num_frames 控制、resolution 由端點自帶 →
+      // outputSpec 對其完全 no-op。
+      return NO_CAPABILITY;
+    }
     return {
       resolutionKey: "resolution",
       resolutionValues: new Set(["480p", "580p", "720p"]),
       fpsKey: "frames_per_second",
-      fpsRange: isV22 ? [4, 60] : [5, 24],
+      fpsRange: [4, 60],
     };
   }
 
@@ -128,6 +145,64 @@ function clampFps(fps: number, range: readonly [number, number]): number {
 }
 
 /**
+ * 被「靜默調整」的維度中繼資料 —— 讓呼叫端可回報給前端，避免無聲的謊報
+ * （edge-precision：4K×付費×Wan/Veo3 仍會被降級，需告知使用者）。
+ */
+export interface OutputSpecDowngrades {
+  /** 解析度被降級（如 requested 4K、實際 applied 1080p）。 */
+  resolution?: { requested: string; applied: string };
+  /** fps 被夾擠（如 requested 60、實際 applied 24）。 */
+  fps?: { requested: number; applied: number };
+}
+
+export interface MapOutputSpecResult {
+  /** 要淺合併進 fal payload 的補充欄位（只含確實可控且有對應的 key）。 */
+  params: Record<string, unknown>;
+  /** 被靜默調整的維度；無調整時為 undefined。 */
+  downgrades?: OutputSpecDowngrades;
+}
+
+/**
+ * 把 outputSpec 映射成「要淺合併進該模型 fal payload」的補充欄位，
+ * 並回報被靜默調整（降級/夾擠）的維度。
+ *
+ * - 未知模型 / 不可控的維度 → 不放入對應 key（params 為空代表整體 no-op）。
+ * - codec：恆不注入（fal 文生影不接受）。
+ * - 純函式、無副作用、不 throw。
+ */
+export function mapOutputSpecWithMeta(
+  modelId: string,
+  spec: VideoOutputSpec
+): MapOutputSpecResult {
+  const cap = resolveCapability(modelId);
+  const params: Record<string, unknown> = {};
+  const downgrades: OutputSpecDowngrades = {};
+
+  if (cap.resolutionKey) {
+    const mapped = mapResolutionValue(spec.resolution, cap.resolutionValues);
+    if (mapped) {
+      params[cap.resolutionKey] = mapped;
+      if (mapped !== spec.resolution) {
+        downgrades.resolution = { requested: spec.resolution, applied: mapped };
+      }
+    }
+  }
+
+  if (cap.fpsKey && cap.fpsRange) {
+    const applied = clampFps(spec.fps, cap.fpsRange);
+    params[cap.fpsKey] = applied;
+    if (applied !== spec.fps) {
+      downgrades.fps = { requested: spec.fps, applied };
+    }
+  }
+
+  // codec：所有文生影模型皆不暴露 → 永不注入。
+
+  const hasDowngrade = downgrades.resolution || downgrades.fps;
+  return hasDowngrade ? { params, downgrades } : { params };
+}
+
+/**
  * 把 outputSpec 映射成「要淺合併進該模型 fal payload」的補充欄位。
  *
  * - 未知模型 / 不可控的維度 → 不放入對應 key（回空物件代表整體 no-op）。
@@ -140,21 +215,7 @@ export function mapOutputSpecToFalParams(
   modelId: string,
   spec: VideoOutputSpec
 ): Record<string, unknown> {
-  const cap = resolveCapability(modelId);
-  const out: Record<string, unknown> = {};
-
-  if (cap.resolutionKey) {
-    const mapped = mapResolutionValue(spec.resolution, cap.resolutionValues);
-    if (mapped) out[cap.resolutionKey] = mapped;
-  }
-
-  if (cap.fpsKey && cap.fpsRange) {
-    out[cap.fpsKey] = clampFps(spec.fps, cap.fpsRange);
-  }
-
-  // codec：所有文生影模型皆不暴露 → 永不注入。
-
-  return out;
+  return mapOutputSpecWithMeta(modelId, spec).params;
 }
 
 /** 付費方案集合（依 user_subscriptions.planId 之語意）。免費 = "free"。 */
