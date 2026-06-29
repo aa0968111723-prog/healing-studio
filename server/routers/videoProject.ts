@@ -282,7 +282,13 @@ export const videoProjectRouter = router({
       if (!snap || snap.projectId !== input.projectId)
         throw new TRPCError({ code: "NOT_FOUND", message: "快照不存在" });
 
-      await db.createProjectSnapshot(input.projectId, {}, "pre-restore");
+      await db.createProjectSnapshot(input.projectId, {
+        title: project.title,
+        aspectRatio: project.aspectRatio,
+        outputSpec: project.outputSpec,
+        deadlineAt: project.deadlineAt,
+        priorityClass: project.priorityClass,
+      }, "pre-restore");
 
       const patch = snap.snapshot as Parameters<typeof db.updateVideoProject>[1];
       const { updated } = await db.updateVideoProject(input.projectId, patch);
