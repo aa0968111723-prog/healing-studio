@@ -15,13 +15,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ── mock: db ───────────────────────────────────────────────────────────────
 const createWorldStoryboardMock = vi.fn();
 const getWorldbuildingFrameworkMock = vi.fn();
+const getWorldStoryboardMock = vi.fn(async () => null);
+const updateWorldStoryboardJobAtomicMock = vi.fn(async () => {});
 vi.mock("../../db", () => ({
   createWorldStoryboard: (...a: unknown[]) => createWorldStoryboardMock(...a),
   getWorldbuildingFramework: (...a: unknown[]) =>
     getWorldbuildingFrameworkMock(...a),
   // other db fns the router may call transitively
-  getWorldStoryboard: vi.fn(async () => null),
+  getWorldStoryboard: (...a: unknown[]) => getWorldStoryboardMock(...a),
   updateWorldStoryboard: vi.fn(async () => {}),
+  updateWorldStoryboardJobAtomic: (...a: unknown[]) =>
+    updateWorldStoryboardJobAtomicMock(...a),
   getWorldStoryboardsByUser: vi.fn(async () => []),
   getWorldStoryboardsByWorld: vi.fn(async () => []),
   deleteWorldStoryboard: vi.fn(async () => {}),
@@ -191,5 +195,99 @@ describe("AIDV-151 queueForVideo", () => {
       unknown
     >;
     expect(call.sourceScriptId).toBe("script-xyz");
+  });
+});
+
+// ── AIDV-636: updateJob 原子寫入防並發 lost-update ────────────────────────
+describe("AIDV-636 updateJob — 原子更新", () => {
+  const STORYBOARD_ID = 99;
+
+  function makeRow(jobsJson: Record<string, unknown> = {}) {
+    return {
+      id: STORYBOARD_ID,
+      userId: USER_ID,
+      worldId: 1,
+      name: "test",
+      jobsJson,
+      productionStatus: "in_progress",
+      scenesJson: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+
+  beforeEach(() => {
+    updateWorldStoryboardJobAtomicMock.mockResolvedValue(undefined);
+  });
+
+  it("呼叫 updateWorldStoryboardJobAtomic 而非整欄覆寫", async () => {
+    getWorldStoryboardMock.mockResolvedValue(
+      makeRow({ "seg-a": { status: "queued" } })
+    );
+    const caller = makeCaller();
+
+    await caller.updateJob({
+      id: STORYBOARD_ID,
+      stepId: "seg-a",
+      status: "running",
+    });
+
+    expect(updateWorldStoryboardJobAtomicMock).toHaveBeenCalledOnce();
+    const [id, stepId, jobData] =
+      updateWorldStoryboardJobAtomicMock.mock.calls[0] as [
+        number,
+        string,
+        Record<string, unknown>,
+      ];
+    expect(id).toBe(STORYBOARD_ID);
+    expect(stepId).toBe("seg-a");
+    expect(jobData.status).toBe("running");
+    expect(typeof jobData.updatedAt).toBe("string");
+  });
+
+  it("並發寫不同 stepId — 兩次各自呼叫原子更新，不互相覆蓋", async () => {
+    getWorldStoryboardMock.mockResolvedValue(
+      makeRow({
+        "seg-a": { status: "queued" },
+        "seg-b": { status: "queued" },
+      })
+    );
+    const caller = makeCaller();
+
+    await Promise.all([
+      caller.updateJob({ id: STORYBOARD_ID, stepId: "seg-a", status: "running" }),
+      caller.updateJob({ id: STORYBOARD_ID, stepId: "seg-b", status: "running" }),
+    ]);
+
+    expect(updateWorldStoryboardJobAtomicMock).toHaveBeenCalledTimes(2);
+    const stepIds = updateWorldStoryboardJobAtomicMock.mock.calls.map(
+      (c) => (c as [number, string, unknown])[1]
+    );
+    expect(stepIds).toContain("seg-a");
+    expect(stepIds).toContain("seg-b");
+  });
+
+  it("非法狀態轉移 → UNPROCESSABLE_CONTENT，不呼叫 DB 寫入", async () => {
+    getWorldStoryboardMock.mockResolvedValue(
+      makeRow({ "seg-a": { status: "done" } })
+    );
+    const caller = makeCaller();
+
+    await expect(
+      caller.updateJob({ id: STORYBOARD_ID, stepId: "seg-a", status: "queued" })
+    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+
+    expect(updateWorldStoryboardJobAtomicMock).not.toHaveBeenCalled();
+  });
+
+  it("storyboard 不存在 → NOT_FOUND", async () => {
+    getWorldStoryboardMock.mockResolvedValue(null);
+    const caller = makeCaller();
+
+    await expect(
+      caller.updateJob({ id: 9999, stepId: "seg-a", status: "running" })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(updateWorldStoryboardJobAtomicMock).not.toHaveBeenCalled();
   });
 });

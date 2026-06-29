@@ -339,15 +339,12 @@ export const worldStoryboardRouter = router({
         });
       }
 
-      existingJobs[input.stepId] = {
+      await db.updateWorldStoryboardJobAtomic(input.id, input.stepId, {
         ...(existingJobs[input.stepId] ?? {}),
         status: input.status,
         output: input.output,
         error: input.error,
         updatedAt: new Date().toISOString(),
-      };
-      await db.updateWorldStoryboard(input.id, {
-        jobsJson: existingJobs,
       });
       return { ok: true };
     }),

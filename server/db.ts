@@ -2946,6 +2946,20 @@ export async function updateWorldStoryboard(
     .where(eq(worldStoryboards.id, id));
 }
 
+export async function updateWorldStoryboardJobAtomic(
+  id: number,
+  stepId: string,
+  jobData: Record<string, unknown>
+) {
+  const db = await getDb();
+  if (!db) return;
+  const jsonPath = `$.${stepId}`;
+  const jsonValue = JSON.stringify(jobData);
+  await db.execute(
+    sql`UPDATE world_storyboards SET jobsJson = JSON_SET(COALESCE(jobsJson, '{}'), ${jsonPath}, CAST(${jsonValue} AS JSON)) WHERE id = ${id}`
+  );
+}
+
 export async function deleteWorldStoryboard(id: number) {
   const db = await getDb();
   if (!db) return;
