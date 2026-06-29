@@ -500,7 +500,17 @@ export default function BackgroundTasksPage() {
 
   // ── Query: all active + recent jobs ─────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
-    refetchInterval: 5000,
+    // AIDV-588：與 BackgroundTasksContext 一致的 adaptive 輪詢——有進行中任務時 5s，
+    // 全部閒置時退到 30s。避免停在本頁但零 active 任務時仍固定每 5s 輪詢。
+    refetchInterval: query => {
+      const jobs = (query.state.data ?? []) as unknown as Array<{
+        status?: string;
+      }>;
+      const hasActive = jobs.some(
+        j => j.status === "queued" || j.status === "processing",
+      );
+      return hasActive ? 5000 : 30_000;
+    },
     refetchIntervalInBackground: false,
     retry: 2,
   });
