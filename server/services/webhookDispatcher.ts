@@ -10,7 +10,7 @@
  */
 
 import crypto from "crypto";
-import { assertSafeExternalUrl, SsrfBlockedError } from "../_core/ssrfGuard";
+import { assertSafeExternalUrlAsync, SsrfBlockedError } from "../_core/ssrfGuard";
 import { getDb } from "../db";
 import { webhookSubscriptions, webhookDeliveryHistory } from "../../drizzle/schema";
 import { and, eq } from "drizzle-orm";
@@ -110,7 +110,7 @@ export async function deliverDirectToSubscription(
   sleepFn?: (ms: number) => Promise<void>
 ): Promise<void> {
   try {
-    assertSafeExternalUrl(sub.url);
+    await assertSafeExternalUrlAsync(sub.url);
   } catch {
     return;
   }
@@ -156,7 +156,7 @@ export async function dispatchWebhookEvent(
     if (!Array.isArray(sub.events) || !sub.events.includes(event)) continue;
 
     try {
-      assertSafeExternalUrl(sub.url);
+      await assertSafeExternalUrlAsync(sub.url);
     } catch (err) {
       if (err instanceof SsrfBlockedError) continue;
       continue;
