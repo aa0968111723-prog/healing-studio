@@ -18,6 +18,7 @@ vi.mock("../db", () => ({
   createVideoProject: vi.fn(),
   getVideoProjectsByUser: vi.fn(),
   updateVideoProject: vi.fn(),
+  updateVideoProjectOutputUrl: vi.fn().mockResolvedValue(undefined),
   duplicateVideoProject: vi.fn(),
   listProjectSnapshots: vi.fn(),
   getProjectSnapshot: vi.fn(),
