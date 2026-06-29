@@ -5027,7 +5027,11 @@ export async function updateVideoProject(
 export async function createProjectSnapshot(
   projectId: number,
   snapshot: Record<string, unknown>,
-  source: "auto" | "manual" | "pre-restore" | `agent:${string}` = "auto"
+  // `source` 對應 projectSnapshots.source（varchar(20) 自由字串）。慣用值
+  // "auto"/"manual"/"pre-restore"，AIDV-345 代理稽核另帶 `agent:<id>`。注意：呼叫端
+  // 以模板字串組成的值型別為 string（非 `agent:${string}` 字面型別），故參數放寬為
+  // string 才能接受；欄位本即自由字串、無 enum 約束。 — AIDV-345 tsc 紅燈最小修補
+  source: string = "auto"
 ): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
