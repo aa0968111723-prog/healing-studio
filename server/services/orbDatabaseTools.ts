@@ -17,7 +17,7 @@
  */
 
 import { eq, desc, and, like, sql, gt } from "drizzle-orm";
-import { getDb } from "../db";
+import { getDb, escapeLikePattern } from "../db";
 import {
   digitalAssetLibrary,
   projectNotesCalendar,
@@ -217,7 +217,7 @@ export async function executeDbQuery(
           .where(
             and(
               eq(digitalAssetLibrary.userId, userId),
-              like(digitalAssetLibrary.title, `%${searchQuery}%`)
+              like(digitalAssetLibrary.title, `%${escapeLikePattern(searchQuery)}%`)
             )
           )
           .orderBy(desc(digitalAssetLibrary.createdAt))
@@ -297,7 +297,7 @@ export async function executeDbQuery(
           .where(
             and(
               eq(projectNotesCalendar.userId, userId),
-              like(projectNotesCalendar.title, `%${searchQuery}%`)
+              like(projectNotesCalendar.title, `%${escapeLikePattern(searchQuery)}%`)
             )
           )
           .orderBy(desc(projectNotesCalendar.createdAt))
@@ -526,7 +526,7 @@ export async function executeDbQuery(
 
         const conditions = [
           eq(promptLibrary.isPublic, true),
-          like(promptLibrary.title, `%${searchQuery}%`),
+          like(promptLibrary.title, `%${escapeLikePattern(searchQuery)}%`),
         ];
         if (category) {
           conditions.push(eq(promptLibrary.category, category as any));

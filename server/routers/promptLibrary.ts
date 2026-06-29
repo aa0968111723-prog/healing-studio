@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { eq, and, or, desc, like, inArray, sql } from "drizzle-orm";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
-import { getDb, getLinkedAssetsForPrompt, deleteAllSharesForResource } from "../db";
+import { getDb, getLinkedAssetsForPrompt, deleteAllSharesForResource, escapeLikePattern } from "../db";
 import { promptLibrary } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
 import {
@@ -76,7 +76,7 @@ export const promptLibraryRouter = router({
       if (generationMode) conditions.push(eq(promptLibrary.generationMode, generationMode));
       if (search) {
         conditions.push(
-          or(like(promptLibrary.title, `%${search}%`), like(promptLibrary.content, `%${search}%`))!
+          or(like(promptLibrary.title, `%${escapeLikePattern(search)}%`), like(promptLibrary.content, `%${escapeLikePattern(search)}%`))!
         );
       }
 
@@ -129,7 +129,7 @@ export const promptLibraryRouter = router({
       if (generationMode) conditions.push(eq(promptLibrary.generationMode, generationMode));
       if (search) {
         conditions.push(
-          or(like(promptLibrary.title, `%${search}%`), like(promptLibrary.content, `%${search}%`))!
+          or(like(promptLibrary.title, `%${escapeLikePattern(search)}%`), like(promptLibrary.content, `%${escapeLikePattern(search)}%`))!
         );
       }
 

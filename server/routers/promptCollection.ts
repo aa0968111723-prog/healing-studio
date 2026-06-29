@@ -14,7 +14,7 @@
 import { z } from "zod";
 import { eq, and, desc, like, inArray, sql } from "drizzle-orm";
 import { router, protectedProcedure } from "../_core/trpc";
-import { getDb } from "../db";
+import { getDb, escapeLikePattern } from "../db";
 import { promptCollection, teamMemberships } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
 import {
@@ -228,7 +228,7 @@ export const promptCollectionRouter = router({
       if (visibility)
         conditions.push(eq(promptCollection.visibility, visibility));
       if (search) {
-        conditions.push(like(promptCollection.title, `%${search}%`));
+        conditions.push(like(promptCollection.title, `%${escapeLikePattern(search)}%`));
       }
       const offset = (page - 1) * pageSize;
       const [rows, totalRow] = await Promise.all([
@@ -293,7 +293,7 @@ export const promptCollectionRouter = router({
       if (sourceType)
         conditions.push(eq(promptCollection.sourceType, sourceType));
       if (search) {
-        conditions.push(like(promptCollection.title, `%${search}%`));
+        conditions.push(like(promptCollection.title, `%${escapeLikePattern(search)}%`));
       }
       const offset = (page - 1) * pageSize;
       const [rows, totalRow] = await Promise.all([
