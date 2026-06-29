@@ -34,6 +34,8 @@ export interface MoodBlock {
   emoji?: string;
   isCustom: boolean;
   customBlockId?: number;
+  /** AIDV-677: 直接指定 EMOTION_PROFILES key，優先於 blockId/label/prompt 推導 */
+  emotionOverride?: string;
 }
 
 /** 情緒維度 — 控制 SSML prosody 參數 */
@@ -764,7 +766,7 @@ export class VoiceCompiler {
 
   /**
    * 解析情緒設定檔
-   * 優先順序：customBlock preset → moodBlock.blockId → moodBlock.prompt 推導 → vibeCardIds → 預設
+   * 優先順序：customBlock preset → moodBlock.emotionOverride → moodBlock.blockId → moodBlock.prompt 推導 → vibeCardIds → 預設
    */
   resolveEmotion(input: VoiceCompilerInput): {
     profile: EmotionProfile;
@@ -780,6 +782,14 @@ export class VoiceCompiler {
       return {
         profile: merged,
         source: `customBlock:${input.moodBlock.customBlockId ?? "unknown"} (${input.moodBlock.label})`,
+      };
+    }
+
+    // AIDV-677: 0.5 emotionOverride 直接指定 profile key（優先於 blockId 推導）
+    if (input.moodBlock?.emotionOverride && EMOTION_PROFILES[input.moodBlock.emotionOverride]) {
+      return {
+        profile: EMOTION_PROFILES[input.moodBlock.emotionOverride],
+        source: `moodBlock.emotionOverride: ${input.moodBlock.emotionOverride}`,
       };
     }
 
