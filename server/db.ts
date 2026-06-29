@@ -2063,6 +2063,13 @@ export async function getBackgroundJob(id: number) {
   return result[0];
 }
 
+/** AIDV-651: 批次取得多個 background job（WHERE id IN (...)），避免逐筆 N+1。 */
+export async function getBackgroundJobsByIds(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return [];
+  return db.select().from(backgroundJobs).where(inArray(backgroundJobs.id, ids));
+}
+
 /**
  * AIDV-244：透過 fal.ai request_id 反查任意狀態的 backgroundJob（用於 ownership 驗證）。
  * 與 findProcessingJobByRequestId 的差異：不限制 status，適用於 checkVideoStatus 查詢已完成的 job。
@@ -4328,6 +4335,49 @@ export async function getSharesForUserOnResource(
         or(...targetConds)
       )
     );
+}
+
+/** AIDV-651: 批次版 getSharesForUserOnResource，一次查詢多個 resourceId。
+ *  回傳 Map<resourceId, ResourceShare[]>，未命中的 id 不在 map 內（視為 []）。 */
+export async function getSharesForUserOnManyResources(
+  resourceType: ResourceShareType,
+  resourceIds: number[],
+  userId: number,
+  userTeamIds: number[]
+): Promise<Map<number, ResourceShare[]>> {
+  const db = await getDb();
+  const out = new Map<number, ResourceShare[]>();
+  if (!db || resourceIds.length === 0) return out;
+  const targetConds = [
+    and(
+      eq(resourceShares.sharedWithType, "user"),
+      eq(resourceShares.sharedWithId, userId)
+    ),
+  ];
+  if (userTeamIds.length > 0) {
+    targetConds.push(
+      and(
+        eq(resourceShares.sharedWithType, "team"),
+        inArray(resourceShares.sharedWithId, userTeamIds)
+      )
+    );
+  }
+  const rows = await db
+    .select()
+    .from(resourceShares)
+    .where(
+      and(
+        eq(resourceShares.resourceType, resourceType),
+        inArray(resourceShares.resourceId, resourceIds),
+        or(...targetConds)
+      )
+    );
+  for (const row of rows) {
+    const list = out.get(row.resourceId) ?? [];
+    list.push(row);
+    out.set(row.resourceId, list);
+  }
+  return out;
 }
 
 /**
