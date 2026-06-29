@@ -265,7 +265,7 @@ function AsyncAudioPoller({
   label?: string;
 }) {
   const modelId = result.model ?? "";
-  const audioUrl = result.audio_url ?? (result.audio as any)?.url ?? result.url;
+  const audioUrl = result.audio_url ?? result.audio?.url ?? result.url;
   const [dismissed, setDismissed] = useState(false);
   // 記錄提交時間，用於超時偵測
   const [submittedAt] = useState(() => Date.now());
@@ -275,8 +275,8 @@ function AsyncAudioPoller({
     {
       enabled: !!(result.request_id && !audioUrl && modelId),
       refetchInterval: query => {
-        const s = (query.state.data as any)?.status;
-        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
+        const s = query.state.data?.status;
+        return s === "COMPLETED" ? false : 3000;
       },
       refetchIntervalInBackground: false,
       retry: 5,
@@ -284,17 +284,15 @@ function AsyncAudioPoller({
   );
 
   useEffect(() => {
-    if ((data as any)?.status === "COMPLETED") {
-      const newUrl = (data as any)?.audio_url ?? (data as any)?.text;
+    if (data?.status === "COMPLETED") {
+      const newUrl = data.audio_url ?? data.text;
       if (newUrl) {
         setDismissed(false); // 完成時自動顯示結果
         toast.success(`✅ ${label ?? "音訊"} 生成完成！`);
         onUpdate({ ...result, audio_url: newUrl });
       }
-    } else if ((data as any)?.status === "FAILED") {
-      toast.error(`❌ ${label ?? "音訊"} 生成失敗`);
     }
-  }, [(data as any)?.status, label]);
+  }, [data?.status, label]);
 
   if (audioUrl) return <AudioPlayer url={audioUrl as string} label={label} />;
 
@@ -1092,7 +1090,7 @@ function MusicTab() {
     onSuccess: data => {
       setResult(data as AudioResult);
       registerBgTask(data, "audio", "🎵 音樂生成", prompt);
-      const immediate = (data as any)?.audio_url ?? (data as any)?.url;
+      const immediate = (data as AudioResult)?.audio_url ?? (data as AudioResult)?.url;
       if (immediate) toast.success("🎵 音樂生成完成！");
       else toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
@@ -1136,8 +1134,8 @@ function MusicTab() {
     {
       enabled: !!sunoJob?.taskId,
       refetchInterval: query => {
-        const s = (query.state.data as any)?.status;
-        return s === "COMPLETED" || s === "completed" ? false : 5000;
+        const s = query.state.data?.status;
+        return s === "COMPLETED" ? false : 5000;
       },
       refetchIntervalInBackground: false,
       retry: 5,
@@ -1146,7 +1144,7 @@ function MusicTab() {
 
   useEffect(() => {
     if (!sunoJob) return;
-    const data = sunoStatusQuery.data as any;
+    const data = sunoStatusQuery.data;
     if (!data) return;
     if (data.status === "COMPLETED" && data.audioUrl) {
       setResult({
@@ -1160,7 +1158,7 @@ function MusicTab() {
   }, [sunoStatusQuery.data, sunoJob]);
 
   const audioUrl =
-    result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+    result?.audio_url ?? result?.audio?.url ?? result?.url;
   // Sonauto 不支援 duration；Suno 由 API 控制時長
   const showDuration = !isSunoModel && musicModel !== "sonauto";
   // 支援歌詞的模型：sonauto / ace-step / suno
@@ -1584,7 +1582,7 @@ function SoundEffectsTab() {
   });
 
   const audioUrl =
-    result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+    result?.audio_url ?? result?.audio?.url ?? result?.url;
   // ElevenLabs max 22s, others up to 180s
   const maxDuration = sfxModel === "elevenlabs" ? 22 : 180;
   const showInfluence = sfxModel === "elevenlabs"; // 只有 ElevenLabs 支援 prompt_influence
@@ -1892,7 +1890,7 @@ function TTSTab() {
 
   const isPending = elevenMutation.isPending || qwenMutation.isPending;
   const audioUrl =
-    result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+    result?.audio_url ?? result?.audio?.url ?? result?.url;
 
   const handleGenerate = () => {
     setResult(null);
@@ -2435,7 +2433,7 @@ function CloneTab() {
     klingVoice.isPending ||
     elevenLabsClone.isPending;
   const audioUrl =
-    result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+    result?.audio_url ?? result?.audio?.url ?? result?.url;
 
   const handleGenerate = () => {
     setResult(null);
@@ -3845,8 +3843,8 @@ function AvatarVideoTab() {
     {
       enabled: !!jobInfo && !!jobInfo.request_id,
       refetchInterval: query => {
-        const s = (query.state.data as any)?.status;
-        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
+        const s = query.state.data?.status;
+        return s === "COMPLETED" ? false : 3000;
       },
       refetchIntervalInBackground: false,
       retry: 5,
@@ -3860,11 +3858,11 @@ function AvatarVideoTab() {
     longcatMut.isPending ||
     ltxMut.isPending ||
     dubbingMut.isPending;
-  const jobStatus = (statusQuery.data as any)?.status;
+  const jobStatus = statusQuery.data?.status;
   // checkAudioStatus 已 S3 本地化並萃取出 video_url（支援 dubbing / avatar 全部模型）
   const videoResult =
-    (statusQuery.data as any)?.video_url ??
-    (statusQuery.data as any)?.audio_url ??
+    (statusQuery.data?.status === "COMPLETED" ? statusQuery.data.video_url : null) ??
+    (statusQuery.data?.status === "COMPLETED" ? statusQuery.data.audio_url : null) ??
     null;
 
   // 每個模型的必填欄位驗證
@@ -4096,8 +4094,6 @@ function AvatarVideoTab() {
               <div className="flex items-center gap-2">
                 {jobStatus === "COMPLETED" ? (
                   <Badge className="bg-emerald-500 text-white">✓ 完成</Badge>
-                ) : jobStatus === "FAILED" ? (
-                  <Badge variant="destructive">✕ 失敗</Badge>
                 ) : (
                   <>
                     <Loader2 className="w-3 h-3 animate-spin text-primary" />

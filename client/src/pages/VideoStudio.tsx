@@ -7,6 +7,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect, createContext, useContext, useMemo } from "react";
+import { asRecord } from "@/lib/falResultParser";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -683,7 +684,7 @@ function AsyncVideoPoller({
   onUpdate: (r: VideoResult) => void;
   label?: string;
 }) {
-  const modelId = (result.raw as any)?.raw_model_id ?? "";
+  const modelId = asRecord(result.raw)?.raw_model_id as string | undefined ?? "";
   const [dismissed, setDismissed] = useState(false);
 
   const { data, isError, error } = trpc.videoStudio.checkVideoStatus.useQuery(
@@ -691,8 +692,8 @@ function AsyncVideoPoller({
     {
       enabled: !!(result.request_id && !result.video_url && modelId),
       refetchInterval: query => {
-        const s = (query.state.data as any)?.status;
-        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
+        const s = query.state.data?.status;
+        return s === "COMPLETED" ? false : 3000;
       },
       refetchIntervalInBackground: false,
       retry: 5,
@@ -700,19 +701,16 @@ function AsyncVideoPoller({
   );
 
   useEffect(() => {
-    if ((data as any)?.status === "COMPLETED" && (data as any)?.video_url) {
+    if (data?.status === "COMPLETED" && data.video_url) {
       setDismissed(false); // 完成時自動顯示結果
       toast.success(`✅ ${label ?? "影片"} 生成完成！`);
       onUpdate({
         ...result,
-        video_url: (data as any).video_url,
-        raw: (data as any).raw,
+        video_url: data.video_url,
+        raw: data.raw,
       });
-    } else if ((data as any)?.status === "FAILED") {
-      toast.error(`❌ ${label ?? "影片"} 生成失敗`);
-      onUpdate({ ...result, raw: { ...(result.raw as any), failed: true } });
     }
-  }, [(data as any)?.status, (data as any)?.video_url, label]);
+  }, [data?.status, data?.video_url, label]);
 
   // 已有影片 URL → 直接顯示
   if (result.video_url) {
@@ -720,7 +718,7 @@ function AsyncVideoPoller({
   }
 
   // API 錯誤或任務失敗
-  if (isError || (result.raw as any)?.failed) {
+  if (isError || asRecord(result.raw)?.failed) {
     return (
       <div className="mt-4 p-4 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
         <AlertCircle className="w-4 h-4 flex-shrink-0" />

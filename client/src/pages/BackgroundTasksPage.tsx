@@ -6,6 +6,7 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { extractResultUrl } from "@/lib/falResultParser";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
@@ -171,23 +172,8 @@ function ResultPreview({ job }: { job: JobRow }) {
   if (!meta) return null;
 
   const resultUrl = (meta.resultUrl as string) ?? null;
-  // Also check nested result data for URLs
   const resultData = meta.result as Record<string, unknown> | null;
-  const imageUrl =
-    resultUrl ??
-    (resultData?.images as any)?.[0]?.url ??
-    (resultData?.image as any)?.url ??
-    null;
-  const videoUrl =
-    (job.jobType === "video" ? resultUrl : null) ??
-    (resultData?.video as any)?.url ??
-    (resultData as any)?.video_url ??
-    null;
-  const audioUrl =
-    (job.jobType === "audio" || job.jobType === "voice" ? resultUrl : null) ??
-    (resultData?.audio as any)?.url ??
-    (resultData as any)?.audio_url ??
-    null;
+  const { imageUrl, videoUrl, audioUrl } = extractResultUrl(job.jobType ?? "", resultUrl, resultData);
 
   if (job.jobType === "image" && imageUrl) {
     return (
