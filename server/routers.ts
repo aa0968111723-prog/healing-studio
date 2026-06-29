@@ -82,6 +82,7 @@ import { orbConversationsRouter } from "./routers/orbConversationsRouter";
 import { adminRouter as adminEvalRouter } from "./routers/adminRouter";
 import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
 import { agentCapabilityRouter } from "./routers/agentCapabilityRouter";
+import { agentWorkflowRouter } from "./routers/agentWorkflowRouter";
 import { modelWishesRouter } from "./routers/modelWishesRouter";
 import { orchestrationRunsRouter } from "./routers/orchestrationRunsRouter";
 import { orbTracesRouter } from "./routers/orbTraces";
@@ -329,6 +330,7 @@ export const appRouter = router({
   orbConversations: orbConversationsRouter,
   agentCollaboration: agentCollaborationRouter,
   agentCapability: agentCapabilityRouter,
+  agentWorkflow: agentWorkflowRouter,
   modelWishes: modelWishesRouter,
   orchestrationRuns: orchestrationRunsRouter,
   adminEval: adminEvalRouter,

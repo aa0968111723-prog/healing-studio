@@ -165,10 +165,18 @@ export default function HistoryPage({ embedded = false }: { embedded?: boolean }
 
   const utils = trpc.useUtils();
 
-  const { data: allHistory, isLoading } = trpc.history.list.useQuery({
+  const { data: allHistory, isLoading, isError: listError } = trpc.history.list.useQuery({
     limit: 200,
   });
-  const { data: bookmarkedHistory } = trpc.history.bookmarked.useQuery();
+  const { data: bookmarkedHistory, isError: bookmarkedError } = trpc.history.bookmarked.useQuery();
+
+  useEffect(() => {
+    if (listError) toast.error("歷史紀錄暫時無法載入，請稍後再試");
+  }, [listError]);
+
+  useEffect(() => {
+    if (bookmarkedError) toast.error("書籤歷史暫時無法載入，請稍後再試");
+  }, [bookmarkedError]);
 
   const toggleBookmark = trpc.history.toggleBookmark.useMutation({
     onMutate: async ({ id, isBookmarked }) => {

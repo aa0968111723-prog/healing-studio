@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createGlobalOrbExecutor, sanitizeTelemetryMetadata, type GlobalOrbExecutorTask } from "../client/src/agent/GlobalOrbExecutor";
+import { createGlobalOrbExecutor, sanitizeTelemetryMetadata, type GlobalOrbExecutorTask } from "../GlobalOrbExecutor";
 
 function makeTask(overrides: Partial<GlobalOrbExecutorTask> = {}): GlobalOrbExecutorTask {
   return {
