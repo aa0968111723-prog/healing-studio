@@ -37,6 +37,7 @@ import {
 } from "../../shared/worldbuilding-animation";
 import type { WorldbuildingFrameworkData } from "../../shared/worldbuilding-types";
 import { parseDurationToSeconds } from "../services/director/exportFormats";
+import { toCsvRow } from "../../shared/csv-safe";
 
 // ─── 內部 helper：DB row → API model ────────────────────────────────────────
 
@@ -708,12 +709,5 @@ export const worldStoryboardRouter = router({
     }),
 });
 
-function csvLine(cols: string[]): string {
-  return cols
-    .map(c => {
-      const v = c ?? "";
-      if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
-      return v;
-    })
-    .join(",");
-}
+// CSV 行組裝統一走 @shared/csv-safe（公式注入中和 + RFC-4180）— AIDV-562
+const csvLine = toCsvRow;

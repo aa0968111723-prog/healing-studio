@@ -7,6 +7,7 @@
  */
 
 import type { ScriptSegment } from "../../../shared/types";
+import { sanitizeCsvCell } from "../../../shared/csv-safe";
 
 export function generateExport(
   segments: ScriptSegment[],
@@ -47,11 +48,9 @@ export function generateExport(
         { header: "氛圍", field: "mood" },
         { header: "狀態", field: "status" },
       ];
-      const escapeCSV = (val: string) => {
-        const s = (val ?? "").replace(/"/g, '""');
-        // Wrap in quotes if contains comma, newline, or double-quote per RFC 4180
-        return /[",\n\r]/.test(s) ? `"${s}"` : s;
-      };
+      // 公式注入中和 + RFC-4180 引號跳脫統一走 @shared/csv-safe（對白/視覺描述等
+      // 皆為使用者/AI 可控內容，原 escapeCSV 只引號跳脫未防公式注入）— AIDV-562
+      const escapeCSV = (val: string) => sanitizeCsvCell(val);
       const header = cols.map(c => escapeCSV(c.header)).join(",");
       const rows = segments.map(seg => {
         const flat: Record<string, string> = {
