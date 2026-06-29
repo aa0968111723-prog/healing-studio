@@ -226,4 +226,56 @@ describe("webhookSuno /api/webhook/suno", () => {
     expect(getBackgroundJobMock).not.toHaveBeenCalled();
     server.close();
   });
+
+  // AIDV-590: 終態守門 —— complete 先到、text/first 晚到時，晚到的中間回呼不得把
+  // 已 completed 的 job 蓋回 processing（否則前端進度條永遠卡在 70%）。
+  it("已 completed 後再收遲到的 first 中間回呼 → 維持終態、不寫 DB、不發 progress SSE", async () => {
+    getBackgroundJobMock.mockResolvedValue({
+      id: 5,
+      userId: 99,
+      status: "completed",
+      resultJson: {},
+    } as any);
+    const events: unknown[] = [];
+    const unsubscribe = generationBus.subscribe(5, e => events.push(e));
+    const { server, baseUrl } = await startTestServer();
+    const res = await fetch(`${baseUrl}/api/webhook/suno?jobId=5`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code: 200,
+        msg: "success",
+        data: { task_id: "suno-abc", callbackType: "first", data: [] },
+      }),
+    });
+    expect(res.status).toBe(200);
+    await new Promise(r => setTimeout(r, 30));
+    expect(updateBackgroundJobMock).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+    unsubscribe();
+    server.close();
+  });
+
+  // AIDV-590: 已 failed 的 job 也不應被遲到的 text 中間回呼改回 processing。
+  it("已 failed 後再收遲到的 text 中間回呼 → 維持 failed、不寫 DB", async () => {
+    getBackgroundJobMock.mockResolvedValue({
+      id: 5,
+      userId: 99,
+      status: "failed",
+      resultJson: {},
+    } as any);
+    const { server, baseUrl } = await startTestServer();
+    await fetch(`${baseUrl}/api/webhook/suno?jobId=5`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code: 200,
+        msg: "success",
+        data: { task_id: "suno-abc", callbackType: "text", data: [] },
+      }),
+    });
+    await new Promise(r => setTimeout(r, 30));
+    expect(updateBackgroundJobMock).not.toHaveBeenCalled();
+    server.close();
+  });
 });

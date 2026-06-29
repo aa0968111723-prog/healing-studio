@@ -108,6 +108,17 @@ replicateWebhookRouter.post(
         return;
       }
 
+      // AIDV-610: 終態守門（比照 webhookFal）。model 已是終態（ready/failed）就短路，
+      // 避免遲到/重送的 failed/canceled 回呼把已 ready 的 LoRA 模型覆寫回 failed、
+      // 並重發一次 error SSE。Replicate 在非 2xx 回應時會重送，加上網路亂序，
+      // 仍可能在 ready 之後再收到終態回呼 —— 這道守門保證終態只寫一次。
+      if (model.status === "ready" || model.status === "failed") {
+        console.log(
+          `[WebhookReplicate] Model ${modelId} already ${model.status}, ignoring duplicate/late webhook`
+        );
+        return;
+      }
+
       // Webhook events_filter 設為 ["completed"]，理論上只有終態會送進來，
       // 但仍 defensively 處理 in-progress 狀態避免誤封 status。
       if (status === "starting" || status === "processing") {

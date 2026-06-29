@@ -167,6 +167,21 @@ sunoWebhookRouter.post(
         return;
       }
 
+      // AIDV-590: 終態守門（比照 webhookFal）。Suno 對同一任務連送 text→first→complete，
+      // 但投遞不保證順序：若 complete 先到、text/first 晚到，晚到的中間回呼會把已
+      // completed/failed 的 job 蓋回 processing，前端進度條永遠回不到 100。job 已是
+      // 終態就短路，duplicate/late 回呼一律忽略、不覆寫、不重發 SSE。
+      if (
+        job.status === "completed" ||
+        job.status === "failed" ||
+        job.status === "cancelled"
+      ) {
+        console.log(
+          `[WebhookSuno] Job ${jobId} already ${job.status}, ignoring duplicate/late webhook`
+        );
+        return;
+      }
+
       // 2. text / first 階段是部分結果（lyrics ready / first clip ready），更新進度即可
       if (callbackType === "text") {
         const progress = 30;
