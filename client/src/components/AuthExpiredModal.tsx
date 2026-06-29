@@ -95,10 +95,12 @@ export default function AuthExpiredModal() {
             <div className="bg-card rounded-2xl shadow-2xl border border-border max-w-md w-full mx-4 p-8 pointer-events-auto relative">
               {/* Close button */}
               <button
+                type="button"
                 onClick={handleDismiss}
+                aria-label="關閉"
                 className="absolute top-4 right-4 p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground/70 hover:text-foreground"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
 
               {/* Icon */}

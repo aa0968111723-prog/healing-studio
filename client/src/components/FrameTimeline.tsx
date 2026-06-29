@@ -105,7 +105,7 @@ export function FrameTimeline({
             variant="outline"
             size="icon"
             aria-label="清除此幀"
-            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-card/80"
+            className="absolute top-2 right-2 min-w-[44px] min-h-[44px] rounded-full bg-card/80"
             onClick={e => {
               e.stopPropagation();
               onClear();

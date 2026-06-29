@@ -220,6 +220,7 @@ export default function AssetsQuickDrawer() {
                 <button
                   key={type}
                   onClick={() => setTypeFilter(type)}
+                  aria-pressed={typeFilter === type}
                   className={cn(
                     "text-[11px] px-2.5 py-0.5 rounded-full border transition-colors",
                     typeFilter === type

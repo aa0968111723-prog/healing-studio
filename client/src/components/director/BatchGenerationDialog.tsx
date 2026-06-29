@@ -78,10 +78,12 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
               </div>
             </div>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="關閉"
               className="p-2 hover:bg-muted rounded-lg transition-healing"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
 

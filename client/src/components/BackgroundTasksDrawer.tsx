@@ -10,7 +10,7 @@ import {
   type BackgroundTask,
   type StudioJobType,
 } from "@/contexts/BackgroundTasksContext";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Image,
   Film,
@@ -176,6 +176,7 @@ function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: stri
 export default function BackgroundTasksDrawer() {
   const { tasks, activeCount, drawerOpen, setDrawerOpen, previewUrls } =
     useBackgroundTasks();
+  const prefersReducedMotion = useReducedMotion();
 
   // 不顯示 badge 如果沒有任何任務
   if (tasks.length === 0 && !drawerOpen) return null;
@@ -227,7 +228,7 @@ export default function BackgroundTasksDrawer() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
+            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.2, ease: "easeInOut" }}
             className="overflow-hidden"
           >
             <div className="max-h-64 overflow-y-auto no-scrollbar py-1 space-y-0.5">

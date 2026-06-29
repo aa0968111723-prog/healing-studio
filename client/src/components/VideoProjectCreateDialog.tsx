@@ -86,13 +86,15 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-3 mt-2">
+        <div role="radiogroup" aria-label="畫面比例" className="flex gap-3 mt-2">
           {OPTIONS.map(opt => {
             const Icon = opt.icon;
             const isActive = selected === opt.value;
             return (
               <button
                 key={opt.value}
+                role="radio"
+                aria-checked={isActive}
                 onClick={() => setSelected(opt.value)}
                 className={cn(
                   "flex-1 flex flex-col items-center gap-2 rounded-xl border-2 p-3 transition-all",
