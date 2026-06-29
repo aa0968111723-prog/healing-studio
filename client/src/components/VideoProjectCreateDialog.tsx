@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
+import { toastError } from "@/lib/toastError";
 
 type AspectRatio = "16:9" | "9:16" | "1:1";
 
@@ -65,6 +66,9 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
     onSuccess(data) {
       onCreated(data.id, data.aspectRatio as AspectRatio);
       onClose();
+    },
+    onError(err) {
+      toastError(err, "建立影片專案失敗，請稍後再試");
     },
   });
 
