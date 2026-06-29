@@ -5210,7 +5210,7 @@ const USER_OWNED_TABLES = [
   "orb_workflow_executions",
   "orb_spirit_collaboration_metrics",
   "orb_cost_attribution",
-  "orb_system_alerts",
+  "orb_system_alerts", // MySQL legacy name; Supabase prod table is "system_alerts"
   "worldbuilding_frameworks",
   "world_storyboards",
   "creative_projects",
