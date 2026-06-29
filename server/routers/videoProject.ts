@@ -21,6 +21,7 @@ import {
 } from "../signedUpload";
 import { recordAuditEvent, extractRequestSource } from "../services/audit/auditLog";
 import { checkAgentRateLimit, getAgentQuota } from "../_core/trpcRateLimit";
+import { agentEventBus } from "../services/agentEventBus";
 
 const aspectRatioSchema = z.enum(["16:9", "9:16", "1:1"]);
 
@@ -142,6 +143,16 @@ export const videoProjectRouter = router({
           message: "版本衝突，請重新載入後再試",
         });
       }
+      const newVersion = (row.version ?? 0) + 1;
+      const isAgent = !!ctx.req?.headers?.["x-agent-id"];
+      ctx.res?.setHeader("ETag", `"${newVersion}"`);
+      agentEventBus.emitForProject({
+        type: "project_updated",
+        projectId: input.id,
+        version: newVersion,
+        updatedFields: Object.keys(patch),
+        triggeredBy: isAgent ? "agent" : "user",
+      });
       recordAuditEvent({
         actorUserId: ctx.user.id,
         actorRole: ctx.user.role,
@@ -155,7 +166,7 @@ export const videoProjectRouter = router({
         },
         ...extractRequestSource(ctx.req),
       });
-      return { ok: true };
+      return { ok: true, version: newVersion };
     }),
 
   /**
@@ -339,9 +350,18 @@ export const videoProjectRouter = router({
 
       const agentId = ctx.req?.headers?.["x-agent-id"] as string | undefined;
       if (input.snapshotData) {
-        const snapshotSource = agentId ? `agent:${agentId}` : "auto";
+        const snapshotSource: "auto" | `agent:${string}` = agentId ? `agent:${agentId}` : "auto";
         void db.createProjectSnapshot(input.id, input.snapshotData, snapshotSource).catch(() => {});
       }
+      const newVersion = (row.version ?? 0) + 1;
+      ctx.res?.setHeader("ETag", `"${newVersion}"`);
+      agentEventBus.emitForProject({
+        type: "project_updated",
+        projectId: input.id,
+        version: newVersion,
+        updatedFields: Object.keys(patch),
+        triggeredBy: agentId ? "agent" : "user",
+      });
       recordAuditEvent({
         actorUserId: ctx.user.id,
         actorRole: ctx.user.role,
@@ -356,7 +376,7 @@ export const videoProjectRouter = router({
         },
         ...extractRequestSource(ctx.req),
       });
-      return { ok: true };
+      return { ok: true, version: newVersion };
     }),
 
   /**
