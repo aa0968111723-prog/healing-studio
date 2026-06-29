@@ -42,7 +42,11 @@ import {
   getGithubConfigStatus,
   testGithubConnection,
 } from "../services/githubIssueClient";
-import { userAiBrain, userModelSwitchLogs } from "../../drizzle/schema";
+import {
+  userAiBrain,
+  userModelSwitchLogs,
+  type InsertUserModelSwitchLog,
+} from "../../drizzle/schema";
 import {
   getHealthStatus,
   getHealthStatusDetailed,
@@ -519,35 +523,38 @@ export const brainRouter = router({
         });
       }
 
-      // 寫入切換日誌
-      await db.insert(userModelSwitchLogs).values({
-        userId: ctx.user.id,
-        brainSlot: input.brainSlot as any,
-        fromModel: input.fromModel,
-        toModel: nextModel,
-        reason: input.reason ?? `手動切換 ${input.brainSlot}`,
-        switchSource: input.switchSource as any,
-      } as any);
-
-      // 更新對應的模型欄位（不存在則自動建立 row）
       const updateField = rawUpdateField;
-      const existing = await db
-        .select({ id: userAiBrain.id })
-        .from(userAiBrain)
-        .where(eq(userAiBrain.userId, ctx.user.id))
-        .limit(1);
 
-      if (existing.length > 0) {
-        await db
-          .update(userAiBrain)
-          .set({ [updateField]: nextModel } as any)
-          .where(eq(userAiBrain.userId, ctx.user.id));
-      } else {
-        await db.insert(userAiBrain).values({
+      // 兩段寫入包成單一交易：先 upsert 大腦狀態，成功後才寫切換日誌。
+      // 任一步驟失敗時整個交易回滾，不留孤兒日誌或不一致狀態。
+      await db.transaction(async (tx) => {
+        const existing = await tx
+          .select({ id: userAiBrain.id })
+          .from(userAiBrain)
+          .where(eq(userAiBrain.userId, ctx.user.id))
+          .limit(1);
+
+        if (existing.length > 0) {
+          await tx
+            .update(userAiBrain)
+            .set({ [updateField]: nextModel } as Partial<typeof userAiBrain.$inferInsert>)
+            .where(eq(userAiBrain.userId, ctx.user.id));
+        } else {
+          await tx.insert(userAiBrain).values({
+            userId: ctx.user.id,
+            [updateField]: nextModel,
+          } as typeof userAiBrain.$inferInsert);
+        }
+
+        await tx.insert(userModelSwitchLogs).values({
           userId: ctx.user.id,
-          [updateField]: nextModel,
-        } as any);
-      }
+          brainSlot: input.brainSlot as InsertUserModelSwitchLog["brainSlot"],
+          fromModel: input.fromModel,
+          toModel: nextModel,
+          reason: input.reason ?? `手動切換 ${input.brainSlot}`,
+          switchSource: input.switchSource,
+        });
+      });
 
       return { success: true };
     }),
