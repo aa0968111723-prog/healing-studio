@@ -6,8 +6,7 @@
 //   agentPreferences.getPreferences() → 偏好物件                         ✅
 //   agentPreferences.updatePreferences(partial) → 更新                   ✅
 //   agentPreferences.getRecentActivity() → 最近活動（接受/取消/完成/失敗）✅
-// persona（calm/creative/technical）對映導演 AI 三人格；input 以 as any 寬鬆化避免與
-// 後端 UpdateSchema 緊耦合（對齊 P0 adapter「鬆綁 tRPC 邊界」慣例）。
+// persona（calm/creative/technical）→ directorPreferences.update({ personality })寫 ai_director_preferences。
 // ============================================================================
 import { Brain, Activity, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -35,16 +34,21 @@ export function AgentPrefsPanel() {
   const utils = trpc.useUtils();
   const prefQ = trpc.agentPreferences.getPreferences.useQuery(undefined, { retry: false });
   const actQ = trpc.agentPreferences.getRecentActivity.useQuery(undefined, { retry: false });
+  const personaQ = trpc.directorPreferences.get.useQuery(undefined, { retry: false });
   const update = trpc.agentPreferences.updatePreferences.useMutation({
     onSuccess: () => { toast.success("已更新代理偏好"); utils.agentPreferences.getPreferences.invalidate(); },
     onError: () => toast.error("更新失敗（需登入）"),
   });
+  const updatePersona = trpc.directorPreferences.update.useMutation({
+    onSuccess: () => { toast.success("已更新導演人格"); utils.directorPreferences.get.invalidate(); },
+    onError: () => toast.error("更新失敗（需登入）"),
+  });
 
-  const pref: any = prefQ.data ?? {};
-  const persona = pref.persona ?? pref.defaultPersona ?? "calm";
-  const acts: any[] = (actQ.data as any)?.events ?? (actQ.data as any)?.items ?? [];
+  void prefQ;
+  const persona = personaQ.data?.personality ?? "calm";
+  const acts: any[] = (actQ.data as any)?.events ?? [];
 
-  const setPersona = (v: string) => update.mutate({ persona: v } as any);
+  const setPersona = (v: string) => updatePersona.mutate({ personality: v as "calm" | "creative" | "technical" });
 
   return (
     <div className="space-y-4">
@@ -56,14 +60,14 @@ export function AgentPrefsPanel() {
         <PersonaRow label="預設導演人格" desc="Calm / Creative / Technical（orbStore 思考球）">
           <div className="inline-flex rounded-lg border p-0.5">
             {PERSONAS.map((p) => (
-              <button key={p.v} onClick={() => setPersona(p.v)} disabled={update.isPending}
+              <button key={p.v} onClick={() => setPersona(p.v)} disabled={updatePersona.isPending}
                 className={`px-3 py-1 text-xs rounded-md transition-colors ${persona === p.v ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
                 {p.l}
               </button>
             ))}
           </div>
         </PersonaRow>
-        {update.isPending && <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />更新中…</div>}
+        {(update.isPending || updatePersona.isPending) && <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />更新中…</div>}
 
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground pt-1">六代理層狀態</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -92,9 +96,9 @@ export function AgentPrefsPanel() {
           <div className="max-h-64 overflow-auto divide-y">
             {acts.slice(0, 15).map((a, i) => (
               <div key={a.id ?? i} className="flex items-center gap-2 py-1.5 text-xs">
-                <span className="flex-1 truncate">{a.action ?? a.label ?? a.type ?? "活動"}</span>
+                <span className="flex-1 truncate">{a.actionType ?? a.type ?? "活動"}</span>
                 {a.status && <Badge variant="outline" className="text-[10px]">{a.status}</Badge>}
-                <span className="text-[10px] text-muted-foreground">{a.createdAt ? new Date(a.createdAt).toLocaleDateString("zh-TW") : ""}</span>
+                <span className="text-[10px] text-muted-foreground">{a.at ? new Date(a.at).toLocaleDateString("zh-TW") : ""}</span>
               </div>
             ))}
           </div>

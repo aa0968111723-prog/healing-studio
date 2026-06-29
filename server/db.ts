@@ -2530,9 +2530,16 @@ export async function upsertSystemSettings(
   if (!db) throw new Error("Database not available");
   const existing = await getSystemSettings(userId);
   if (existing) {
+    const merged: Partial<InsertSystemSetting> = { ...data };
+    if (data.extraSettings != null && existing.extraSettings != null) {
+      merged.extraSettings = {
+        ...(existing.extraSettings as Record<string, unknown>),
+        ...(data.extraSettings as Record<string, unknown>),
+      };
+    }
     await db
       .update(systemSettings)
-      .set(data)
+      .set(merged)
       .where(eq(systemSettings.userId, userId));
     return existing.id;
   } else {
