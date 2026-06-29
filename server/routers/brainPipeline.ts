@@ -952,6 +952,15 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     files: ["server/routes/v1.ts"],
     downstream: ["db:main"],
   },
+  {
+    id: "api:handoff-trace",
+    label: "GET /api/video/project/:projectId/handoff-trace",
+    description: "AIDV-318 多代理交棒鏈：回傳指定 video_project UUID 的完整 agent_handoff_log 序列（auth required）",
+    method: "GET",
+    path: "/api/video/project/:projectId/handoff-trace",
+    files: ["server/routes/handoffTraceRoute.ts"],
+    downstream: ["db:supabase"],
+  },
 ];
 
 /**
