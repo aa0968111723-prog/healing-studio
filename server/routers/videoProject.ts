@@ -19,6 +19,7 @@ import {
   EXPORT_PRESIGN_EXPIRES_SECONDS,
   isR2Configured,
 } from "../signedUpload";
+import { recordAuditEvent, extractRequestSource } from "../services/audit/auditLog";
 
 const aspectRatioSchema = z.enum(["16:9", "9:16", "1:1"]);
 
@@ -61,6 +62,19 @@ export const videoProjectRouter = router({
       });
       const row = await db.getVideoProject(id);
       if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+      recordAuditEvent({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        action: "videoProject.create",
+        targetType: "videoProject",
+        targetId: id,
+        metadata: {
+          title: input.title,
+          agentId: ctx.req?.headers?.["x-agent-id"] ?? null,
+          traceId: ctx.requestId ?? null,
+        },
+        ...extractRequestSource(ctx.req),
+      });
       return {
         id: row.id,
         title: row.title,
@@ -126,6 +140,19 @@ export const videoProjectRouter = router({
           message: "版本衝突，請重新載入後再試",
         });
       }
+      recordAuditEvent({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        action: "videoProject.update",
+        targetType: "videoProject",
+        targetId: input.id,
+        metadata: {
+          patch: Object.keys(patch),
+          agentId: ctx.req?.headers?.["x-agent-id"] ?? null,
+          traceId: ctx.requestId ?? null,
+        },
+        ...extractRequestSource(ctx.req),
+      });
       return { ok: true };
     }),
 
@@ -181,6 +208,19 @@ export const videoProjectRouter = router({
       if (source.userId !== ctx.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
       const newId = await db.duplicateVideoProject(input.sourceId, ctx.user.id, input.title);
+      recordAuditEvent({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        action: "videoProject.duplicate",
+        targetType: "videoProject",
+        targetId: newId,
+        metadata: {
+          sourceId: input.sourceId,
+          agentId: ctx.req?.headers?.["x-agent-id"] ?? null,
+          traceId: ctx.requestId ?? null,
+        },
+        ...extractRequestSource(ctx.req),
+      });
       return { id: newId };
     }),
 
@@ -235,6 +275,19 @@ export const videoProjectRouter = router({
       if (!updated) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
       const refreshed = await db.getVideoProject(input.projectId);
+      recordAuditEvent({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        action: "videoProject.restore",
+        targetType: "videoProject",
+        targetId: input.projectId,
+        metadata: {
+          snapshotId: input.snapshotId,
+          agentId: ctx.req?.headers?.["x-agent-id"] ?? null,
+          traceId: ctx.requestId ?? null,
+        },
+        ...extractRequestSource(ctx.req),
+      });
       return { ok: true, version: refreshed?.version ?? 0 };
     }),
 
@@ -280,10 +333,25 @@ export const videoProjectRouter = router({
         });
       }
 
+      const agentId = ctx.req?.headers?.["x-agent-id"] as string | undefined;
       if (input.snapshotData) {
-        void db.createProjectSnapshot(input.id, input.snapshotData, "auto").catch(() => {});
+        const snapshotSource = agentId ? `agent:${agentId}` : "auto";
+        void db.createProjectSnapshot(input.id, input.snapshotData, snapshotSource).catch(() => {});
       }
-
+      recordAuditEvent({
+        actorUserId: ctx.user.id,
+        actorRole: ctx.user.role,
+        action: "videoProject.save",
+        targetType: "videoProject",
+        targetId: input.id,
+        metadata: {
+          patch: Object.keys(patch),
+          hasSnapshot: !!input.snapshotData,
+          agentId: agentId ?? null,
+          traceId: ctx.requestId ?? null,
+        },
+        ...extractRequestSource(ctx.req),
+      });
       return { ok: true };
     }),
 

@@ -1,5 +1,5 @@
 /**
- * videoProject.router.test.ts — AIDV-241 樂觀鎖 CAS 驗收測試
+ * videoProject.router.test.ts — AIDV-241 樂觀鎖 CAS + AIDV-337 稽核軌跡驗收測試
  *
  * 驗收條件：
  *   1. 無 expectedVersion → 直接成功（向下相容）
@@ -8,6 +8,10 @@
  *   4. 專案不存在 → NOT_FOUND
  *   5. 非本人 → FORBIDDEN
  *   6. list/get/create 回傳包含 version 欄位
+ *   AIDV-337:
+ *   7. create/update/save/duplicate/restoreSnapshot 均呼叫 recordAuditEvent
+ *   8. 帶 X-Agent-Id header 時 agentId 寫入 metadata
+ *   9. 帶 ctx.requestId 時 traceId 寫入 metadata
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { videoProjectRouter } from "../videoProject";
@@ -18,11 +22,26 @@ vi.mock("../../db", () => ({
   getVideoProjectsByUser: vi.fn(),
   getVideoProjectsByUserPaged: vi.fn(),
   updateVideoProject: vi.fn(),
+  duplicateVideoProject: vi.fn(),
+  createProjectSnapshot: vi.fn(),
+  listProjectSnapshots: vi.fn(),
+  getProjectSnapshot: vi.fn(),
+  getDigitalAsset: vi.fn(),
+}));
+
+vi.mock("../../services/audit/auditLog", () => ({
+  recordAuditEvent: vi.fn(),
+  extractRequestSource: vi.fn(() => ({})),
 }));
 
 import * as db from "../../db";
+import * as auditLog from "../../services/audit/auditLog";
 
-const ctx: any = { user: { id: 7 } };
+const ctx: any = {
+  user: { id: 7, role: "user" },
+  req: { headers: {}, ip: "127.0.0.1" },
+  requestId: "req-test-001",
+};
 
 const baseProject = {
   id: 55,
@@ -183,5 +202,144 @@ describe("AIDV-307 videoProject.list — 游標分頁", () => {
   it("cursor 非正整數 → Zod 驗證失敗（BAD_REQUEST）", async () => {
     const caller = videoProjectRouter.createCaller(ctx);
     await expect(caller.list({ cursor: -1 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
+// ─── AIDV-337 稽核軌跡接線測試 ───────────────────────────────────────────────
+describe("AIDV-337 videoProject — 代理操作稽核軌跡", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("create → recordAuditEvent 以 videoProject.create 動作呼叫", async () => {
+    (db.createVideoProject as any).mockResolvedValue(55);
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.create({ title: "稽核測試" });
+
+    expect(auditLog.recordAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "videoProject.create",
+        targetType: "videoProject",
+        targetId: 55,
+        actorUserId: 7,
+      })
+    );
+  });
+
+  it("create 帶 X-Agent-Id header → agentId 寫入 metadata", async () => {
+    (db.createVideoProject as any).mockResolvedValue(55);
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+
+    const agentCtx = {
+      ...ctx,
+      req: { headers: { "x-agent-id": "script-agent-01" }, ip: "127.0.0.1" },
+    };
+    const caller = videoProjectRouter.createCaller(agentCtx);
+    await caller.create({ title: "代理建立" });
+
+    expect(auditLog.recordAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          agentId: "script-agent-01",
+          traceId: "req-test-001",
+        }),
+      })
+    );
+  });
+
+  it("update 成功 → recordAuditEvent 以 videoProject.update 動作呼叫", async () => {
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+    (db.updateVideoProject as any).mockResolvedValue({ updated: true });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.update({ id: 55, title: "更新稽核測試" });
+
+    expect(auditLog.recordAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "videoProject.update",
+        targetType: "videoProject",
+        targetId: 55,
+      })
+    );
+  });
+
+  it("update 版本衝突（CONFLICT）→ recordAuditEvent 不呼叫", async () => {
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+    (db.updateVideoProject as any).mockResolvedValue({ updated: false });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await expect(caller.update({ id: 55, title: "衝突", expectedVersion: 0 })).rejects.toMatchObject({ code: "CONFLICT" });
+    expect(auditLog.recordAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("duplicate → recordAuditEvent 以 videoProject.duplicate 動作呼叫", async () => {
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+    (db.duplicateVideoProject as any).mockResolvedValue(99);
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.duplicate({ sourceId: 55 });
+
+    expect(auditLog.recordAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "videoProject.duplicate",
+        targetType: "videoProject",
+        targetId: 99,
+        metadata: expect.objectContaining({ sourceId: 55 }),
+      })
+    );
+  });
+
+  it("save 成功 → recordAuditEvent 以 videoProject.save 動作呼叫", async () => {
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+    (db.updateVideoProject as any).mockResolvedValue({ updated: true });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.save({ id: 55, title: "存檔" });
+
+    expect(auditLog.recordAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "videoProject.save",
+        targetType: "videoProject",
+        targetId: 55,
+      })
+    );
+  });
+
+  it("save 帶 agentId → snapshot source 含 agent 前綴", async () => {
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+    (db.updateVideoProject as any).mockResolvedValue({ updated: true });
+    (db.createProjectSnapshot as any).mockResolvedValue(undefined);
+
+    const agentCtx = {
+      ...ctx,
+      req: { headers: { "x-agent-id": "voice-agent-02" }, ip: "127.0.0.1" },
+    };
+    const caller = videoProjectRouter.createCaller(agentCtx);
+    await caller.save({ id: 55, snapshotData: { foo: "bar" } });
+
+    expect(db.createProjectSnapshot).toHaveBeenCalledWith(
+      55,
+      { foo: "bar" },
+      "agent:voice-agent-02"
+    );
+  });
+
+  it("restoreSnapshot → recordAuditEvent 以 videoProject.restore 動作呼叫", async () => {
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+    (db.getProjectSnapshot as any).mockResolvedValue({ id: 3, projectId: 55, snapshot: {} });
+    (db.createProjectSnapshot as any).mockResolvedValue(undefined);
+    (db.updateVideoProject as any).mockResolvedValue({ updated: true });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.restoreSnapshot({ projectId: 55, snapshotId: 3 });
+
+    expect(auditLog.recordAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "videoProject.restore",
+        targetType: "videoProject",
+        targetId: 55,
+        metadata: expect.objectContaining({ snapshotId: 3 }),
+      })
+    );
   });
 });
