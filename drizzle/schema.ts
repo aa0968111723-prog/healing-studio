@@ -4544,6 +4544,10 @@ export const videoProjects = mysqlTable(
     priorityClass: mysqlEnum("priority_class", ["standard", "express", "critical"])
       .notNull()
       .default("standard"),
+    // AIDV-684: 快取影片輸出位址，避免每次查 digital_asset_library
+    outputStoragePath: text("output_storage_path"),
+    outputSignedUrl: text("output_signed_url"),
+    outputExpiresAt: timestamp("output_expires_at"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

@@ -5215,6 +5215,23 @@ export async function getProjectSnapshot(id: number): Promise<ProjectSnapshot | 
   return rows[0] ?? null;
 }
 
+// AIDV-684: 將成片輸出位址寫回 video_projects 列，供完成頁不必再查 digital_asset_library。
+export async function updateVideoProjectOutputUrl(
+  projectId: number,
+  data: { storagePath: string; signedUrl: string; expiresAt: Date }
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(videoProjects)
+    .set({
+      outputStoragePath: data.storagePath,
+      outputSignedUrl: data.signedUrl,
+      outputExpiresAt: data.expiresAt,
+    })
+    .where(eq(videoProjects.id, projectId));
+}
+
 export async function duplicateVideoProject(
   sourceId: number,
   userId: number,
