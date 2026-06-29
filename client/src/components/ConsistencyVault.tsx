@@ -24,6 +24,7 @@ import {
   Check,
 } from "lucide-react";
 import { ZenSkeleton } from "./ZenCoPilot";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -459,7 +460,13 @@ export function ConsistencyVault({
         )}
       </AnimatePresence>
 
-      {/* Tabs */}
+      {/* AIDV-674: 讀取失敗顯示錯誤而非誤判為空態 */}
+      {vaultQuery.isError ? (
+        <PanelError
+          message="讀取保險庫失敗"
+          onRetry={() => void vaultQuery.refetch()}
+        />
+      ) : (
       <Tabs
         value={activeTab}
         onValueChange={v => setActiveTab(v as "character" | "scene")}
@@ -516,6 +523,7 @@ export function ConsistencyVault({
           />
         </TabsContent>
       </Tabs>
+      )}
     </div>
   );
 }
