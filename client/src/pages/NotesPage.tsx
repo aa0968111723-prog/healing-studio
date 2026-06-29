@@ -280,7 +280,18 @@ export default function NotesPage() {
       await utils.notes.list.cancel();
       const prev = utils.notes.list.getData(undefined);
       utils.notes.list.setData(undefined, (old) =>
-        old?.map((n) => (n.id === input.id ? { ...n, ...input } : n))
+        old?.map((n) =>
+          n.id === input.id
+            ? {
+                ...n,
+                ...input,
+                scheduledDate:
+                  input.scheduledDate != null ? new Date(input.scheduledDate) : (n.scheduledDate ?? null),
+                endDate:
+                  input.endDate != null ? new Date(input.endDate) : (n.endDate ?? null),
+              }
+            : n
+        )
       );
       return { prev };
     },
