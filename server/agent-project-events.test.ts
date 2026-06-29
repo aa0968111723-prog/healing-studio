@@ -11,7 +11,11 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { agentEventBus, type AgentProjectEvent } from "./services/agentEventBus";
+import {
+  agentEventBus,
+  type AgentProjectEvent,
+  type AgentTaskStatusEvent,
+} from "./services/agentEventBus";
 
 function makeEvent(projectId: number, overrides: Partial<AgentProjectEvent> = {}): AgentProjectEvent {
   return {
@@ -91,5 +95,69 @@ describe("AIDV-325 agentEventBus.emitForProject", () => {
     agentEventBus.emitForProject(makeEvent(20, { updatedFields: [] }));
     unsub();
     expect(received[0].updatedFields).toEqual([]);
+  });
+});
+
+// AIDV-467 Issue 6: agent_task_status events on the per-project SSE channel
+describe("AIDV-467 agentEventBus — agent_task_status events", () => {
+  it("emitForProject broadcasts agent_task_status: assigned with agentId", () => {
+    const received: AgentProjectEvent[] = [];
+    const unsub = agentEventBus.subscribeToProject(77, e => received.push(e));
+
+    const ev: AgentTaskStatusEvent = {
+      type: "agent_task_status",
+      projectId: 77,
+      status: "assigned",
+      agentId: "agent-007",
+    };
+    agentEventBus.emitForProject(ev);
+    unsub();
+
+    expect(received).toHaveLength(1);
+    const got = received[0] as AgentTaskStatusEvent;
+    expect(got.type).toBe("agent_task_status");
+    expect(got.status).toBe("assigned");
+    expect(got.agentId).toBe("agent-007");
+    expect(got.projectId).toBe(77);
+  });
+
+  it("agent_task_status with queued status has no agentId required", () => {
+    const received: AgentProjectEvent[] = [];
+    const unsub = agentEventBus.subscribeToProject(88, e => received.push(e));
+
+    const ev: AgentTaskStatusEvent = {
+      type: "agent_task_status",
+      projectId: 88,
+      status: "queued",
+      runId: 42,
+    };
+    agentEventBus.emitForProject(ev);
+    unsub();
+
+    expect(received).toHaveLength(1);
+    const got = received[0] as AgentTaskStatusEvent;
+    expect(got.status).toBe("queued");
+    expect(got.runId).toBe(42);
+    expect(got.agentId).toBeUndefined();
+  });
+
+  it("agent_task_status events are isolated by projectId", () => {
+    const got77: AgentProjectEvent[] = [];
+    const got88: AgentProjectEvent[] = [];
+    const unsub77 = agentEventBus.subscribeToProject(77, e => got77.push(e));
+    const unsub88 = agentEventBus.subscribeToProject(88, e => got88.push(e));
+
+    agentEventBus.emitForProject({
+      type: "agent_task_status",
+      projectId: 77,
+      status: "assigned",
+      agentId: "agent-A",
+    });
+
+    unsub77();
+    unsub88();
+
+    expect(got77).toHaveLength(1);
+    expect(got88).toHaveLength(0);
   });
 });

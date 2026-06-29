@@ -18,6 +18,7 @@ import { TRPCError } from "@trpc/server";
 import { logger } from "../_core/logger";
 import { getDb } from "../db";
 import { agentDynamicRegistry } from "../../drizzle/schema";
+import { agentEventBus } from "../services/agentEventBus";
 
 const capabilitySchema = z.array(z.string().min(1).max(64)).min(1).max(32);
 
@@ -115,6 +116,9 @@ export const agentCapabilityRouter = router({
         requiredCapabilities: capabilitySchema,
         /** Agent Scope（AIDV-331）：呼叫端宣告此任務需要哪些 scope */
         requiredScope: z.array(z.string().min(1).max(64)).max(16).optional(),
+        /** AIDV-467 Issue 6：若任務對應到某個 videoProject，提供此 ID 後
+         *  assign 成功時會廣播 agent_task_status: assigned 到 per-project SSE 頻道。 */
+        videoProjectId: z.number().int().positive().optional(),
       })
     )
     .query(async ({ input, ctx }) => {
@@ -176,6 +180,20 @@ export const agentCapabilityRouter = router({
         priority,
         candidates: matched.length,
       });
+
+      // AIDV-467 Issue 6: broadcast agent assignment to per-project SSE channel
+      if (input.videoProjectId) {
+        try {
+          agentEventBus.emitForProject({
+            type: "agent_task_status",
+            projectId: input.videoProjectId,
+            status: "assigned",
+            agentId: best.agentId,
+          });
+        } catch (_) {
+          // fire-and-forget — SSE broadcast failure must not fail the assign call
+        }
+      }
 
       return {
         agentId: best.agentId,
