@@ -46,7 +46,7 @@ function requireRole(
 }
 
 export const teamsRouter = router({
-  /** 建立新團隊 — 建立者自動成為 owner */
+  /** 建立新團隊 — 建立者自動成為 owner（AIDV-629: 兩 insert 包進 transaction） */
   create: protectedProcedure
     .input(
       z.object({
@@ -55,16 +55,10 @@ export const teamsRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const teamId = await db.createTeam({
+      const teamId = await db.createTeamWithOwner({
         name: input.name,
         description: input.description,
         ownerId: ctx.user.id,
-      });
-      await db.addTeamMember({
-        teamId,
-        userId: ctx.user.id,
-        role: "owner",
-        invitedBy: ctx.user.id,
       });
       return { id: teamId };
     }),

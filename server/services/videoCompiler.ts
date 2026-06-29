@@ -16,6 +16,7 @@
 import {
   validateCompilerInput,
   VideoCompilerInputSchema,
+  type ICompiler,
 } from "./compilerValidation";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -780,7 +781,7 @@ function inferEmotion(text: string): string {
 // VideoCompiler 主類
 // ═══════════════════════════════════════════════════════════════════════════
 
-export class VideoCompiler {
+export class VideoCompiler implements ICompiler<VideoCompilerInput, VideoCompileResult> {
   private maxCameraTransitions: number;
 
   constructor(maxCameraTransitions = 3) {

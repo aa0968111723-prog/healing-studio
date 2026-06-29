@@ -528,13 +528,17 @@ export default function AssetsLibrary() {
   const [sortKey, setSortKey] = useState<AssetSortKey>("newest");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
-  const myAssetsQuery = trpc.assets.myAssets.useQuery(
+  const myAssetsQuery = trpc.assets.myAssets.useInfiniteQuery(
     {
       assetType: typeFilter,
       sourceStudio: sourceFilter,
       search: search || undefined,
+      limit: 50,
     },
-    { retry: false }
+    {
+      retry: false,
+      getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+    }
   );
   const teamAssetsQuery = trpc.assets.teamAssets.useQuery(
     {
@@ -560,10 +564,12 @@ export default function AssetsLibrary() {
     },
   });
 
-  const rawAssets = tab === "my" ? myAssetsQuery.data : teamAssetsQuery.data;
+  const rawAssets = tab === "my"
+    ? myAssetsQuery.data?.pages.flatMap(p => p.items)
+    : teamAssetsQuery.data;
   const isLoading =
     tab === "my" ? myAssetsQuery.isLoading : teamAssetsQuery.isLoading;
-  const totalMyAssets = myAssetsQuery.data?.length ?? 0;
+  const totalMyAssets = myAssetsQuery.data?.pages.flatMap(p => p.items).length ?? 0;
 
   // 是否有任何篩選作用中 — 用於切換「重設」chip 和空狀態文案。
   const hasActiveFilter =
@@ -1041,6 +1047,7 @@ export default function AssetsLibrary() {
               ))}
             </div>
           ) : filteredAssets && filteredAssets.length > 0 ? (
+        <>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {filteredAssets.map((asset, idx) => {
             const config = typeConfig[asset.assetType] || {
@@ -1384,6 +1391,20 @@ export default function AssetsLibrary() {
             );
           })}
         </div>
+        {tab === "my" && myAssetsQuery.hasNextPage && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-xs gap-1"
+              disabled={myAssetsQuery.isFetchingNextPage}
+              onClick={() => void myAssetsQuery.fetchNextPage()}
+            >
+              {myAssetsQuery.isFetchingNextPage ? "載入中…" : "載入更多"}
+            </Button>
+          </div>
+        )}
+        </>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
           <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center">

@@ -19,6 +19,8 @@ const createPromptAssetLinkMock = vi.fn(async () => 1);
 const getBackgroundJobMock = vi.fn();
 const updateBackgroundJobMock = vi.fn(async () => undefined);
 const refundUserPointsMock = vi.fn(async () => undefined);
+const atomicClaimJobRefundMock = vi.fn(async () => true);
+const mergeBackgroundJobResultJsonMock = vi.fn(async () => {});
 // dedupe 前檢 — doPostGenComplete 會用 generation_history.compiledPrompt
 // 做存在檢查；mock 預設回空陣列代表「沒查到 → 繼續寫入」。
 // 鏈形狀：select().from().where().limit()（無 orderBy）。
@@ -96,6 +98,10 @@ vi.mock("../../db", () => ({
     updateBackgroundJobMock(...(args as [number, unknown])),
   refundUserPoints: (...args: unknown[]) =>
     refundUserPointsMock(...(args as [number, number])),
+  atomicClaimJobRefund: (...args: unknown[]) =>
+    atomicClaimJobRefundMock(...(args as [number, number])),
+  mergeBackgroundJobResultJson: (...args: unknown[]) =>
+    mergeBackgroundJobResultJsonMock(...(args as [number, Record<string, unknown>])),
   getDb: () => getDbMock(),
 }));
 
@@ -459,11 +465,9 @@ describe("runPostGenForJob", () => {
     expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
     expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
 
-    expect(updateBackgroundJobMock).toHaveBeenCalledWith(
+    expect(mergeBackgroundJobResultJsonMock).toHaveBeenCalledWith(
       42,
-      expect.objectContaining({
-        resultJson: expect.objectContaining({ postGenComplete: true }),
-      })
+      expect.objectContaining({ postGenComplete: true })
     );
   });
 
@@ -551,6 +555,8 @@ describe("refundJobIfBilled", () => {
   beforeEach(() => {
     refundUserPointsMock.mockReset();
     refundUserPointsMock.mockResolvedValue(undefined);
+    atomicClaimJobRefundMock.mockReset();
+    atomicClaimJobRefundMock.mockResolvedValue(true);
     getBackgroundJobMock.mockReset();
     updateBackgroundJobMock.mockReset();
     updateBackgroundJobMock.mockResolvedValue(undefined);
@@ -569,28 +575,18 @@ describe("refundJobIfBilled", () => {
 
     const refunded = await refundJobIfBilled(42);
     expect(refunded).toBe(true);
+    expect(atomicClaimJobRefundMock).toHaveBeenCalledWith(42, 12);
     expect(refundUserPointsMock).toHaveBeenCalledWith(7, 12);
-    expect(updateBackgroundJobMock).toHaveBeenCalledWith(
-      42,
-      expect.objectContaining({
-        resultJson: expect.objectContaining({
-          refunded: true,
-          refundedPoints: 12,
-        }),
-      })
-    );
   });
 
   it("short-circuits when already refunded (idempotent across webhook + polling)", async () => {
     getBackgroundJobMock.mockResolvedValueOnce({
       id: 42,
       userId: 7,
-      resultJson: {
-        costPoints: 12,
-        refunded: true,
-        refundedPoints: 12,
-      },
+      resultJson: { costPoints: 12 },
     });
+    // CAS 回 false 表示 DB 旗標已設（另一條路徑已搶到鎖）
+    atomicClaimJobRefundMock.mockResolvedValueOnce(false);
 
     const refunded = await refundJobIfBilled(42);
     expect(refunded).toBe(false);

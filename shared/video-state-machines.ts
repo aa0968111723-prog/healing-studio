@@ -62,9 +62,10 @@ export const segmentMachine = createMachine({
   },
 });
 
-/** Server: 驗證 segment step 狀態轉移是否合法。 */
+/** Server: 驗證 segment step 狀態轉移是否合法。未知 from → 拒（防 DB 髒資料）。 */
 export function canTransitionSegment(from: SegmentJobStatus, to: SegmentJobStatus): boolean {
-  return (SEGMENT_NEXT_STATES[from] as readonly string[]).includes(to);
+  const allowed = SEGMENT_NEXT_STATES[from];
+  return allowed ? (allowed as readonly string[]).includes(to) : false;
 }
 
 // ── Session（影片工作階段）狀態 ─────────────────────────────────────────────

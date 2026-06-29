@@ -156,7 +156,7 @@ export default function AssetsQuickDrawer() {
     { enabled: isOpen }
   );
 
-  const assets = assetsQuery.data ?? [];
+  const assets = assetsQuery.data?.items ?? [];
 
   function handleInsert(asset: AssetForInsert) {
     insertCallback?.(asset);

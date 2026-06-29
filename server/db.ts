@@ -1205,6 +1205,70 @@ export async function getDigitalAssetsByUserFiltered(opts: {
     .limit(opts.limit ?? 200);
 }
 
+export interface DigitalAssetsPage {
+  items: Awaited<ReturnType<typeof getDigitalAssetsByUserFiltered>>;
+  nextCursor: number | null;
+}
+
+export async function getDigitalAssetsByUserFilteredPaged(opts: {
+  userId: number;
+  assetType?: string;
+  sourceStudio?: string;
+  search?: string;
+  cursor?: number | null;
+  limit: number;
+}): Promise<DigitalAssetsPage> {
+  const db = await getDb();
+  if (!db) return { items: [], nextCursor: null };
+
+  const conditions: SQL[] = [eq(digitalAssetLibrary.userId, opts.userId)];
+
+  if (opts.assetType && opts.assetType !== "all") {
+    conditions.push(
+      eq(digitalAssetLibrary.assetType, opts.assetType as "image" | "video" | "audio" | "voice" | "script" | "zip_bundle")
+    );
+  }
+
+  if (opts.sourceStudio && opts.sourceStudio !== "all") {
+    if (opts.sourceStudio === "unknown") {
+      conditions.push(isNull(digitalAssetLibrary.sourceStudio));
+    } else {
+      conditions.push(eq(digitalAssetLibrary.sourceStudio, opts.sourceStudio));
+    }
+  }
+
+  if (opts.search) {
+    const trimmed = opts.search.trim();
+    if (trimmed) {
+      const escaped = escapeLikePattern(trimmed);
+      const pattern = `%${escaped}%`;
+      conditions.push(
+        or(
+          like(digitalAssetLibrary.title, pattern),
+          like(digitalAssetLibrary.description, pattern),
+          like(digitalAssetLibrary.promptUsed, pattern)
+        )!
+      );
+    }
+  }
+
+  if (opts.cursor != null) {
+    conditions.push(lt(digitalAssetLibrary.id, opts.cursor));
+  }
+
+  const rows = await db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(and(...conditions))
+    .orderBy(desc(digitalAssetLibrary.id))
+    .limit(opts.limit + 1);
+
+  const hasMore = rows.length > opts.limit;
+  const items = hasMore ? rows.slice(0, opts.limit) : rows;
+  const nextCursor = hasMore ? (items[items.length - 1]?.id ?? null) : null;
+  return { items, nextCursor };
+}
+
 // ─── Prompt ↔ Asset 關聯（prompt_assets junction, migration 0075）────────────
 
 /**
@@ -2061,6 +2125,13 @@ export async function getBackgroundJob(id: number) {
     .where(eq(backgroundJobs.id, id))
     .limit(1);
   return result[0];
+}
+
+/** AIDV-651: 批次取得多個 background job（WHERE id IN (...)），避免逐筆 N+1。 */
+export async function getBackgroundJobsByIds(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return [];
+  return db.select().from(backgroundJobs).where(inArray(backgroundJobs.id, ids));
 }
 
 /**
@@ -4093,14 +4164,16 @@ export async function updateTeam(id: number, data: Partial<InsertTeam>) {
 export async function deleteTeam(id: number) {
   const db = await getDb();
   if (!db) return;
-  // 順序很重要：先把該團隊的素材 teamId 退回 null（轉成個人素材），再砍 membership，
-  // 最後刪 team row。沒有 FK CASCADE 因為素材要留下來。
-  await db
-    .update(teachingMaterials)
-    .set({ teamId: null, visibility: "private" })
-    .where(eq(teachingMaterials.teamId, id));
-  await db.delete(teamMemberships).where(eq(teamMemberships.teamId, id));
-  await db.delete(teams).where(eq(teams.id, id));
+  // AIDV-629: 三步包進 transaction，部分失敗全回滾，不留孤兒 membership 或脫鉤素材。
+  // 順序：先退材料 teamId → 再刪 membership → 再刪 team row（素材保留，無 FK CASCADE）。
+  await db.transaction(async (tx) => {
+    await tx
+      .update(teachingMaterials)
+      .set({ teamId: null, visibility: "private" })
+      .where(eq(teachingMaterials.teamId, id));
+    await tx.delete(teamMemberships).where(eq(teamMemberships.teamId, id));
+    await tx.delete(teams).where(eq(teams.id, id));
+  });
 }
 
 /** 列出 user 加入的所有團隊（含 owner 自己建的）。 */
@@ -4144,6 +4217,23 @@ export async function addTeamMember(
   if (!db) throw new Error("Database not available");
   const result = await db.insert(teamMemberships).values(data);
   return result[0].insertId;
+}
+
+/** AIDV-629: createTeam + addTeamMember (owner) 包進單一 transaction。
+ *  addTeamMember 失敗時整個 team row 一起回滾，不留沒成員的孤兒 team。 */
+export async function createTeamWithOwner(data: InsertTeam): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (tx) => {
+    const [{ insertId: teamId }] = await tx.insert(teams).values(data);
+    await tx.insert(teamMemberships).values({
+      teamId,
+      userId: data.ownerId,
+      role: "owner",
+      invitedBy: data.ownerId,
+    });
+    return teamId;
+  });
 }
 
 export async function removeTeamMember(teamId: number, userId: number) {
@@ -4309,6 +4399,49 @@ export async function getSharesForUserOnResource(
         or(...targetConds)
       )
     );
+}
+
+/** AIDV-651: 批次版 getSharesForUserOnResource，一次查詢多個 resourceId。
+ *  回傳 Map<resourceId, ResourceShare[]>，未命中的 id 不在 map 內（視為 []）。 */
+export async function getSharesForUserOnManyResources(
+  resourceType: ResourceShareType,
+  resourceIds: number[],
+  userId: number,
+  userTeamIds: number[]
+): Promise<Map<number, ResourceShare[]>> {
+  const db = await getDb();
+  const out = new Map<number, ResourceShare[]>();
+  if (!db || resourceIds.length === 0) return out;
+  const targetConds = [
+    and(
+      eq(resourceShares.sharedWithType, "user"),
+      eq(resourceShares.sharedWithId, userId)
+    ),
+  ];
+  if (userTeamIds.length > 0) {
+    targetConds.push(
+      and(
+        eq(resourceShares.sharedWithType, "team"),
+        inArray(resourceShares.sharedWithId, userTeamIds)
+      )
+    );
+  }
+  const rows = await db
+    .select()
+    .from(resourceShares)
+    .where(
+      and(
+        eq(resourceShares.resourceType, resourceType),
+        inArray(resourceShares.resourceId, resourceIds),
+        or(...targetConds)
+      )
+    );
+  for (const row of rows) {
+    const list = out.get(row.resourceId) ?? [];
+    list.push(row);
+    out.set(row.resourceId, list);
+  }
+  return out;
 }
 
 /**

@@ -104,9 +104,9 @@ describe("Phase 7: Hidden Fields & Download Features", () => {
   describe("Assets list returns all fields including hidden ones", () => {
     it("should return assets list with description, promptUsed, mimeType, fileSizeBytes, updatedAt", async () => {
       const result = await caller.assets.myAssets();
-      expect(Array.isArray(result)).toBe(true);
-      if (result.length > 0) {
-        const item = result[0];
+      expect(Array.isArray(result.items)).toBe(true);
+      if (result.items.length > 0) {
+        const item = result.items[0];
         expect(item).toHaveProperty("description");
         expect(item).toHaveProperty("promptUsed");
         expect(item).toHaveProperty("mimeType");

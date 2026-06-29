@@ -41,9 +41,12 @@ export const exportRouter = router({
   getJobUrls: protectedProcedure
     .input(z.object({ jobIds: z.array(z.number().int().positive()).max(50) }))
     .query(async ({ ctx, input }) => {
+      // AIDV-651: 一次批次查詢取代逐筆 N+1 await；過濾邏輯與舊版語意完全一致。
+      const jobs = await db.getBackgroundJobsByIds(input.jobIds);
+      const jobMap = new Map(jobs.map(j => [j.id, j]));
       const items: { jobId: number; url: string }[] = [];
       for (const jobId of input.jobIds) {
-        const job = await db.getBackgroundJob(jobId);
+        const job = jobMap.get(jobId);
         if (!job || job.userId !== ctx.user.id || job.status !== "completed") continue;
         const url = extractUrl(job.resultJson);
         if (url) items.push({ jobId, url });
