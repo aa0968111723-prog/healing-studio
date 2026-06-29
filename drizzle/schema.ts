@@ -3342,6 +3342,12 @@ export const orbCostAttribution = mysqlTable(
 export type OrbCostAttribution = typeof orbCostAttribution.$inferSelect;
 export type InsertOrbCostAttribution = typeof orbCostAttribution.$inferInsert;
 
+// MYSQL LEGACY — not used in Postgres/Supabase prod.
+// The live production table is "system_alerts" (Supabase public schema, created via
+// supabase/migrations/). providerHealthProbeJob writes there via Supabase client SDK,
+// not via this Drizzle object. Any code reading `orbSystemAlerts` from this file is
+// reading the MySQL schema only. New monitoring code must target Supabase "system_alerts".
+// AIDV-726, AIDV-730: naming gap documented to prevent future confusion.
 export const orbSystemAlerts = mysqlTable(
   "orb_system_alerts",
   {
