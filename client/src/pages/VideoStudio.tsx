@@ -844,6 +844,13 @@ function TextToVideoTab() {
   // 讓後端走零行為變化路徑——使用者沒動選擇器的既有生成完全不受影響（不對 Veo3 多注入 resolution）。
   const effectiveOutputSpec = outputSpecForGeneration(t2vOutputSpec, isPaidPlan);
 
+  // ── AIDV-645: 送出前費用預估（對標 Studio.tsx pricingSummary pattern）
+  const pricingSummaryQuery = trpc.brain.pricingSummary.useQuery(
+    { durationSec: parseInt(klingDuration) || 5 },
+    { retry: false, staleTime: 60_000 }
+  );
+  const videoEstimate = pricingSummaryQuery.data?.video;
+
   // ─ Mutations
   const klingMut = trpc.videoStudio.klingTextToVideo.useMutation({
     onError: e => toast.error(e.message),
@@ -1160,6 +1167,16 @@ function TextToVideoTab() {
           isPaid={isPaidPlan}
         />
       </div>
+      {videoEstimate && (
+        <div className="rounded-lg border border-border/50 bg-muted/40 px-3 py-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <Sparkles className="w-3.5 h-3.5 flex-shrink-0 text-primary/60" />
+          <span>
+            本次影片生成預估費用（{videoEstimate.label}）：約{" "}
+            <strong className="text-foreground">{videoEstimate.estimatedPoints}</strong> 點
+            {" ≈ US$"}{videoEstimate.estimatedUsd}
+          </span>
+        </div>
+      )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Kling v2.1 */}
       <ToolCard
