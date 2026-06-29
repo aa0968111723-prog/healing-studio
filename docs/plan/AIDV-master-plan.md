@@ -88,7 +88,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | junction follow-up B：variant/rewrite/extended 寫入點（座艙重骰/改寫/延長） | 📋 To Do | — | 三種 relation 有實際寫入 | #864、導演台流程 |
 | junction follow-up C：prompt_library content 去重策略（每次生成新插一列） | ✅ Done `decision-resolved`（AIDV-10 拍板 upsert-by-content，scope=userId+category+content；content 走 BINARY 比對；命中累計 useCount） | 生成鏈 `findOrCreatePromptByContent` query-before-insert（非破壞性、不動 migration） | 同 content 生成 N 次→一列 prompt、N asset 連同一列；重用累計 useCount | feat/aidv-10-prompt-dedup |
 | 統一供應商門面＋免費 Cloudflare AI Gateway | 📋 To Do | Notion: 統一供應商門面 + Cloudflare AI Gateway | 所有生成呼叫過門面；Gateway 快取/觀測啟用 | — |
-| **LLM 聚合器（FreeLLMAPI）接入統一門面（評估→PoC）**（⑪／branch llm-aggregator-integration） | 📋 To Do `待議` | — | FreeLLMAPI 以 OpenAI 相容供應商註冊進 providerFacade（新增 `FacadeProvider`＋`PROVIDER_ROUTES` 一列）；旗標預設 OFF；僅 dev/test/prototype 走免費額度，**prod 不路由使用者 PII** | `server/_core/providerFacade.ts`（W1-2 #870）；Bruce 拍板採用與否＋自架 Docker／逐家免費金鑰 |
+| **LLM 聚合器（FreeLLMAPI）接入統一門面**（⑪／branch llm-aggregator-integration） | 🔄 接入完成待合併（Bruce 已拍板採用，2026-06-29） | 本 PR | `freellmapi` 已註冊進 `providerFacade`（FacadeProvider＋PROVIDER_ROUTES，cfGatewaySlug=null）＋接成 `llmRouter` OpenAI 相容引擎；三重門檻（`ENABLE_FREELLMAPI`＋`FREELLMAPI_BASE_URL`＋`FREELLMAPI_API_KEY`）預設 OFF；**永不進 auto/fallback 路由**（prod 不路由使用者 PII）；60 測試綠（含 auto-排除安全測） | `server/_core/providerFacade.ts`／`llmRouter.ts`（W1-2 #870）。Phase 2＝Bruce 自架 Docker＋三變數貼 Railway（dev/test）後以 `LLM_ENGINE=freellmapi` 顯式選用 |
 | 其餘可接子系統接真實 procedure（18 子系統矩陣的 ✅8） | 🔄 部分 Done（在 #862） | [#862](https://github.com/aa0968111723-prog/healing-studio/pull/862) | 各子系統列實際 procedure 名 | #862 |
 
 ### 2.3 EPIC Wave 2 — 耐久任務／成本／血統【To Do 📋】
@@ -374,6 +374,15 @@ AI Director 影片系統（空間首頁＝①）
   **不得把使用者 PII／正式生成路由進免費聚合器**。每家仍需各自免費金鑰（貼 Railway，鐵律 3）或自架 Docker。
 - **建議**：Wave 1 加卡「LLM 聚合器接入統一門面（評估→PoC）」，旗標預設 OFF、僅 dev/test 走，
   prod 維持 OpenRouter／CF Gateway。**待 Bruce 拍板**是否採用、自架 Docker 或逐家免費金鑰。
+- **✅ 2026-06-29 Bruce 拍板採用，已接入**（本 PR）：`freellmapi` 註冊進 `providerFacade`
+  （cfGatewaySlug=null＝永遠直連）＋接成 `llmRouter` OpenAI 相容引擎，與 openrouter/nvidia/forge
+  共用 `llm.ts` 的 generic OpenAI 路徑（零特例）。**三重安全閘**：`ENABLE_FREELLMAPI`（預設 OFF）
+  ＋`FREELLMAPI_BASE_URL`＋`FREELLMAPI_API_KEY` 缺一即拒絕解析（未設＝零變化）；**刻意排除於
+  auto/fallback 路由**，只有 `LLM_ENGINE=freellmapi` 或顯式 forceEngine 才選得到——prod 絕不誤把
+  使用者 PII 送進免費聚合器（有 auto-排除單測守門）。
+  - **Phase 2（Bruce 動手，dev/test 限定）**：自架 FreeLLMAPI Docker；於 Railway（或 dev `.env`）貼三變數
+    `ENABLE_FREELLMAPI=true`／`FREELLMAPI_BASE_URL=<自架底址>`／`FREELLMAPI_API_KEY=<金鑰>`
+    （鐵律 3：金鑰只貼環境變數），再以 `LLM_ENGINE=freellmapi` 或呼叫端 forceEngine 試生成。
 
 ### 資源 2：Agentic Design Patterns（21 代理設計模式）— ✅ **可融入（方法論/檢查表，非程式依賴）**
 - **是什麼**：Google《Agentic Design Patterns》一書的**中文翻譯站**（Jekyll/HTML 靜態站，非函式庫），

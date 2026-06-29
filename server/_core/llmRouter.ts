@@ -49,6 +49,7 @@ export type LLMEngine =
   | "vertex"
   | "forge"
   | "nvidia"
+  | "freellmapi"
   | "auto";
 
 export interface EngineConfig {
@@ -441,6 +442,19 @@ export function inferEngineFromModelIdSafe(
 }
 
 /**
+ * FreeLLMAPI（AIDV ⑪）三重門檻：旗標開 ＋ base ＋ key 皆備才算可用。
+ * 預設 OFF；dev/test 限定。本引擎**刻意不進 auto 順序／fallback 鏈**
+ * （見 resolveEngineConfig 的 autoOrder 與 getEngineFallbackChain 的 allOrder），
+ * 只有 LLM_ENGINE=freellmapi 或顯式 forceEngine 才會選到——prod 絕不把
+ * 使用者 PII 路由到免費聚合器。三者缺一時，「未設＝零變化」。
+ */
+export function isFreeLlmApiEnabled(): boolean {
+  const flag = (ENV.freellmapiEnabled ?? "").trim().toLowerCase();
+  const on = flag === "true" || flag === "1" || flag === "on" || flag === "yes";
+  return on && !!ENV.freellmapiBaseUrl && !!ENV.freellmapiApiKey;
+}
+
+/**
  * 偵測可用的引擎，回傳優先順序列表
  * 呼叫端可以用來顯示「目前使用哪個引擎」的 debug info
  */
@@ -490,6 +504,13 @@ export function detectAvailableEngines(): Array<{
     available.push({
       engine: "nvidia",
       reason: "NVIDIA_API 已設定（NVIDIA NIM 代理人引擎）",
+    });
+  }
+  if (isFreeLlmApiEnabled()) {
+    available.push({
+      engine: "freellmapi",
+      reason:
+        "FreeLLMAPI 已啟用（免費聚合器 · dev/test 限定 · 顯式選用、不進 auto 路由）",
     });
   }
 
@@ -754,6 +775,33 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         supportsLongContext: false,
         supportsToolCalling: true,
       };
+
+    case "freellmapi": {
+      // FreeLLMAPI（AIDV ⑪）：16 供應商免費聚合器，OpenAI 相容，自架 Docker。
+      // 三重門檻（旗標＋base＋key）由 isFreeLlmApiEnabled() 統一把關，缺一即拒絕解析
+      //——確保「未設＝零變化」。本引擎不在 auto 順序／fallback 鏈中（見上方兩處），
+      // 只有 LLM_ENGINE=freellmapi 或顯式 forceEngine 才會走到這裡：dev/test 限定，
+      // prod 絕不把使用者 PII 路由到免費聚合器。
+      if (!isFreeLlmApiEnabled())
+        throw new Error(
+          "Engine 'freellmapi' 指定但未啟用：需同時設 ENABLE_FREELLMAPI=true ＋ FREELLMAPI_BASE_URL ＋ FREELLMAPI_API_KEY（dev/test 限定）"
+        );
+      // 門面解析：FREELLMAPI_BASE_URL 為自架實例底址；無 CF slug，永遠直連。
+      const baseUrl = resolveProviderBaseUrl("freellmapi", ENV.freellmapiBaseUrl);
+      return {
+        name: "FreeLLMAPI (Free Aggregator · dev/test)",
+        engine: "freellmapi",
+        // OpenAI-compatible chat completions endpoint（與 openrouter/nvidia/forge 同路徑）
+        url: `${baseUrl}/chat/completions`,
+        apiKey: ENV.freellmapiApiKey,
+        // 預設模型依自架實例實際聚合的供應商而定，可由呼叫端 model 參數覆寫。
+        model: ENV.freellmapiModel || "gemini-2.5-flash",
+        supportsThinking: false,
+        supportsGrounding: false,
+        supportsLongContext: false,
+        supportsToolCalling: true,
+      };
+    }
 
     default:
       throw new Error(`Unknown engine: ${engine}`);
