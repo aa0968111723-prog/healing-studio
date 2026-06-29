@@ -407,6 +407,7 @@ export function CompositionAssistant({
         <div className="lg:col-span-2 space-y-2">
           <div className="flex items-center gap-2">
             <select
+              aria-label="畫布尺寸"
               value={`${canvasSize.width}x${canvasSize.height}`}
               onChange={(e) => {
                 const [w, h] = e.target.value.split("x").map(Number);
@@ -444,8 +445,9 @@ export function CompositionAssistant({
               <div className="text-sm font-medium mb-2">屬性編輯</div>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <label className="text-muted-foreground">X</label>
+                  <label htmlFor="comp-elem-x" className="text-muted-foreground">X</label>
                   <input
+                    id="comp-elem-x"
                     type="number"
                     value={Math.round(selectedElement.position.x)}
                     onChange={(e) => {
@@ -462,8 +464,9 @@ export function CompositionAssistant({
                   />
                 </div>
                 <div>
-                  <label className="text-muted-foreground">Y</label>
+                  <label htmlFor="comp-elem-y" className="text-muted-foreground">Y</label>
                   <input
+                    id="comp-elem-y"
                     type="number"
                     value={Math.round(selectedElement.position.y)}
                     onChange={(e) => {
@@ -480,8 +483,9 @@ export function CompositionAssistant({
                   />
                 </div>
                 <div>
-                  <label className="text-muted-foreground">寬度</label>
+                  <label htmlFor="comp-elem-w" className="text-muted-foreground">寬度</label>
                   <input
+                    id="comp-elem-w"
                     type="number"
                     value={Math.round(selectedElement.size.width)}
                     onChange={(e) => {
@@ -498,8 +502,9 @@ export function CompositionAssistant({
                   />
                 </div>
                 <div>
-                  <label className="text-muted-foreground">高度</label>
+                  <label htmlFor="comp-elem-h" className="text-muted-foreground">高度</label>
                   <input
+                    id="comp-elem-h"
                     type="number"
                     value={Math.round(selectedElement.size.height)}
                     onChange={(e) => {
