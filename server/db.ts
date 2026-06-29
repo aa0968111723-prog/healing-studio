@@ -3132,7 +3132,7 @@ export async function getCreativeProjectsByUserPaginated(
     conditions.push(lt(creativeProjects.id, opts.cursor));
   }
   if (opts.search) {
-    conditions.push(like(creativeProjects.title, `%${opts.search}%`));
+    conditions.push(like(creativeProjects.title, `%${escapeLikePattern(opts.search)}%`));
   }
   if (opts.status) {
     conditions.push(eq(creativeProjects.status, opts.status));
@@ -3817,7 +3817,7 @@ export async function listTeachingMaterialsForUser(
     conditions.push(eq(teachingMaterials.topic, filters.topic));
   }
   if (filters.search) {
-    const like = `%${filters.search}%`;
+    const like = `%${escapeLikePattern(filters.search)}%`;
     conditions.push(
       sql`(${teachingMaterials.title} LIKE ${like} OR ${teachingMaterials.description} LIKE ${like} OR ${teachingMaterials.textContent} LIKE ${like})`
     );
@@ -3880,7 +3880,7 @@ export async function searchTeachingMaterialsForUser(
     conditions.push(eq(teachingMaterials.topic, filters.topic));
   }
   if (filters.search) {
-    const like = `%${filters.search}%`;
+    const like = `%${escapeLikePattern(filters.search)}%`;
     conditions.push(
       sql`(${teachingMaterials.title} LIKE ${like} OR ${teachingMaterials.description} LIKE ${like} OR ${teachingMaterials.textContent} LIKE ${like})`
     );
@@ -4554,7 +4554,7 @@ export async function searchRealEarthEntries(params: {
 
   // 搜尋關鍵字（使用 LIKE）
   if (params.query) {
-    const searchTerm = `%${params.query}%`;
+    const searchTerm = `%${escapeLikePattern(params.query)}%`;
     conditions.push(
       or(
         like(realEarthEntries.title, searchTerm),
@@ -4616,7 +4616,7 @@ export async function searchRealEarthEntries(params: {
   if (conditions.length > 0) {
     // 重複應用相同的條件
     if (params.query) {
-      const searchTerm = `%${params.query}%`;
+      const searchTerm = `%${escapeLikePattern(params.query)}%`;
       countConditions.push(
         or(
           like(realEarthEntries.title, searchTerm),

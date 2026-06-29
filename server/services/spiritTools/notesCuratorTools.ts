@@ -16,7 +16,7 @@
  */
 
 import { logger } from "../../_core/logger";
-import { getDb } from "../../db";
+import { getDb, escapeLikePattern } from "../../db";
 import {
   projectNotesCalendar,
   digitalAssetLibrary,
@@ -175,9 +175,9 @@ export async function searchNotes(input: {
     const conditions = [
       eq(projectNotesCalendar.userId, input.userId),
       or(
-        like(projectNotesCalendar.title, `%${input.query}%`),
-        like(projectNotesCalendar.content, `%${input.query}%`),
-        sql`CAST(${projectNotesCalendar.tags} AS CHAR) LIKE ${`%${input.query}%`}`
+        like(projectNotesCalendar.title, `%${escapeLikePattern(input.query)}%`),
+        like(projectNotesCalendar.content, `%${escapeLikePattern(input.query)}%`),
+        sql`CAST(${projectNotesCalendar.tags} AS CHAR) LIKE ${`%${escapeLikePattern(input.query)}%`}`
       ),
     ];
     if (input.noteType) {
@@ -839,9 +839,9 @@ export async function searchAssets(input: {
     if (input.query) {
       conditions.push(
         or(
-          like(digitalAssetLibrary.title, `%${input.query}%`),
-          like(digitalAssetLibrary.description, `%${input.query}%`),
-          sql`CAST(${digitalAssetLibrary.tags} AS CHAR) LIKE ${`%${input.query}%`}`
+          like(digitalAssetLibrary.title, `%${escapeLikePattern(input.query)}%`),
+          like(digitalAssetLibrary.description, `%${escapeLikePattern(input.query)}%`),
+          sql`CAST(${digitalAssetLibrary.tags} AS CHAR) LIKE ${`%${escapeLikePattern(input.query)}%`}`
         )!
       );
     }
