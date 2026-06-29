@@ -61,6 +61,16 @@ import {
 } from "lucide-react";
 import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
 import ConsentFormDialog from "@/components/ConsentFormDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import type {
@@ -273,6 +283,7 @@ export default function LoraTrainer({
   >("synthetic");
   const [selectedConsentIds, setSelectedConsentIds] = useState<number[]>([]);
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
+  const [pendingRevokeId, setPendingRevokeId] = useState<number | null>(null);
 
   // ── 從 URL query 預填（給動畫工作室 / 其他頁面快速跳轉用） ──
   // 支援的參數：
@@ -344,6 +355,18 @@ export default function LoraTrainer({
   // ── 同意書清單（肖像權 / 照片使用）──
   const consentsQuery = trpc.modelConsents.list.useQuery(undefined, {
     retry: false,
+  });
+  const revokeMutation = trpc.modelConsents.revoke.useMutation({
+    onSuccess: (_data, variables) => {
+      toast.success("同意書已撤回");
+      setPendingRevokeId(null);
+      setSelectedConsentIds(prev => prev.filter(id => id !== variables.id));
+      void consentsQuery.refetch();
+    },
+    onError: err => {
+      toast.error(err.message ?? "撤回失敗，請稍後再試");
+      setPendingRevokeId(null);
+    },
   });
 
   // ── Training job status polling ──
@@ -2131,49 +2154,59 @@ export default function LoraTrainer({
                                         const checked =
                                           selectedConsentIds.includes(c.id);
                                         return (
-                                          <label
+                                          <div
                                             key={c.id}
-                                            className={`flex items-start gap-2 rounded-md border p-2 text-xs cursor-pointer transition-colors ${
+                                            className={`flex items-start gap-1 rounded-md border p-2 text-xs transition-colors ${
                                               checked
                                                 ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-900/20"
                                                 : "border-input hover:bg-muted/50"
                                             }`}
                                           >
-                                            <input
-                                              type="checkbox"
-                                              checked={checked}
-                                              onChange={() =>
-                                                setSelectedConsentIds(prev =>
-                                                  prev.includes(c.id)
-                                                    ? prev.filter(x => x !== c.id)
-                                                    : [...prev, c.id]
-                                                )
-                                              }
-                                              className="mt-0.5"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                              <div className="font-medium truncate">
-                                                #{c.id} {c.subjectName}
+                                            <label className="flex items-start gap-2 flex-1 min-w-0 cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() =>
+                                                  setSelectedConsentIds(prev =>
+                                                    prev.includes(c.id)
+                                                      ? prev.filter(x => x !== c.id)
+                                                      : [...prev, c.id]
+                                                  )
+                                                }
+                                                className="mt-0.5"
+                                              />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium truncate">
+                                                  #{c.id} {c.subjectName}
+                                                </div>
+                                                <div className="text-muted-foreground truncate">
+                                                  {c.consentType === "portrait"
+                                                    ? "肖像權"
+                                                    : c.consentType === "photo_usage"
+                                                      ? "照片使用"
+                                                      : "肖像 + 照片"}
+                                                  ・{c.signerName}（
+                                                  {c.signerRelation === "self"
+                                                    ? "本人"
+                                                    : c.signerRelation === "guardian"
+                                                      ? "法代"
+                                                      : c.signerRelation ===
+                                                          "copyright_holder"
+                                                        ? "著作權人"
+                                                        : "授權代表"}
+                                                  ）
+                                                </div>
                                               </div>
-                                              <div className="text-muted-foreground truncate">
-                                                {c.consentType === "portrait"
-                                                  ? "肖像權"
-                                                  : c.consentType === "photo_usage"
-                                                    ? "照片使用"
-                                                    : "肖像 + 照片"}
-                                                ・{c.signerName}（
-                                                {c.signerRelation === "self"
-                                                  ? "本人"
-                                                  : c.signerRelation === "guardian"
-                                                    ? "法代"
-                                                    : c.signerRelation ===
-                                                        "copyright_holder"
-                                                      ? "著作權人"
-                                                      : "授權代表"}
-                                                ）
-                                              </div>
-                                            </div>
-                                          </label>
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() => setPendingRevokeId(c.id)}
+                                              className="shrink-0 text-muted-foreground hover:text-destructive transition-colors rounded px-1 py-0.5 text-[10px] leading-none"
+                                              title="撤回此同意書"
+                                            >
+                                              撤回
+                                            </button>
+                                          </div>
                                         );
                                       })}
                                   </div>
@@ -3097,6 +3130,33 @@ export default function LoraTrainer({
           照片使用同意書（依個資法與著作權法）。
         </p>
       </div>
+
+      <AlertDialog
+        open={pendingRevokeId !== null}
+        onOpenChange={open => { if (!open) setPendingRevokeId(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認撤回同意書</AlertDialogTitle>
+            <AlertDialogDescription>
+              撤回後此同意書將失效，無法再用於新的 LoRA 訓練任務。此操作不可恢復，請確認。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingRevokeId !== null) {
+                  revokeMutation.mutate({ id: pendingRevokeId });
+                }
+              }}
+            >
+              {revokeMutation.isPending ? "撤回中…" : "確認撤回"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ConsentFormDialog
         open={consentDialogOpen}
