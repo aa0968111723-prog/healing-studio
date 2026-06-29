@@ -354,10 +354,25 @@ export const showcaseRouter = router({
       // studio transfer payload behave identically for both sources.
       if (input.id < 0) {
         const historyId = -input.id;
+        // AIDV-609：getById 是 publicProcedure（匿名可呼叫）。負 id 直指
+        // generation_history 私有列，過去只用 id 過濾 → 任何人都能枚舉抓出他人
+        // 未公開作品的完整提示詞＋成品 URL。這裡套用與 fetchFallbackHistory
+        // 相同的「公開廣場可見性」述詞：有成品 URL 且（已加書籤 OR 評分>=4）。
+        // 不符可見性即 NOT_FOUND，與 list 端授權一致。
         const rows = await db
           .select()
           .from(generationHistory)
-          .where(eq(generationHistory.id, historyId))
+          .where(
+            and(
+              eq(generationHistory.id, historyId),
+              isNotNull(generationHistory.resultUrl),
+              ne(generationHistory.resultUrl, ""),
+              or(
+                eq(generationHistory.isBookmarked, true),
+                gte(generationHistory.userRating, 4)
+              )!
+            )
+          )
           .limit(1);
 
         if (rows.length === 0) {

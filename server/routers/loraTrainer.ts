@@ -269,7 +269,19 @@ export const loraTrainerRouter = router({
    */
   replicateTrainingStatus: protectedProcedure
     .input(z.object({ trainingId: z.string().min(1) }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // AIDV-609：先確認此 trainingId 對應的訓練模型屬於本人，再轉呼 Replicate，
+      // 比照同檔 trainingDetail 的擁有權檢查，避免查他人訓練狀態。
+      const owned = await db.getFineTunedModelByReplicateId(
+        input.trainingId,
+        ctx.user.id
+      );
+      if (!owned) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "找不到此訓練任務，或它不屬於你。",
+        });
+      }
       if (!process.env.REPLICATE_API_TOKEN) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
