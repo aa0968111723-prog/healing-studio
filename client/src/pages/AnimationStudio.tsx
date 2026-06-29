@@ -175,6 +175,13 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
 import { AdvancedSection } from "@/components/layout/AdvancedSection";
 import { getVisualDensity, shouldShowAdvanced, shouldShowDiagnostics } from "@/lib/visualDensity";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -5721,6 +5728,9 @@ export default function AnimationStudio() {
     onError: e => toast.error(`重新命名失敗：${e.message}`),
   });
 
+  const [renameSbDialog, setRenameSbDialog] = useState<{ id: number; currentName: string } | null>(null);
+  const [renameSbName, setRenameSbName] = useState("");
+
   if (worldsQuery.isLoading) {
     return (
       <div className="p-6 text-center text-muted-foreground text-sm">
@@ -6553,16 +6563,8 @@ export default function AnimationStudio() {
                           size="sm"
                           onClick={e => {
                             e.stopPropagation();
-                            const next = window.prompt(
-                              "重新命名分鏡草稿",
-                              sb.name
-                            );
-                            if (next && next.trim() && next.trim() !== sb.name) {
-                              renameStoryboard.mutate({
-                                id: sb.id,
-                                patch: { name: next.trim() },
-                              });
-                            }
+                            setRenameSbDialog({ id: sb.id, currentName: sb.name });
+                            setRenameSbName(sb.name);
                           }}
                           className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
                           title="重新命名"
@@ -6673,6 +6675,47 @@ export default function AnimationStudio() {
         </TabsContent>
       </Tabs>
     </div>
+
+      <Dialog
+        open={renameSbDialog !== null}
+        onOpenChange={open => !open && setRenameSbDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>重新命名分鏡草稿</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameSbName}
+            onChange={e => setRenameSbName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                const trimmed = renameSbName.trim();
+                if (renameSbDialog && trimmed && trimmed !== renameSbDialog.currentName) {
+                  renameStoryboard.mutate({ id: renameSbDialog.id, patch: { name: trimmed } });
+                }
+                setRenameSbDialog(null);
+              }
+            }}
+            placeholder="分鏡草稿名稱"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameSbDialog(null)}>取消</Button>
+            <Button
+              onClick={() => {
+                const trimmed = renameSbName.trim();
+                if (renameSbDialog && trimmed && trimmed !== renameSbDialog.currentName) {
+                  renameStoryboard.mutate({ id: renameSbDialog.id, patch: { name: trimmed } });
+                }
+                setRenameSbDialog(null);
+              }}
+              disabled={!renameSbName.trim() || renameSbName.trim() === renameSbDialog?.currentName}
+            >
+              確認
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
