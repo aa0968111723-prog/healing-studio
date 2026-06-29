@@ -31,6 +31,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   Music2,
   Mic2,
@@ -364,8 +365,7 @@ function AudioPlayer({ url, label }: { url: string; label?: string }) {
         <button
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
           onClick={() => {
-            navigator.clipboard.writeText(url);
-            toast.success("已複製音訊 URL");
+            void copyToClipboard(url, "已複製音訊 URL");
           }}
         >
           <Copy className="w-3 h-3" />
@@ -400,8 +400,7 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
         <button
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
           onClick={() => {
-            navigator.clipboard.writeText(url);
-            toast.success("已複製影片 URL");
+            void copyToClipboard(url, "已複製影片 URL");
           }}
         >
           <Copy className="w-3 h-3" />
@@ -2884,8 +2883,7 @@ function CloneTab() {
                           size="icon"
                           className="h-7 w-7 shrink-0"
                           onClick={() => {
-                            navigator.clipboard.writeText(klingResult.voice_id);
-                            toast.success("已複製語音 ID");
+                            void copyToClipboard(klingResult.voice_id, "已複製語音 ID");
                           }}
                         >
                           <Copy className="w-3 h-3" />
@@ -3014,8 +3012,7 @@ function CloneTab() {
                         size="icon"
                         className="h-7 w-7 shrink-0"
                         onClick={() => {
-                          navigator.clipboard.writeText(klingResult.voice_id);
-                          toast.success("已複製 voice_id");
+                          void copyToClipboard(klingResult.voice_id, "已複製 voice_id");
                         }}
                       >
                         <Copy className="w-3 h-3" />
@@ -3613,8 +3610,7 @@ function ASRTab() {
                 size="sm"
                 className="h-6 text-[10px] px-2"
                 onClick={() => {
-                  navigator.clipboard.writeText(text);
-                  toast.success("已複製");
+                  void copyToClipboard(text, "已複製");
                 }}
               >
                 <Copy className="w-3 h-3 mr-1" /> 複製

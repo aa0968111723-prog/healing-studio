@@ -8,6 +8,7 @@
 //   • 模型庫 = worldbuilding.linkableModels（含 trainedLoraUrl）。
 // ============================================================================
 import { useState } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -19,7 +20,7 @@ import { Check, Copy, Link2 } from "lucide-react";
 function useCopy() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const copy = (text: string, key: string) => {
-    void navigator.clipboard.writeText(text).then(() => {
+    void copyToClipboard(text).then(() => {
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(k => (k === key ? null : k)), 1800);
     });

@@ -16,6 +16,7 @@ import { trpc } from "@/lib/trpc";
 import { PanelError, PanelLoading } from "@/shells/_shared/PanelState";
 import { CATEGORY_LABELS, type RealEarthEntry } from "@shared/real-earth-types";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 
 const CREDIBILITY_LABEL: Record<NonNullable<RealEarthEntry["quality"]>["credibility"], string> = {
   low: "可信度低",
@@ -43,18 +44,12 @@ export function RealEarthResearchBody() {
 
   const copyRef = async (e: RealEarthEntry) => {
     const line = refLine(e);
-    // 守門：Clipboard API 不存在（非 HTTPS／舊瀏覽器）時，optional chaining 會無聲 no-op，
-    // 故先確認 API 在、寫入成功才報「已複製」；否則落到手動複製 fallback（不謊報成功）。
-    if (navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(line);
-        toast.success("已複製真實參照", { description: "可貼進腳本／提示詞，為這段接地。" });
-        return;
-      } catch {
-        // 寫入失敗 → 落到下方 fallback
-      }
+    try {
+      await copyToClipboard(line);
+      toast.success("已複製真實參照", { description: "可貼進腳本／提示詞，為這段接地。" });
+    } catch {
+      toast.message("真實參照（請手動複製）", { description: line });
     }
-    toast.message("真實參照（請手動複製）", { description: line });
   };
 
   return (

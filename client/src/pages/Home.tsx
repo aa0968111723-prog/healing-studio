@@ -72,6 +72,7 @@ import { LANDING_COSMIC_MOBILE_ENABLED, LANDING_AURORA_MOBILE_ENABLED } from "@/
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
 import OrbCreationStage from "@/components/home/OrbCreationStage";
 import HeroMagneticSpotlight from "@/components/home/HeroMagneticSpotlight";
+import { copyToClipboard } from "@/lib/clipboard";
 import PointerAura from "@/components/home/PointerAura";
 import MagneticTilt from "@/components/home/MagneticTilt";
 import ShimmerDivider from "@/components/home/ShimmerDivider";
@@ -889,9 +890,9 @@ export default function Home() {
 
   const copyOrbPrompt = useCallback(async (prompt: string) => {
     try {
-      await navigator.clipboard.writeText(prompt);
+      await copyToClipboard(prompt);
     } catch {
-      // ignore clipboard permission errors
+      // error toast shown by copyToClipboard
     }
   }, []);
 
