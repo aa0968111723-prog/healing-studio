@@ -77,6 +77,7 @@ import {
 import { useLocation } from "wouter";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
+import { shortErrorMsg, uploadFileToS3 } from "@/lib/upload";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
 import { parsePollStatus } from "@/lib/falResultParser";
 
@@ -470,42 +471,13 @@ function FileUploadInput({
     async (file: File) => {
       setUploading(true);
       try {
-        const reader = new FileReader();
-        reader.onload = async e => {
-          try {
-            const base64 = (e.target?.result as string).split(",")[1];
-            const res = await fetch("/api/upload", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                fileName: file.name,
-                mimeType: file.type,
-                data: base64,
-              }),
-            });
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({ error: "上傳失敗" }));
-              toast.error("上傳失敗：" + (err.error ?? `HTTP ${res.status}`));
-              return;
-            }
-            const json = await res.json();
-            if (json.url) {
-              onChange(json.url);
-              toast.success(`✅ 上傳完成：${file.name}`);
-            } else {
-              toast.error("上傳失敗：" + (json.error ?? "未知錯誤"));
-            }
-          } catch {
-            toast.error("上傳失敗，請檢查網路連線");
-          } finally {
-            setUploading(false);
-          }
-        };
-        reader.readAsDataURL(file);
-      } catch {
+        const { url } = await uploadFileToS3(file);
+        onChange(url);
+        toast.success(`✅ 上傳完成：${file.name}`);
+      } catch (err: unknown) {
+        toast.error("上傳失敗：" + shortErrorMsg(err));
+      } finally {
         setUploading(false);
-        toast.error("讀取檔案失敗");
       }
     },
     [onChange]
