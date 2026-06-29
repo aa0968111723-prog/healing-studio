@@ -1205,6 +1205,70 @@ export async function getDigitalAssetsByUserFiltered(opts: {
     .limit(opts.limit ?? 200);
 }
 
+export interface DigitalAssetsPage {
+  items: Awaited<ReturnType<typeof getDigitalAssetsByUserFiltered>>;
+  nextCursor: number | null;
+}
+
+export async function getDigitalAssetsByUserFilteredPaged(opts: {
+  userId: number;
+  assetType?: string;
+  sourceStudio?: string;
+  search?: string;
+  cursor?: number | null;
+  limit: number;
+}): Promise<DigitalAssetsPage> {
+  const db = await getDb();
+  if (!db) return { items: [], nextCursor: null };
+
+  const conditions: SQL[] = [eq(digitalAssetLibrary.userId, opts.userId)];
+
+  if (opts.assetType && opts.assetType !== "all") {
+    conditions.push(
+      eq(digitalAssetLibrary.assetType, opts.assetType as "image" | "video" | "audio" | "voice" | "script" | "zip_bundle")
+    );
+  }
+
+  if (opts.sourceStudio && opts.sourceStudio !== "all") {
+    if (opts.sourceStudio === "unknown") {
+      conditions.push(isNull(digitalAssetLibrary.sourceStudio));
+    } else {
+      conditions.push(eq(digitalAssetLibrary.sourceStudio, opts.sourceStudio));
+    }
+  }
+
+  if (opts.search) {
+    const trimmed = opts.search.trim();
+    if (trimmed) {
+      const escaped = escapeLikePattern(trimmed);
+      const pattern = `%${escaped}%`;
+      conditions.push(
+        or(
+          like(digitalAssetLibrary.title, pattern),
+          like(digitalAssetLibrary.description, pattern),
+          like(digitalAssetLibrary.promptUsed, pattern)
+        )!
+      );
+    }
+  }
+
+  if (opts.cursor != null) {
+    conditions.push(lt(digitalAssetLibrary.id, opts.cursor));
+  }
+
+  const rows = await db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(and(...conditions))
+    .orderBy(desc(digitalAssetLibrary.id))
+    .limit(opts.limit + 1);
+
+  const hasMore = rows.length > opts.limit;
+  const items = hasMore ? rows.slice(0, opts.limit) : rows;
+  const nextCursor = hasMore ? (items[items.length - 1]?.id ?? null) : null;
+  return { items, nextCursor };
+}
+
 // ─── Prompt ↔ Asset 關聯（prompt_assets junction, migration 0075）────────────
 
 /**

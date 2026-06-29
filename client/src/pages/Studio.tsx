@@ -3737,7 +3737,7 @@ function MiniAssetsPanel() {
     );
   }
 
-  const assets = myAssetsQuery.data || [];
+  const assets = myAssetsQuery.data?.items ?? [];
 
   if (!assets.length) {
     return (

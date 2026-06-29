@@ -47,15 +47,19 @@ export const assetsRouter = router({
             ])
             .default("all"),
           search: z.string().optional(),
+          cursor: z.number().int().positive().nullish(),
+          limit: z.number().int().min(1).max(100).default(50),
         })
         .optional()
     )
     .query(async ({ ctx, input }) => {
-      return db.getDigitalAssetsByUserFiltered({
+      return db.getDigitalAssetsByUserFilteredPaged({
         userId: ctx.user.id,
         assetType: input?.assetType,
         sourceStudio: input?.sourceStudio,
         search: input?.search,
+        cursor: input?.cursor,
+        limit: input?.limit ?? 50,
       });
     }),
 

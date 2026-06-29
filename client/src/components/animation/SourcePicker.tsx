@@ -258,13 +258,13 @@ function AssetsPane({
           <p className="text-[11px] text-muted-foreground italic py-4 text-center">
             載入資產中…
           </p>
-        ) : !query.data || query.data.length === 0 ? (
+        ) : !query.data?.items?.length ? (
           <p className="text-[11px] text-muted-foreground italic py-4 text-center">
             數位資訊庫尚無符合的資產。
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-1.5">
-            {query.data.slice(0, 60).map(a => {
+            {query.data.items.slice(0, 60).map(a => {
               const url = a.fileUrl ?? a.thumbnailUrl ?? "";
               if (!url) return null;
               return (
