@@ -116,57 +116,42 @@ export const assetsRouter = router({
         .optional()
     )
     .query(async ({ ctx, input }) => {
-      try {
-        const all = await db.getTeamSharedAssets();
-        let result = all;
+      // AIDV-601：比照 AIDV-581（myAssets），把 assetType/sourceStudio/search
+      // 與筆數上限（預設 200）下推到 SQL，停止「撈整個全站 team_shared 池再用 JS
+      // filter」的全量載入；同時移除舊的 `catch { return []; }` 靜默吞錯——DB 真的
+      // 出錯時應拋 TRPCError（前端可顯示重試），而非把「壞掉」偽裝成「沒有共享資產」。
+      let result = await db.getTeamSharedAssetsFiltered({
+        assetType: input?.assetType,
+        sourceStudio: input?.sourceStudio,
+        search: input?.search,
+      });
 
-        // ── AIDV-121 enforcement（旗標 gate）──────────────────────────
-        // 旗標 OFF（預設）= 完全保持現狀：回全站 team_shared 資產（既有
-        //   行為，含已知 cross-tenant 洩漏；本 PR 刻意不在 OFF 時改它）。
-        // 旗標 ON = 經 canAccess 過濾，只留 ctx.user 真正能看到的（owner /
-        //   被顯式共享 / team_shared 池成員），A 看不到 B 未共享的資產。
-        if (isDataRbacEnabled()) {
-          const visible: typeof result = [];
-          for (const asset of result) {
-            const ok = await canAccessResource(
-              "asset",
-              asset.id,
-              {
-                ownerId: asset.userId,
-                visibility: asset.visibility,
-                teamId: null, // digital_asset_library 尚無 teamId 欄；靠顯式共享授權
-              },
-              ctx.user.id,
-              "view"
-            );
-            if (ok) visible.push(asset);
-          }
-          result = visible;
-        }
-
-        if (input?.assetType && input.assetType !== "all") {
-          result = result.filter(a => a.assetType === input.assetType);
-        }
-        if (input?.sourceStudio && input.sourceStudio !== "all") {
-          if (input.sourceStudio === "unknown") {
-            result = result.filter(a => !a.sourceStudio);
-          } else {
-            result = result.filter(a => a.sourceStudio === input.sourceStudio);
-          }
-        }
-        if (input?.search) {
-          const q = input.search.toLowerCase();
-          result = result.filter(
-            a =>
-              a.title.toLowerCase().includes(q) ||
-              (a.description || "").toLowerCase().includes(q) ||
-              (a.promptUsed || "").toLowerCase().includes(q)
+      // ── AIDV-121 enforcement（旗標 gate）──────────────────────────
+      // 旗標 OFF（預設）= 完全保持現狀：回（SQL 過濾後的）team_shared 資產（既有
+      //   行為，含已知 cross-tenant 洩漏；本 PR 刻意不在 OFF 時改它）。
+      // 旗標 ON = 經 canAccess 過濾，只留 ctx.user 真正能看到的（owner /
+      //   被顯式共享 / team_shared 池成員），A 看不到 B 未共享的資產。
+      // 逐筆權限過濾在 SQL 取回的結果上執行（與舊行為一致，AND 語意，順序不影響最終集合）。
+      if (isDataRbacEnabled()) {
+        const visible: typeof result = [];
+        for (const asset of result) {
+          const ok = await canAccessResource(
+            "asset",
+            asset.id,
+            {
+              ownerId: asset.userId,
+              visibility: asset.visibility,
+              teamId: null, // digital_asset_library 尚無 teamId 欄；靠顯式共享授權
+            },
+            ctx.user.id,
+            "view"
           );
+          if (ok) visible.push(asset);
         }
-        return result;
-      } catch {
-        return [];
+        result = visible;
       }
+
+      return result;
     }),
 
   // ── 手動上傳資產（已上傳至 S3 後呼叫此端點登記）──────────────────────

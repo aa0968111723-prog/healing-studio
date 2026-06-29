@@ -3,7 +3,8 @@
  *
  * 守住 `assets.teamAssets` 的 for-loop canAccess 過濾：旗標 ON 時 A 看不到 B
  * 未共享的資產、看得到被顯式共享的。純函式已另測，本檔證明 router 的實際接線
- * （getTeamSharedAssets → 逐筆 canAccessResource 過濾）真的擋住非共享資產。
+ * （getTeamSharedAssetsFiltered → 逐筆 canAccessResource 過濾）真的擋住非共享資產。
+ * AIDV-601：過濾下推 SQL 後，router 改呼 getTeamSharedAssetsFiltered，本檔同步改 spy。
  *
  * 作法：mock 兩個 authz 模組（旗標 + canAccessResource），spyOn 真 db 的
  * getTeamSharedAssets 回固定 fixtures，經 appRouter.createCaller 呼叫。
@@ -65,7 +66,7 @@ beforeEach(() => {
 describe("AIDV-121 assets.teamAssets 旗標 ON 過濾", () => {
   it("旗標 ON：A 看不到 B 未共享的、看得到被允許的", async () => {
     // 全站 team_shared 池：A 自己一筆、B 的兩筆（一筆共享給 A、一筆沒）
-    vi.spyOn(db, "getTeamSharedAssets").mockResolvedValue([
+    vi.spyOn(db, "getTeamSharedAssetsFiltered").mockResolvedValue([
       asset(10, A), // A 自己的 → 允許
       asset(20, B), // B 共享給 A → 允許
       asset(30, B), // B 未共享 → 擋
@@ -80,7 +81,7 @@ describe("AIDV-121 assets.teamAssets 旗標 ON 過濾", () => {
 
   it("旗標 OFF：回全站 team_shared（既有行為，不過濾＝零變化）", async () => {
     flagOn = false;
-    vi.spyOn(db, "getTeamSharedAssets").mockResolvedValue([
+    vi.spyOn(db, "getTeamSharedAssetsFiltered").mockResolvedValue([
       asset(10, A),
       asset(20, B),
       asset(30, B),
