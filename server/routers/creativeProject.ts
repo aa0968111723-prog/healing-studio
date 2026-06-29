@@ -74,14 +74,14 @@ function rowToData(row: CreativeProject) {
 }
 
 export const creativeProjectRouter = router({
-  /** 列出當前使用者的所有創作專案 */
+  // AIDV-617: 過渡期 LIMIT 100 防止重度用戶 OOM；前端 8 callsite 應逐步遷移至 listPaginated（infinite query）
   list: protectedProcedure.query(async ({ ctx }) => {
-    const rows = await db.getCreativeProjectsByUser(ctx.user.id);
+    const rows = await db.getCreativeProjectsByUser(ctx.user.id, { limit: 100 });
     return rows.map(rowToData);
   }),
 
   // AIDV-314: cursor 分頁版本（cursor = 上次最後一筆 id；limit 預設 20 / 最大 50）
-  // 適合 /video 列表無限捲動；原有 list 保持不變供 WorldContext selector 使用。
+  // 適合 /video 列表無限捲動；目標：前端 callsite 全數遷移後廢棄上方 list（AIDV-617）。
   listPaginated: protectedProcedure
     .input(
       z.object({

@@ -3155,15 +3155,17 @@ export async function getCreativeProject(
 }
 
 export async function getCreativeProjectsByUser(
-  userId: number
+  userId: number,
+  opts?: { limit?: number }
 ): Promise<CreativeProject[]> {
   const db = await getDb();
   if (!db) return [];
-  return db
+  const q = db
     .select()
     .from(creativeProjects)
     .where(eq(creativeProjects.userId, userId))
     .orderBy(desc(creativeProjects.updatedAt));
+  return opts?.limit ? q.limit(opts.limit) : q;
 }
 
 // AIDV-314: cursor-based paginated variant. Cursor = last seen row id.
