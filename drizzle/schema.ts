@@ -2469,6 +2469,8 @@ export const agentDynamicRegistry = mysqlTable(
     allowedEndpoints: json("allowedEndpoints").$type<string[]>(),
     costPerToken: decimal("costPerToken", { precision: 16, scale: 10 }).notNull().default("0"),
     currentLoad: decimal("currentLoad", { precision: 5, scale: 4 }).notNull().default("0"),
+    /** 並發容量上限（AIDV-496）：currentLoad 達到此值時不再派工，預設 1.0（即任何負載皆可接）。 */
+    maxLoad: decimal("maxLoad", { precision: 5, scale: 4 }).notNull().default("1.0000"),
     isActive: boolean("isActive").notNull().default(true),
     lastHeartbeatAt: timestamp("lastHeartbeatAt").defaultNow().notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),

@@ -722,6 +722,13 @@
       "when": 1783152000000,
       "tag": "0098_video_output_delivery",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "5",
+      "when": 1783238400000,
+      "tag": "0099_agent_registry_max_load",
+      "breakpoints": true
     }
   ]
 }
