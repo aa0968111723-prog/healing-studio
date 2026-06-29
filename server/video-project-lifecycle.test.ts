@@ -44,7 +44,7 @@ function makeCaller(userId: number) {
   return videoProjectRouter.createCaller({
     user: { id: userId, openId: "test", role: "user", email: null, name: null },
     req: { cookies: {}, headers: {} } as any,
-    res: { cookie: vi.fn(), clearCookie: vi.fn() } as any,
+    res: { cookie: vi.fn(), clearCookie: vi.fn(), setHeader: vi.fn() } as any,
   });
 }
 
