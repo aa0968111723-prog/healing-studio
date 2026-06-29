@@ -110,13 +110,18 @@ export function makeGenerationTrpc(deps: AdapterDeps): GenerationAdapter {
     }
 
     // ── image / keyframe：generate.* 非同步 job ──────────────────────────────
-    // 🔧 generate.submitStudioJob（kind=keyframe 走 i2i edit 模型，由 model 指定）
+    // keyframe 在伺服器端以 "image"（i2i edit 模型）登錄；requestId 由前端產生作為關聯 key
+    const studioType = (req.kind === "keyframe" ? "image" : req.kind) as "image" | "video" | "audio" | "voice";
+    const requestId = crypto.randomUUID();
     const submit = await client.generate.submitStudioJob.mutate({
-      kind: req.kind, prompt: req.prompt, seed: req.seed, provider,
-      model: req.model, shotNo: req.shotNo, projectId: req.projectId,
+      studioType,
+      requestId,
+      modelId: req.model ?? "unknown",
+      prompt: req.prompt,
     });
-    const jobId: string = String(submit?.jobId ?? submit?.id ?? "");
-    onEvent({ type: "queued", jobId, provider });
+    // jobId 為數字（background_jobs.id）；jobStatus 亦以 z.number() 接收
+    const jobId: number = Number(submit?.jobId ?? submit?.id ?? 0);
+    onEvent({ type: "queued", jobId: String(jobId), provider });
 
     // 🔧 輪詢 generate.jobStatus（亦有 checkStudioJob 為相容別名）
     const deadline = Date.now() + POLL_TIMEOUT_MS;
@@ -125,7 +130,7 @@ export function makeGenerationTrpc(deps: AdapterDeps): GenerationAdapter {
       await sleep(POLL_INTERVAL_MS);
       last = await client.generate.jobStatus.query({ jobId });
       const status = String(last?.status ?? "");
-      onEvent({ type: "poll", jobId, status });
+      onEvent({ type: "poll", jobId: String(jobId), status });
       if (status === "done" || status === "succeeded" || status === "completed") break;
       if (status === "error" || status === "failed") {
         throw new AdapterError(`job ${jobId} ${status}`, { seam: "generation", procedure: "generate.jobStatus", provider });
@@ -139,14 +144,17 @@ export function makeGenerationTrpc(deps: AdapterDeps): GenerationAdapter {
       costUsd: Number(last?.costUsd ?? 0),
       latencyMs: Date.now() - startedAt,
       assetUrl: last?.assetUrl ?? last?.url,
-      jobId,
+      jobId: String(jobId),
     };
 
-    // 🔧 generate.recordGenResult — 回退鏈每一跳的回寫落點（asset_generation_events / 資產庫）
+    // 🔧 generate.recordGenResult — 欄位對齊伺服器 zod schema（modality/modelId/resultUrl）
     try {
       await client.generate.recordGenResult.mutate({
-        jobId, projectId: req.projectId, shotNo: req.shotNo, kind: req.kind,
-        provider, model: result.model, costUsd: result.costUsd, seed: result.seedUsed, assetUrl: result.assetUrl,
+        modality: studioType,
+        modelId: result.model,
+        prompt: req.prompt,
+        resultUrl: result.assetUrl,
+        sourceStudio: "image",
       });
     } catch {
       /* 回寫失敗不阻斷生成結果回傳；由 Storage seam / 背景修復補償 */
