@@ -705,6 +705,32 @@ async function startServer() {
     }
   });
 
+  // AIDV-311: CORS allowlist for the proxy-download endpoint.
+  // Builds allowed origins from BASE_URL (e.g. https://director.today) plus localhost
+  // in development. Returns the reflected origin if matched, null otherwise — never
+  // uses wildcard because the endpoint requires auth and Cache-Control: private.
+  function getProxyDownloadCorsOrigin(reqOrigin: string | undefined): string | null {
+    if (!reqOrigin) return null;
+    const allowed: string[] = [];
+    const base = (serverEnv.BASE_URL || "").replace(/\/$/, "");
+    if (base) {
+      allowed.push(base);
+      // Also allow www. variant if base is apex (e.g. https://director.today → https://www.director.today)
+      try {
+        const u = new URL(base);
+        if (!u.hostname.startsWith("www.")) {
+          allowed.push(`${u.protocol}//www.${u.hostname}${u.port ? `:${u.port}` : ""}`);
+        }
+      } catch {
+        // ignore malformed BASE_URL
+      }
+    }
+    if (serverEnv.NODE_ENV !== "production") {
+      allowed.push("http://localhost:3000", "http://localhost:5173");
+    }
+    return allowed.includes(reqOrigin) ? reqOrigin : null;
+  }
+
   // AIDV-265: Max bytes the proxy-download stream will forward.
   // Prevents a malicious/massive upstream response from exhausting server RAM.
   const PROXY_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
@@ -749,7 +775,11 @@ async function startServer() {
       res.setHeader("Content-Type", contentType);
       // private: endpoint now requires auth — no shared cache should store this.
       res.setHeader("Cache-Control", "private, max-age=86400");
-      res.setHeader("Access-Control-Allow-Origin", "*");
+      // AIDV-311: reflect specific origin from allowlist; never use wildcard on an
+      // auth-gated endpoint (browsers block credentials + '*' anyway, and it signals
+      // unauthenticated cross-origin reads are intended when they are not).
+      const corsOrigin = getProxyDownloadCorsOrigin(req.headers.origin);
+      if (corsOrigin) res.setHeader("Access-Control-Allow-Origin", corsOrigin);
       if (contentLength) res.setHeader("Content-Length", contentLength);
       // Stream the response body instead of buffering into memory.
       // AIDV-265: track bytes forwarded; abort and close once the cap is hit.
