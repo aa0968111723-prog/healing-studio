@@ -12,11 +12,12 @@ import {
 import { parseAndGatePlan } from "../../shared/agent-plan-adapter";
 import { recordOrbTaskMemory } from "./orbTaskMemory";
 import { recordOrbMemory } from "./orbMemory";
+import { genId } from "../../shared/genId";
 
 const taskStore = new Map<string, OrbAgentTask>();
 
 function id(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  return genId(prefix, 8);
 }
 
 function pushEvent(

@@ -17,6 +17,7 @@
  */
 
 import type { AgentRole } from "./orb-agent-roles";
+import { genId } from "./genId";
 
 /**
  * Reason for a spirit handoff
@@ -222,14 +223,14 @@ export interface HandoffStatistics {
  * Generate a unique handoff ID
  */
 export function generateHandoffId(): string {
-  return `handoff_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  return genId("handoff", 9);
 }
 
 /**
  * Generate a unique chain ID
  */
 export function generateChainId(): string {
-  return `chain_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  return genId("chain", 9);
 }
 
 /**

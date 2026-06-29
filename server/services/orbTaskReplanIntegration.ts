@@ -19,6 +19,7 @@ import { appendOrbAgentTaskAuditEvent } from "./orbTaskStateMachine";
 import { recordOrbMemory } from "./orbMemory";
 import { orbTaskTracer } from "./orbTaskTracer";
 import { orbTaskStore } from "./orbTaskStore";
+import { genId } from "../../shared/genId";
 
 export interface ReplanCallbackContext {
   task: OrbTask;
@@ -60,7 +61,7 @@ function workflowStepToPlanStep(step: AgentWorkflowStep): OrbPlanStep {
   const id =
     step.id && step.id.length > 0
       ? step.id
-      : `replanned_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      : genId("replanned");
 
   if (step.toolName && step.toolName.length > 0) {
     return {

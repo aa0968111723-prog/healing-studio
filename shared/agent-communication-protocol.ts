@@ -15,6 +15,7 @@
  */
 
 import type { AgentRole } from "./orb-agent-roles";
+import { genId } from "./genId";
 
 /** Message types for inter-agent communication */
 export type AgentMessageType =
@@ -319,14 +320,14 @@ export interface AgentQueryResponse {
  * Generate a unique message ID
  */
 export function generateMessageId(): string {
-  return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  return genId("msg", 9);
 }
 
 /**
  * Generate a unique collaboration ID
  */
 export function generateCollaborationId(): string {
-  return `collab_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  return genId("collab", 9);
 }
 
 /**

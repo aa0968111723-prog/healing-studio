@@ -16,6 +16,7 @@ import {
   summarizeRecentMemoryForPlanner,
 } from "../../shared/orb-memory";
 import { queryRagMemory as retrieveFromRag, upsertMemory as storeToRag } from "./ragMemory";
+import { genId } from "../../shared/genId";
 
 interface RecordOrbMemoryInput {
   userId?: number;
@@ -35,7 +36,7 @@ interface RecordOrbMemoryInput {
 const store: OrbMemory[] = [];
 
 function nextMemoryId() {
-  return `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return genId("mem", 6);
 }
 
 function ensureMemoryEnabled(): boolean {

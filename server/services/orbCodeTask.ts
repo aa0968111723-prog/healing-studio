@@ -6,12 +6,13 @@ import {
   type OrbCodeTaskStatus,
 } from "../../shared/orb-code-task";
 import { recordOrbMemory } from "./orbMemory";
+import { genId } from "../../shared/genId";
 
 const codeTaskStore = new Map<string, OrbCodeTask>();
 const codeTaskTelemetry: Array<Record<string, unknown>> = [];
 
 function id(prefix: string) {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return genId(prefix);
 }
 
 function now() {
