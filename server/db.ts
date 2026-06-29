@@ -2716,6 +2716,28 @@ export async function getStuckJobsByType(
     .limit(limit);
 }
 
+export async function getQueuedStuckJobsByType(
+  jobType: typeof backgroundJobs.$inferSelect["jobType"],
+  stuckAfterMinutes = 10,
+  limit = 5
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const cutoff = new Date(Date.now() - stuckAfterMinutes * 60 * 1000);
+  return db
+    .select()
+    .from(backgroundJobs)
+    .where(
+      and(
+        eq(backgroundJobs.jobType, jobType),
+        eq(backgroundJobs.status, "queued"),
+        sql`${backgroundJobs.updatedAt} < ${cutoff}`
+      )
+    )
+    .orderBy(backgroundJobs.createdAt)
+    .limit(limit);
+}
+
 // ─── Admin: Extended Queries ────────────────────────────────────────────────
 
 /** Admin: Update a user's role (protects super-admin emails from demotion) */
