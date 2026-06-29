@@ -59,3 +59,90 @@ describe("providerHealthProbeJob", () => {
     expect(() => mod.stopProviderHealthProbeCron()).not.toThrow();
   });
 });
+
+describe("AIDV-574: providerHealthProbeJob exports (debounce + kind classification)", () => {
+  let mod: typeof import("./providerHealthProbeJob.js");
+
+  beforeEach(async () => {
+    vi.resetModules();
+    mod = await import("./providerHealthProbeJob.js");
+  });
+
+  afterEach(() => {
+    mod.stopProviderHealthProbeCron();
+    vi.clearAllMocks();
+  });
+
+  it("ALERT_THRESHOLD is exported and equals 2 (debounce guard)", () => {
+    expect(mod.ALERT_THRESHOLD).toBe(2);
+  });
+
+  it("getConfiguredGenerationProviderIds returns only generation providers with keys set", () => {
+    // env mock: FAL_API_KEY and ANTHROPIC_API_KEY are set; others empty; SUPABASE_URL empty
+    const ids = mod.getConfiguredGenerationProviderIds();
+    expect(ids).toContain("fal");
+    expect(ids).toContain("anthropic");
+    // gemini has requiresKey=false, hasKey always true → should be included
+    expect(ids).toContain("gemini");
+    // No key configured for these
+    expect(ids).not.toContain("elevenlabs");
+    expect(ids).not.toContain("replicate");
+    expect(ids).not.toContain("openrouter");
+    // supabase_auth is infra, must not appear
+    expect(ids).not.toContain("supabase_auth");
+  });
+});
+
+describe("AIDV-574: providerSystemStatus judgment convergence (unit-level logic)", () => {
+  // Test the three-fix logic directly using probe state shape
+  // Simulates what brain.ts providerSystemStatus does post-fix
+
+  function computeStatus(probes: Array<{ kind: "generation" | "infra"; consecutiveFailures: number }>, threshold: number, configuredCount: number) {
+    const generationProbes = probes.filter(p => p.kind === "generation");
+    const failing = generationProbes.filter(p => p.consecutiveFailures >= threshold);
+    if (failing.length === 0) return "healthy";
+    if (configuredCount >= 2 && failing.length >= configuredCount) return "down";
+    return "degraded";
+  }
+
+  it("single failure (consecutiveFailures=1) → healthy (below ALERT_THRESHOLD=2)", () => {
+    const result = computeStatus([{ kind: "generation", consecutiveFailures: 1 }], 2, 3);
+    expect(result).toBe("healthy");
+  });
+
+  it("two consecutive failures → degraded (but not all providers failing)", () => {
+    const result = computeStatus([
+      { kind: "generation", consecutiveFailures: 2 },
+      { kind: "generation", consecutiveFailures: 0 },
+    ], 2, 2);
+    expect(result).toBe("degraded");
+  });
+
+  it("all generation providers failing after threshold → down", () => {
+    const result = computeStatus([
+      { kind: "generation", consecutiveFailures: 3 },
+      { kind: "generation", consecutiveFailures: 2 },
+    ], 2, 2);
+    expect(result).toBe("down");
+  });
+
+  it("single configured generation provider failing → degraded (never down with configuredCount<2)", () => {
+    const result = computeStatus([{ kind: "generation", consecutiveFailures: 5 }], 2, 1);
+    expect(result).toBe("degraded");
+  });
+
+  it("infra-only failure → healthy (supabase_auth does not affect user-facing status)", () => {
+    const result = computeStatus([
+      { kind: "infra", consecutiveFailures: 10 },
+    ], 2, 3);
+    expect(result).toBe("healthy");
+  });
+
+  it("infra failure + generation failure after threshold → degraded (infra excluded from down denominator)", () => {
+    const result = computeStatus([
+      { kind: "infra", consecutiveFailures: 10 },
+      { kind: "generation", consecutiveFailures: 2 },
+    ], 2, 3);
+    expect(result).toBe("degraded");
+  });
+});

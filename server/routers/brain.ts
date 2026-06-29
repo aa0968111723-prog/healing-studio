@@ -81,7 +81,7 @@ import {
   setAutoRepairEnabled,
   setMonitorInterval,
 } from "../jobs/apiHealthMonitor";
-import { getProviderProbeStatus } from "../jobs/providerHealthProbeJob";
+import { getProviderProbeStatus, ALERT_THRESHOLD, getConfiguredGenerationProviderIds } from "../jobs/providerHealthProbeJob";
 import {
   REASONING_MODEL_CATALOG,
   GENERATION_ENGINE_CATALOG,
@@ -688,19 +688,31 @@ export const brainRouter = router({
     return status;
   }),
 
-  // AIDV-520：AI provider 系統整體狀態（供 /video UI 顯示容量警告橫幅）
+  // AIDV-520/AIDV-574：AI provider 系統整體狀態（供 /video UI 顯示容量警告橫幅）
+  // Three fixes: (1) debounce via consecutiveFailures >= ALERT_THRESHOLD, not raw ok;
+  // (2) down-denominator = configured generation providers only; (3) exclude infra probes from user-facing status.
   providerSystemStatus: protectedProcedure.query(() => {
     const probes = getProviderProbeStatus();
     if (probes.length === 0) {
       return { status: "healthy" as const, affectedProviders: [] as string[], lastCheckedAt: null as number | null };
     }
-    const failing = probes.filter((p) => !p.ok);
-    const status =
+
+    // Only generation probes affect the user-facing status banner
+    const generationProbes = probes.filter((p) => p.kind === "generation");
+    // Configured generation provider count (includes those not yet probed if key is set)
+    const configuredGenerationCount = getConfiguredGenerationProviderIds().length;
+
+    // A provider is "failing" only after ALERT_THRESHOLD consecutive failures (debounce)
+    const failing = generationProbes.filter((p) => p.consecutiveFailures >= ALERT_THRESHOLD);
+
+    const status: "healthy" | "degraded" | "down" =
       failing.length === 0 ? "healthy" :
-      failing.length >= probes.length ? "down" :
+      // "down" only when ALL configured generation providers are failing; requires at least 2 configured
+      (configuredGenerationCount >= 2 && failing.length >= configuredGenerationCount) ? "down" :
       "degraded";
+
     return {
-      status: status as "healthy" | "degraded" | "down",
+      status,
       affectedProviders: failing.map((p) => p.providerId),
       lastCheckedAt: probes.reduce((max, p) => Math.max(max, p.lastCheckedAt), 0),
     };
