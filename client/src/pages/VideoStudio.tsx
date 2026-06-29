@@ -12,6 +12,12 @@ import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useWorldContext } from "@/contexts/WorldContextContext";
 import { WorldContextSidebar } from "@/components/WorldContextSidebar";
+import {
+  OutputSpecSelector,
+  OUTPUT_SPEC_DEFAULT,
+  outputSpecForGeneration,
+  type OutputSpecValue,
+} from "@/components/OutputSpecSelector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -827,6 +833,17 @@ function TextToVideoTab() {
   // ─ PromptVault：最後一次送出的 t2v 提詞（存庫用）
   const [lastT2VPrompt, setLastT2VPrompt] = useState<string>("");
 
+  // ─ AIDV-255：共用輸出規格（resolution/fps/codec）。預設＝後端 VIDEO_OUTPUT_SPEC_DEFAULT，
+  //   未動時行為與改動前一致（後端「未帶/預設」皆走零行為變化路徑）。
+  const [t2vOutputSpec, setT2vOutputSpec] = useState<OutputSpecValue>(OUTPUT_SPEC_DEFAULT);
+  const outputSpecEntitlement = trpc.videoProject.outputSpecEntitlement.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+  });
+  const isPaidPlan = outputSpecEntitlement.data?.isPaid ?? false;
+  // 送給生成 mutation 的 outputSpec：套方案守門（4K→非付費退 1080p）；等於預設時回 undefined，
+  // 讓後端走零行為變化路徑——使用者沒動選擇器的既有生成完全不受影響（不對 Veo3 多注入 resolution）。
+  const effectiveOutputSpec = outputSpecForGeneration(t2vOutputSpec, isPaidPlan);
+
   // ─ Mutations
   const klingMut = trpc.videoStudio.klingTextToVideo.useMutation({
     onError: e => toast.error(e.message),
@@ -977,6 +994,7 @@ function TextToVideoTab() {
         duration: klingDuration,
         aspectRatio: klingAspect,
         cfgScale: klingCfg,
+        outputSpec: effectiveOutputSpec,
       });
       setKlingResult(r);
       registerBgTask(r, "video", "Kling 文生影", klingPrompt);
@@ -1000,6 +1018,7 @@ function TextToVideoTab() {
         negativePrompt: wanNeg || undefined,
         resolution: wanRes,
         numFrames: wanFrames,
+        outputSpec: effectiveOutputSpec,
       });
       setWanResult(r);
       registerBgTask(r, "video", "Wan 文生影", wanPrompt);
@@ -1021,6 +1040,7 @@ function TextToVideoTab() {
       const r = await mmMut.mutateAsync({
         prompt: injectWorld(mmPrompt),
         promptOptimizer: mmOptimize,
+        outputSpec: effectiveOutputSpec,
       });
       setMmResult(r);
       registerBgTask(r, "video", "MiniMax 文生影", mmPrompt);
@@ -1043,6 +1063,7 @@ function TextToVideoTab() {
         prompt: injectWorld(veoPrompt),
         aspectRatio: veoAspect,
         generateAudio: veoAudio,
+        outputSpec: effectiveOutputSpec,
       });
       setVeoResult(r);
       registerBgTask(r, "video", "Veo 3 文生影", veoPrompt);
@@ -1124,7 +1145,22 @@ function TextToVideoTab() {
   runSoraRef.current = runSora;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+    <div className="space-y-3 sm:space-y-4">
+      {/* AIDV-255：共用輸出規格選擇器（套用本頁文生影各模型；解析度/幀率僅部分模型生效，4K 限付費） */}
+      <div className="rounded-xl border border-border/60 bg-card/40 p-3 sm:p-4">
+        <div className="mb-2">
+          <h3 className="text-sm font-medium">輸出規格</h3>
+          <p className="text-[11px] text-muted-foreground/70">
+            套用於下方文生影模型；實際生效程度依模型而定，4K 為付費方案專屬。
+          </p>
+        </div>
+        <OutputSpecSelector
+          value={t2vOutputSpec}
+          onChange={setT2vOutputSpec}
+          isPaid={isPaidPlan}
+        />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Kling v2.1 */}
       <ToolCard
         icon={Clapperboard}
@@ -1709,6 +1745,7 @@ function TextToVideoTab() {
           />
         </div>
       )}
+      </div>
     </div>
   );
 }
