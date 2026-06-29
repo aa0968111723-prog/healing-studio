@@ -2656,9 +2656,22 @@ export async function upsertSystemSettings(
   if (!db) throw new Error("Database not available");
   const existing = await getSystemSettings(userId);
   if (existing) {
+    // extraSettings is a shared JSON blob written by independent panels
+    // (e.g. ProviderPanel → generationProvider, FeatureFlagsTab →
+    // featureFlags). A bare `.set(data)` would overwrite the whole column,
+    // so each panel's save would silently wipe the other's keys
+    // (last-writer-wins). Shallow-merge the incoming top-level keys over the
+    // existing blob so concurrent panels coexist.
+    const patch: Partial<InsertSystemSetting> = { ...data };
+    if (data.extraSettings !== undefined && data.extraSettings !== null) {
+      patch.extraSettings = {
+        ...(existing.extraSettings ?? {}),
+        ...data.extraSettings,
+      };
+    }
     await db
       .update(systemSettings)
-      .set(data)
+      .set(patch)
       .where(eq(systemSettings.userId, userId));
     return existing.id;
   } else {
