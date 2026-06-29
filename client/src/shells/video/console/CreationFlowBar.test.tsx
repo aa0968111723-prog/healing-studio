@@ -14,6 +14,13 @@ const flags = vi.hoisted(() => ({ chrome: false }));
 vi.mock("@/config/featureFlags", () => ({
   get ENABLE_AIDV_CHROME() { return flags.chrome; },
 }));
+// 此檔守的是 ENABLE_AIDV_CHROME OFF/ON 的既有跳階行為；S2 跳階守衛（ENABLE_VIDEO_GATE_KIT，
+// 由 CreationFlowBar.gatekit.test 覆蓋）固定關閉，避免本機 .env（VITE_ENABLE_VIDEO_GATE_KIT=1）
+// 讓本檔非確定性。保留其餘 videoFlags export（freshDefaultWorkflow 需 ENABLE_VOICE_MUSIC_WORKFLOW）。
+vi.mock("@/config/videoFlags", async (orig) => ({
+  ...(await orig<typeof import("@/config/videoFlags")>()),
+  get ENABLE_VIDEO_GATE_KIT() { return false; },
+}));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
     apiUsage: {

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
-import { useDirectorConsole } from "../DirectorConsoleProvider";
+import { useDirectorConsole, type CanvasMode } from "../DirectorConsoleProvider";
 import { countGate, isShotGeneratable } from "@/spine/gate";
 import { ReadinessChip } from "./ReadinessChip";
 import type { ProviderId } from "@/spine/types";
@@ -24,6 +24,11 @@ import { trpc } from "@/lib/trpc";
 // （與 ReadinessChip／ShotPanel／ConfirmGate 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝沿用既有版＝零變化。
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
 import { AidvKit, FlowBar as DkFlowBar } from "@/components/design-kit";
+// U-5（AIDV-95）S2 非線性跳階「補齊驗證」：旗標 ON 時，跳到前置缺料的下游階段先彈補齊精靈
+// （列缺項 + 回頭引導 / 仍要前往）；OFF（預設）＝跳階行為與既有完全相同＝零變化。
+import { ENABLE_VIDEO_GATE_KIT } from "@/config/videoFlags";
+import { stageGaps, stageWarnCount, type StageGap } from "./stageGate";
+import { StageGapWizard } from "./StageGapWizard";
 
 /** 生成引擎成本階梯（B 案；對齊原型 PROVIDERS · $/張）。 */
 const PROVIDER_LADDER: { id: ProviderId; label: string; cost: number }[] = [
@@ -57,6 +62,17 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
   const console_ = useDirectorConsole();
   const p = spine.project!;
   const [exportOpen, setExportOpen] = useState(false);
+  // S2 補齊精靈狀態（旗標 OFF＝永不被設值＝零變化）。
+  const [wizard, setWizard] = useState<{ target: CanvasMode; targetLabel: string; gaps: StageGap[] } | null>(null);
+
+  // 跳階守衛：旗標 ON 且目標前置缺料 → 彈補齊精靈攔下；否則（含旗標 OFF）＝直接切畫布（與既有行為位元相同）。
+  const guardedJump = (mode: CanvasMode, label: string) => {
+    if (ENABLE_VIDEO_GATE_KIT) {
+      const gaps = stageGaps(p, mode);
+      if (gaps.length > 0) { setWizard({ target: mode, targetLabel: label, gaps }); return; }
+    }
+    console_.setCanvasMode(mode);
+  };
 
   const gate = useMemo(() => countGate(p.shots, p.characters, p.scenes), [p]);
   // 可排程數＝與 spine.scheduleGeneration 同一判準（就緒、未過期、未生成），避免「按鈕顯示 N 但點了說沒有」。
@@ -90,7 +106,7 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
                   const st = activeSteps[i];
                   if (!st) return;
                   if (st.pending) { toast(`「${st.name}」待後端`, { description: "此步驟尚無後端接點，先佔位。" }); return; }
-                  if (st.canvasMode) console_.setCanvasMode(st.canvasMode);
+                  if (st.canvasMode) guardedJump(st.canvasMode, st.name);
                 }}
               />
             </AidvKit>
@@ -99,13 +115,15 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
               {activeSteps.map((st, i) => {
                 const active = st.canvasMode === console_.canvasMode;
                 const done = i < p.stageIndex;
+                // S2（旗標 ON）：該步驟對應畫布的前置缺料數 → 顯示「⚠N」待補徽章；OFF＝不渲染＝零變化。
+                const warn = ENABLE_VIDEO_GATE_KIT && st.canvasMode ? stageWarnCount(p, st.canvasMode) : 0;
                 return (
                   <li key={st.id} className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => {
                         if (st.pending) { toast(`「${st.name}」待後端`, { description: "此步驟尚無後端接點，先佔位。" }); return; }
-                        if (st.canvasMode) console_.setCanvasMode(st.canvasMode);
+                        if (st.canvasMode) guardedJump(st.canvasMode, st.name);
                       }}
                       className={cn(
                         "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-healing",
@@ -113,13 +131,18 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
                         !active && done && "bg-primary/15 text-primary",
                         !active && !done && "bg-muted text-muted-foreground hover:bg-muted/70",
                       )}
-                      title={st.pending ? "待後端" : undefined}
+                      title={st.pending ? "待後端" : warn > 0 ? `待補 ${warn} 項` : undefined}
                     >
                       <span className="inline-flex size-4 items-center justify-center rounded-full bg-background/30 text-[10px]">
                         {done ? <Check className="size-3" /> : i + 1}
                       </span>
                       {st.name}
                       {!st.required && <span className="text-[9px] opacity-70">可選</span>}
+                      {warn > 0 && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/20 px-1.5 text-[9px] font-semibold text-amber-700 dark:text-amber-300">
+                          ⚠{warn}
+                        </span>
+                      )}
                     </button>
                     {i < activeSteps.length - 1 && <span className="mx-0.5 h-px w-3 bg-border" aria-hidden />}
                   </li>
@@ -283,6 +306,18 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
         )}
       </DialogContent>
     </Dialog>
+
+    {/* S2 補齊精靈（旗標 ON 且跳階前置缺料時才掛載） */}
+    {wizard && (
+      <StageGapWizard
+        open
+        targetLabel={wizard.targetLabel}
+        gaps={wizard.gaps}
+        onClose={() => setWizard(null)}
+        onBack={(mode) => { setWizard(null); console_.setCanvasMode(mode); }}
+        onProceed={() => { const t = wizard.target; setWizard(null); console_.setCanvasMode(t); }}
+      />
+    )}
     </>
   );
 }
