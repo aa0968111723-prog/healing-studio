@@ -14,7 +14,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { webhookSubscriptions, webhookDeliveryHistory } from "../../drizzle/schema";
-import { assertSafeExternalUrl, SsrfBlockedError } from "../_core/ssrfGuard";
+import { assertSafeExternalUrlAsync, SsrfBlockedError } from "../_core/ssrfGuard";
 import { dispatchWebhookEvent, deliverDirectToSubscription } from "../services/webhookDispatcher";
 
 const MAX_WEBHOOKS_PER_USER = 5;
@@ -23,9 +23,9 @@ type ValidEvent = (typeof VALID_WEBHOOK_EVENTS)[number];
 
 const EventsSchema = z.array(z.enum(VALID_WEBHOOK_EVENTS)).min(1).max(VALID_WEBHOOK_EVENTS.length);
 
-function assertSafeUrl(url: string): void {
+async function assertSafeUrl(url: string): Promise<void> {
   try {
-    assertSafeExternalUrl(url);
+    await assertSafeExternalUrlAsync(url);
   } catch (err) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -63,7 +63,7 @@ export const webhookRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      assertSafeUrl(input.url);
+      await assertSafeUrl(input.url);
 
       const db = await requireDb();
 
@@ -115,7 +115,7 @@ export const webhookRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Webhook 不存在" });
       }
 
-      if (input.url !== undefined) assertSafeUrl(input.url);
+      if (input.url !== undefined) await assertSafeUrl(input.url);
 
       const updates: Partial<{
         url: string;

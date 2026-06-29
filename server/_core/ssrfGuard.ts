@@ -8,6 +8,7 @@
  * Logic extracted from server/services/pdfTextExtractor.ts assertSafeUrl.
  */
 
+import dns from "node:dns";
 import { isIPv4 } from "node:net";
 
 const PRIVATE_IPV4_PATTERNS: RegExp[] = [
@@ -92,6 +93,75 @@ export function assertSafeExternalUrl(rawUrl: string, allowInsecureHosts = false
     if (pattern.test(checkHost)) {
       if (allowInsecureHosts && checkHost.startsWith("127.")) continue;
       throw new SsrfBlockedError(`private ipv4 ${checkHost}`);
+    }
+  }
+
+  return parsed;
+}
+
+/** Injectable DNS resolver for testability — defaults to Node's dns.promises.lookup */
+type DnsLookupAllFn = (host: string) => Promise<dns.LookupAddress[]>;
+
+const defaultDnsLookup: DnsLookupAllFn = (host) =>
+  dns.promises.lookup(host, { all: true });
+
+/**
+ * Async variant of assertSafeExternalUrl that additionally resolves DNS and
+ * checks every returned IP against the private/IMDS blocklist.
+ * Guards against DNS-rebinding SSRF (AIDV-638).
+ *
+ * - IP-literal URLs skip DNS (already validated by the sync check).
+ * - If DNS resolution fails the URL is blocked (fail-closed).
+ * - Pass a custom dnsLookup in tests to avoid real network calls.
+ */
+export async function assertSafeExternalUrlAsync(
+  rawUrl: string,
+  allowInsecureHosts = false,
+  dnsLookup: DnsLookupAllFn = defaultDnsLookup
+): Promise<URL> {
+  const parsed = assertSafeExternalUrl(rawUrl, allowInsecureHosts);
+
+  const host = stripIpv6Brackets(parsed.hostname).toLowerCase();
+
+  // IP literals were already validated by the sync check — skip DNS
+  if (isIPv4(host) || host.includes(":")) return parsed;
+
+  // Loopback hostnames in allowInsecureHosts mode are already permitted
+  if (LOOPBACK_HOSTNAMES.has(host) && allowInsecureHosts) return parsed;
+
+  let addresses: dns.LookupAddress[];
+  try {
+    addresses = await dnsLookup(host);
+  } catch {
+    throw new SsrfBlockedError(`dns-lookup-failed ${host}`);
+  }
+
+  if (!addresses.length) throw new SsrfBlockedError(`dns-no-addresses ${host}`);
+
+  for (const { address, family } of addresses) {
+    if (family === 6) {
+      const addr = address.toLowerCase();
+      if (BLOCKED_IPV6_HOSTS.has(addr)) {
+        throw new SsrfBlockedError(`dns-resolved-blocked-ipv6 ${address}`);
+      }
+      if (addr.startsWith("fc") || addr.startsWith("fd") || addr.startsWith("fe80:")) {
+        throw new SsrfBlockedError(`dns-resolved-ula-linklocal-ipv6 ${address}`);
+      }
+      const mappedIpv4 = ipv4MappedIpv6ToIpv4(addr);
+      if (mappedIpv4) {
+        for (const pattern of PRIVATE_IPV4_PATTERNS) {
+          if (pattern.test(mappedIpv4)) {
+            throw new SsrfBlockedError(`dns-resolved-mapped-private-ipv4 ${mappedIpv4}`);
+          }
+        }
+      }
+    } else {
+      for (const pattern of PRIVATE_IPV4_PATTERNS) {
+        if (pattern.test(address)) {
+          if (allowInsecureHosts && address.startsWith("127.")) continue;
+          throw new SsrfBlockedError(`dns-resolved-private-ipv4 ${address}`);
+        }
+      }
     }
   }
 
