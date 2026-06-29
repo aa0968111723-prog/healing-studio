@@ -54,6 +54,14 @@ const GREETING_MESSAGES = [
   "今天想創作什麼畫面？輸入幾個字就好 ✨",
 ];
 
+// ─── Result guard (AIDV-637) ────────────────────────────────────────────────
+// 生成完成回呼可能回傳空 resultUrl。空值（null/undefined/空字串/純空白）不可進入
+// 「你的第一件作品完成了！」慶祝態，否則新手最關鍵的首次體驗會看到「完成了」卻
+// 一片空白的誤導性成功態。比 `|| null` 更嚴：純空白字串也視為無作品。
+export function isUsableResultUrl(url: unknown): url is string {
+  return typeof url === "string" && url.trim().length > 0;
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 type Props = {
@@ -151,16 +159,17 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
   const generateMutation = trpc.generate.multimodal.useMutation({
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
-      const url = data.resultUrl || null;
-      setResultUrl(url);
       setThoughtChain((data as any).thoughtChain || []);
       setAIState("idle");
-      if (!url) {
+      // 生成未產出作品（resultUrl 空/純空白）→ 不進慶祝態，回 input 步驟重試（AIDV-637）
+      if (!isUsableResultUrl(data.resultUrl)) {
+        setResultUrl(null);
         toast.error("生成未產出圖片，請再試一次");
         setStep("input");
-      } else {
-        setStep("result");
+        return;
       }
+      setResultUrl(data.resultUrl);
+      setStep("result");
     },
     onError: err => {
       setAIState("idle");
@@ -507,12 +516,26 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
               exit={{ opacity: 0, y: -10 }}
               className="w-full text-center"
             >
-              <p className="hs-h2 !mb-0 text-foreground mb-2">
-                你的第一件作品完成了！
-              </p>
-              <p className="text-sm text-muted-foreground mb-6">
-                這就是 AI Director 的魔法
-              </p>
+              {/* 僅在真的有作品時才慶祝；無作品時改顯示重試引導（AIDV-637 防呆） */}
+              {resultUrl ? (
+                <>
+                  <p className="hs-h2 !mb-0 text-foreground mb-2">
+                    你的第一件作品完成了！
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    這就是 AI Director 的魔法
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="hs-h2 !mb-0 text-foreground mb-2">
+                    生成沒有產出作品
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    這次沒有成功產出畫面，要再試一次嗎？
+                  </p>
+                </>
+              )}
 
               {/* Result image */}
               {resultUrl && (
@@ -540,6 +563,19 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
               )}
 
               <div className="flex items-center justify-center gap-3">
+                {!resultUrl && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setResultUrl(null);
+                      setStep("input");
+                    }}
+                    className="rounded-xl h-12 px-8 gap-2 text-sm"
+                  >
+                    <ArrowRight className="w-4 h-4 rotate-180" />
+                    再試一次
+                  </Button>
+                )}
                 <Button
                   onClick={handleComplete}
                   className="rounded-xl h-12 px-8 gap-2 text-sm shadow-lg"
