@@ -34,7 +34,8 @@ export type FacadeProvider =
   | "suno"
   | "openrouter"
   | "anthropic"
-  | "perplexity";
+  | "perplexity"
+  | "freellmapi";
 
 interface ProviderRoute {
   /** 直連 base URL（scheme + host［+ 路徑前綴］，結尾不帶斜線）。 */
@@ -71,6 +72,14 @@ const PROVIDER_ROUTES: Record<FacadeProvider, ProviderRoute> = {
   perplexity: {
     directBaseUrl: "https://api.perplexity.ai",
     cfGatewaySlug: "perplexity-ai",
+  },
+  // FreeLLMAPI（AIDV ⑪）：16 供應商免費額度的單一 OpenAI 相容端點，一行 Docker
+  // 自架。它「本身就是聚合閘道」，不掛 CF（cfGatewaySlug=null＝永遠直連）。
+  // directBaseUrl＝自架 Docker 預設底址；正式用法以 FREELLMAPI_BASE_URL 覆寫
+  //（resolveProviderBaseUrl 的 explicitBase）。
+  freellmapi: {
+    directBaseUrl: "http://localhost:8000/v1",
+    cfGatewaySlug: null,
   },
 };
 
@@ -150,6 +159,8 @@ export function engineGatewayProvider(engine: string): FacadeProvider | null {
       return "gemini";
     case "perplexity":
       return "perplexity";
+    case "freellmapi":
+      return "freellmapi";
     default:
       return null;
   }
