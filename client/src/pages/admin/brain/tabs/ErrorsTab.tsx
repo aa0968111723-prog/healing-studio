@@ -77,6 +77,21 @@ export function ErrorsTab({
         </p>
         {errorsQuery.isLoading ? (
           <ZenSkeleton lines={4} />
+        ) : errorsQuery.isError ? (
+          <div
+            role="alert"
+            className="flex flex-col items-center gap-2 py-4 text-center text-xs text-red-600"
+          >
+            <p>錯誤記錄載入失敗，無法確認是否真的沒有錯誤。</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void errorsQuery.refetch()}
+            >
+              <Search className="w-3 h-3 mr-1" />
+              重試
+            </Button>
+          </div>
         ) : (
           <div className="space-y-2">
             {(errorsQuery.data ?? []).length === 0 && (

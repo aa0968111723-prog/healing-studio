@@ -376,6 +376,8 @@ export default function PromptLibraryPage() {
   const totalPages =
     tab === "mine" ? listQuery.data?.totalPages ?? 1 : publicQuery.data?.totalPages ?? 1;
   const isLoading = tab === "mine" ? listQuery.isLoading : publicQuery.isLoading;
+  const isError = tab === "mine" ? listQuery.isError : publicQuery.isError;
+  const refetchActive = tab === "mine" ? listQuery.refetch : publicQuery.refetch;
 
   // ─── UI ────────────────────────────────────────────────────────────────────
 
@@ -591,6 +593,17 @@ export default function PromptLibraryPage() {
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-48 rounded-xl bg-muted animate-pulse" />
           ))}
+        </div>
+      ) : isError ? (
+        <div className="text-center py-20 text-destructive" role="alert">
+          <Search className="w-12 h-12 mx-auto mb-3 opacity-40" />
+          <p className="text-lg font-medium">提示詞載入失敗</p>
+          <p className="text-sm mt-1 text-muted-foreground">
+            暫時拿不回提示詞清單，請稍後再試一次。
+          </p>
+          <Button variant="outline" className="mt-4" onClick={() => refetchActive()}>
+            重試
+          </Button>
         </div>
       ) : items.length === 0 ? (
         <div className="text-center py-20 text-muted-foreground">
