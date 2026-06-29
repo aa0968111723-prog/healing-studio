@@ -316,8 +316,6 @@ function TeamDetailDialog({
   const myRole =
     myTeamsList.data?.find(t => t.id === teamId)?.role ?? "member";
 
-  if (!team) return null;
-
   const canManage = myRole === "owner" || myRole === "admin";
   const isOwner = myRole === "owner";
 
@@ -367,6 +365,21 @@ function TeamDetailDialog({
     <>
       <Dialog open onOpenChange={v => !v && onClose()}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          {teamQuery.isLoading ? (
+            <div className="flex items-center gap-2 py-12 justify-center">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">載入中...</span>
+            </div>
+          ) : teamQuery.isError || !team ? (
+            <div className="flex flex-col items-center gap-3 py-12">
+              <p className="text-sm text-destructive">載入失敗，請稍後再試</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => teamQuery.refetch()}>重試</Button>
+                <Button variant="outline" size="sm" onClick={onClose}>關閉</Button>
+              </div>
+            </div>
+          ) : (
+            <>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
@@ -489,6 +502,8 @@ function TeamDetailDialog({
               關閉
             </Button>
           </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
