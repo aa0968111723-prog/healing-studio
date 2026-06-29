@@ -18,11 +18,10 @@ export const modelsRouter = router({
   }),
 
   teamModels: protectedProcedure.query(async () => {
-    try {
-      return await db.getTeamSharedModels();
-    } catch {
-      return [];
-    }
+    // AIDV-602：移除靜默吞錯（對照同檔 myModels 直接回 db）。DB 失敗時
+    // 上拋 TRPCError，前端可顯示重試入口，而非把故障偽裝成「沒有任何
+    // 團隊共享模型」。db 層已記錄根因。
+    return db.getTeamSharedModels();
   }),
 
   getById: protectedProcedure

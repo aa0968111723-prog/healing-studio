@@ -20,11 +20,9 @@ export const studioRouter = router({
           .optional()
       )
       .query(async ({ ctx, input }) => {
-        try {
-          return await db.listStudioRecipes(ctx.user.id, input?.modality);
-        } catch {
-          return [];
-        }
+        // AIDV-602：移除靜默吞錯。DB 失敗時上拋 TRPCError，前端可顯示
+        // 重試入口，而非把故障偽裝成「沒有任何配方」。db 層已記錄根因。
+        return db.listStudioRecipes(ctx.user.id, input?.modality);
       }),
 
     create: protectedProcedure
@@ -66,15 +64,13 @@ export const studioRouter = router({
           .optional()
       )
       .query(async ({ ctx, input }) => {
-        try {
-          return await db.listStudioVersions(
-            ctx.user.id,
-            input?.modality,
-            input?.limit ?? 50
-          );
-        } catch {
-          return [];
-        }
+        // AIDV-602：移除靜默吞錯。DB 失敗時上拋 TRPCError，前端可顯示
+        // 重試入口，而非把故障偽裝成「沒有任何版本」。db 層已記錄根因。
+        return db.listStudioVersions(
+          ctx.user.id,
+          input?.modality,
+          input?.limit ?? 50
+        );
       }),
 
     create: protectedProcedure

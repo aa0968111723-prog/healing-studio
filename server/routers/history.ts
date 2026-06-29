@@ -9,19 +9,15 @@ export const historyRouter = router({
   list: protectedProcedure
     .input(z.object({ limit: z.number().default(50) }).optional())
     .query(async ({ ctx, input }) => {
-      try {
-        return await db.getHistoryByUser(ctx.user.id, input?.limit ?? 50);
-      } catch {
-        return [];
-      }
+      // AIDV-602：不再 `catch { return [] }` 靜默吞錯。DB 失敗時讓錯誤
+      // 上拋成 TRPCError，前端可顯示重試入口，而非把故障偽裝成「沒有任何
+      // 生成歷史」。db 層已透過 logDbError 記錄根因。
+      return db.getHistoryByUser(ctx.user.id, input?.limit ?? 50);
     }),
 
   bookmarked: protectedProcedure.query(async ({ ctx }) => {
-    try {
-      return await db.getBookmarkedHistory(ctx.user.id);
-    } catch {
-      return [];
-    }
+    // AIDV-602：同上，移除靜默吞錯，DB 錯誤上拋 TRPCError。
+    return db.getBookmarkedHistory(ctx.user.id);
   }),
 
   toggleBookmark: protectedProcedure
