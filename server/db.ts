@@ -529,7 +529,7 @@ export async function getUsersByIds(ids: number[]) {
 export async function getAllUsers() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(users).orderBy(desc(users.createdAt));
+  return db.select().from(users).orderBy(desc(users.createdAt)).limit(10000);
 }
 
 // AIDV-618: cursor pagination — cursor = id of last fetched row; orderBy desc(id)
@@ -5244,6 +5244,14 @@ const USER_OWNED_TABLES = [
   "refresh_tokens",
   "user_workflows",
   "studio_recipes",
+  "model_wishes",
+  "model_wish_votes",
+  "webhook_subscriptions",
+  "api_keys",
+  "featured_showcase_comments",
+  "teaching_materials",
+  "teaching_material_access_log",
+  "video_projects",
 ] as const;
 
 /**

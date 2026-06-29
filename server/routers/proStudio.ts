@@ -35,6 +35,7 @@
  */
 
 import { z } from "zod";
+import { safeMediaUrlOptional } from "../lib/urlValidator";
 import { audioGenerationProcedure, brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { signWebhookToken, signFalWebhookNonce } from "../_core/webhookTokens";
@@ -886,7 +887,7 @@ export const proStudioRouter = router({
       z.object({
         text: z.string().min(1).max(5000),
         voice: z.string().optional(), // 預訓練語音名稱，如 "Vivian"
-        speaker_voice_embedding_file_url: z.string().url().optional(), // 從 qwenCloneVoice 取得
+        speaker_voice_embedding_file_url: safeMediaUrlOptional, // 從 qwenCloneVoice 取得
         reference_text: z.string().optional(),
         language: z
           .enum([
