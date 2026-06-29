@@ -1308,6 +1308,65 @@ export async function getTeamSharedAssets() {
     .orderBy(desc(digitalAssetLibrary.createdAt));
 }
 
+/**
+ * AIDV-601：SQL 過濾版本（getTeamSharedAssets 的孿生加固，比照 AIDV-581 的
+ * getDigitalAssetsByUserFiltered）。把 assetType / sourceStudio / search 下推到
+ * WHERE，避免把整個全站 team_shared 池撈進記憶體再用 JS filter（規模大時 OOM）。
+ * 萬用字元已跳脫（`escapeLikePattern`）。預設 limit 200 防 OOM；呼叫端可覆寫。
+ *
+ * 注意：本函式只負責 team_shared 池的 SQL 過濾。AIDV-121 旗標 ON 時的逐筆
+ * canAccessResource 權限過濾仍由 router 在本結果上執行（見 assets.teamAssets）。
+ */
+export async function getTeamSharedAssetsFiltered(opts: {
+  assetType?: string;
+  sourceStudio?: string;
+  search?: string;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [
+    eq(digitalAssetLibrary.visibility, "team_shared"),
+  ];
+
+  if (opts.assetType && opts.assetType !== "all") {
+    conditions.push(
+      eq(digitalAssetLibrary.assetType, opts.assetType as "image" | "video" | "audio" | "voice" | "script" | "zip_bundle")
+    );
+  }
+
+  if (opts.sourceStudio && opts.sourceStudio !== "all") {
+    if (opts.sourceStudio === "unknown") {
+      conditions.push(isNull(digitalAssetLibrary.sourceStudio));
+    } else {
+      conditions.push(eq(digitalAssetLibrary.sourceStudio, opts.sourceStudio));
+    }
+  }
+
+  if (opts.search) {
+    const trimmed = opts.search.trim();
+    if (trimmed) {
+      const escaped = escapeLikePattern(trimmed);
+      const pattern = `%${escaped}%`;
+      conditions.push(
+        or(
+          like(digitalAssetLibrary.title, pattern),
+          like(digitalAssetLibrary.description, pattern),
+          like(digitalAssetLibrary.promptUsed, pattern)
+        )!
+      );
+    }
+  }
+
+  return db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(and(...conditions))
+    .orderBy(desc(digitalAssetLibrary.createdAt))
+    .limit(opts.limit ?? 200);
+}
+
 export async function updateDigitalAsset(
   id: number,
   data: Partial<InsertDigitalAsset>
