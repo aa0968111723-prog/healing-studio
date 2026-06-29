@@ -89,6 +89,8 @@ const PENDING_BLOCK = [
   "0096_api_keys",
   // AIDV-338：影片專案截止時間與優先等級 — deadline_at + priority_class（information_schema 守門）。
   "0097_video_project_deadline",
+  // AIDV-684：影片輸出交付欄位 — output_storage_path / output_signed_url / output_expires_at（information_schema 守門）。
+  "0098_video_output_delivery",
 ];
 
 function readSql(tag: string): string {

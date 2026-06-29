@@ -6,7 +6,7 @@
 // AIDV-252：新建專案前先選格式（16:9 / 9:16 / 1:1）。
 // ============================================================================
 import { useState, type ReactNode } from "react";
-import { Wand2, Film, FolderOpen, AlertTriangle, RefreshCw, Loader2 } from "lucide-react";
+import { Wand2, Film, FolderOpen, AlertTriangle, RefreshCw, Loader2, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
@@ -18,12 +18,20 @@ import {
 import { GuidedJourney } from "./GuidedJourney";
 import { DirectorConsole } from "./DirectorConsole";
 import { VideoProjectCreateDialog } from "@/components/VideoProjectCreateDialog";
+import { trpc } from "@/lib/trpc";
 
 export function VideoCockpit() {
   const spine = useProjectSpine();
   const [guided, setGuided] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [videoProjectId, setVideoProjectId] = useState<number | null>(null);
   const p = spine.project;
+
+  // AIDV-684: 若 requestExport 已快取輸出 URL，顯示下載按鈕
+  const exportUrlQ = trpc.videoProject.getExportUrl.useQuery(
+    { projectId: videoProjectId! },
+    { enabled: videoProjectId != null, retry: false, refetchOnWindowFocus: false }
+  );
 
   useRegisterPageAgent({
     pageId: "video-studio",
@@ -110,8 +118,24 @@ export function VideoCockpit() {
 
   // 非空專案 → DirectorConsole（W3-G：常開，AIDV-52）
   if (!isBlank) {
+    const exportData = exportUrlQ.data;
     return (
       <CockpitShell>
+        {exportData?.downloadUrl && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-400">
+            <Download className="size-3.5 shrink-0" />
+            <span className="flex-1 truncate">成片已就緒</span>
+            <a
+              href={exportData.downloadUrl}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold hover:underline shrink-0"
+            >
+              下載影片
+            </a>
+          </div>
+        )}
         <DirectorConsole />
       </CockpitShell>
     );
@@ -141,7 +165,8 @@ export function VideoCockpit() {
       <VideoProjectCreateDialog
         open={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
-        onCreated={(_videoProjectId, _aspectRatio) => {
+        onCreated={(vpId, _aspectRatio) => {
+          setVideoProjectId(vpId);
           spine.createProject("未命名創作", "影片");
         }}
       />

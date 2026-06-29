@@ -96,6 +96,11 @@ export const videoProjectRouter = router({
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
       if (row.userId !== ctx.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
+      const now = Date.now();
+      const signedUrlValid =
+        row.outputSignedUrl &&
+        row.outputExpiresAt &&
+        row.outputExpiresAt.getTime() > now;
       return {
         id: row.id,
         title: row.title,
@@ -104,6 +109,10 @@ export const videoProjectRouter = router({
         version: row.version,
         deadlineAt: row.deadlineAt ?? null,
         priorityClass: row.priorityClass,
+        // AIDV-684: 成片快取 URL（未過期時回傳，否則 null）
+        outputStoragePath: row.outputStoragePath ?? null,
+        outputSignedUrl: signedUrlValid ? row.outputSignedUrl : null,
+        outputExpiresAt: row.outputExpiresAt?.toISOString() ?? null,
       };
     }),
 
@@ -386,6 +395,30 @@ export const videoProjectRouter = router({
     }),
 
   /**
+   * AIDV-684: 從快取讀取已快取的下載 URL（若尚未生成或已過期則回傳 null）。
+   * 快取由 requestExport 成功呼叫後寫入；呼叫方只需知道 projectId。
+   */
+  getExportUrl: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const project = await db.getVideoProject(input.projectId);
+      if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
+      if (project.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const now = Date.now();
+      const valid =
+        project.outputSignedUrl &&
+        project.outputExpiresAt &&
+        project.outputExpiresAt.getTime() > now + 60_000;
+      if (!valid) return null;
+      return {
+        downloadUrl: project.outputSignedUrl!,
+        expiresAt: project.outputExpiresAt!.toISOString(),
+        storagePath: project.outputStoragePath ?? null,
+      };
+    }),
+
+  /**
    * AIDV-347: 創作者下載匯出端點。
    *
    * 驗證影片專案與數位資產的所有權後，回傳一個 7 天有效的 presigned GET URL，
@@ -431,13 +464,18 @@ export const videoProjectRouter = router({
         });
 
       const downloadUrl = await presignGetDownload(asset.fileKey);
-      const expiresAt = new Date(
-        Date.now() + EXPORT_PRESIGN_EXPIRES_SECONDS * 1000
-      ).toISOString();
+      const expiresAtDate = new Date(Date.now() + EXPORT_PRESIGN_EXPIRES_SECONDS * 1000);
+
+      // AIDV-684: 快取到 video_projects（fire-and-forget，失敗不影響回傳）
+      db.updateVideoProjectOutputUrl(input.projectId, {
+        storagePath: asset.fileKey,
+        signedUrl: downloadUrl,
+        expiresAt: expiresAtDate,
+      }).catch(() => undefined);
 
       return {
         downloadUrl,
-        expiresAt,
+        expiresAt: expiresAtDate.toISOString(),
         assetId: asset.id,
         projectId: project.id,
         format: input.format,
