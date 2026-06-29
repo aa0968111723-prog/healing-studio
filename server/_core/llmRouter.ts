@@ -442,6 +442,19 @@ export function inferEngineFromModelIdSafe(
 }
 
 /**
+ * FreeLLMAPI（AIDV ⑪）三重門檻：旗標開 ＋ base ＋ key 皆備才算可用。
+ * 預設 OFF；dev/test 限定。本引擎**刻意不進 auto 順序／fallback 鏈**
+ * （見 resolveEngineConfig 的 autoOrder 與 getEngineFallbackChain 的 allOrder），
+ * 只有 LLM_ENGINE=freellmapi 或顯式 forceEngine 才會選到——prod 絕不把
+ * 使用者 PII 路由到免費聚合器。三者缺一時，「未設＝零變化」。
+ */
+export function isFreeLlmApiEnabled(): boolean {
+  const flag = (ENV.freellmapiEnabled ?? "").trim().toLowerCase();
+  const on = flag === "true" || flag === "1" || flag === "on" || flag === "yes";
+  return on && !!ENV.freellmapiBaseUrl && !!ENV.freellmapiApiKey;
+}
+
+/**
  * 偵測可用的引擎，回傳優先順序列表
  * 呼叫端可以用來顯示「目前使用哪個引擎」的 debug info
  */
@@ -493,13 +506,11 @@ export function detectAvailableEngines(): Array<{
       reason: "NVIDIA_API 已設定（NVIDIA NIM 代理人引擎）",
     });
   }
-  if (
-    ENV.freeLlmApiEnabled === "true" ||
-    ENV.freeLlmApiEnabled === "1"
-  ) {
+  if (isFreeLlmApiEnabled()) {
     available.push({
       engine: "freellmapi",
-      reason: "FREE_LLM_API_ENABLED=true（免費 LLM 備援引擎，無需 API 金鑰）",
+      reason:
+        "FreeLLMAPI 已啟用（免費聚合器 · dev/test 限定 · 顯式選用、不進 auto 路由）",
     });
   }
 
@@ -521,10 +532,10 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
   }
 
   // ── Auto 模式 — 健康感知路由 ───────────────────────────────
-  // 優先順序：openrouter > anthropic > perplexity > gemini > nvidia > vertex > forge > freellmapi
+  // 優先順序：openrouter > anthropic > perplexity > gemini > nvidia > vertex > forge
   // perplexity 排在 anthropic 後面：Sonar 雖然是搜尋+推理代理，但 tool use
   // 與一般對話的覆蓋面不如 Claude，僅當顯式選擇 perplexity/sonar-* 時優先。
-  // freellmapi 排最後：免費服務可能有速率限制或可用性問題，僅作最終備援。
+  // freellmapi 刻意不在 auto 路由：dev/test 限定、僅顯式 LLM_ENGINE=freellmapi 才選用。
   const autoOrder: LLMEngine[] = [
     "openrouter",
     "anthropic",
@@ -533,7 +544,6 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
     "nvidia",
     "vertex",
     "forge",
-    "freellmapi",
   ];
 
   for (const engine of autoOrder) {
@@ -586,7 +596,6 @@ export function getEngineFallbackChain(
     "nvidia",
     "vertex",
     "forge",
-    "freellmapi",
   ];
   const fallbacks: EngineConfig[] = [];
 
@@ -769,32 +778,29 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
       };
 
     case "freellmapi": {
-      // 免費 LLM API — 無需 API 金鑰，OpenAI 相容格式
-      // 來源：https://github.com/tashfeenahmed/freellmapi
-      // 僅在 FREE_LLM_API_ENABLED=true 時可用；排在所有付費引擎之後作為最終備援。
-      const isEnabled =
-        ENV.freeLlmApiEnabled === "true" || ENV.freeLlmApiEnabled === "1";
-      if (!isEnabled)
+      // FreeLLMAPI（AIDV ⑪）：16 供應商免費聚合器，OpenAI 相容，自架 Docker。
+      // 三重門檻（旗標＋base＋key）由 isFreeLlmApiEnabled() 統一把關，缺一即拒絕解析
+      //——確保「未設＝零變化」。本引擎不在 auto 順序／fallback 鏈中（見上方兩處），
+      // 只有 LLM_ENGINE=freellmapi 或顯式 forceEngine 才會走到這裡：dev/test 限定，
+      // prod 絕不把使用者 PII 路由到免費聚合器。
+      if (!isFreeLlmApiEnabled())
         throw new Error(
-          "Engine 'freellmapi' 指定但 FREE_LLM_API_ENABLED 未設為 true"
+          "Engine 'freellmapi' 指定但未啟用：需同時設 ENABLE_FREELLMAPI=true ＋ FREELLMAPI_BASE_URL ＋ FREELLMAPI_API_KEY（dev/test 限定）"
         );
-      const baseUrl = (
-        ENV.freeLlmApiUrl || "https://api.freellmapi.com"
-      ).replace(/\/$/, "");
+      // 門面解析：FREELLMAPI_BASE_URL 為自架實例底址；無 CF slug，永遠直連。
+      const baseUrl = resolveProviderBaseUrl("freellmapi", ENV.freellmapiBaseUrl);
       return {
-        name: "FreeLLM API (Free Fallback)",
+        name: "FreeLLMAPI (Free Aggregator · dev/test)",
         engine: "freellmapi",
-        // OpenAI-compatible chat completions endpoint
-        url: `${baseUrl}/v1/chat/completions`,
-        // 免費服務不需要 API 金鑰；傳空字串讓 HTTP 客戶端不帶 Authorization 標頭
-        apiKey: "",
-        // gpt-3.5-turbo 是 freellmapi 支援的標準模型 ID
-        model: "gpt-3.5-turbo",
-        // 免費 API 通常不支援進階功能
+        // OpenAI-compatible chat completions endpoint（與 openrouter/nvidia/forge 同路徑）
+        url: `${baseUrl}/chat/completions`,
+        apiKey: ENV.freellmapiApiKey,
+        // 預設模型依自架實例實際聚合的供應商而定，可由呼叫端 model 參數覆寫。
+        model: ENV.freellmapiModel || "gemini-2.5-flash",
         supportsThinking: false,
         supportsGrounding: false,
         supportsLongContext: false,
-        supportsToolCalling: false,
+        supportsToolCalling: true,
       };
     }
 

@@ -532,13 +532,6 @@ const multimodalSchema = z.object({
     .optional()
     .default("auto"),
 
-  // ── FreeLLM API（免費 LLM 備援引擎，最低優先，無需 API 金鑰）──────────
-  // 來源：https://github.com/tashfeenahmed/freellmapi
-  // 設定 FREE_LLM_API_ENABLED=true 啟用；FREE_LLM_API_URL 可覆寫端點。
-  // 此引擎排在所有付費引擎之後，僅在全部付費引擎失敗時作為最終備援。
-  FREE_LLM_API_ENABLED: z.string().optional().default("false"),
-  FREE_LLM_API_URL: z.string().optional().default("https://api.freellmapi.com"),
-
   // ── OpenRouter（統一 LLM 閘道，OpenAI 相容）─────────────
   // 取得金鑰：https://openrouter.ai/keys
   // 模型 ID 格式：<provider>/<model>，例：anthropic/claude-sonnet-4.6、google/gemini-2.5-pro
@@ -549,6 +542,20 @@ const multimodalSchema = z.object({
     .default("https://openrouter.ai/api/v1"),
   OPENROUTER_HTTP_REFERER: z.string().optional().default(""),
   OPENROUTER_X_TITLE: z.string().optional().default("Healing Studio"),
+
+  // ── FreeLLMAPI（16 供應商免費 LLM 聚合器，OpenAI 相容，AIDV ⑪）─────────
+  // 把 16 家供應商（Gemini/Groq/Cerebras/Mistral/OpenRouter/GitHub Models/
+  // Cloudflare/Cohere/NVIDIA NIM/HuggingFace/Z.ai/Ollama Cloud/Kilo/Pollinations/
+  // LLM7/OVH）的免費額度收斂在單一 OpenAI 相容端點（/v1/chat/completions），
+  // 一行 Docker 自架。**僅供 dev/test/prototype 省成本之用**——預設 OFF，且
+  // 永不進入 auto/fallback 路由（prod 絕不把使用者 PII 路由到免費聚合器）。
+  // 啟用＝同時設 ENABLE_FREELLMAPI=true ＋ FREELLMAPI_BASE_URL ＋ FREELLMAPI_API_KEY，
+  // 並以 LLM_ENGINE=freellmapi（或顯式 forceEngine）明確選用，三者缺一即不可用。
+  ENABLE_FREELLMAPI: z.string().optional().default("false"),
+  FREELLMAPI_BASE_URL: z.string().optional().default(""),
+  FREELLMAPI_API_KEY: z.string().optional().default(""),
+  // 預設模型（OpenAI 相容 id，依你自架實例實際聚合的供應商而定）。
+  FREELLMAPI_MODEL: z.string().optional().default("gemini-2.5-flash"),
   ENABLE_SCHEMA_FIRST_PLANNER: z.string().optional().default("true"),
   VITE_ENABLE_GLOBAL_AGENT_WORKFLOWS: z.string().optional().default("true"),
   VITE_ENABLE_GLOBAL_AGENT_TELEMETRY: z.string().optional().default("false"),

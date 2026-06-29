@@ -16,6 +16,10 @@ import {
   providerGatewayHeaders,
   resolveProviderBaseUrl,
 } from "./_core/providerFacade";
+import {
+  isFreeLlmApiEnabled,
+  resolveEngineConfig,
+} from "./_core/llmRouter";
 
 const GW = "https://gateway.ai.cloudflare.com/v1/acct-123/my-gateway";
 
@@ -45,6 +49,16 @@ describe("providerFacade — 直連（預設，線上現況）", () => {
     expect(resolveProviderBaseUrl("perplexity")).toBe(
       "https://api.perplexity.ai"
     );
+    // FreeLLMAPI（AIDV ⑪）：自架 Docker 預設底址。
+    expect(resolveProviderBaseUrl("freellmapi")).toBe(
+      "http://localhost:8000/v1"
+    );
+  });
+
+  it("lets FREELLMAPI_BASE_URL override the self-host default (explicit base wins)", () => {
+    expect(
+      resolveProviderBaseUrl("freellmapi", "https://my-aggregator.example.com/v1")
+    ).toBe("https://my-aggregator.example.com/v1");
   });
 
   it("exports the fal base constants (single source for studios/dispatcher)", () => {
@@ -68,12 +82,15 @@ describe("providerFacade — CF AI Gateway 換軌", () => {
     expect(resolveProviderBaseUrl("perplexity")).toBe(`${GW}/perplexity-ai`);
   });
 
-  it("keeps slug-less providers direct even with the gateway on (fal/suno unsupported by CF)", () => {
+  it("keeps slug-less providers direct even with the gateway on (fal/suno/freellmapi unsupported by CF)", () => {
     process.env.CF_AI_GATEWAY_BASE_URL = GW;
     expect(resolveProviderBaseUrl("fal_ai")).toBe("https://fal.run");
     expect(resolveProviderBaseUrl("fal_queue")).toBe("https://queue.fal.run");
     expect(resolveProviderBaseUrl("suno")).toBe("https://api.sunoapi.org");
     expect(isRoutedViaGateway("fal_ai")).toBe(false);
+    // FreeLLMAPI 本身就是聚合閘道，不掛 CF——即使閘道開著也直連。
+    expect(resolveProviderBaseUrl("freellmapi")).toBe("http://localhost:8000/v1");
+    expect(isRoutedViaGateway("freellmapi")).toBe(false);
   });
 
   it("tolerates a trailing slash on the gateway base", () => {
@@ -125,5 +142,23 @@ describe("providerFacade — LLM 引擎對照", () => {
     expect(engineGatewayProvider("vertex")).toBeNull();
     expect(engineGatewayProvider("nvidia")).toBeNull();
     expect(engineGatewayProvider("forge")).toBeNull();
+  });
+
+  it("maps freellmapi to its own facade key (no-op gateway headers since slug is null)", () => {
+    expect(engineGatewayProvider("freellmapi")).toBe("freellmapi");
+    // 無 CF slug → 即使有 token 也不附閘道標頭。
+    process.env.CF_AI_GATEWAY_BASE_URL = GW;
+    process.env.CF_AI_GATEWAY_TOKEN = "secret";
+    expect(providerGatewayHeaders("freellmapi")).toEqual({});
+  });
+});
+
+describe("FreeLLMAPI 引擎 — 預設關閉時的安全閘（AIDV ⑪）", () => {
+  it("is disabled by default (flag/base/key all unset) — 未設＝零變化", () => {
+    expect(isFreeLlmApiEnabled()).toBe(false);
+  });
+
+  it("refuses to resolve when explicitly selected but not enabled (never silently routes)", () => {
+    expect(() => resolveEngineConfig("freellmapi")).toThrow(/未啟用/);
   });
 });

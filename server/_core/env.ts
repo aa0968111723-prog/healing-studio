@@ -55,6 +55,12 @@ export const ENV = {
   openRouterHttpReferer: serverEnv.OPENROUTER_HTTP_REFERER,
   openRouterXTitle: serverEnv.OPENROUTER_X_TITLE,
 
+  // ── FreeLLMAPI（16 供應商免費聚合器，OpenAI 相容；dev/test 限定，AIDV ⑪）──
+  freellmapiEnabled: serverEnv.ENABLE_FREELLMAPI,
+  freellmapiBaseUrl: serverEnv.FREELLMAPI_BASE_URL,
+  freellmapiApiKey: serverEnv.FREELLMAPI_API_KEY,
+  freellmapiModel: serverEnv.FREELLMAPI_MODEL,
+
   // ── GitHub 整合 ──────────────────────────────────────────
   githubToken: serverEnv.GITHUB_TOKEN,
   githubRepo: serverEnv.GITHUB_REPO,
@@ -64,8 +70,4 @@ export const ENV = {
   ownerOpenId: serverEnv.OWNER_OPEN_ID,
   forgeApiUrl: serverEnv.BUILT_IN_FORGE_API_URL,
   forgeApiKey: serverEnv.BUILT_IN_FORGE_API_KEY,
-
-  // ── FreeLLM API（免費 LLM 備援引擎，最低優先，無需 API 金鑰）─────────
-  freeLlmApiEnabled: serverEnv.FREE_LLM_API_ENABLED,
-  freeLlmApiUrl: serverEnv.FREE_LLM_API_URL,
 };
