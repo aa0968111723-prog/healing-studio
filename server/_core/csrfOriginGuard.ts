@@ -38,12 +38,15 @@ import { COOKIE_NAME } from "@shared/const";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
- * 不套用 Origin 檢查的路徑前綴。
+ * 不套用 Origin 檢查的路徑基底（以「路段邊界」比對，避免誤排除未來新路由）。
  * - webhook：各自驗簽、外部來源無 Origin、非 cookie 認證。
  * - /api/trpc：已有 x-trpc-source guard，避免雙重攔截破壞既有行為。
+ *
+ * 用 `path === base || path.startsWith(base + "/")` 比對（而非裸 startsWith），
+ * 以免 `/api/webhooks-config`、`/api/trpcfoo` 之類同前綴路由被悄悄豁免。
  */
-const EXCLUDED_PATH_PREFIXES = [
-  "/api/webhook/", // fal / suno / replicate（單數）
+const EXCLUDED_PATH_BASES = [
+  "/api/webhook", // fal / suno / replicate（單數）：/api/webhook/<x>
   "/api/webhooks", // stripe：/api/webhooks/stripe + webhooksRouter 掛載點
   "/api/trpc", // 既有 AIDV-219 CSRF guard 負責
 ];
@@ -84,7 +87,12 @@ function readTrustedOriginsFromEnv(): string[] {
     .filter((s): s is string => Boolean(s));
 }
 
-/** 由請求本身推導「自我來源」`protocol//host`（trust proxy 已開，protocol 反映 X-Forwarded-Proto）。 */
+/**
+ * 由請求本身推導「自我來源」`protocol//host`。
+ * 仰賴上游反向代理（Railway）把 `Host` 釘成真實對外網域、且 `trust proxy=1` 讓
+ * `req.protocol` 反映 `X-Forwarded-Proto`。這不構成 CSRF 繞過：跨站攻擊請求由受害者
+ * 瀏覽器發出，攻擊者無法同時偽造受害者送出的 `Host` 與相符的 `Origin`。
+ */
 function selfOrigin(req: Request): string | null {
   const host = req.headers["host"];
   if (!host || typeof host !== "string") return null;
@@ -134,7 +142,7 @@ function hasSessionCookie(req: Request): boolean {
 }
 
 function isExcludedPath(path: string): boolean {
-  return EXCLUDED_PATH_PREFIXES.some(prefix => path.startsWith(prefix));
+  return EXCLUDED_PATH_BASES.some(base => path === base || path.startsWith(`${base}/`));
 }
 
 function reject(res: Response, reason: string): void {
@@ -185,7 +193,7 @@ export function createCsrfOriginGuard(options: CsrfOriginGuardOptions = {}): Req
     };
 
     const origin = req.headers["origin"];
-    const referer = req.headers["referer"] ?? req.headers["referrer"];
+    const referer = req.headers["referer"]; // 線上 header 一律是 "Referer"（單 r）
     const candidate =
       (typeof origin === "string" && origin) || (typeof referer === "string" && referer) || null;
 

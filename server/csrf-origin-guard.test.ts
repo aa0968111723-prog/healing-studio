@@ -272,4 +272,18 @@ describe("AIDV-558 createCsrfOriginGuard", () => {
     expect(status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
+
+  it.each([
+    "/api/webhooks-config",
+    "/api/webhookstatus",
+    "/api/trpcfoo",
+  ])("C17: 同前綴但非真排除路徑 %s 仍受保護（路段邊界比對，跨站＋cookie → 403）", path => {
+    const guard = createCsrfOriginGuard();
+    const req = mockReq({ path, url: path, headers: { host: SELF_HOST, origin: "https://evil.com", cookie: COOKIE } });
+    const { res, status } = mockRes();
+    const next = vi.fn();
+    guard(req, res, next);
+    expect(status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
 });
