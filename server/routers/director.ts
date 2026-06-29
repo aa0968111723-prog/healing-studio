@@ -20,6 +20,7 @@ import { router, brainProcedure, aiChatProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM, extractMessageText } from "../_core/llm";
 import { signWebhookToken } from "../_core/webhookTokens";
+import { generationBus } from "../generationEvents";
 import * as db from "../db";
 import { buildMemoryContext } from "../services/ragMemory";
 import {
@@ -2756,6 +2757,8 @@ ${segmentSummaries}
         sourceVideoUrl: safeMediaUrlOptional, // For v2v / enhance pipeline (來源影片)
         /** prompt↔asset junction relation（重骰=variant/改寫=rewrite/延長=extended/其他=derived）*/
         relation: z.enum(["derived", "variant", "rewrite", "extended"]).optional(),
+        /** 批次任務總數，供前端「分鏡 N/M」進度顯示（選填，不影響執行） */
+        totalTasks: z.number().int().positive().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -3001,10 +3004,23 @@ ${segmentSummaries}
             // path can refund the same number of points instead of recomputing
             // from a partial set of inputs.
             chargedPoints: estimate.totalPoints,
+            startedAt: Date.now(),
+            ...(input.totalTasks != null ? { totalTasks: input.totalTasks } : {}),
             ...(queueResult.degraded && queueResult.originalModel
               ? { originalModel: queueResult.originalModel, degraded: true }
               : {}),
           } as any,
+        });
+
+        // AIDV-527: emit segment-started event on the job's SSE channel
+        generationBus.emit(jobId, {
+          type: "segment_started",
+          segmentId: input.segmentId,
+          segmentIndex: input.segmentIndex,
+          of: input.totalTasks ?? 1,
+          stage: input.modality,
+          userId,
+          at: Date.now(),
         });
 
         return {
