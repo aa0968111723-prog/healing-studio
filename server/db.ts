@@ -1,4 +1,4 @@
-import { eq, ne, desc, asc, and, or, like, sql, lt, inArray, type SQL } from "drizzle-orm";
+import { eq, ne, desc, asc, and, or, like, sql, lt, inArray, isNull, type SQL } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import fs from "fs";
@@ -1124,6 +1124,61 @@ export async function getDigitalAssetsByUser(userId: number, limit?: number) {
     .where(eq(digitalAssetLibrary.userId, userId))
     .orderBy(desc(digitalAssetLibrary.createdAt));
   return typeof limit === "number" && limit > 0 ? q.limit(limit) : q;
+}
+
+/**
+ * AIDV-581：SQL 過濾版本，解決全量載入卡頓。
+ * 把 assetType / sourceStudio / search 下推到 WHERE，避免把整張表撈進記憶體
+ * 再用 JS filter。萬用字元已跳脫（`escapeLikePattern`）。
+ * 預設 limit 200 防 OOM；呼叫端可覆寫。
+ */
+export async function getDigitalAssetsByUserFiltered(opts: {
+  userId: number;
+  assetType?: string;
+  sourceStudio?: string;
+  search?: string;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const conditions: SQL[] = [eq(digitalAssetLibrary.userId, opts.userId)];
+
+  if (opts.assetType && opts.assetType !== "all") {
+    conditions.push(
+      eq(digitalAssetLibrary.assetType, opts.assetType as "image" | "video" | "audio" | "voice" | "script" | "zip_bundle")
+    );
+  }
+
+  if (opts.sourceStudio && opts.sourceStudio !== "all") {
+    if (opts.sourceStudio === "unknown") {
+      conditions.push(isNull(digitalAssetLibrary.sourceStudio));
+    } else {
+      conditions.push(eq(digitalAssetLibrary.sourceStudio, opts.sourceStudio));
+    }
+  }
+
+  if (opts.search) {
+    const trimmed = opts.search.trim();
+    if (trimmed) {
+      const escaped = escapeLikePattern(trimmed);
+      const pattern = `%${escaped}%`;
+      conditions.push(
+        or(
+          like(digitalAssetLibrary.title, pattern),
+          like(digitalAssetLibrary.description, pattern),
+          like(digitalAssetLibrary.promptUsed, pattern)
+        )!
+      );
+    }
+  }
+
+  return db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(and(...conditions))
+    .orderBy(desc(digitalAssetLibrary.createdAt))
+    .limit(opts.limit ?? 200);
 }
 
 // ─── Prompt ↔ Asset 關聯（prompt_assets junction, migration 0075）────────────
