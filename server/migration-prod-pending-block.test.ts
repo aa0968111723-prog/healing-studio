@@ -93,6 +93,8 @@ const PENDING_BLOCK = [
   "0098_video_output_delivery",
   // AIDV-496：agent_dynamic_registry 加 maxLoad 並發容量欄位（information_schema 守門）。
   "0099_agent_registry_max_load",
+  // AIDV-272：video_analytics 影片播放事件追蹤表（CREATE TABLE IF NOT EXISTS + 索引守門）。
+  "0100_video_analytics",
 ];
 
 function readSql(tag: string): string {
