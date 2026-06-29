@@ -37,6 +37,7 @@ function relativeTime(date: Date | string): string {
 export function AgentProgressPanel() {
   const jobs = trpc.generate.myJobs.useQuery(undefined, {
     refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
     staleTime: 2_000,
   });
 

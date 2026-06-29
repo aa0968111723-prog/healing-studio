@@ -508,7 +508,7 @@ export default function BackgroundTasksPage() {
   // ── Query: all active + recent jobs ─────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
     refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     retry: 2,
   });
 
@@ -602,26 +602,6 @@ export default function BackgroundTasksPage() {
     },
     [utils, activeJobsQuery]
   );
-
-  // ── Poll active jobs ────────────────────────────────────────────────────
-  const activeJobIds = useMemo(
-    () =>
-      allJobs
-        .filter(j => j.status === "queued" || j.status === "processing")
-        .map(j => j.id),
-    [allJobs]
-  );
-
-  useEffect(() => {
-    if (activeJobIds.length === 0) return;
-    const interval = setInterval(() => {
-      for (const id of activeJobIds) {
-        utils.generate.checkStudioJob.fetch({ jobId: id }).catch(() => {});
-      }
-      activeJobsQuery.refetch();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [activeJobIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isLoading = activeJobsQuery.isLoading && allJobsQuery.isLoading;
 
