@@ -109,6 +109,96 @@ export interface CreateClarificationInput {
   spiritAsked?: string;
 }
 
+export interface ClarificationStats {
+  totalClarifications: number;
+  /** 已作答比例 0–1（兩位小數）。 */
+  answerRate: number;
+  /** 平均作答秒數（createdAt→answeredAt），無樣本為 0。 */
+  avgResponseTime: number;
+  byQuestionType: Record<QuestionType, number>;
+  /** 0–100：系統對該使用者偏好的學習程度（以回答模式平均信心度估算）。 */
+  learningProgress: number;
+}
+
+/** 空統計（無 DB／無資料／失敗時回退），避免光球統計工具中斷對話。 */
+function emptyClarificationStats(): ClarificationStats {
+  return {
+    totalClarifications: 0,
+    answerRate: 0,
+    avgResponseTime: 0,
+    byQuestionType: {
+      choice: 0,
+      confirm: 0,
+      parameter: 0,
+      constraint: 0,
+      preference: 0,
+      context: 0,
+    },
+    learningProgress: 0,
+  };
+}
+
+/**
+ * AIDV-196：純函式聚合澄清統計（與 DB 解耦，便於決定性單元測試）。
+ *
+ * 取代原本恆回零的樁實作——`orbClarificationHistory` 與 `orbUserAnswerPatterns`
+ * 已由 identifyIntent/generateClarification/recordAnswer 實際寫入，本函式據實聚合，
+ * 讓光球回報的「已澄清次數／作答率／學習進度」不再造假。
+ */
+export function computeClarificationStats(
+  clarifications: Array<{
+    questionType: QuestionType;
+    userAnswer: string | null;
+    createdAt: Date;
+    answeredAt: Date | null;
+  }>,
+  patterns: Array<{ confidenceScore: number; sampleCount: number }>,
+): ClarificationStats {
+  const stats = emptyClarificationStats();
+  stats.totalClarifications = clarifications.length;
+
+  let answeredCount = 0;
+  let totalResponseMs = 0;
+  let responseSamples = 0;
+
+  for (const c of clarifications) {
+    if (Object.prototype.hasOwnProperty.call(stats.byQuestionType, c.questionType)) {
+      stats.byQuestionType[c.questionType]++;
+    }
+    const answeredAt = c.answeredAt;
+    const isAnswered =
+      c.userAnswer != null && c.userAnswer !== "" && answeredAt != null;
+    if (!isAnswered || answeredAt == null) continue;
+    answeredCount++;
+    const createdMs =
+      c.createdAt instanceof Date ? c.createdAt.getTime() : new Date(c.createdAt).getTime();
+    const answeredMs =
+      answeredAt instanceof Date ? answeredAt.getTime() : new Date(answeredAt).getTime();
+    const deltaMs = answeredMs - createdMs;
+    if (Number.isFinite(deltaMs) && deltaMs >= 0) {
+      totalResponseMs += deltaMs;
+      responseSamples++;
+    }
+  }
+
+  if (stats.totalClarifications > 0) {
+    stats.answerRate = Math.round((answeredCount / stats.totalClarifications) * 100) / 100;
+  }
+  if (responseSamples > 0) {
+    stats.avgResponseTime = Math.round(totalResponseMs / responseSamples / 1000);
+  }
+  if (patterns.length > 0) {
+    const avgConfidence =
+      patterns.reduce(
+        (sum, p) => sum + (Number.isFinite(p.confidenceScore) ? p.confidenceScore : 0),
+        0,
+      ) / patterns.length;
+    stats.learningProgress = Math.max(0, Math.min(100, Math.round(avgConfidence * 100)));
+  }
+
+  return stats;
+}
+
 export class OrbClarificationEngine {
   /**
    * Identify user intent from input
@@ -603,38 +693,51 @@ Return exactly:
   /**
    * Get statistics about clarifications
    */
-  async getStats(userId: number): Promise<{
-    totalClarifications: number;
-    answerRate: number;
-    avgResponseTime: number;
-    byQuestionType: Record<QuestionType, number>;
-    learningProgress: number;
-  }> {
+  async getStats(userId: number): Promise<ClarificationStats> {
     try {
-      // TODO: Implement actual database aggregation
+      const db = await getDb();
+      if (!db) return emptyClarificationStats();
 
-      const stats = {
-        totalClarifications: 0,
-        answerRate: 0,
-        avgResponseTime: 0,
-        byQuestionType: {
-          choice: 0,
-          confirm: 0,
-          parameter: 0,
-          constraint: 0,
-          preference: 0,
-          context: 0,
-        },
-        learningProgress: 0, // 0-100, how well system has learned user patterns
-      };
+      const clarifRows = await db
+        .select({
+          questionType: orbClarificationHistory.questionType,
+          userAnswer: orbClarificationHistory.userAnswer,
+          createdAt: orbClarificationHistory.createdAt,
+          answeredAt: orbClarificationHistory.answeredAt,
+        })
+        .from(orbClarificationHistory)
+        .where(eq(orbClarificationHistory.userId, userId));
 
-      return stats;
+      const patternRows = await db
+        .select({
+          confidenceScore: orbUserAnswerPatterns.confidenceScore,
+          sampleCount: orbUserAnswerPatterns.sampleCount,
+        })
+        .from(orbUserAnswerPatterns)
+        .where(eq(orbUserAnswerPatterns.userId, userId));
+
+      return computeClarificationStats(
+        clarifRows.map(r => ({
+          questionType: r.questionType,
+          userAnswer: r.userAnswer ?? null,
+          createdAt: r.createdAt,
+          answeredAt: r.answeredAt ?? null,
+        })),
+        patternRows.map(p => ({
+          confidenceScore:
+            typeof p.confidenceScore === "string"
+              ? parseFloat(p.confidenceScore)
+              : Number(p.confidenceScore ?? 0),
+          sampleCount: p.sampleCount ?? 0,
+        })),
+      );
     } catch (error) {
       logger.error("orb_clarification_get_stats_failed", {
         userId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw error;
+      // 失敗時回零統計而非 throw，避免光球統計工具中斷整段對話。
+      return emptyClarificationStats();
     }
   }
 
