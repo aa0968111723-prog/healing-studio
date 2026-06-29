@@ -8,6 +8,7 @@ import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { ChevronDown, ChevronRight, Loader2, Bot, AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PanelError } from "@/shells/_shared/PanelState";
 
 type RunStatus =
   | "pending"
@@ -110,11 +111,11 @@ function useRunsData() {
     refetchOnWindowFocus: false,
     staleTime: 30_000,
   });
-  return { runs: q.data?.runs ?? [], isLoading: q.isLoading, isError: q.isError };
+  return { runs: q.data?.runs ?? [], isLoading: q.isLoading, isError: q.isError, refetch: q.refetch };
 }
 
 export function AgentOpsPanelBody() {
-  const { runs, isLoading, isError } = useRunsData();
+  const { runs, isLoading, isError, refetch } = useRunsData();
 
   if (isLoading) {
     return (
@@ -127,10 +128,7 @@ export function AgentOpsPanelBody() {
 
   if (isError) {
     return (
-      <div className="flex items-center gap-2 py-8 text-[12px] text-rose-600 justify-center">
-        <AlertCircle className="w-3.5 h-3.5" />
-        載入失敗，請重試
-      </div>
+      <PanelError message="代理執行記錄載入失敗，請稍後重試。" onRetry={() => void refetch()} />
     );
   }
 

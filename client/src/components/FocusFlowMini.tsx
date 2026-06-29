@@ -10,7 +10,7 @@
  */
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useFocusFlow, BREATHING_PHASES } from "@/contexts/FocusFlowContext";
 import {
   Timer,
@@ -148,6 +148,7 @@ function MiniHealing() {
     toggleHealing,
     resetHealing,
   } = useFocusFlow();
+  const prefersReducedMotion = useReducedMotion();
 
   const currentBreathPhase = BREATHING_PHASES[breathPhaseIdx];
   const healingSec = healingMin * 60;
@@ -163,9 +164,9 @@ function MiniHealing() {
         <motion.div
           className="absolute rounded-full"
           animate={{
-            scale: healingRunning ? currentBreathPhase.scale : 1,
+            scale: (healingRunning && !prefersReducedMotion) ? currentBreathPhase.scale : 1,
           }}
-          transition={{
+          transition={prefersReducedMotion ? { duration: 0 } : {
             scale: {
               duration: currentBreathPhase.duration / 1000,
               ease: "easeInOut",
@@ -281,10 +282,10 @@ function MiniThoughts() {
             </span>
             <button
               onClick={() => removeThought(t.id)}
-              className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 transition-all shrink-0"
+              className="opacity-0 group-hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center hover:text-red-400 transition-all shrink-0"
               aria-label="刪除"
             >
-              <Trash2 className="h-2.5 w-2.5" />
+              <Trash2 className="h-2.5 w-2.5" aria-hidden="true" />
             </button>
           </div>
         ))}
