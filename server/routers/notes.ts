@@ -31,7 +31,7 @@ export const notesRouter = router({
         .optional()
     )
     .query(async ({ ctx, input }) => {
-      const all = await db.getProjectNotesByUser(ctx.user.id);
+      const all = await db.getProjectNotesByUser(ctx.user.id, 500);
       let result = all;
       if (input?.noteType && input.noteType !== "all") {
         result = result.filter(n => n.noteType === input.noteType);
@@ -74,7 +74,7 @@ export const notesRouter = router({
         .optional()
     )
     .query(async ({ ctx, input }) => {
-      const all = await db.getProjectNotesByUser(ctx.user.id);
+      const all = await db.getProjectNotesByUser(ctx.user.id, 500);
       const now = Date.now();
       const todayStart =
         input?.todayStart ??
@@ -132,16 +132,25 @@ export const notesRouter = router({
       z
         .object({
           includeDone: z.boolean().default(false),
+          from: z.number().optional(),
+          to: z.number().optional(),
         })
         .optional()
     )
     .query(async ({ ctx, input }) => {
-      const all = await db.getProjectNotesByUser(ctx.user.id);
+      const all = await db.getProjectNotesByUser(ctx.user.id, 500);
       const includeDone = input?.includeDone ?? false;
+      const fromTs = input?.from;
+      const toTs = input?.to;
       const events = all
         .filter(n => {
           if (!n.scheduledDate) return false;
           if (!includeDone && (n.status ?? "todo") === "done") return false;
+          if (fromTs !== undefined || toTs !== undefined) {
+            const ts = new Date(n.scheduledDate).getTime();
+            if (fromTs !== undefined && ts < fromTs) return false;
+            if (toTs !== undefined && ts > toTs) return false;
+          }
           return true;
         })
         .map(n => ({
