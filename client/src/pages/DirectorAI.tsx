@@ -134,6 +134,7 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AdvancedSection } from "@/components/layout/AdvancedSection";
 import { getVisualDensity, shouldShowDiagnostics } from "@/lib/visualDensity";
+import { useBackgroundTasks } from "@/contexts/BackgroundTasksContext";
 import type {
   CoStarScript,
   ScriptSegment,
@@ -2332,6 +2333,7 @@ const ScriptCard = memo(function ScriptCard({
 export default function DirectorAI() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  const { notifyJobStarted } = useBackgroundTasks();
 
   // 全站新手引導
   usePageTour("director");
@@ -3110,6 +3112,8 @@ export default function DirectorAI() {
             : t
         )
       );
+      // 登記到 BackgroundTasksContext 讓 drawer badge 即時反映進度
+      notifyJobStarted(data.jobId);
       toast.success(`${data.label} 已開始生成`);
     },
     onError: (e, vars) => {
