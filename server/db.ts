@@ -4234,6 +4234,89 @@ export async function transferResourceOwnership(
   }
 }
 
+/** getDb() 解析後的非 null 連線型別（給可注入 db 的原子助手用）。 */
+type OwnershipDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+/**
+ * 原子化「移轉擁有權＋清掉全部共享」的交易主體（可注入 db/連線，便於單元測試）。
+ *
+ * 兩步在**同一 DB transaction** 內完成：
+ *   1. 更新該資源 owner 欄位 → newOwnerUserId；
+ *   2. 刪掉該資源的**全部** resourceShares（舊 owner 建立的、與被共享進來的都清）。
+ *
+ * 任一步 throw → 整筆 rollback：擁有權不變、shares 不刪，**不會**出現「擁有權已轉、
+ * 舊 owner 共享殘留」的部分失敗（AIDV-186）。兩步間的 concurrent share 寫入也因
+ * 同一原子單元而不殘存。
+ */
+export async function runTransferOwnershipAndWipeShares(
+  database: OwnershipDb,
+  resourceType: ResourceShareType,
+  resourceId: number,
+  newOwnerUserId: number
+): Promise<void> {
+  await database.transaction(async (tx) => {
+    switch (resourceType) {
+      case "project":
+        await tx
+          .update(creativeProjects)
+          .set({ userId: newOwnerUserId })
+          .where(eq(creativeProjects.id, resourceId));
+        break;
+      case "asset":
+        await tx
+          .update(digitalAssetLibrary)
+          .set({ userId: newOwnerUserId })
+          .where(eq(digitalAssetLibrary.id, resourceId));
+        break;
+      case "prompt":
+        await tx
+          .update(promptLibrary)
+          .set({ userId: newOwnerUserId })
+          .where(eq(promptLibrary.id, resourceId));
+        break;
+      case "material":
+        await tx
+          .update(teachingMaterials)
+          .set({ userId: newOwnerUserId })
+          .where(eq(teachingMaterials.id, resourceId));
+        break;
+      default: {
+        const _exhaustive: never = resourceType;
+        throw new Error(`未知資源型別: ${String(_exhaustive)}`);
+      }
+    }
+    // 同一交易內清掉全部共享（見 deleteAllSharesForResource）：第二步失敗→整筆
+    // rollback，保證擁有權與共享圖一致，無殘餘存取。
+    await tx
+      .delete(resourceShares)
+      .where(
+        and(
+          eq(resourceShares.resourceType, resourceType),
+          eq(resourceShares.resourceId, resourceId)
+        )
+      );
+  });
+}
+
+/**
+ * 原子化移轉資源擁有權並清掉全部共享（rbac.transferOwnership 用）。
+ * 取得連線後委派給 {@link runTransferOwnershipAndWipeShares} 在單一交易內執行。
+ */
+export async function transferResourceOwnershipAndWipeShares(
+  resourceType: ResourceShareType,
+  resourceId: number,
+  newOwnerUserId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await runTransferOwnershipAndWipeShares(
+    db,
+    resourceType,
+    resourceId,
+    newOwnerUserId
+  );
+}
+
 /**
  * 讀某資源的 owner facts（{ ownerId, visibility, teamId }），給 canAccess /
  * share/transfer 的擁有權驗證用。找不到回 null。不同資源表欄位略異，這裡

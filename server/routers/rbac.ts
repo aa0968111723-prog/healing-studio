@@ -233,9 +233,12 @@ export const rbacRouter = router({
    * 「旗標 OFF＝與現狀位元完全相同」（HARD SAFETY ①），OFF 時回 FORBIDDEN、
    * 不執行任何變更。
    *
-   * 移轉時把該資源的**全部共享一併清掉**（deleteAllSharesForResource）：
+   * 移轉時把該資源的**全部共享一併清掉**，且與 owner 變更在**同一 DB 交易**內
+   * 原子完成（transferResourceOwnershipAndWipeShares）：
    *   • 新 owner 拿到乾淨的共享圖（不會「owner 又是被共享者」）。
    *   • 舊 owner 不留任何殘餘共享存取（他建立的、或他被共享進來的都清掉）。
+   *   • 任一步失敗→整筆 rollback，不會留下「擁有權已轉、舊共享殘留」的不一致
+   *     狀態（AIDV-186）。
    * 對象使用者必須存在。
    */
   transferOwnership: protectedProcedure
@@ -273,15 +276,15 @@ export const rbacRouter = router({
         });
       }
 
-      await db.transferResourceOwnership(
+      // 原子化：移轉擁有權＋清掉此資源的全部共享在**同一 DB 交易**內完成。
+      // 任一步失敗→整筆 rollback，不會出現「擁有權已轉、舊 owner 共享殘留」的
+      // 部分失敗（舊 owner 對已不屬於他的資源仍有殘餘存取）。給新 owner 乾淨的
+      // 共享圖，舊 owner 不留殘餘存取（含舊 owner 建立的、與被共享進來的）。AIDV-186。
+      await db.transferResourceOwnershipAndWipeShares(
         input.resourceType,
         input.resourceId,
         input.newOwnerUserId
       );
-
-      // 移轉後清掉此資源的全部共享：給新 owner 乾淨的共享圖，舊 owner 不留殘餘
-      // 存取（含舊 owner 建立的、與舊 owner 被共享進來的）。
-      await db.deleteAllSharesForResource(input.resourceType, input.resourceId);
 
       recordAuditEvent({
         actorUserId: ctx.user.id,

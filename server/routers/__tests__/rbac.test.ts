@@ -51,6 +51,9 @@ vi.mock("../../db", () => ({
   transferResourceOwnership: vi.fn(async (...a: unknown[]) =>
     record("transferResourceOwnership", ...a)
   ),
+  transferResourceOwnershipAndWipeShares: vi.fn(async (...a: unknown[]) =>
+    record("transferResourceOwnershipAndWipeShares", ...a)
+  ),
   listSharesForResource: vi.fn(async () => []),
 }));
 
@@ -246,7 +249,7 @@ describe("AIDV-121 rbac.transferOwnership", () => {
     ).toBeFalsy();
   });
 
-  it("旗標 ON：owner 可移轉 → transfer + deleteAllSharesForResource 清乾淨", async () => {
+  it("旗標 ON：owner 可移轉 → 走原子助手（同一交易移轉＋清全部共享）", async () => {
     rbacFlagOn = true;
     dbMock.ownerFacts = { ownerId: OWNER_ID, visibility: null, teamId: null };
     dbMock.usersById = [{ id: OTHER_ID }];
@@ -256,13 +259,20 @@ describe("AIDV-121 rbac.transferOwnership", () => {
       newOwnerUserId: OTHER_ID,
     });
     expect(res).toEqual({ success: true });
+    // AIDV-186：改為單一原子助手，避免「移轉」與「清共享」兩段非交易 await 的
+    // 部分失敗。應呼叫 transferResourceOwnershipAndWipeShares 一次、帶正確參數。
+    const atomicCall = dbMock.calls.find(
+      c => c.fn === "transferResourceOwnershipAndWipeShares"
+    );
+    expect(atomicCall).toBeTruthy();
+    expect(atomicCall?.args).toEqual(["asset", 3, OTHER_ID]);
+    // 不再以兩段非交易 await 呼叫；舊的分離寫法不應再出現。
     expect(
       dbMock.calls.find(c => c.fn === "transferResourceOwnership")
-    ).toBeTruthy();
-    // 移轉後應清掉此資源的「全部」共享（給新 owner 乾淨共享圖、舊 owner 不留殘餘）
+    ).toBeFalsy();
     expect(
       dbMock.calls.find(c => c.fn === "deleteAllSharesForResource")
-    ).toBeTruthy();
+    ).toBeFalsy();
   });
 
   it("旗標 ON：移轉給自己 → BAD_REQUEST", async () => {
