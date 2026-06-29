@@ -369,26 +369,41 @@ export default function SiteOnboardingOverlay() {
     const updateRect = () => {
       const el = document.getElementById(targetId);
       if (el) {
-        const rect = el.getBoundingClientRect();
-        setTargetRect(rect);
-        // Scroll into view
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTargetRect(el.getBoundingClientRect());
       } else {
         setTargetRect(null);
       }
     };
 
-    updateRect();
+    // Scroll into view once on step change, then only track position
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTargetRect(el.getBoundingClientRect());
+    } else {
+      setTargetRect(null);
+    }
 
     // Poll to handle dynamic layouts
     const interval = setInterval(updateRect, 600);
     window.addEventListener("resize", updateRect);
-    window.addEventListener("scroll", updateRect, true);
+
+    // Throttled scroll handler: update spotlight position only, no scrollIntoView
+    let scrollThrottle: ReturnType<typeof setTimeout> | null = null;
+    const onScroll = () => {
+      if (scrollThrottle) return;
+      scrollThrottle = setTimeout(() => {
+        updateRect();
+        scrollThrottle = null;
+      }, 100);
+    };
+    window.addEventListener("scroll", onScroll, true);
 
     return () => {
       clearInterval(interval);
+      if (scrollThrottle) clearTimeout(scrollThrottle);
       window.removeEventListener("resize", updateRect);
-      window.removeEventListener("scroll", updateRect, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [isActive, currentStepData]);
 

@@ -200,7 +200,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
   // ─── 查詢所有活躍任務 ──────────────────────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
     refetchInterval: activeJobIds.length > 0 ? POLL_INTERVAL : 30_000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     retry: 2,
   });
 
@@ -375,7 +375,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     };
 
     check(); // 立即檢查一次
-    const timer = setInterval(check, POLL_INTERVAL);
+    const timer = setInterval(check, sseConnected ? 30_000 : POLL_INTERVAL);
     return () => clearInterval(timer);
   }, [activeJobIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
