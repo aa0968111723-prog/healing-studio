@@ -3,6 +3,7 @@ import {
   approveOrbAgentTask,
   completeOrbAgentStep,
   createOrbAgentTaskFromPlanner,
+  failOrbAgentStep,
   getOrbAgentTask,
 } from "../orbTaskStateMachine";
 import { parseAndGatePlan } from "../../../shared/agent-plan-adapter";
@@ -68,5 +69,44 @@ describe("orbTaskStateMachine conditional branching", () => {
     ]);
     expect(result.status).toBe("invalid");
     expect(result.reason).toContain("invalid condition.gotoStepId");
+  });
+});
+
+describe("orbTaskStateMachine terminal-state guards (AIDV-624)", () => {
+  function buildSingleStepTask() {
+    const result = buildTaskedPlanWithSteps([
+      { id: "s1", label: "one", riskLevel: "low", requiresApproval: false, undoable: false, action: { type: "fillPrompt", text: "a" } },
+    ]);
+    return createOrbAgentTaskFromPlanner(result)!;
+  }
+
+  it("approveOrbAgentTask is no-op for failed task", () => {
+    const task = buildSingleStepTask();
+    approveOrbAgentTask(task.taskId);
+    failOrbAgentStep(task.taskId, "s1", "test failure");
+    expect(getOrbAgentTask(task.taskId)?.status).toBe("failed");
+
+    approveOrbAgentTask(task.taskId);
+    expect(getOrbAgentTask(task.taskId)?.status).toBe("failed");
+  });
+
+  it("completeOrbAgentStep is no-op for failed task", () => {
+    const task = buildSingleStepTask();
+    approveOrbAgentTask(task.taskId);
+    failOrbAgentStep(task.taskId, "s1", "test failure");
+    expect(getOrbAgentTask(task.taskId)?.status).toBe("failed");
+
+    completeOrbAgentStep(task.taskId, "s1");
+    expect(getOrbAgentTask(task.taskId)?.status).toBe("failed");
+  });
+
+  it("completeOrbAgentStep is no-op for completed task", () => {
+    const task = buildSingleStepTask();
+    approveOrbAgentTask(task.taskId);
+    completeOrbAgentStep(task.taskId, "s1");
+    expect(getOrbAgentTask(task.taskId)?.status).toBe("completed");
+
+    completeOrbAgentStep(task.taskId, "s1");
+    expect(getOrbAgentTask(task.taskId)?.status).toBe("completed");
   });
 });
