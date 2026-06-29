@@ -9,6 +9,16 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -303,6 +313,7 @@ export default function ProjectNotesDrawer() {
   const [, navigate] = useLocation();
   const { isOpen, closeDrawer, pendingPayload } = useNotesDrawer();
   const [showForm, setShowForm] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   const notesQuery = trpc.notes.list.useQuery(undefined, { enabled: isOpen });
   const deleteNote = trpc.notes.delete.useMutation({
@@ -403,7 +414,7 @@ export default function ProjectNotesDrawer() {
                     onToggleStatus={(id, status) =>
                       updateNote.mutate({ id, status })
                     }
-                    onDelete={id => deleteNote.mutate({ id })}
+                    onDelete={id => setPendingDeleteId(id)}
                   />
                 ))}
               </AnimatePresence>
@@ -425,6 +436,32 @@ export default function ProjectNotesDrawer() {
           </div>
         </div>
       </SheetContent>
+
+      <AlertDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={open => !open && setPendingDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除筆記？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原，筆記將永久刪除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteId !== null) deleteNote.mutate({ id: pendingDeleteId });
+                setPendingDeleteId(null);
+              }}
+            >
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }

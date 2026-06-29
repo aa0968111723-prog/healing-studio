@@ -23,6 +23,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -521,6 +531,7 @@ export default function AssetsLibrary() {
   const [tab, setTab] = useState<"my" | "team">(getInitialTab);
   const [viewMode, setViewMode] = useState<AssetsViewMode>(getInitialViewMode);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<AssetTypeFilter>("all");
   const [sourceFilter, setSourceFilter] =
@@ -1148,9 +1159,7 @@ export default function AssetsLibrary() {
                                 variant="outline"
                                 size="sm"
                                 className="rounded-lg bg-card/90 text-xs h-7 text-destructive"
-                                onClick={() =>
-                                  deleteAsset.mutate({ id: asset.id })
-                                }
+                                onClick={() => setPendingDeleteId(asset.id)}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </Button>
@@ -1215,7 +1224,7 @@ export default function AssetsLibrary() {
                           <button
                             className="p-1.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 transition-colors"
                             title="刪除"
-                            onClick={() => deleteAsset.mutate({ id: asset.id })}
+                            onClick={() => setPendingDeleteId(asset.id)}
                           >
                             <Trash2 className="w-3.5 h-3.5 text-destructive" />
                           </button>
@@ -1450,6 +1459,32 @@ export default function AssetsLibrary() {
 
       {/* ─── Google Drive 素材庫 ───────────────────────────────────────────── */}
       {section === "drive" && <DriveLibrarySection />}
+
+      <AlertDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={open => !open && setPendingDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除資產？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原，資產將永久刪除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteId !== null) deleteAsset.mutate({ id: pendingDeleteId });
+                setPendingDeleteId(null);
+              }}
+            >
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

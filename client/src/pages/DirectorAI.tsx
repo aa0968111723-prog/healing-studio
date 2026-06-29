@@ -135,6 +135,16 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AdvancedSection } from "@/components/layout/AdvancedSection";
 import { getVisualDensity, shouldShowDiagnostics } from "@/lib/visualDensity";
 import { useBackgroundTasks } from "@/contexts/BackgroundTasksContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type {
   CoStarScript,
   ScriptSegment,
@@ -2757,6 +2767,7 @@ export default function DirectorAI() {
   const deleteSessionMut = trpc.director.deleteSession.useMutation({
     onSuccess: () => sessionsQuery.refetch(),
   });
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<number | null>(null);
 
   // Phase 2 後續：把當前腳本段落一鍵轉成分鏡板。需要當前選定的創作專案
   // 有綁定世界觀，沒有的話會 toast 引導使用者去 /creative-projects。
@@ -4687,7 +4698,7 @@ export default function DirectorAI() {
                     key={s.id}
                     session={s}
                     onLoad={handleLoadSession}
-                    onDelete={id => deleteSessionMut.mutate({ id })}
+                    onDelete={id => setPendingDeleteSessionId(id)}
                   />
                 ))}
               </div>
@@ -6362,6 +6373,32 @@ export default function DirectorAI() {
         onClear={handleClearGenerationTasks}
         onRetry={handleRetryGenerationTask}
       />
+
+      <AlertDialog
+        open={pendingDeleteSessionId !== null}
+        onOpenChange={open => !open && setPendingDeleteSessionId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除對話紀錄？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原，對話紀錄將永久刪除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteSessionId !== null) deleteSessionMut.mutate({ id: pendingDeleteSessionId });
+                setPendingDeleteSessionId(null);
+              }}
+            >
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

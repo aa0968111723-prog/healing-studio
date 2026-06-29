@@ -12,6 +12,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Flame,
   CheckCircle2,
   X,
@@ -547,6 +557,9 @@ export default function LoraTrainer({
       }
     },
   });
+  const [pendingDeleteModelId, setPendingDeleteModelId] = useState<
+    number | null
+  >(null);
 
   const toggleVisibility = trpc.models.toggleVisibility.useMutation({
     onSuccess: () => {
@@ -2746,7 +2759,7 @@ export default function LoraTrainer({
                             variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0 rounded-lg text-destructive"
-                            onClick={() => deleteModel.mutate({ id: model.id })}
+                            onClick={() => setPendingDeleteModelId(model.id)}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -3046,7 +3059,10 @@ export default function LoraTrainer({
                   <Button
                     variant="outline"
                     className="rounded-xl gap-1.5 text-sm text-destructive"
-                    onClick={() => deleteModel.mutate({ id: selectedModelId })}
+                    onClick={() =>
+                      selectedModelId !== null &&
+                      setPendingDeleteModelId(selectedModelId)
+                    }
                   >
                     <Trash2 className="w-4 h-4" />
                     刪除模型
@@ -3094,6 +3110,33 @@ export default function LoraTrainer({
           consentsQuery.refetch();
         }}
       />
+
+      <AlertDialog
+        open={pendingDeleteModelId !== null}
+        onOpenChange={open => !open && setPendingDeleteModelId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除 LoRA 模型？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原。已訓練的模型將永久刪除，如需重新使用須重新訓練。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteModelId !== null)
+                  deleteModel.mutate({ id: pendingDeleteModelId });
+                setPendingDeleteModelId(null);
+              }}
+            >
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
