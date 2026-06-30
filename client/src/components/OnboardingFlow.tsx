@@ -283,7 +283,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
       className="fixed inset-0 z-[100] flex items-center justify-center"
       style={{
         background:
-          "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 25%, #D4C5E2 50%, #C8D5E0 75%, #F5F3F0 100%)",
+          "linear-gradient(135deg, var(--color-zen-oat) 0%, var(--color-zen-blush) 25%, var(--color-zen-lavender) 50%, var(--color-zen-sky) 75%, var(--color-zen-oat) 100%)",
       }}
     >
       {/* Skip button */}
@@ -418,7 +418,12 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                 </div>
 
                 {/* Chips grid */}
-                <div className="flex flex-wrap justify-center gap-2">
+                <div
+                  className="flex flex-wrap justify-center gap-2"
+                  aria-busy={loadingChips}
+                  aria-live="polite"
+                  aria-label={loadingChips ? "選項載入中" : undefined}
+                >
                   <AnimatePresence mode="popLayout">
                     {loadingChips
                       ? // Skeleton loading chips
@@ -609,6 +614,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                       { label: "🖼️ 再生一張，換個風格試試", path: null },
                     ].map(({ label, path }) => (
                       <button
+                        type="button"
                         key={label}
                         onClick={() => {
                           if (path) {
