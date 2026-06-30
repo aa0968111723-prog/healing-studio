@@ -28,6 +28,7 @@ import { userAiBrain } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { normalizeEngineModelId } from "../../shared/engineModelIds";
 import { applyCameraMotionToPrompt } from "../../shared/cameraMotionPrompt";
+import { logger } from "../_core/logger";
 import {
   estimatePoints,
   getModelPricing,
@@ -2322,8 +2323,15 @@ export const generateRouter = router({
           void refundJobIfBilled(job.id);
           return { ...job, status: "failed" as const, errorMessage: errMsg };
         }
-      } catch {
-        // fal.ai 暫時不可用，保持 processing 狀態
+      } catch (err) {
+        // fal.ai 暫時不可用（transient）— 保持 processing 讓下次 poll 重試。
+        // AIDV-792: 加 warn log 確保可觀測，不繼續靜默吞掉。
+        logger.warn("checkStudioJob: fal.ai status check failed, keeping processing", {
+          jobId: job.id,
+          requestId,
+          modelId,
+          err: err instanceof Error ? err.message : String(err),
+        });
       }
 
       return job;
