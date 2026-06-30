@@ -706,7 +706,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                   <p className="text-xs text-muted-foreground mb-3 font-medium tracking-wide uppercase">
                     下一步，你想做什麼？
                   </p>
-                  <div className="flex flex-wrap justify-center gap-2">
+                  <div role="group" aria-label="下一步選項" className="flex flex-wrap justify-center gap-2">
                     {[
                       { label: "🎵 配上一段音樂，作品就活了", path: "/pro-studio" },
                       { label: "🎬 讓這張圖動起來（圖生影）", path: "/video-studio" },
