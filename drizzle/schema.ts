@@ -2679,6 +2679,7 @@ export const agentDlq = mysqlTable(
     resolvedAt: timestamp("resolved_at"),
     resolvedBy: varchar("resolved_by", { length: 64 }),
     resolutionNote: text("resolution_note"),
+    correlationId: varchar("correlation_id", { length: 36 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
@@ -2688,6 +2689,7 @@ export const agentDlq = mysqlTable(
       table.routingAction,
       table.resolvedAt
     ),
+    correlationIdx: index("adlq_correlation_id_idx").on(table.correlationId),
   })
 );
 

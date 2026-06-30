@@ -53,6 +53,16 @@ export const feedbackRouter = router({
           message: "回饋提交過於頻繁，請稍後再試（每小時最多 10 次）。",
         });
       }
+      // AIDV-931: screenshotKey must belong to the requesting user
+      if (input.screenshotKey) {
+        const expectedPrefix = `screenshots/${ctx.user.id}/`;
+        if (!input.screenshotKey.startsWith(expectedPrefix)) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "screenshotKey does not belong to requesting user",
+          });
+        }
+      }
       const id = await db.createFeedbackReport({
         userId: ctx.user.id,
         ...input,
