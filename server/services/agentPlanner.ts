@@ -37,6 +37,10 @@ import {
   summarizeOrbQuotaForPlanner,
   type OrbQuotaSnapshot,
 } from "./orbQuota";
+import {
+  selectBudgetModeFromQuota,
+  type BudgetMode,
+} from "./spiritTools/directorTools";
 import { TEXT_TO_IMAGE_MODEL_REGISTRY } from "../../shared/textToImageModelRegistry";
 import { checkModalityCoherence } from "../../shared/orb-modality-coherence";
 import { moderateOrbContent } from "../../shared/orb-content-moderation";
@@ -70,6 +74,11 @@ export interface AgentPlannerInput {
    * cap. See `getOrbQuotaSnapshot()` in `services/orbQuota.ts`.
    */
   quotaSnapshot?: OrbQuotaSnapshot | null;
+  /**
+   * User-specified budget preference for director.composeWorkflow calls.
+   * When set, overrides the automatic quota-based selection (AIDV-660).
+   */
+  costPreference?: BudgetMode;
   maxTokens?: number;
   invoke?: typeof invokeLLM;
   /**
@@ -367,6 +376,11 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const quotaSummary = input.quotaSnapshot
     ? summarizeOrbQuotaForPlanner(input.quotaSnapshot)
     : null;
+  // ── ADP-3 Resource-Aware: budget mode selection (AIDV-660) ──────
+  const budgetModeSelection = selectBudgetModeFromQuota(
+    input.quotaSnapshot,
+    input.costPreference,
+  );
   // ── Mode-specific directive ─────────────────────────────────────
   // The chat layer threads the user's selected composer mode (多步驟代理 /
   // 計畫 / 跳頁 / 功能詢問) into `input.context` as "使用者選擇模式: <id>".
@@ -445,6 +459,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     quotaSummary
       ? `${quotaSummary}\n\n配額分階段規則（極為重要 / very important）：\n- 計算 plan 中真正會消耗 generation 額度的步驟數（每個 studio.generateImage / studio.generate3D / studio.generateVideo / studio.generateAudio / studio.generateVoice / studio.enhanceVideo / studio.trainLora 算 1 個 generation 額度；planner 額度由本次規劃自動扣除，無需自行加總；multimodal_analysis 用於分析上傳的圖／影／音／PDF；code_task 用於 code/github/deploy 真正改檔工作）。\n- 若所需 generation 步驟數 ≤ 剩餘 generation 額度，可一次規劃完整 plan。\n- 若所需 generation 步驟數 > 剩餘 generation 額度，必須分階段：把 plan 切成 ≤ 剩餘額度的「第一階段」與後續「第 N 階段」；只提交第一階段為 tasked plan，並在 summaryForUser 與 reply 中明確告知使用者「今日只能執行 X 步，剩下 Y 步明日再續」並把後續 step 列入 followUpStages 文字描述（不要放進當次 steps）。\n- 若 generation 額度 = 0：直接回覆 clarification（或 blocked），告知使用者今日 generation 額度已滿，並建議改成預覽／分鏡／文字腳本等不耗 generation 的步驟；不要送出空 tasked plan。\n- 若 multimodal_analysis = 0 且使用者上傳了圖／影／音／PDF：說明今日無法分析附件，請使用者明日再試或先以文字描述需求。\n- 若 code_task = 0 且使用者請求改檔／GitHub／部署：直接回覆額度已滿，不要建立 code task。\n- 千萬不要為了規劃而規劃 — 只有實際會被執行的步驟才能算進當次 plan，宣告 followUpStages 時要清楚標註「Stage 2 (明日)」之類的文字。`
       : undefined,
+    `Resource-Aware Budget Mode (AIDV-660 / ADP-3): 當你呼叫 director.composeWorkflow 時，請將 budgetMode 設為 '${budgetModeSelection.mode}'（${budgetModeSelection.reason}）。${budgetModeSelection.autoSelected ? "此為系統自動選擇，若使用者明確指定不同模式，請依使用者指示覆蓋。" : "此為使用者明確指定，請優先遵守。"}`,
     "Plan in Traditional Chinese labels where helpful, but keep action ids and page paths exact.",
     "When the user's target output, modality, destination page, chosen model, constraints, or success criteria are unclear, you MUST return shouldAskClarification=true with a single clarificationQuestion (Traditional Chinese, ≤80 字) and 2-4 short clarificationOptions covering the likely choices. Do NOT include any steps in clarification mode.",
     `Anti-pattern (絕對禁止 / strictly forbidden) — "phantom plan + which step?":
