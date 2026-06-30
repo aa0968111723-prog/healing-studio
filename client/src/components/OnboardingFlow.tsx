@@ -6,9 +6,9 @@ import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "./VisualSoul";
 import ThoughtIslandChain, { type ThoughtNode } from "./ThoughtIslandChain";
 import { Button } from "./ui/button";
-import { ArrowRight, Sparkles, SkipForward, Loader2 } from "lucide-react";
+import { ArrowRight, Sparkles, SkipForward, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
-import { FEATURE_ONBOARDING_BRANCH } from "@/config/featureFlags";
+import { FEATURE_ONBOARDING_BRANCH, FEATURE_PROMPT_DIAGNOSTIC } from "@/config/featureFlags";
 
 // ─── Typewriter Hook ────────────────────────────────────────────────────────
 
@@ -45,6 +45,22 @@ const STARTER_CHIPS = [
   "水彩風格的花園",
   "賽博龐克的東京夜景",
 ];
+
+// ─── Prompt heuristic diagnosis (AIDV-812) ──────────────────────────────────
+
+const STYLE_RE = /風格|水彩|攝影|油畫|插畫|像素|賽博|復古|未來|動漫|3D/;
+const LIGHT_RE = /逆光|柔光|陽光|霞光|夜光|燈光|曝光|光線/;
+const COMP_RE = /特寫|遠景|俯視|側面|全身|半身|構圖|景深/;
+
+function diagnosePrompt(prompt: string, failCount: number): string | null {
+  const t = prompt.trim();
+  if (!t) return null;
+  if (failCount >= 2) return "換個方式描述看看，或點下面的範例直接套用一個好結構 👇";
+  if (t.length < 8) return "想多給一點線索嗎？試著加上「主體＋場景＋風格」，例如：『一隻貓』→『窗邊的橘貓，午後逆光，水彩風』。";
+  if (failCount >= 1 && !STYLE_RE.test(t) && !LIGHT_RE.test(t) && !COMP_RE.test(t))
+    return "再具體一點點會更準：可以補上光線（逆光/柔光）、構圖（特寫/遠景）或情緒（溫暖/孤獨）。";
+  return null;
+}
 
 // ─── Onboarding Steps ───────────────────────────────────────────────────────
 
@@ -90,6 +106,9 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
   // Track the input value that triggered the current chip request
   const lastChipQueryRef = useRef<string>("");
   const shouldReduceMotion = useReducedMotion();
+  // AIDV-812: track consecutive generation failures for diagnostic hints
+  const [failCount, setFailCount] = useState(0);
+  const [exampleOpen, setExampleOpen] = useState(false);
 
   // Current greeting message typewriter
   const currentGreeting =
@@ -171,6 +190,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
       // 生成未產出作品（resultUrl 空/純空白）→ 不進慶祝態，回 input 步驟重試（AIDV-637）
       if (!isUsableResultUrl(data.resultUrl)) {
         setResultUrl(null);
+        setFailCount(prev => prev + 1);  // AIDV-812: track for diagnostic
         toast.error("生成未產出圖片，請再試一次");
         setStep("input");
         return;
@@ -180,6 +200,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
     },
     onError: err => {
       setAIState("idle");
+      setFailCount(prev => prev + 1);  // AIDV-812: track for diagnostic
       toast.error(err.message);
       setStep("input");
     },
@@ -291,7 +312,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
       className="fixed inset-0 z-[100] flex items-center justify-center"
       style={{
         background:
-          "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 25%, #D4C5E2 50%, #C8D5E0 75%, #F5F3F0 100%)",
+          "linear-gradient(135deg, var(--color-zen-oat) 0%, var(--color-zen-blush) 25%, var(--color-zen-lavender) 50%, var(--color-zen-sky) 75%, var(--color-zen-oat) 100%)",
       }}
     >
       {/* Skip button */}
@@ -426,7 +447,12 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                 </div>
 
                 {/* Chips grid */}
-                <div className="flex flex-wrap justify-center gap-2">
+                <div
+                  className="flex flex-wrap justify-center gap-2"
+                  aria-busy={loadingChips}
+                  aria-live="polite"
+                  aria-label={loadingChips ? "選項載入中" : undefined}
+                >
                   <AnimatePresence mode="popLayout">
                     {loadingChips
                       ? // Skeleton loading chips
@@ -490,6 +516,73 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                   </AnimatePresence>
                 </div>
               </motion.div>
+
+              {/* AIDV-812: prompt diagnostic microcopy + before/after example card */}
+              {FEATURE_PROMPT_DIAGNOSTIC && (() => {
+                const hint = diagnosePrompt(userInput, failCount);
+                if (!hint) return null;
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 max-w-md mx-auto text-left"
+                  >
+                    <div
+                      className="rounded-xl px-4 py-3 text-sm text-foreground/80"
+                      style={{
+                        background: "rgba(255,255,255,0.55)",
+                        backdropFilter: "blur(8px)",
+                        border: "1px solid rgba(255,255,255,0.5)",
+                      }}
+                    >
+                      <p>{hint}</p>
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
+                        <button
+                          onClick={() => setExampleOpen(v => !v)}
+                          className="flex items-center gap-1 text-xs text-primary hover:underline"
+                        >
+                          {exampleOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          看範例對照
+                        </button>
+                        <button
+                          onClick={() => setLocation("/learn?sub=hub")}
+                          className="text-xs text-muted-foreground hover:text-foreground transition-colors underline underline-offset-2"
+                        >
+                          看更多寫法 →
+                        </button>
+                      </div>
+                      {exampleOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-3 space-y-2"
+                        >
+                          <div className="flex items-start gap-2 text-xs">
+                            <span className="shrink-0 text-muted-foreground">弱：</span>
+                            <span className="text-muted-foreground line-through">貓</span>
+                          </div>
+                          <div className="flex items-start gap-2 text-xs">
+                            <span className="shrink-0 text-muted-foreground">強：</span>
+                            <span className="text-foreground">一隻橘貓坐在窗邊，午後逆光，淺景深，溫暖色調，攝影感</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs mt-1"
+                            onClick={() => {
+                              setUserInput("一隻橘貓坐在窗邊，午後逆光，淺景深，溫暖色調，攝影感");
+                              inputRef.current?.focus();
+                            }}
+                          >
+                            套用這個結構
+                          </Button>
+                        </motion.div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })()}
 
               <p className="mt-4 text-xs text-muted-foreground">
                 按 Enter 或點擊箭頭開始創作
@@ -617,6 +710,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                       { label: "🖼️ 再生一張，換個風格試試", path: null },
                     ].map(({ label, path }) => (
                       <button
+                        type="button"
                         key={label}
                         onClick={() => {
                           if (path) {

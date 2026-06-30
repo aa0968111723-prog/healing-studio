@@ -1431,6 +1431,7 @@ ${profileSnippet}`;
                   question), refined tracking + leading for a calmer, more
                   deliberate read. */}
               <h1
+                aria-label="今天，想創作什麼"
                 className={`heading-healing text-balance text-[32px] sm:text-5xl lg:text-[3.4rem] font-semibold leading-[1.12] tracking-tight transition-colors duration-1000 ${s.textPrimary}`}
                 style={{
                   textShadow: isDark

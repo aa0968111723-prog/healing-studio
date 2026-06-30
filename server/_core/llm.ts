@@ -2055,7 +2055,11 @@ async function invokeSingleEngine(
             }
           : {
               "content-type": "application/json",
-              authorization: `Bearer ${engineConfig.apiKey}`,
+              // freellmapi（及其他無需 API 金鑰的免費引擎）apiKey 為空字串時
+              // 不帶 Authorization 標頭，避免伺服器因空 Bearer token 拒絕請求。
+              ...(engineConfig.apiKey
+                ? { authorization: `Bearer ${engineConfig.apiKey}` }
+                : {}),
             };
 
         // OpenRouter requests benefit from optional attribution headers —
