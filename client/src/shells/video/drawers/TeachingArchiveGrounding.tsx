@@ -67,7 +67,7 @@ export function TeachingArchiveGroundingBody() {
           placeholder="搜尋你的教材（師父開示、品牌語氣…）"
           className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs"
         />
-        <Button type="submit" size="sm" className="h-8 text-xs">搜尋</Button>
+        <Button type="submit" size="sm" className="h-8 text-xs" disabled={res.isLoading}>搜尋</Button>
       </form>
 
       {/* 結果（含未搜尋的引導態） */}
