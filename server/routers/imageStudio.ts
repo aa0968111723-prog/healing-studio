@@ -41,6 +41,7 @@ import { z } from "zod";
 import { safeMediaUrl, safeMediaUrlOptional } from "../lib/urlValidator";
 import { generationProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import * as db from "../db";
 import { FAL_QUEUE_BASE, FAL_RUN_BASE } from "../_core/providerFacade";
 import { signFalWebhookNonce } from "../_core/webhookTokens";
 import { recordErrorTrace } from "../services/brainAutoRepair";
@@ -830,7 +831,15 @@ export const imageStudioRouter = router({
         num_images: z.number().min(1).max(4).optional().default(1),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (input.resolution === "4K") {
+        const plan = await db.getUserSubscription(ctx.user.id);
+        const isPaid =
+          !!plan &&
+          (plan.status === "active" || plan.status === "trialing") &&
+          plan.planId.toLowerCase() !== "free";
+        if (!isPaid) throw new TRPCError({ code: "FORBIDDEN", message: "4K 解析度需付費方案" });
+      }
       const urls = [input.image_url, ...(input.image_urls ?? [])];
       const raw = (await falQueueRun(
         "fal-ai/nano-banana-2/edit",
