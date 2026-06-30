@@ -413,6 +413,9 @@ const coreSchema = z.object({
   ALERT_EMAIL_RECIPIENTS: z.string().optional().default(""),
   AI_MONTHLY_BUDGET_USD: z.string().optional().default("500"),
   ENABLE_BUDGET_ALERTS: z.string().optional().default("true"),
+  // ENABLE_ORB_BUDGET_GUARD（AIDV-124）：預設 OFF；設為 "true"/"1"/"yes"/"on" 啟用月度硬阻擋。
+  // 超過 AI_MONTHLY_BUDGET_USD 後所有 ai.chat / director.chat 呼叫丟 TOO_MANY_REQUESTS。
+  ENABLE_ORB_BUDGET_GUARD: z.string().optional().default("false"),
 
   // ── 效能調節（皆為純數字字串，下游 parseInt 後使用）─────────
   // CACHE_TTL_SECONDS：LRU 快取預設 TTL（秒），cache.ts 的 DEFAULT_TTL_SECONDS

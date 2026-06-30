@@ -80,6 +80,7 @@ import type {
   PlanningMessage,
   ScriptPlanningSession,
 } from "../../shared/types";
+import { enforceMonthlyBudgetGate } from "../services/orbBudgetGuard";
 
 
 
@@ -241,6 +242,9 @@ export const directorRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // AIDV-124: 月度 AI 預算硬性閘門（旗標 ENABLE_ORB_BUDGET_GUARD，預設 OFF）。
+      await enforceMonthlyBudgetGate();
+
       const director = ctx.brain.getBrain("director");
 
       // AIDV-152：旗標 gate ＋ best-effort 注入。旗標 OFF 或未傳 projectId
