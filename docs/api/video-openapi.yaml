@@ -1,0 +1,1543 @@
+openapi: 3.1.0
+info:
+  title: Healing Studio — Video API
+  version: "1.0.0"
+  description: |
+    REST-compatible representation of the tRPC **videoProject** and **videoStudio**
+    routers, plus the HMAC-signed `/api/video-output` Express route.
+
+    ## Transport
+    All tRPC endpoints share the base path `/api/trpc`.
+    - **Queries** → `GET /api/trpc/<router>.<procedure>?input=<JSON-encoded>`
+    - **Mutations** → `POST /api/trpc/<router>.<procedure>` with JSON body
+
+    ## Authentication (AIDV-740)
+    Every endpoint (except `videoStudio.checkApiKey` and `videoStudio.modelAvailability`)
+    requires a valid JWT session token.  Pass it as a `Bearer` token **or** as the
+    `X-API-Key` header when calling from an agent.
+
+    ## Agent Attribution (AIDV-740)
+    Any agent caller should attach `X-Agent-Id` and `X-Trace-Id` request headers.
+    These are stored in the audit log and reflected in `AgentAttribution` response
+    fields where applicable.
+
+servers:
+  - url: https://{host}
+    variables:
+      host:
+        default: healing-studio.up.railway.app
+        description: Production Railway host
+
+# ── Security ─────────────────────────────────────────────────────────────────
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Issued by the `/api/auth` flow.  Include as
+        `Authorization: Bearer <token>`.
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: >
+        Alternative for agent-to-agent calls.  The key is a JWT session token
+        stored in Railway env `AGENT_API_KEY`.
+
+  schemas:
+    # ── Shared value types ──────────────────────────────────────────────────
+
+    AspectRatio:
+      type: string
+      enum: ["16:9", "9:16", "1:1"]
+      description: Canvas aspect ratio for the video project.
+
+    PriorityClass:
+      type: string
+      enum: [standard, express, critical]
+      default: standard
+
+    OutputSpec:
+      type: object
+      description: Target output quality.  Omit to use project default.
+      properties:
+        resolution:
+          type: string
+          enum: ["720p", "1080p", "4K"]
+          default: "1080p"
+        fps:
+          type: integer
+          enum: [24, 30, 60]
+          default: 30
+        codec:
+          type: string
+          enum: [h264, h265, vp9]
+          default: h264
+      additionalProperties: false
+
+    OutputSpecDowngrade:
+      type: object
+      description: >
+        Present when a requested quality dimension was silently reduced
+        (e.g. 4K → 1080p because the upstream model does not support 4K).
+      properties:
+        requested:
+          type: string
+        applied:
+          type: string
+      required: [requested, applied]
+
+    # ── Agent attribution (AIDV-740) ────────────────────────────────────────
+
+    AgentAttribution:
+      type: object
+      description: >
+        Identifies the AI agent that triggered a video operation.
+        All fields are optional; callers that set `X-Agent-Id` will have
+        `agentId` populated automatically from the request header.
+      properties:
+        creatorId:
+          type: string
+          format: uuid
+          description: UUID of the human creator account.
+        agentId:
+          type: string
+          format: uuid
+          description: UUID of the orchestrating agent (from `X-Agent-Id` header).
+        sessionId:
+          type: string
+          description: Trace / session correlation ID (from `X-Trace-Id` header).
+        pipelineStep:
+          type: string
+          enum: [script, storyboard, render, audio]
+          description: Which phase of the six-step production pipeline emitted this call.
+      additionalProperties: false
+
+    SubstitutionMeta:
+      type: object
+      description: >
+        Present on every generation response.  When the requested model is
+        temporarily unavailable upstream, the server transparently substitutes
+        a working sibling and sets `degraded: true`.
+      properties:
+        modelRequested:
+          type: string
+          description: The fal.ai model ID originally requested.
+        modelUsed:
+          type: string
+          description: The fal.ai model ID actually dispatched.
+        degraded:
+          type: boolean
+          description: True when `modelRequested ≠ modelUsed`.
+        degradedReason:
+          type: string
+          description: Human-readable explanation of the substitution.
+      required: [modelRequested, modelUsed]
+
+    # ── Video project ───────────────────────────────────────────────────────
+
+    VideoProject:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Primary key.
+        title:
+          type: string
+          maxLength: 255
+        aspectRatio:
+          $ref: "#/components/schemas/AspectRatio"
+        outputSpec:
+          $ref: "#/components/schemas/OutputSpec"
+        version:
+          type: integer
+          description: >
+            Optimistic-lock version counter.  Pass as `expectedVersion` in
+            `update` / `save` mutations; the server rejects with 409 if the
+            value has changed since you last read it.
+        deadlineAt:
+          type: string
+          format: date-time
+          nullable: true
+        priorityClass:
+          $ref: "#/components/schemas/PriorityClass"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, title, aspectRatio, outputSpec, version, priorityClass]
+
+    VideoProjectFull:
+      allOf:
+        - $ref: "#/components/schemas/VideoProject"
+        - type: object
+          properties:
+            outputStoragePath:
+              type: string
+              nullable: true
+              description: R2 object key for the rendered output, if available.
+            outputSignedUrl:
+              type: string
+              format: uri
+              nullable: true
+              description: Pre-signed GET URL (7 days).  Null when expired or not yet rendered.
+            outputExpiresAt:
+              type: string
+              format: date-time
+              nullable: true
+
+    VideoProjectSnapshot:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        source:
+          type: string
+          description: >
+            Who created this snapshot: `"auto"`, `"pre-restore"`, or
+            `"agent:<agentId>"`.
+        createdAt:
+          type: string
+          format: date-time
+        snapshot:
+          type: object
+          description: The project fields captured at snapshot time.
+          additionalProperties: true
+      required: [id, projectId, source, createdAt, snapshot]
+
+    CursorPage:
+      type: object
+      description: Cursor-pagination envelope used by `videoProject.list`.
+      properties:
+        nextCursor:
+          type: integer
+          nullable: true
+          description: Pass as `cursor` in the next request.  Null = last page.
+      required: [nextCursor]
+
+    # ── Generation async response ────────────────────────────────────────────
+
+    GenerationQueued:
+      type: object
+      description: >
+        All generation mutations are **async**.  The server submits the job to
+        fal.ai and immediately returns a `request_id`.  Poll
+        `videoStudio.jobStatus` or `videoStudio.checkVideoStatus` for completion.
+      properties:
+        request_id:
+          type: string
+          description: fal.ai queue request ID.
+        raw_model_id:
+          type: string
+          description: The fal.ai model endpoint that was dispatched.
+        is_async_polling:
+          type: boolean
+          description: Always `true`; signals that the caller must poll.
+      required: [request_id, raw_model_id, is_async_polling]
+
+    GenerationResult:
+      allOf:
+        - $ref: "#/components/schemas/GenerationQueued"
+        - $ref: "#/components/schemas/SubstitutionMeta"
+        - type: object
+          properties:
+            outputSpecDowngrades:
+              type: object
+              description: >
+                Map of dimension → `OutputSpecDowngrade`.  Only present when at
+                least one quality dimension was silently reduced.
+              properties:
+                resolution:
+                  $ref: "#/components/schemas/OutputSpecDowngrade"
+                fps:
+                  $ref: "#/components/schemas/OutputSpecDowngrade"
+                codec:
+                  $ref: "#/components/schemas/OutputSpecDowngrade"
+              additionalProperties: false
+
+    AgentQuota:
+      type: object
+      properties:
+        used:
+          type: integer
+          description: Agent-scoped calls consumed in the current sliding window.
+        limit:
+          type: integer
+          description: Maximum calls allowed per window.
+        windowSeconds:
+          type: integer
+          description: Length of the rate-limit window in seconds.
+        remaining:
+          type: integer
+          description: Calls remaining until the window resets.
+      required: [used, limit, windowSeconds, remaining]
+
+    ExportUrl:
+      type: object
+      properties:
+        downloadUrl:
+          type: string
+          format: uri
+          description: R2 pre-signed GET URL (7-day TTL).
+        expiresAt:
+          type: string
+          format: date-time
+        storagePath:
+          type: string
+          nullable: true
+          description: R2 object key (opaque to callers).
+      required: [downloadUrl, expiresAt]
+
+    # ── Error shapes ─────────────────────────────────────────────────────────
+
+    TRPCError:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - BAD_REQUEST
+                - UNAUTHORIZED
+                - FORBIDDEN
+                - NOT_FOUND
+                - CONFLICT
+                - PRECONDITION_FAILED
+                - TOO_MANY_REQUESTS
+                - INTERNAL_SERVER_ERROR
+            httpStatus:
+              type: integer
+          required: [code, httpStatus]
+      required: [message]
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT / API key.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TRPCError"
+    Forbidden:
+      description: Authenticated but not owner of the requested resource.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TRPCError"
+    NotFound:
+      description: Resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TRPCError"
+    Conflict:
+      description: Optimistic-lock version mismatch (CAS failure).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TRPCError"
+    RateLimit:
+      description: Agent call-rate quota exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TRPCError"
+
+tags:
+  - name: videoProject
+    description: CRUD and lifecycle management for video projects.
+  - name: videoStudio
+    description: AI generation endpoints (text-to-video, image-to-video, etc.).
+  - name: videoOutput
+    description: HMAC-signed video redirect proxy.
+
+# ════════════════════════════════════════════════════════════════════════════
+# Paths — videoProject.*
+# ════════════════════════════════════════════════════════════════════════════
+
+paths:
+
+  /api/trpc/videoProject.create:
+    post:
+      operationId: videoProject_create
+      summary: Create a video project
+      tags: [videoProject]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                  default: "未命名影片"
+                aspectRatio:
+                  $ref: "#/components/schemas/AspectRatio"
+                creativeProjectId:
+                  type: integer
+                  description: Parent creative project, if any.
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+                deadlineAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                priorityClass:
+                  $ref: "#/components/schemas/PriorityClass"
+              additionalProperties: false
+      responses:
+        "200":
+          description: Created project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoProject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimit"
+
+  /api/trpc/videoProject.get:
+    get:
+      operationId: videoProject_get
+      summary: Get a video project by ID
+      tags: [videoProject]
+      parameters:
+        - name: input
+          in: query
+          required: true
+          schema:
+            type: object
+            properties:
+              id:
+                type: integer
+            required: [id]
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: Full project record including cached export URL if available.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoProjectFull"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/trpc/videoProject.update:
+    post:
+      operationId: videoProject_update
+      summary: Update a video project (with optimistic-lock CAS)
+      tags: [videoProject]
+      description: >
+        Partial update.  Supply `expectedVersion` to enable optimistic locking;
+        omit to bypass version checking (legacy compatibility).
+        Returns `ETag: "<newVersion>"` on success.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                aspectRatio:
+                  $ref: "#/components/schemas/AspectRatio"
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+                deadlineAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                priorityClass:
+                  $ref: "#/components/schemas/PriorityClass"
+                expectedVersion:
+                  type: integer
+                  minimum: 0
+                  description: Client-side version for CAS.
+              required: [id]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Update applied.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  version:
+                    type: integer
+                required: [ok, version]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/trpc/videoProject.list:
+    get:
+      operationId: videoProject_list
+      summary: List video projects (cursor pagination)
+      tags: [videoProject]
+      description: >
+        Returns up to `limit` items ordered by recency.  Use `nextCursor` to
+        fetch subsequent pages.
+      parameters:
+        - name: input
+          in: query
+          required: false
+          schema:
+            type: object
+            properties:
+              cursor:
+                type: integer
+                nullable: true
+                description: Last-seen project ID from a previous page.
+              limit:
+                type: integer
+                minimum: 1
+                maximum: 50
+                default: 20
+              search:
+                type: string
+                maxLength: 255
+                description: Optional free-text filter on project title.
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: Page of projects.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/CursorPage"
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VideoProject"
+                    required: [items]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoProject.duplicate:
+    post:
+      operationId: videoProject_duplicate
+      summary: Duplicate a video project
+      tags: [videoProject]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sourceId:
+                  type: integer
+                title:
+                  type: string
+                  maxLength: 255
+                  description: Title for the copy.  Defaults to the original title.
+              required: [sourceId]
+              additionalProperties: false
+      responses:
+        "200":
+          description: ID of the new project.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                required: [id]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimit"
+
+  /api/trpc/videoProject.listSnapshots:
+    get:
+      operationId: videoProject_listSnapshots
+      summary: List version snapshots for a project
+      tags: [videoProject]
+      parameters:
+        - name: input
+          in: query
+          required: true
+          schema:
+            type: object
+            properties:
+              projectId:
+                type: integer
+              limit:
+                type: integer
+                minimum: 1
+                maximum: 50
+                default: 10
+            required: [projectId]
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: List of snapshots, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VideoProjectSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/trpc/videoProject.restoreSnapshot:
+    post:
+      operationId: videoProject_restoreSnapshot
+      summary: Restore a project to a previous snapshot
+      tags: [videoProject]
+      description: >
+        Creates a `pre-restore` safety snapshot before overwriting.
+        Returns the new version number.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectId:
+                  type: integer
+                snapshotId:
+                  type: integer
+              required: [projectId, snapshotId]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Restore successful.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  version:
+                    type: integer
+                required: [ok, version]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/trpc/videoProject.save:
+    post:
+      operationId: videoProject_save
+      summary: Save project (with CAS + auto-snapshot)
+      tags: [videoProject]
+      description: >
+        Like `update` but also writes an audit snapshot.  Agents should pass
+        `snapshotData` so the snapshot contains the full project state.
+        On success the response carries `ETag: "<version>"`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 255
+                aspectRatio:
+                  $ref: "#/components/schemas/AspectRatio"
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+                deadlineAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                priorityClass:
+                  $ref: "#/components/schemas/PriorityClass"
+                expectedVersion:
+                  type: integer
+                  minimum: 0
+                snapshotData:
+                  type: object
+                  description: Arbitrary JSON blob captured as the snapshot body.
+                  additionalProperties: true
+              required: [id]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Save successful.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  version:
+                    type: integer
+                required: [ok, version]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimit"
+
+  /api/trpc/videoProject.getExportUrl:
+    get:
+      operationId: videoProject_getExportUrl
+      summary: Get cached export download URL
+      tags: [videoProject]
+      description: >
+        Returns the cached R2 pre-signed URL if one exists and has not yet
+        expired.  Returns `null` (HTTP 200) if no valid URL is cached; call
+        `requestExport` to generate one.
+      parameters:
+        - name: input
+          in: query
+          required: true
+          schema:
+            type: object
+            properties:
+              projectId:
+                type: integer
+            required: [projectId]
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: >
+            Cached download URL, or `null` if not yet available or expired.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ExportUrl"
+                  - type: "null"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/trpc/videoProject.requestExport:
+    post:
+      operationId: videoProject_requestExport
+      summary: Generate a 7-day download URL for a rendered asset
+      tags: [videoProject]
+      description: >
+        Verifies ownership of both the project and the digital asset, then
+        generates a 7-day R2 pre-signed GET URL.  The URL is also cached on
+        the project row for `getExportUrl` to serve.
+
+        Requires R2 storage to be configured (`CLOUDFLARE_R2_*` env vars).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectId:
+                  type: integer
+                assetId:
+                  type: integer
+                  description: ID from `digital_asset_library`.
+                format:
+                  type: string
+                  enum: [mp4, mov, webm, gif]
+                  default: mp4
+              required: [projectId, assetId]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Download URL generated.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ExportUrl"
+                  - type: object
+                    properties:
+                      assetId:
+                        type: integer
+                      projectId:
+                        type: integer
+                      format:
+                        type: string
+                    required: [assetId, projectId, format]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          description: R2 not configured, or asset not yet stored in R2.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TRPCError"
+
+  /api/trpc/videoProject.requestDownloadByUrl:
+    post:
+      operationId: videoProject_requestDownloadByUrl
+      summary: Get a download URL from an asset's output URL
+      tags: [videoProject]
+      description: >
+        Convenience endpoint for the `CompletionCanvas` flow: pass the raw
+        `outputUrl` returned by a generation job; the server confirms
+        ownership, looks up the R2 key, and issues a fresh 7-day pre-signed URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                assetUrl:
+                  type: string
+                  format: uri
+              required: [assetUrl]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Pre-signed download URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  downloadUrl:
+                    type: string
+                    format: uri
+                  expiresAt:
+                    type: string
+                    format: date-time
+                required: [downloadUrl, expiresAt]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          description: R2 not configured or asset has no stored file key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TRPCError"
+
+  /api/trpc/videoProject.agentQuota:
+    get:
+      operationId: videoProject_agentQuota
+      summary: Get current agent call-rate quota for the authenticated user
+      tags: [videoProject]
+      responses:
+        "200":
+          description: Quota counters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentQuota"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoProject.outputSpecEntitlement:
+    get:
+      operationId: videoProject_outputSpecEntitlement
+      summary: Check whether the user can select 4K output
+      tags: [videoProject]
+      responses:
+        "200":
+          description: Entitlement status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isPaid:
+                    type: boolean
+                    description: True when the user has an active paid plan.
+                  planId:
+                    type: string
+                required: [isPaid, planId]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+# ════════════════════════════════════════════════════════════════════════════
+# Paths — videoStudio.* (generation)
+# ════════════════════════════════════════════════════════════════════════════
+
+  /api/trpc/videoStudio.checkApiKey:
+    get:
+      operationId: videoStudio_checkApiKey
+      summary: Check whether the FAL_API_KEY is configured
+      tags: [videoStudio]
+      security: []
+      responses:
+        "200":
+          description: Configuration status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured:
+                    type: boolean
+                required: [configured]
+
+  /api/trpc/videoStudio.modelAvailability:
+    get:
+      operationId: videoStudio_modelAvailability
+      summary: List availability of all router-mapped fal.ai models
+      tags: [videoStudio]
+      security: []
+      description: >
+        Returns disabled/available status for every model registered in the
+        router.  UI uses this to grey-out unavailable models before dispatch.
+      responses:
+        "200":
+          description: Map of modelId → availability record.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    disabled:
+                      type: boolean
+                    reason:
+                      type: string
+                    label:
+                      type: string
+                    replacement:
+                      type: string
+                      description: Working substitute modelId, if available.
+                    replacementLabel:
+                      type: string
+                  required: [disabled]
+
+  /api/trpc/videoStudio.compilePrompt:
+    post:
+      operationId: videoStudio_compilePrompt
+      summary: Compile creative blocks into a fal.ai generation prompt
+      tags: [videoStudio]
+      description: >
+        Converts mood/subject/action/camera building blocks plus free-text
+        into a structured prompt ready for any T2V or I2V model.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                blocks:
+                  type: array
+                  maxItems: 20
+                  default: []
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      category:
+                        type: string
+                        enum: [subject, action, environment, camera, mood, style]
+                      label:
+                        type: string
+                      prompt:
+                        type: string
+                    required: [id, category, label, prompt]
+                freePrompt:
+                  type: string
+                  maxLength: 2500
+                moodKeywords:
+                  type: array
+                  maxItems: 10
+                  items:
+                    type: string
+                    maxLength: 60
+                targetDurationSec:
+                  type: integer
+                  minimum: 3
+                  maximum: 20
+                forceCameraMode:
+                  type: string
+                  enum:
+                    - static
+                    - dolly_in
+                    - dolly_out
+                    - pan_left
+                    - pan_right
+                    - tilt_up
+                    - tilt_down
+                    - orbit
+                    - crane_up
+                    - crane_down
+                    - tracking
+                    - handheld
+                    - aerial_descent
+                    - aerial_ascent
+                    - push_in
+                    - pull_out
+                firstFrameUrl:
+                  type: string
+                  format: uri
+                lastFrameUrl:
+                  type: string
+                  format: uri
+                aspectRatio:
+                  type: string
+                  enum: ["16:9", "9:16", "1:1", "4:3"]
+                slowMotion:
+                  type: boolean
+                styleOverride:
+                  type: string
+                  maxLength: 80
+              additionalProperties: false
+      responses:
+        "200":
+          description: Compiled prompt and metadata.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prompt:
+                    type: string
+                  shotCount:
+                    type: integer
+                  estimatedDurationSec:
+                    type: number
+                  cameraMode:
+                    type: string
+                  cameraStabilityScore:
+                    type: number
+                  styleTag:
+                    type: string
+                  aspectRatio:
+                    type: string
+                  emotionTranslations:
+                    type: object
+                    additionalProperties: true
+                  jumpBlockCount:
+                    type: integer
+                required: [prompt]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoStudio.klingTextToVideo:
+    post:
+      operationId: videoStudio_klingTextToVideo
+      summary: "Text-to-video: Kling v2.1"
+      tags: [videoStudio]
+      description: >
+        Submits a text-to-video job to Kling v2.1 Standard via fal.ai queue.
+        Returns immediately with a `request_id`; poll `jobStatus` for completion.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  minLength: 1
+                  maxLength: 2500
+                negativePrompt:
+                  type: string
+                  maxLength: 1000
+                duration:
+                  type: string
+                  enum: ["5", "10"]
+                  default: "5"
+                aspectRatio:
+                  $ref: "#/components/schemas/AspectRatio"
+                cfgScale:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                  default: 0.5
+                motionIntensity:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+              required: [prompt]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Job queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "412":
+          description: FAL_API_KEY not configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TRPCError"
+
+  /api/trpc/videoStudio.wanTextToVideo:
+    post:
+      operationId: videoStudio_wanTextToVideo
+      summary: "Text-to-video: Wan v2.1"
+      tags: [videoStudio]
+      description: Wan v2.1 (wan-t2v) — async, returns request_id.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  minLength: 1
+                  maxLength: 2500
+                negativePrompt:
+                  type: string
+                  maxLength: 1000
+                aspectRatio:
+                  $ref: "#/components/schemas/AspectRatio"
+                duration:
+                  type: integer
+                  minimum: 1
+                  maximum: 10
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+              required: [prompt]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Job queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoStudio.veo3TextToVideo:
+    post:
+      operationId: videoStudio_veo3TextToVideo
+      summary: "Text-to-video: Google Veo 3 Flash"
+      tags: [videoStudio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  minLength: 1
+                  maxLength: 2500
+                aspectRatio:
+                  $ref: "#/components/schemas/AspectRatio"
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+              required: [prompt]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Job queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoStudio.klingImageToVideo:
+    post:
+      operationId: videoStudio_klingImageToVideo
+      summary: "Image-to-video: Kling v2.1 I2V"
+      tags: [videoStudio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageUrl:
+                  type: string
+                  format: uri
+                  description: URL of the reference first frame.
+                prompt:
+                  type: string
+                  maxLength: 2500
+                duration:
+                  type: string
+                  enum: ["5", "10"]
+                  default: "5"
+                aspectRatio:
+                  $ref: "#/components/schemas/AspectRatio"
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+              required: [imageUrl]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Job queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoStudio.wanImageToVideo:
+    post:
+      operationId: videoStudio_wanImageToVideo
+      summary: "Image-to-video: Wan I2V"
+      tags: [videoStudio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                imageUrl:
+                  type: string
+                  format: uri
+                prompt:
+                  type: string
+                  maxLength: 2500
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+              required: [imageUrl]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Job queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoStudio.wanVideoToVideo:
+    post:
+      operationId: videoStudio_wanVideoToVideo
+      summary: "Video-to-video: Wan V2V"
+      tags: [videoStudio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                videoUrl:
+                  type: string
+                  format: uri
+                  description: URL of the source video clip.
+                prompt:
+                  type: string
+                  maxLength: 2500
+                strength:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                  description: How strongly to re-style the source video.
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+              required: [videoUrl]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Job queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoStudio.videoUpscale:
+    post:
+      operationId: videoStudio_videoUpscale
+      summary: "Enhancement: upscale / enhance video resolution"
+      tags: [videoStudio]
+      description: Routes to ByteDance upscaler or Topaz Video AI depending on `model`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                videoUrl:
+                  type: string
+                  format: uri
+                model:
+                  type: string
+                  enum:
+                    - "fal-ai/bytedance/upscaler/video"
+                    - "fal-ai/topaz/video-enhance"
+                  default: "fal-ai/bytedance/upscaler/video"
+                outputSpec:
+                  $ref: "#/components/schemas/OutputSpec"
+              required: [videoUrl]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Job queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoStudio.frameInterpolation:
+    post:
+      operationId: videoStudio_frameInterpolation
+      summary: "Enhancement: frame interpolation (RIFE v4.6)"
+      tags: [videoStudio]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                videoUrl:
+                  type: string
+                  format: uri
+                targetFps:
+                  type: integer
+                  enum: [48, 60, 120]
+                  default: 60
+              required: [videoUrl]
+              additionalProperties: false
+      responses:
+        "200":
+          description: Job queued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerationResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoStudio.jobStatus:
+    get:
+      operationId: videoStudio_jobStatus
+      summary: Poll fal.ai queue status for a generation job
+      tags: [videoStudio]
+      description: >
+        Wraps `GET fal.ai/queue/<model>/requests/<request_id>/status`.
+        Returns the raw fal.ai status payload (`IN_QUEUE`, `IN_PROGRESS`,
+        `COMPLETED`, or `FAILED`).
+      parameters:
+        - name: input
+          in: query
+          required: true
+          schema:
+            type: object
+            properties:
+              requestId:
+                type: string
+              modelId:
+                type: string
+                description: The fal.ai model ID used when the job was submitted.
+            required: [requestId, modelId]
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: fal.ai queue status (shape varies by model).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [IN_QUEUE, IN_PROGRESS, COMPLETED, FAILED]
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/trpc/videoStudio.checkVideoStatus:
+    get:
+      operationId: videoStudio_checkVideoStatus
+      summary: Fetch completed video result and persist to digital asset library
+      tags: [videoStudio]
+      description: >
+        Polls the fal.ai result endpoint.  On `COMPLETED`, extracts the video
+        URL, stores the asset in `digital_asset_library`, and returns an HMAC-
+        signed `/api/video-output` proxy URL that never exposes the raw CDN URL
+        to the frontend.
+      parameters:
+        - name: input
+          in: query
+          required: true
+          schema:
+            type: object
+            properties:
+              requestId:
+                type: string
+              modelId:
+                type: string
+            required: [requestId, modelId]
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: Completed video details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [IN_QUEUE, IN_PROGRESS, COMPLETED, FAILED]
+                  video_url:
+                    type: string
+                    format: uri
+                    description: >
+                      HMAC-signed `/api/video-output` proxy URL (1 h TTL).
+                      Present only when `status = COMPLETED`.
+                  asset_id:
+                    type: integer
+                    description: ID of the persisted `digital_asset_library` row.
+                  duration_sec:
+                    type: number
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+# ════════════════════════════════════════════════════════════════════════════
+# Paths — Express: HMAC-signed video output proxy
+# ════════════════════════════════════════════════════════════════════════════
+
+  /api/video-output:
+    get:
+      operationId: videoOutput_get
+      summary: HMAC-signed video redirect proxy
+      tags: [videoOutput]
+      description: |
+        Issues a `302 Found` redirect to the actual fal.ai CDN video URL
+        after verifying:
+
+        1. The caller is authenticated (JWT cookie / `Authorization` header).
+        2. `HMAC-SHA256("v1:<r>:<u>:<e>", JWT_SECRET) === t`
+        3. The signed expiry `e` is in the future (1 h window).
+        4. The job's `userId` matches the authenticated user (BOLA guard).
+
+        The signed URL is generated by `checkVideoStatus` and has a 1-hour
+        TTL.  **Do not call this endpoint directly** — obtain the URL from
+        `checkVideoStatus.video_url`.
+
+        On any verification failure the endpoint returns `403` with no detail
+        leak (`{ "error": "Forbidden" }`).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: r
+          in: query
+          required: true
+          schema:
+            type: string
+          description: fal.ai `request_id`.
+        - name: u
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Authenticated user ID (must match session).
+        - name: e
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: Unix timestamp (seconds) at which the signature expires.
+        - name: t
+          in: query
+          required: true
+          schema:
+            type: string
+          description: HMAC-SHA256 signature.
+      responses:
+        "302":
+          description: Redirect to the raw fal.ai CDN video URL.
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+        "403":
+          description: Authentication failed, ownership mismatch, or signature invalid.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Forbidden
+                required: [error]
