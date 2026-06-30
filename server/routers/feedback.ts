@@ -53,6 +53,10 @@ export const feedbackRouter = router({
           message: "回饋提交過於頻繁，請稍後再試（每小時最多 10 次）。",
         });
       }
+      // AIDV-931: screenshotKey must be owned by the submitting user
+      if (input.screenshotKey && !input.screenshotKey.startsWith(`screenshots/${ctx.user.id}/`)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "screenshotKey 不屬於目前用戶。" });
+      }
       const id = await db.createFeedbackReport({
         userId: ctx.user.id,
         ...input,
