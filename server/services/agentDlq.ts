@@ -25,7 +25,8 @@ export async function insertDlqEntry(
   state: ValidationState,
   failureReason?: string,
   agentId?: string,
-  payload?: Record<string, unknown>
+  payload?: Record<string, unknown>,
+  correlationId?: string
 ): Promise<DlqInsertResult | null> {
   const db = await getDb();
   if (!db) return null;
@@ -41,6 +42,7 @@ export async function insertDlqEntry(
       failureReason: failureReason ?? null,
       payload: payload ?? null,
       retryCount: state.retryCount,
+      correlationId: correlationId ?? null,
     })
     .$returningId();
 
