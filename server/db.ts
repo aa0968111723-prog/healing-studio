@@ -538,7 +538,7 @@ export async function getUsersByIds(ids: number[]) {
 export async function getAllUsers() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(users).orderBy(desc(users.createdAt));
+  return db.select().from(users).orderBy(desc(users.createdAt)).limit(10000);
 }
 
 // AIDV-618: cursor pagination — cursor = id of last fetched row; orderBy desc(id)
@@ -1068,6 +1068,17 @@ export async function getModelTrainingConsentsByUser(userId: number) {
     .from(modelTrainingConsents)
     .where(eq(modelTrainingConsents.userId, userId))
     .orderBy(desc(modelTrainingConsents.createdAt));
+}
+
+/** AIDV-796: Batch fetch — replaces N individual getModelTrainingConsent calls. */
+export async function getModelTrainingConsentsByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(modelTrainingConsents)
+    .where(inArray(modelTrainingConsents.id, ids));
 }
 
 export async function revokeModelTrainingConsent(
@@ -2476,6 +2487,18 @@ export async function getCustomBlocksByUser(
     .orderBy(desc(customBlocks.createdAt));
 }
 
+/** AIDV-793: Fetch a single custom block, enforcing userId ownership (IDOR prevention). */
+export async function getCustomBlock(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(customBlocks)
+    .where(and(eq(customBlocks.id, id), eq(customBlocks.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function deleteCustomBlock(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;
@@ -2665,9 +2688,22 @@ export async function upsertSystemSettings(
   if (!db) throw new Error("Database not available");
   const existing = await getSystemSettings(userId);
   if (existing) {
+    // extraSettings is a shared JSON blob written by independent panels
+    // (e.g. ProviderPanel → generationProvider, FeatureFlagsTab →
+    // featureFlags). A bare `.set(data)` would overwrite the whole column,
+    // so each panel's save would silently wipe the other's keys
+    // (last-writer-wins). Shallow-merge the incoming top-level keys over the
+    // existing blob so concurrent panels coexist.
+    const patch: Partial<InsertSystemSetting> = { ...data };
+    if (data.extraSettings !== undefined && data.extraSettings !== null) {
+      patch.extraSettings = {
+        ...(existing.extraSettings ?? {}),
+        ...data.extraSettings,
+      };
+    }
     await db
       .update(systemSettings)
-      .set(data)
+      .set(patch)
       .where(eq(systemSettings.userId, userId));
     return existing.id;
   } else {
@@ -2718,6 +2754,28 @@ export async function getStuckJobsByType(
       and(
         eq(backgroundJobs.jobType, jobType),
         eq(backgroundJobs.status, "processing"),
+        sql`${backgroundJobs.updatedAt} < ${cutoff}`
+      )
+    )
+    .orderBy(backgroundJobs.createdAt)
+    .limit(limit);
+}
+
+export async function getQueuedStuckJobsByType(
+  jobType: typeof backgroundJobs.$inferSelect["jobType"],
+  stuckAfterMinutes = 10,
+  limit = 5
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const cutoff = new Date(Date.now() - stuckAfterMinutes * 60 * 1000);
+  return db
+    .select()
+    .from(backgroundJobs)
+    .where(
+      and(
+        eq(backgroundJobs.jobType, jobType),
+        eq(backgroundJobs.status, "queued"),
         sql`${backgroundJobs.updatedAt} < ${cutoff}`
       )
     )
@@ -4820,6 +4878,17 @@ export async function getRealEarthEntry(id: number): Promise<RealEarthEntry | nu
   return rows[0] ?? null;
 }
 
+/** AIDV-802: Batch fetch multiple realEarthEntries in one query (replaces N+1 loop). */
+export async function getRealEarthEntriesByIds(ids: number[]): Promise<RealEarthEntry[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(realEarthEntries)
+    .where(inArray(realEarthEntries.id, ids));
+}
+
 export async function getRealEarthEntries(params: {
   category?: string;
   taiwanOnly?: boolean;
@@ -5231,6 +5300,14 @@ const USER_OWNED_TABLES = [
   "refresh_tokens",
   "user_workflows",
   "studio_recipes",
+  "model_wishes",
+  "model_wish_votes",
+  "webhook_subscriptions",
+  "api_keys",
+  "featured_showcase_comments",
+  "teaching_materials",
+  "teaching_material_access_log",
+  "video_projects",
 ] as const;
 
 /**

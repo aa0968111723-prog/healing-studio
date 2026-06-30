@@ -91,8 +91,13 @@ const PENDING_BLOCK = [
   "0097_video_project_deadline",
   // AIDV-684：影片輸出交付欄位 — output_storage_path / output_signed_url / output_expires_at（information_schema 守門）。
   "0098_video_output_delivery",
+  // AIDV-496：agent_dynamic_registry 加 maxLoad 並發容量欄位（information_schema 守門）。
+  "0099_agent_registry_max_load",
+  // AIDV-272：video_analytics 影片播放事件追蹤表（CREATE TABLE IF NOT EXISTS + 索引守門）。
+  "0100_video_analytics",
   // AIDV-231 Gap B：background_jobs 加 expiresAt TTL 欄位，供每日清理 cron 使用（information_schema 守門）。
-  "0099_background_jobs_expires_at",
+  // 合併 origin/main 時與 0099_agent_registry_max_load/0100_video_analytics 撞號，改編 0101。
+  "0101_background_jobs_expires_at",
 ];
 
 function readSql(tag: string): string {

@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AgentAction, AgentActionResult, AgentCapability } from "../../../shared/agent-actions";
+import { extractResultUrl } from "@/lib/falResultParser";
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 
@@ -172,22 +173,14 @@ function ResultPreview({ job }: { job: JobRow }) {
 
   const resultUrl = (meta.resultUrl as string) ?? null;
   // Also check nested result data for URLs
-  const resultData = meta.result as Record<string, unknown> | null;
-  const imageUrl =
-    resultUrl ??
-    (resultData?.images as any)?.[0]?.url ??
-    (resultData?.image as any)?.url ??
-    null;
+  const resultData = meta.result as unknown;
+  const imageUrl = resultUrl ?? extractResultUrl("image", resultData);
   const videoUrl =
     (job.jobType === "video" ? resultUrl : null) ??
-    (resultData?.video as any)?.url ??
-    (resultData as any)?.video_url ??
-    null;
+    extractResultUrl("video", resultData);
   const audioUrl =
     (job.jobType === "audio" || job.jobType === "voice" ? resultUrl : null) ??
-    (resultData?.audio as any)?.url ??
-    (resultData as any)?.audio_url ??
-    null;
+    extractResultUrl("audio", resultData);
 
   if (job.jobType === "image" && imageUrl) {
     return (
@@ -507,7 +500,17 @@ export default function BackgroundTasksPage() {
 
   // ── Query: all active + recent jobs ─────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
-    refetchInterval: 5000,
+    // AIDV-588：與 BackgroundTasksContext 一致的 adaptive 輪詢——有進行中任務時 5s，
+    // 全部閒置時退到 30s。避免停在本頁但零 active 任務時仍固定每 5s 輪詢。
+    refetchInterval: query => {
+      const jobs = (query.state.data ?? []) as unknown as Array<{
+        status?: string;
+      }>;
+      const hasActive = jobs.some(
+        j => j.status === "queued" || j.status === "processing",
+      );
+      return hasActive ? 5000 : 30_000;
+    },
     refetchIntervalInBackground: false,
     retry: 2,
   });

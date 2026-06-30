@@ -24,6 +24,7 @@ import {
   ExternalLink,
   Clock,
   RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -93,7 +94,16 @@ function formatTime(iso?: string) {
 // ─── Task Row ─────────────────────────────────────────────────────────────────
 
 function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: string }) {
-  const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.processing;
+  const isDispatchFailed =
+    task.status === "failed" &&
+    (task.errorMessage?.startsWith("queued_timeout") ?? false);
+  const cfg = isDispatchFailed
+    ? {
+        icon: <AlertTriangle className="w-3.5 h-3.5" />,
+        className: "text-amber-500",
+        label: "排程失敗",
+      }
+    : (STATUS_CONFIG[task.status] ?? STATUS_CONFIG.processing);
   const resultUrl = task.resultUrl;
   // AIDV-431: prefer SSE-immediate preview_url, fall back to DB resultUrl
   const videoPreviewUrl = previewUrl || resultUrl;

@@ -1,4 +1,4 @@
--- 0099: background_jobs 加 expiresAt（冪等 — information_schema 守門）
+-- 0101: background_jobs 加 expiresAt（冪等 — information_schema 守門）
 -- AIDV-231 Gap B: 為已完成/失敗/取消的背景工作加上 TTL 欄位，供每日清理 cron 使用。
 
 SET @bj_exp_stmt := IF(

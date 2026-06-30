@@ -727,7 +727,21 @@
       "idx": 114,
       "version": "5",
       "when": 1783238400000,
-      "tag": "0099_background_jobs_expires_at",
+      "tag": "0099_agent_registry_max_load",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "5",
+      "when": 1783324800000,
+      "tag": "0100_video_analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "5",
+      "when": 1783411200000,
+      "tag": "0101_background_jobs_expires_at",
       "breakpoints": true
     }
   ]
