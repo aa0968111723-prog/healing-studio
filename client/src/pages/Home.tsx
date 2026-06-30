@@ -1402,23 +1402,74 @@ ${profileSnippet}`;
                 delay: 0.45,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="text-center px-4 sm:px-0 mb-6 sm:mb-10"
+              className="text-center px-4 sm:px-0 mb-7 sm:mb-10"
             >
+              {/* Brand kicker — a single restrained eyebrow that anchors the
+                  whole hero, so the headline below can stand alone instead of
+                  competing with a second title block. */}
+              <div className="mb-5 sm:mb-7 flex justify-center">
+                <span
+                  className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] sm:text-xs font-medium tracking-[0.18em] uppercase transition-colors duration-1000 ${s.textSecondary}`}
+                  style={{
+                    background: s.featureBg,
+                    border: `1px solid ${s.cardBorder}`,
+                    backdropFilter: "blur(8px)",
+                  }}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Healing Studio
+                  <span aria-hidden className="opacity-40">·</span>
+                  Creative OS
+                </span>
+              </div>
+
+              {/* Headline — single emotional anchor (the brand's signature
+                  question), refined tracking + leading for a calmer, more
+                  deliberate read. */}
               <h1
-                className={`heading-healing text-2xl sm:text-4xl lg:text-5xl font-semibold leading-tight tracking-tight ${s.textPrimary}`}
+                className={`heading-healing text-balance text-[32px] sm:text-5xl lg:text-[3.4rem] font-semibold leading-[1.12] tracking-tight transition-colors duration-1000 ${s.textPrimary}`}
                 style={{
                   textShadow: isDark
-                    ? `0 2px 24px ${s.glowColor}`
+                    ? `0 2px 28px ${s.glowColor}`
                     : "0 1px 2px rgba(0,0,0,0.04)",
                 }}
               >
                 今天，想創作什麼？
               </h1>
+
+              {/* Subhead — one focused supporting line that absorbs the prior
+                  three stacked paragraphs into a clear value proposition. */}
               <p
-                className={`mt-3 sm:mt-4 body-healing text-[13px] sm:text-base lg:text-lg max-w-md mx-auto ${s.textMuted}`}
+                className={`mx-auto mt-4 sm:mt-5 max-w-xl text-pretty body-healing text-[15px] sm:text-lg lg:text-xl leading-relaxed transition-colors duration-1000 ${s.textSecondary}`}
               >
-                光球為你引路，從一個念頭，到完整作品。
+                把靈感變成作品。單一入口串起圖片、影片與導演&nbsp;AI，
+                用有呼吸感的流程，從一個念頭走到完整成片。
               </p>
+
+              {/* Capability chips — consistent sizing, a leading glow dot, and
+                  a single tidy row signalling the three pillars. */}
+              <div className="mt-6 sm:mt-7 flex flex-wrap justify-center gap-2 sm:gap-2.5">
+                {['圖片生成', '影片分鏡', '導演協作'].map((label) => (
+                  <span
+                    key={label}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 sm:px-3.5 py-1.5 text-[12px] sm:text-[13px] font-medium transition-colors duration-1000 ${s.textSecondary}`}
+                    style={{
+                      background: s.cardBg,
+                      border: `1px solid ${s.cardBorder}`,
+                    }}
+                  >
+                    <span
+                      aria-hidden
+                      className="w-1 h-1 rounded-full"
+                      style={{
+                        background: s.glowColor,
+                        boxShadow: `0 0 6px ${s.glowColor}`,
+                      }}
+                    />
+                    {label}
+                  </span>
+                ))}
+              </div>
             </motion.div>
 
             {/* OARS Contextual Greeting — replaces static title */}
@@ -1439,52 +1490,6 @@ ${profileSnippet}`;
               />
             </motion.div>
             )}
-
-            <motion.div
-              className="mx-auto max-w-3xl mb-6 sm:mb-10 px-2"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.75, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            >
-              <div
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 mb-4 sm:mb-5 text-[11px] sm:text-xs tracking-wide"
-                style={{
-                  background: s.featureBg,
-                  border: `1px solid ${s.cardBorder}`,
-                }}
-              >
-                <Sparkles className={`w-3.5 h-3.5 ${s.textSecondary}`} />
-                <span className={`transition-colors duration-1000 ${s.textSecondary}`}>
-                  Healing Studio · Creative OS
-                </span>
-              </div>
-
-              <h1 className={`text-[30px] sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.15] transition-colors duration-1000 ${s.textPrimary}`}>
-                把靈感變成作品，
-                <span className="block mt-2 sm:mt-3 text-base sm:text-2xl lg:text-3xl font-normal opacity-90">
-                  用更輕鬆、有呼吸感的創作流程開始今天
-                </span>
-              </h1>
-
-              <p className={`mt-4 sm:mt-5 text-sm sm:text-base max-w-2xl mx-auto leading-relaxed transition-colors duration-1000 ${s.textMuted}`}>
-                單一入口串起圖片、影片與導演 AI，從草稿到成片更專注、更有節奏。
-              </p>
-
-              <div className="mt-4 sm:mt-6 flex flex-wrap justify-center gap-2 sm:gap-2.5">
-                {['圖片生成','影片分鏡','導演協作'].map((item) => (
-                  <span
-                    key={item}
-                    className={`rounded-full px-2.5 sm:px-3 py-1 text-[11px] sm:text-xs transition-colors duration-1000 ${s.textSecondary}`}
-                    style={{
-                      background: s.cardBg,
-                      border: `1px solid ${s.cardBorder}`,
-                    }}
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </motion.div>
 
             {/* Phase 2c: 首頁瘦身 — 只留一顆 CTA「進入創作作業系統」直接導到
                 /create（CreationHub 已承接快速開始 / 繼續上次專案 / 直接問光球
