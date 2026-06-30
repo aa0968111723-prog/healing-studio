@@ -15,7 +15,7 @@
  * — typically the orb chat root mounts this when it loads preferences and
  * sees `onboardingCompletedAt === null`.
  */
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -44,13 +44,17 @@ export interface OrbOnboardingDialogProps {
 export function OrbOnboardingDialog({ open, onOpenChange, onCompleted }: OrbOnboardingDialogProps) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<OrbOnboardingAnswers>({});
+  const dismissedRef = useRef(false);
+  useEffect(() => {
+    if (open) dismissedRef.current = false;
+  }, [open]);
   const utils = trpc.useUtils();
   const updateMutation = trpc.agentPreferences.updatePreferences.useMutation({
     onSuccess: () => {
       void utils.agentPreferences.getPreferences.invalidate();
       void utils.agentPreferences.getDistilledProfile.invalidate();
       toast.success("謝謝！光球已記下你的偏好。");
-      onCompleted?.(answers);
+      if (!dismissedRef.current) onCompleted?.(answers);
       onOpenChange(false);
     },
     onError: error => toast.error(`儲存失敗：${error.message ?? "未知錯誤"}`),
@@ -91,8 +95,13 @@ export function OrbOnboardingDialog({ open, onOpenChange, onCompleted }: OrbOnbo
     });
   };
 
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) dismissedRef.current = true;
+    onOpenChange(isOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md" data-testid="orb-onboarding-dialog">
         <DialogHeader>
           <DialogTitle>光球初次見面 ✨</DialogTitle>
