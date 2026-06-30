@@ -158,6 +158,10 @@ import {
   initGenerationLockBackend,
   closeGenerationLockBackend,
 } from "./redisGenerationLockStore";
+import {
+  initCreatorQuotaBackend,
+  closeCreatorQuotaBackend,
+} from "./redisCreatorQuotaStore";
 
 type ScheduledMaintenanceJob = {
   name: string;
@@ -383,6 +387,11 @@ async function startServer() {
   // REDIS_URL → keeps the in-memory store (single-instance, zero change).
   // Never throws; a Redis problem leaves the in-memory store in place.
   initGenerationLockBackend();
+  // AIDV-923: upgrade the per-creator concurrency quota to its Redis backend
+  // when REDIS_URL is configured (cross-instance enforcement for multi-replica).
+  // No REDIS_URL → keeps the in-memory store (single-instance, zero change).
+  // Never throws; a Redis problem leaves the in-memory store in place.
+  initCreatorQuotaBackend();
   // AIDV: fire-and-forget — never block boot on this non-essential probe.
   // ELEVENLABS_AVAILABLE defaults to true and is updated when this resolves, so
   // until then the app behaves as available (Google TTS is the fallback anyway).
@@ -1093,6 +1102,8 @@ async function startServer() {
       // AIDV-20: stop the generation-lock self-heal/sweep timers and close the
       // shared Redis client (no-op when REDIS_URL is unset).
       await closeGenerationLockBackend();
+      // AIDV-923: stop the creator-quota Redis backend (no-op when REDIS_URL is unset).
+      await closeCreatorQuotaBackend();
       logger.info("[Server] All resources released. Exiting.");
       process.exit(0);
     });

@@ -70,7 +70,7 @@ export async function driveOrbTaskInBackground(input: {
   // AIDV-878: per-user concurrent task quota — prevent one user from
   // monopolising the agent executor pool
   const maxConcurrentTasks = Number(process.env.ORB_MAX_CONCURRENT_TASKS ?? 3);
-  if (!tryAcquireCreatorSlot(input.userId, maxConcurrentTasks)) {
+  if (!(await tryAcquireCreatorSlot(input.userId, maxConcurrentTasks))) {
     const reason = `agent creator quota exceeded (max ${maxConcurrentTasks} concurrent tasks per user)`;
     console.warn(`[Orb] ${reason} taskId=${input.taskId} userId=${input.userId}`);
     try {
@@ -272,7 +272,7 @@ export async function driveOrbTaskInBackground(input: {
     }
   } finally {
     orbAutoDriverInFlight.delete(input.taskId);
-    releaseCreatorSlot(input.userId); // AIDV-878
+    await releaseCreatorSlot(input.userId); // AIDV-878
   }
 }
 
