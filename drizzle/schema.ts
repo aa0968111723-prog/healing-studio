@@ -619,6 +619,22 @@ export const userFeedbackReports = mysqlTable(
     priority: mysqlEnum("priority", ["low", "medium", "high", "critical"])
       .default("medium")
       .notNull(),
+    // AIDV-864: 快速情境回饋擴充欄位（PR①）
+    featureArea: varchar("feature_area", { length: 120 }),
+    pageContext: json("page_context").$type<{
+      route?: string;
+      url?: string;
+      shell?: string;
+      viewport?: string;
+      appVersion?: string;
+    }>(),
+    landmark: json("landmark").$type<{
+      selector?: string;
+      label?: string;
+      rect?: { x?: number; y?: number; w?: number; h?: number };
+      textSnippet?: string;
+    }>(),
+    screenshotKey: varchar("screenshot_key", { length: 512 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

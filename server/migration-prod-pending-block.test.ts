@@ -98,6 +98,10 @@ const PENDING_BLOCK = [
   // AIDV-231 Gap B：background_jobs 加 expiresAt TTL 欄位，供每日清理 cron 使用（information_schema 守門）。
   // 合併 origin/main 時與 0099_agent_registry_max_load/0100_video_analytics 撞號，改編 0101。
   "0101_background_jobs_expires_at",
+  // AIDV-346 補登記：agent_dlq 驗證門失敗路由（CREATE TABLE IF NOT EXISTS + information_schema 索引守門）。
+  "0102_agent_dlq",
+  // AIDV-864 PR①：user_feedback_reports 情境回饋欄位擴充（information_schema 守門）。
+  "0103_feedback_context",
 ];
 
 function readSql(tag: string): string {
