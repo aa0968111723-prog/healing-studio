@@ -38,6 +38,7 @@
 import { serverEnv } from "./env.validated";
 import { ENV } from "./env";
 import { resolveProviderBaseUrl } from "./providerFacade";
+import { assertSafeExternalUrl } from "./ssrfGuard";
 
 // ─── 引擎類型 ──────────────────────────────────────────────────────────────
 
@@ -778,9 +779,13 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         throw new Error(
           "Engine 'freellmapi' 指定但 FREE_LLM_API_ENABLED 未設為 true"
         );
-      const baseUrl = (
-        ENV.freeLlmApiUrl || "https://api.freellmapi.com"
-      ).replace(/\/$/, "");
+      const rawBase = ENV.freeLlmApiUrl || "https://api.freellmapi.com";
+      // AIDV-863: SSRF guard — FREE_LLM_API_URL is operator-supplied; block it
+      // pointing at private/loopback/IMDS (e.g. 169.254.169.254) before the
+      // backend issues outbound requests to it. Dev allows insecure/localhost
+      // hosts (mirrors internalMedia.ts); production stays strict.
+      assertSafeExternalUrl(rawBase, process.env.NODE_ENV !== "production");
+      const baseUrl = rawBase.replace(/\/$/, "");
       return {
         name: "FreeLLM API (Free Fallback)",
         engine: "freellmapi",
