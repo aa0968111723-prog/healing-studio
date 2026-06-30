@@ -1,7 +1,8 @@
 /**
- * orbVoiceGateway.test.ts — AIDV-263
+ * orbVoiceGateway.test.ts — AIDV-263 / AIDV-120
  * Verifies that the concurrent-session limit uses the authenticated identity
  * (payload.sub) and not the client-controlled userId query param.
+ * Also covers the real ASR+LLM+TTS pipeline (mocked processor).
  */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -14,7 +15,18 @@ vi.mock("../services/agentToolExecutor", () => ({
   getAllowedOrigins: vi.fn(() => ["https://example.com"]),
 }));
 
+vi.mock("../services/orbVoiceProcessor", () => ({
+  transcribeAudioBuffer: vi.fn(),
+  generateOrbReply: vi.fn(),
+  synthesizeOrbSpeech: vi.fn(),
+}));
+
 import { verifySessionToken } from "../_core/googleAuth";
+import {
+  transcribeAudioBuffer,
+  generateOrbReply,
+  synthesizeOrbSpeech,
+} from "../services/orbVoiceProcessor";
 import { handleOrbVoiceConnection, ORB_MAX_PAYLOAD_BYTES } from "./orbVoiceGateway";
 
 function makeWs() {
@@ -23,6 +35,7 @@ function makeWs() {
   let closeReason: string | undefined;
   const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
   return {
+    readyState: 1 as number, // 1 = WebSocket.OPEN
     close: vi.fn((code?: number, reason?: string) => {
       closeCode = code;
       closeReason = reason;
@@ -48,6 +61,9 @@ function makeReq(params: Record<string, string> = {}) {
 
 beforeEach(() => {
   vi.mocked(verifySessionToken).mockReset();
+  vi.mocked(transcribeAudioBuffer).mockResolvedValue("測試文字");
+  vi.mocked(generateOrbReply).mockResolvedValue("Orb 回應");
+  vi.mocked(synthesizeOrbSpeech).mockResolvedValue(Buffer.from("audio-data"));
 });
 
 describe("handleOrbVoiceConnection — AIDV-263", () => {
@@ -98,9 +114,8 @@ describe("handleOrbVoiceConnection — AIDV-263", () => {
     const ws = makeWs();
     await handleOrbVoiceConnection(ws as any, makeReq({ token: "ok" }));
 
-    // 送超大 binary frame
     const bigBuf = Buffer.alloc(ORB_MAX_PAYLOAD_BYTES + 1);
-    ws._emit("message", bigBuf);
+    ws._emit("message", bigBuf, true); // isBinary = true
     const errMsg = ws._sent.find(s => JSON.parse(s).type === "error");
     expect(errMsg).toBeDefined();
     expect(JSON.parse(errMsg!).message).toBe("audio-chunk-too-large");
@@ -114,22 +129,61 @@ describe("handleOrbVoiceConnection — AIDV-263", () => {
     await handleOrbVoiceConnection(ws as any, makeReq({ token: "ok" }));
 
     const bigStr = "x".repeat(ORB_MAX_PAYLOAD_BYTES + 1);
-    ws._emit("message", bigStr);
+    ws._emit("message", bigStr, false); // isBinary = false
     const errMsg = ws._sent.find(s => JSON.parse(s).type === "error");
     expect(errMsg).toBeDefined();
 
     ws._emit("close");
   });
 
-  it("正常大小的 binary frame → 回 transcript", async () => {
+  it("正常大小的 binary frame → 累積至 audioChunks（無立即回應）", async () => {
     vi.mocked(verifySessionToken).mockResolvedValue({ sub: "user-ok-payload" } as any);
     const ws = makeWs();
     await handleOrbVoiceConnection(ws as any, makeReq({ token: "ok" }));
 
+    const initialCount = ws._sent.length; // ready message already sent
     const smallBuf = Buffer.alloc(1024);
-    ws._emit("message", smallBuf);
-    const transcriptMsg = ws._sent.find(s => JSON.parse(s).type === "transcript");
-    expect(transcriptMsg).toBeDefined();
+    ws._emit("message", smallBuf, true); // binary audio chunk
+    // No new synchronous messages — chunk just accumulates
+    expect(ws._sent.length).toBe(initialCount);
+
+    ws._emit("close");
+  });
+
+  it("stop 訊號觸發 pipeline → 回 userTranscript + transcript + audio", async () => {
+    vi.mocked(verifySessionToken).mockResolvedValue({ sub: "user-pipeline" } as any);
+    const ws = makeWs();
+    await handleOrbVoiceConnection(ws as any, makeReq({ token: "ok" }));
+
+    ws._emit("message", Buffer.alloc(512), true); // audio chunk
+    ws._emit("message", JSON.stringify({ type: "stop" }), false); // trigger pipeline
+
+    await vi.waitFor(() => {
+      expect(ws._sent.some(s => JSON.parse(s).type === "audio")).toBe(true);
+    }, { timeout: 2000 });
+
+    expect(ws._sent.some(s => JSON.parse(s).type === "userTranscript")).toBe(true);
+    expect(ws._sent.some(s => JSON.parse(s).type === "transcript")).toBe(true);
+    expect(ws._sent.some(s => JSON.parse(s).type === "audio")).toBe(true);
+
+    ws._emit("close");
+  });
+
+  it("pipeline 失敗時回 error 訊息", async () => {
+    vi.mocked(verifySessionToken).mockResolvedValue({ sub: "user-pipeline-err" } as any);
+    vi.mocked(transcribeAudioBuffer).mockRejectedValue(new Error("ASR failed"));
+    const ws = makeWs();
+    await handleOrbVoiceConnection(ws as any, makeReq({ token: "ok" }));
+
+    ws._emit("message", Buffer.alloc(512), true);
+    ws._emit("message", JSON.stringify({ type: "stop" }), false);
+
+    await vi.waitFor(() => {
+      expect(ws._sent.some(s => JSON.parse(s).type === "error")).toBe(true);
+    }, { timeout: 2000 });
+
+    const errMsg = ws._sent.find(s => JSON.parse(s).type === "error");
+    expect(JSON.parse(errMsg!).message).toContain("ASR failed");
 
     ws._emit("close");
   });

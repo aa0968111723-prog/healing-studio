@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { PanelError, PanelLoading } from "@/shells/_shared/PanelState";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type Hit = {
   id: number;
@@ -47,18 +48,12 @@ export function TeachingArchiveGroundingBody() {
 
   const copyRef = async (h: Hit) => {
     const line = refLine(h);
-    // 守門：Clipboard API 不存在時 optional chaining 會無聲 no-op，故確認 API 在＋寫入成功
-    // 才報「已複製」，否則落到手動複製 fallback（不謊報成功）。
-    if (navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(line);
-        toast.success("已複製教材參照", { description: "可貼進腳本／精修指示，用你的教材接地。" });
-        return;
-      } catch {
-        // 寫入失敗 → fallback
-      }
+    try {
+      await copyToClipboard(line);
+      toast.success("已複製教材參照", { description: "可貼進腳本／精修指示，用你的教材接地。" });
+    } catch {
+      toast.message("教材參照（請手動複製）", { description: line });
     }
-    toast.message("教材參照（請手動複製）", { description: line });
   };
 
   return (
@@ -72,7 +67,7 @@ export function TeachingArchiveGroundingBody() {
           placeholder="搜尋你的教材（師父開示、品牌語氣…）"
           className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs"
         />
-        <Button type="submit" size="sm" className="h-8 text-xs">搜尋</Button>
+        <Button type="submit" size="sm" className="h-8 text-xs" disabled={res.isLoading}>搜尋</Button>
       </form>
 
       {/* 結果（含未搜尋的引導態） */}

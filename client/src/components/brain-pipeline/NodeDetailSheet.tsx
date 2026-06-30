@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { Copy, Check, ExternalLink, Github } from "lucide-react";
 import { useLocation } from "wouter";
 import { fileToGithubUrl } from "@/lib/github-url";
@@ -283,11 +284,11 @@ function CopyableBlock({
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(value);
+      await copyToClipboard(value);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     } catch {
-      // 忽略：某些瀏覽器/權限下可能失敗
+      // error toast shown by copyToClipboard
     }
   }, [value]);
 

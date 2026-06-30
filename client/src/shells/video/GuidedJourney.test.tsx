@@ -99,7 +99,7 @@ describe("GuidedJourney（從零引導表單）", () => {
     expect(screen.getByPlaceholderText(/把整份腳本貼進來/)).toBeTruthy();
   });
 
-  it("寫入失敗：toast.error 標 worldStoryboard.createFromSegments、不關窗、結果保留", async () => {
+  it("寫入失敗：toast.error 白話訊息＋不關窗、結果保留", async () => {
     spineStub.breakdownScript.mockResolvedValue(BD);
     spineStub.ingestBreakdown.mockRejectedValue(new Error("DB 寫入失敗"));
     const onClose = open();
@@ -110,7 +110,7 @@ describe("GuidedJourney（從零引導表單）", () => {
     fireEvent.click(screen.getByRole("button", { name: /寫入目前專案/ }));
     await waitFor(() => expect(toastStub.error).toHaveBeenCalled());
     expect(String(toastStub.error.mock.calls[0][0])).toContain(
-      "worldStoryboard.createFromSegments"
+      "寫入分鏡資料失敗"
     );
     expect(onClose).not.toHaveBeenCalled();
     // 拆解結果仍在（可改名重試）

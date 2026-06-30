@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import compression from "compression";
 import helmet from "helmet";
+import { helmetOptions, permissionsPolicyMiddleware } from "./securityHeaders";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { assertJwtSecretReady, authenticateRequest } from "./googleAuth";
@@ -46,6 +47,7 @@ import { replicateWebhookRouter } from "../routes/webhookReplicate";
 import { stripeWebhookRouter } from "../routes/stripeWebhook";
 import { mediaDownloadRouter } from "../routes/download";
 import { videoOutputRouter } from "../routes/videoOutputRoute";
+import { videoRouter } from "../routes/videoRoute";
 import { icsFeedRouter } from "../routes/icsFeed";
 import {
   initR2SnapshotCron,
@@ -444,45 +446,15 @@ async function startServer() {
   app.use(requestTraceMiddleware);
 
   // ── Security headers ─────────────────────────────────────────────────────
-  // AIDV-313/251: helmet with CSP + DENY frame-guard + Permissions-Policy.
+  // AIDV-313/251/312: helmet with CSP + DENY frame-guard + HSTS(preload) +
+  // Referrer-Policy + Permissions-Policy. Config lives in ./securityHeaders so
+  // production and the unit test share one source of truth (no header drift).
   // CORS wildcard stays on CDN-proxy-download route only — intentional for
   // public media delivery; tRPC/auth routes share same origin so no CORS needed.
-  // CSP notes (AIDV-251):
-  //   - 'unsafe-inline' required: Vite dev HMR + some inline styles in SPA shell
-  //   - connect-src 'https:' covers all proxied API calls (fal/supabase/etc. via server)
-  //   - frame-ancestors 'none' duplicates X-Frame-Options DENY for CSP-aware browsers
-  //   - Disable with CSP_ENFORCEMENT=0 env if a CDN/widget requires a new directive
-  app.use(
-    helmet({
-      contentSecurityPolicy: process.env.CSP_ENFORCEMENT === "0" ? false : {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", "data:", "blob:", "https:"],
-          mediaSrc: ["'self'", "blob:", "https:"],
-          connectSrc: ["'self'", "https:", "wss:"],
-          fontSrc: ["'self'", "data:"],
-          objectSrc: ["'none'"],
-          baseUri: ["'self'"],
-          frameSrc: ["'none'"],
-          workerSrc: ["'self'", "blob:"],
-          frameAncestors: ["'none'"],
-        },
-      },
-      crossOriginEmbedderPolicy: false, // Allow cross-origin media assets
-      frameguard: { action: "deny" }, // X-Frame-Options: DENY
-    })
-  );
-  // Permissions-Policy: disable browser features not used by healing-studio.
-  // Helmet 8.x does not set this header by default; added manually (AIDV-313).
-  app.use((_req, res, next) => {
-    res.setHeader(
-      "Permissions-Policy",
-      "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-    );
-    next();
-  });
+  // NOTE: helmet(...) is called inline here (not via applySecurityHeaders) so the
+  // brainPipeline MIDDLEWARE_STACK static scan still detects the `helmet(` signal.
+  app.use(helmet(helmetOptions));
+  app.use(permissionsPolicyMiddleware);
 
   // ── Gzip/Brotli compression (60-80% smaller text/JSON responses) ────────
   app.use(compression({ threshold: 1024 }));
@@ -618,6 +590,7 @@ async function startServer() {
   app.use(stripeWebhookRouter);
   app.use(mediaDownloadRouter);
   app.use(videoOutputRouter);
+  app.use(videoRouter);
   app.use(icsFeedRouter);
   // AI Provider Proxy Gateway
   app.use(aiProxyRouter);

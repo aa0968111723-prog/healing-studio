@@ -254,6 +254,7 @@ export function createGlobalOrbExecutor(deps: GlobalOrbExecutorDeps) {
 
     cancelled = false;
     paused = false;
+    approvedSteps = new Set<string>();
     if (task.steps.length === 0) {
       setState(prev => ({ ...prev, status: "completed" }));
       emitTelemetry({ event: "executor.completed", taskId: task.taskId, traceId: task.traceId });

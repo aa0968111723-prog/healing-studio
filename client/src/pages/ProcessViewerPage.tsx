@@ -27,7 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import { decodeProcessSpec, type ProcessSpec } from "../../../shared/orb-process-link";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import {
@@ -74,10 +74,9 @@ export default function ProcessViewerPage() {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success("連結已複製，可分享給朋友");
+      await copyToClipboard(window.location.href, "連結已複製，可分享給朋友");
     } catch {
-      toast.error("複製失敗，請手動複製網址列");
+      /* error toast shown by copyToClipboard */
     }
   };
 

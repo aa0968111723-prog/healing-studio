@@ -17,6 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import { toastError } from "@/lib/toastError";
 import {
   BookOpen,
@@ -143,12 +144,7 @@ export default function AgentCodexPage() {
       const md = buildCodexMarkdown(
         query.trim() ? { entries: filteredHits.map(h => h.entry) } : undefined
       );
-      if (typeof navigator !== "undefined" && navigator.clipboard) {
-        await navigator.clipboard.writeText(md);
-        toast.success(`已複製大全 markdown 到剪貼簿（${filteredHits.length} 條）`);
-      } else {
-        toast.error("此瀏覽器不支援剪貼簿 API");
-      }
+      await copyToClipboard(md, `已複製大全 markdown 到剪貼簿（${filteredHits.length} 條）`);
     } catch (err) {
       toastError(err, "複製失敗");
     }

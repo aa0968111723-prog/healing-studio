@@ -78,6 +78,7 @@ import {
   FileVideo,
   File,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
@@ -1681,6 +1682,25 @@ function AdminQuizForm({
 // 🎬 VideoLearningTab
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ─── EphemeralAdminNotice ─────────────────────────────────────────────────────
+// AIDV-190：影片／測驗內容目前僅存於伺服器記憶體（尚無 DB 表），重新部署或重啟即遺失。
+// DB 持久化落地前，誠實提示管理員以免誤以為已永久發布。僅對管理員顯示。
+function EphemeralAdminNotice({ kind }: { kind: "影片" | "測驗" }) {
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-2.5 rounded-xl border border-amber-300/60 bg-amber-50 px-3.5 py-3 text-amber-800"
+    >
+      <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+      <p className="hs-small !mb-0 leading-relaxed">
+        提醒：{kind}內容目前儲存在伺服器記憶體中，<strong>尚未寫入資料庫</strong>。
+        新增／編輯／刪除在伺服器重新部署或重啟後會遺失（資料庫持久化開發中）。
+        正式發布前請保留原始資料。
+      </p>
+    </div>
+  );
+}
+
 function VideoLearningTab({ isAdmin }: { isAdmin: boolean }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDifficulty, setSelectedDifficulty] =
@@ -1748,6 +1768,9 @@ function VideoLearningTab({ isAdmin }: { isAdmin: boolean }) {
           </Button>
         )}
       </div>
+
+      {/* AIDV-190：影片內容尚未持久化，提醒管理員 */}
+      {isAdmin && data?.ephemeral && <EphemeralAdminNotice kind="影片" />}
 
       {/* Search */}
       <div className="relative">
@@ -1955,6 +1978,9 @@ function QuizLearningTab({ isAdmin }: { isAdmin: boolean }) {
           </Button>
         )}
       </div>
+
+      {/* AIDV-190：測驗內容尚未持久化，提醒管理員 */}
+      {isAdmin && data?.ephemeral && <EphemeralAdminNotice kind="測驗" />}
 
       {/* Search */}
       <div className="relative">

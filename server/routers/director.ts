@@ -15,11 +15,13 @@
 
 import { z } from "zod";
 import { safeMediaUrl, safeMediaUrlOptional } from "../lib/urlValidator";
+import { logger } from "../_core/logger";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { router, brainProcedure, aiChatProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM, extractMessageText } from "../_core/llm";
 import { signWebhookToken } from "../_core/webhookTokens";
+import { generationBus } from "../generationEvents";
 import * as db from "../db";
 import { buildMemoryContext } from "../services/ragMemory";
 import {
@@ -2079,7 +2081,7 @@ ${segmentSummaries}
               voiceStability: z.number().optional(),
               /** ElevenLabs / Kling voice_id 或 Qwen speaker embedding URL（聲音克隆復用） */
               cloneVoiceId: z.string().optional(),
-              cloneEmbeddingUrl: z.string().url().optional(),
+              cloneEmbeddingUrl: safeMediaUrlOptional,
             })
             .optional(),
           /** Generation mode for all tasks */
@@ -2480,7 +2482,7 @@ ${segmentSummaries}
               voiceSpeed: z.number().optional(),
               voiceStability: z.number().optional(),
               cloneVoiceId: z.string().optional(),
-              cloneEmbeddingUrl: z.string().url().optional(),
+              cloneEmbeddingUrl: safeMediaUrlOptional,
             })
             .optional(),
           mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
@@ -2756,6 +2758,8 @@ ${segmentSummaries}
         sourceVideoUrl: safeMediaUrlOptional, // For v2v / enhance pipeline (來源影片)
         /** prompt↔asset junction relation（重骰=variant/改寫=rewrite/延長=extended/其他=derived）*/
         relation: z.enum(["derived", "variant", "rewrite", "extended"]).optional(),
+        /** 批次任務總數，供前端「分鏡 N/M」進度顯示（選填，不影響執行） */
+        totalTasks: z.number().int().positive().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -3001,10 +3005,23 @@ ${segmentSummaries}
             // path can refund the same number of points instead of recomputing
             // from a partial set of inputs.
             chargedPoints: estimate.totalPoints,
+            startedAt: Date.now(),
+            ...(input.totalTasks != null ? { totalTasks: input.totalTasks } : {}),
             ...(queueResult.degraded && queueResult.originalModel
               ? { originalModel: queueResult.originalModel, degraded: true }
               : {}),
           } as any,
+        });
+
+        // AIDV-527: emit segment-started event on the job's SSE channel
+        generationBus.emit(jobId, {
+          type: "segment_started",
+          segmentId: input.segmentId,
+          segmentIndex: input.segmentIndex,
+          of: input.totalTasks ?? 1,
+          stage: input.modality,
+          userId,
+          at: Date.now(),
         });
 
         return {
@@ -3288,8 +3305,8 @@ ${segmentSummaries}
           if (chargedPoints !== null) {
             try {
               await dbModule.refundUserPoints(ctx.user.id, chargedPoints);
-            } catch {
-              /* 退款失敗時不阻擋 — 主要訴求是把任務標記為失敗 */
+            } catch (refundErr) {
+              logger.error("refund failed (chargedPoints path)", { userId: ctx.user.id, chargedPoints, error: refundErr });
             }
           } else {
             const { estimatePoints } = await import("../services/modelPricing");
@@ -3302,8 +3319,8 @@ ${segmentSummaries}
             try {
               const refund = estimatePoints(modelId, { durationSec });
               await dbModule.refundUserPoints(ctx.user.id, refund.totalPoints);
-            } catch {
-              /* 退款失敗時不阻擋 */
+            } catch (refundErr) {
+              logger.error("refund failed (recompute path)", { userId: ctx.user.id, durationSec, error: refundErr });
             }
           }
         }

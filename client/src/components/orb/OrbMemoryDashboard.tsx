@@ -110,6 +110,40 @@ export default function OrbMemoryDashboard({ compact }: Props) {
     );
   }
 
+  // 錯誤態必須與「還沒記住偏好」的空態區分：載入失敗時不能假裝是空白儀表板。
+  if (memoryQuery.isError || patternsQuery.isError) {
+    return (
+      <div
+        role="alert"
+        className={`rounded-2xl border border-destructive/30 bg-destructive/5 p-3 ${
+          compact ? "" : "shadow-sm"
+        }`}
+        data-testid="orb-memory-dashboard"
+      >
+        <div className="flex items-start gap-2">
+          <Brain className="w-4 h-4 text-destructive/70 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-[12px] font-medium text-foreground/90">記憶儀表板載入失敗</p>
+            <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+              暫時拿不到光球記得的偏好，請稍後再試一次。
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                void memoryQuery.refetch();
+                void patternsQuery.refetch();
+              }}
+              className="mt-2 inline-flex items-center gap-1 text-[11px] text-destructive hover:underline"
+            >
+              <RefreshCw className="w-2.5 h-2.5" />
+              重試
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!hasAny) {
     return (
       <div

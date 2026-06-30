@@ -273,15 +273,16 @@ export const rbacRouter = router({
         });
       }
 
-      await db.transferResourceOwnership(
+      // AIDV-186：移轉擁有權＋清掉全部共享必須原子化。原本分兩個非交易 await
+      // （先 transferResourceOwnership 再 deleteAllSharesForResource），第二步失敗
+      // 會留下「擁有權已轉、舊 owner 共享殘存」的殘餘存取漏洞。改走單一 DB
+      // transaction，任一步失敗即整體 rollback，給新 owner 乾淨的共享圖、舊 owner
+      // 不留殘餘存取（含舊 owner 建立的、與舊 owner 被共享進來的）。
+      await db.transferResourceOwnershipAndWipeShares(
         input.resourceType,
         input.resourceId,
         input.newOwnerUserId
       );
-
-      // 移轉後清掉此資源的全部共享：給新 owner 乾淨的共享圖，舊 owner 不留殘餘
-      // 存取（含舊 owner 建立的、與舊 owner 被共享進來的）。
-      await db.deleteAllSharesForResource(input.resourceType, input.resourceId);
 
       recordAuditEvent({
         actorUserId: ctx.user.id,

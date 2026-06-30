@@ -51,9 +51,9 @@ describe("AssetsPanel 真實 procedure（AIDV-12）", () => {
 
   it("旗標 ON ＋ myAssets 回資料 → 渲染真實資產（title / sourceStudio）", () => {
     flags.real = true;
-    h.q.data = [
+    h.q.data = { items: [
       { id: 11, title: "雪山晨光", assetType: "image", sourceStudio: "image", modelId: "flux", provider: "fal", createdAt: Date.now() },
-    ];
+    ], nextCursor: null };
     const { container } = render(<AssetsPanel />);
     expect(screen.getByText(/雪山晨光/)).toBeTruthy();
     expect(container.textContent).toContain("image");

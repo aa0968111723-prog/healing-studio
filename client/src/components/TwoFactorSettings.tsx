@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, ShieldCheck, ShieldOff, Copy } from "lucide-react";
@@ -107,7 +108,7 @@ export default function TwoFactorSettings() {
   };
 
   const copy = (value: string) => {
-    void navigator.clipboard.writeText(value).then(
+    void copyToClipboard(value).then(
       () => setInfo("已複製到剪貼簿"),
       () => setError("複製失敗，請手動選取")
     );
