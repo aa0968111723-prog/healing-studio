@@ -52,7 +52,7 @@ import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Textarea } from "@/components/ui/textarea";
 import { formatTwd } from "@shared/currency";
 import { isLeaderOrAdmin } from "@shared/const";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Link, useLocation, useSearch } from "wouter";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
@@ -124,6 +124,7 @@ function StatCard({
 export default function AdminPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
+  const prefersReducedMotion = useReducedMotion();
 
   const [quotaInputs, setQuotaInputs] = useState<Record<number, string>>({});
   const [autoCreditAmountInputs, setAutoCreditAmountInputs] = useState<
@@ -761,8 +762,8 @@ export default function AdminPage() {
             filteredUsers.map(u => (
               <motion.div
                 key={u.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={prefersReducedMotion ? {} : { opacity: 0 }}
+                animate={prefersReducedMotion ? {} : { opacity: 1 }}
               >
                 <GlassCard>
                   <div className="flex items-center gap-4">
@@ -988,8 +989,8 @@ export default function AdminPage() {
             activityQuery.data.map(a => (
               <motion.div
                 key={a.userId}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={prefersReducedMotion ? {} : { opacity: 0 }}
+                animate={prefersReducedMotion ? {} : { opacity: 1 }}
               >
                 <GlassCard>
                   <div className="space-y-2">
@@ -1373,8 +1374,8 @@ export default function AdminPage() {
               return (
                 <motion.div
                   key={g.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                  initial={prefersReducedMotion ? {} : { opacity: 0 }}
+                  animate={prefersReducedMotion ? {} : { opacity: 1 }}
                 >
                   <GlassCard>
                     <div className="flex items-start gap-3">
@@ -1515,8 +1516,8 @@ export default function AdminPage() {
             feedbacksQuery.data.map(fb => (
               <motion.div
                 key={fb.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={prefersReducedMotion ? {} : { opacity: 0 }}
+                animate={prefersReducedMotion ? {} : { opacity: 1 }}
               >
                 <GlassCard>
                   <div className="flex items-start justify-between gap-3">
@@ -1639,6 +1640,7 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 function AiSiteResearchPanel() {
+  const prefersReducedMotion = useReducedMotion();
   const utils = trpc.useUtils();
   const [scanPrompt, setScanPrompt] = useState(
     "掃描全站程式碼，找出潛在缺陷、效能問題、安全漏洞、以及可優化的架構點"
@@ -1995,8 +1997,8 @@ function AiSiteResearchPanel() {
             filteredProposals.map(p => (
               <motion.div
                 key={p.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
+                animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
               >
                 <div className="p-3 rounded-lg bg-muted/20 border border-white/5 space-y-2">
                   <div className="flex items-start justify-between gap-2">
