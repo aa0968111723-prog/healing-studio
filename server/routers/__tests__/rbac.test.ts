@@ -51,6 +51,10 @@ vi.mock("../../db", () => ({
   transferResourceOwnership: vi.fn(async (...a: unknown[]) =>
     record("transferResourceOwnership", ...a)
   ),
+  // AIDV-186：原子化的「移轉擁有權＋清共享」合併 helper（單一 DB transaction）。
+  transferResourceOwnershipAndWipeShares: vi.fn(async (...a: unknown[]) =>
+    record("transferResourceOwnershipAndWipeShares", ...a)
+  ),
   listSharesForResource: vi.fn(async () => []),
 }));
 
@@ -242,11 +246,11 @@ describe("AIDV-121 rbac.transferOwnership", () => {
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(
-      dbMock.calls.find(c => c.fn === "transferResourceOwnership")
+      dbMock.calls.find(c => c.fn === "transferResourceOwnershipAndWipeShares")
     ).toBeFalsy();
   });
 
-  it("旗標 ON：owner 可移轉 → transfer + deleteAllSharesForResource 清乾淨", async () => {
+  it("旗標 ON：owner 可移轉 → 走原子合併 helper（移轉＋清共享同一交易）", async () => {
     rbacFlagOn = true;
     dbMock.ownerFacts = { ownerId: OWNER_ID, visibility: null, teamId: null };
     dbMock.usersById = [{ id: OTHER_ID }];
@@ -256,13 +260,20 @@ describe("AIDV-121 rbac.transferOwnership", () => {
       newOwnerUserId: OTHER_ID,
     });
     expect(res).toEqual({ success: true });
+    // AIDV-186：移轉擁有權＋清共享須原子化，rbac 應呼叫單一合併 helper、
+    // 帶正確參數（resourceType / resourceId / newOwnerUserId）。
+    const atomic = dbMock.calls.find(
+      c => c.fn === "transferResourceOwnershipAndWipeShares"
+    );
+    expect(atomic).toBeTruthy();
+    expect(atomic?.args).toEqual(["asset", 3, OTHER_ID]);
+    // 不再走「兩個非交易 await」的舊路徑（避免部分失敗留殘餘共享）。
     expect(
       dbMock.calls.find(c => c.fn === "transferResourceOwnership")
-    ).toBeTruthy();
-    // 移轉後應清掉此資源的「全部」共享（給新 owner 乾淨共享圖、舊 owner 不留殘餘）
+    ).toBeFalsy();
     expect(
       dbMock.calls.find(c => c.fn === "deleteAllSharesForResource")
-    ).toBeTruthy();
+    ).toBeFalsy();
   });
 
   it("旗標 ON：移轉給自己 → BAD_REQUEST", async () => {
@@ -289,7 +300,7 @@ describe("AIDV-121 rbac.transferOwnership", () => {
       })
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(
-      dbMock.calls.find(c => c.fn === "transferResourceOwnership")
+      dbMock.calls.find(c => c.fn === "transferResourceOwnershipAndWipeShares")
     ).toBeFalsy();
   });
 
@@ -304,7 +315,7 @@ describe("AIDV-121 rbac.transferOwnership", () => {
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(
-      dbMock.calls.find(c => c.fn === "transferResourceOwnership")
+      dbMock.calls.find(c => c.fn === "transferResourceOwnershipAndWipeShares")
     ).toBeFalsy();
   });
 });

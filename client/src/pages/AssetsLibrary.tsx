@@ -74,7 +74,7 @@ import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { DriveLibrarySection } from "@/components/DriveLibrarySection";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
-import { shortErrorMsg } from "@/lib/upload";
+import { shortErrorMsg, uploadFileToS3 } from "@/lib/upload";
 import {
   resolveAssetsLibraryRouteState,
   type AssetsLibrarySectionId as SectionId,
@@ -348,28 +348,7 @@ function UploadDialog({
     }
     setUploading(true);
     try {
-      // Read file as base64
-      const reader = new FileReader();
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
-      const resp = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          fileName: selectedFile.name,
-          mimeType: selectedFile.type,
-          data: base64Data,
-        }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json();
-        throw new Error(err.error || "上傳失敗");
-      }
-      const { url, fileKey } = await resp.json();
+      const { url, fileKey } = await uploadFileToS3(selectedFile);
       await uploadMutation.mutateAsync({
         title: title.trim(),
         assetType,

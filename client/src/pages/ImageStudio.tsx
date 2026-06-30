@@ -32,6 +32,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useEmptyPromptHelper } from "@/lib/emptyPromptHelper";
 import {
   Image,
@@ -1058,8 +1059,7 @@ function ResultImage({
             size="sm"
             className="text-xs h-7 gap-1"
             onClick={() => {
-              navigator.clipboard.writeText(url);
-              toast.success("已複製圖片 URL");
+              void copyToClipboard(url, "已複製圖片 URL");
             }}
           >
             <Copy className="w-3 h-3" />
@@ -1105,8 +1105,7 @@ function Model3DResult({
               variant="outline"
               className="text-xs gap-1.5"
               onClick={() => {
-                navigator.clipboard.writeText(glbUrl);
-                toast.success("已複製 GLB URL");
+                void copyToClipboard(glbUrl, "已複製 GLB URL");
               }}
             >
               <Copy className="w-3 h-3" /> 複製 URL
@@ -1135,8 +1134,7 @@ function Model3DResult({
                 variant="ghost"
                 className="text-xs h-6 gap-1"
                 onClick={() => {
-                  navigator.clipboard.writeText(v!);
-                  toast.success(`已複製 ${k} URL`);
+                  void copyToClipboard(v!, `已複製 ${k} URL`);
                 }}
               >
                 <Copy className="w-2.5 h-2.5" />{" "}
@@ -1186,8 +1184,7 @@ function PoseResult({ poseUrl, prompt }: { poseUrl: string; prompt: string }) {
           size="sm"
           className="flex-1 text-xs h-7 gap-1"
           onClick={() => {
-            navigator.clipboard.writeText(poseUrl);
-            toast.success("已複製姿勢圖 URL");
+            void copyToClipboard(poseUrl, "已複製姿勢圖 URL");
           }}
         >
           <Copy className="w-3 h-3" /> 複製 URL（用於 ControlNet）
@@ -1423,8 +1420,7 @@ function HistoryPanel({ onReuse }: { onReuse: (item: HistoryItem) => void }) {
                   size="sm"
                   className="h-5 text-[10px] px-1.5 gap-1"
                   onClick={() => {
-                    navigator.clipboard.writeText(item.prompt);
-                    toast.success("已複製提示詞");
+                    void copyToClipboard(item.prompt, "已複製提示詞");
                   }}
                 >
                   <Copy className="w-2.5 h-2.5" /> 複製

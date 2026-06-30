@@ -315,7 +315,7 @@ export async function runFalTrainingJob(
           (Date.now() - trainingStartTime) / 60_000
         );
         await updateBackgroundJob(jobId, {
-          progress: Math.min(85, 30 + Math.floor(Math.random() * 40)),
+          progress: 50,
           progressMessage: `Fal.ai 訓練進行中...（已耗時 ${elapsedMin} 分鐘）`,
         });
       } catch {

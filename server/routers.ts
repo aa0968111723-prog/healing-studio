@@ -42,6 +42,7 @@ import { proStudioRouter } from "./routers/proStudio";
 import { imageStudioRouter } from "./routers/imageStudio";
 import { videoStudioRouter } from "./routers/videoStudio";
 import { videoProjectRouter } from "./routers/videoProject";
+import { videoAnalyticsRouter } from "./routers/videoAnalyticsRouter";
 import { webhookRouter } from "./routers/webhook";
 import { apiKeyRouter } from "./routers/apiKeyRouter";
 import { exportRouter } from "./routers/export";
@@ -82,6 +83,7 @@ import { orbConversationsRouter } from "./routers/orbConversationsRouter";
 import { adminRouter as adminEvalRouter } from "./routers/adminRouter";
 import { agentCollaborationRouter } from "./routers/agentCollaborationRouter";
 import { agentCapabilityRouter } from "./routers/agentCapabilityRouter";
+import { agentWorkflowRouter } from "./routers/agentWorkflowRouter";
 import { modelWishesRouter } from "./routers/modelWishesRouter";
 import { orchestrationRunsRouter } from "./routers/orchestrationRunsRouter";
 import { orbTracesRouter } from "./routers/orbTraces";
@@ -309,6 +311,7 @@ export const appRouter = router({
   imageStudio: imageStudioRouter,
   videoStudio: videoStudioRouter,
   videoProject: videoProjectRouter,
+  videoAnalytics: videoAnalyticsRouter,
   webhook: webhookRouter,
   apiKey: apiKeyRouter,
   export: exportRouter,
@@ -329,6 +332,7 @@ export const appRouter = router({
   orbConversations: orbConversationsRouter,
   agentCollaboration: agentCollaborationRouter,
   agentCapability: agentCapabilityRouter,
+  agentWorkflow: agentWorkflowRouter,
   modelWishes: modelWishesRouter,
   orchestrationRuns: orchestrationRunsRouter,
   adminEval: adminEvalRouter,

@@ -11,6 +11,7 @@ import { serverEnv } from "../_core/env.validated.js";
 import { getDb } from "../db.js";
 import { orbSystemAlerts } from "../../drizzle/schema.js";
 import { eq, and, isNull } from "drizzle-orm";
+import { setProviderHealth, markProviderRecovered } from "../services/providerHealth.js";
 
 // ─── Provider Probe Config ───────────────────────────────────────────────────
 
@@ -281,11 +282,23 @@ async function runProbeCycle(): Promise<void> {
           await resolveProviderAlert(providerId);
           state.alertWritten = false;
         }
+        // Bridge: update router health store so providerRouter can resume using this provider
+        if (config.kind === "generation") {
+          markProviderRecovered(providerId);
+        }
       } else {
         // Failure path
         if (consecutiveFailures >= ALERT_THRESHOLD && !wasAlerting) {
           await writeProviderAlert(providerId, state);
           state.alertWritten = true;
+        }
+        // Bridge: mark provider degraded in router health store after threshold
+        if (config.kind === "generation" && consecutiveFailures >= ALERT_THRESHOLD) {
+          setProviderHealth(
+            providerId,
+            "degraded",
+            `probe failed ${consecutiveFailures}× ${state.error ?? `HTTP ${state.statusCode ?? "none"}`}`
+          );
         }
         console.warn(
           `[ProviderHealthProbe] ⚠️  provider=${providerId} consecutive_failures=${consecutiveFailures}` +
@@ -337,3 +350,5 @@ export function stopProviderHealthProbeCron(): void {
     console.log("[ProviderHealthProbe] 🛑 Cron stopped");
   }
 }
+
+export { runProbeCycle as _runProbeCycleForTest };

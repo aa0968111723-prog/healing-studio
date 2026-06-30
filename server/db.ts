@@ -29,6 +29,7 @@ import {
   consistencyVault,
   InsertConsistencyVaultItem,
   subscriptionPlans,
+  userSubscriptions,
   aiDirectorPreferences,
   InsertAiDirectorPreference,
   generationHistory,
@@ -528,7 +529,7 @@ export async function getUsersByIds(ids: number[]) {
 export async function getAllUsers() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(users).orderBy(desc(users.createdAt));
+  return db.select().from(users).orderBy(desc(users.createdAt)).limit(10000);
 }
 
 // AIDV-618: cursor pagination — cursor = id of last fetched row; orderBy desc(id)
@@ -1060,6 +1061,17 @@ export async function getModelTrainingConsentsByUser(userId: number) {
     .orderBy(desc(modelTrainingConsents.createdAt));
 }
 
+/** AIDV-796: Batch fetch — replaces N individual getModelTrainingConsent calls. */
+export async function getModelTrainingConsentsByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(modelTrainingConsents)
+    .where(inArray(modelTrainingConsents.id, ids));
+}
+
 export async function revokeModelTrainingConsent(
   id: number,
   reason: string | null
@@ -1152,6 +1164,23 @@ export async function getDigitalAsset(id: number) {
     .select()
     .from(digitalAssetLibrary)
     .where(eq(digitalAssetLibrary.id, id))
+    .limit(1);
+  return rows[0] || null;
+}
+
+export async function getDigitalAssetByUrl(userId: number, fileUrl: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(
+      and(
+        eq(digitalAssetLibrary.userId, userId),
+        eq(digitalAssetLibrary.fileUrl, fileUrl),
+        eq(digitalAssetLibrary.assetType, "video")
+      )
+    )
     .limit(1);
   return rows[0] || null;
 }
@@ -2297,6 +2326,26 @@ export async function getPlanById(id: number) {
   return result[0];
 }
 
+/**
+ * AIDV-255：取得使用者目前訂閱（planId / status），供 4K 付費守門判定。
+ * 查不到（無列）→ 回 null（呼叫端 fail-closed 視為免費方案）。
+ */
+export async function getUserSubscription(
+  userId: number
+): Promise<{ planId: string; status: string | null } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db
+    .select({
+      planId: userSubscriptions.planId,
+      status: userSubscriptions.status,
+    })
+    .from(userSubscriptions)
+    .where(eq(userSubscriptions.userId, userId))
+    .limit(1);
+  return result[0] ?? null;
+}
+
 // ─── AI Director Preferences ────────────────────────────────────────────────
 
 export async function getDirectorPreferences(userId: number) {
@@ -2427,6 +2476,18 @@ export async function getCustomBlocksByUser(
     .from(customBlocks)
     .where(eq(customBlocks.userId, userId))
     .orderBy(desc(customBlocks.createdAt));
+}
+
+/** AIDV-793: Fetch a single custom block, enforcing userId ownership (IDOR prevention). */
+export async function getCustomBlock(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(customBlocks)
+    .where(and(eq(customBlocks.id, id), eq(customBlocks.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function deleteCustomBlock(id: number, userId: number) {
@@ -2618,9 +2679,22 @@ export async function upsertSystemSettings(
   if (!db) throw new Error("Database not available");
   const existing = await getSystemSettings(userId);
   if (existing) {
+    // extraSettings is a shared JSON blob written by independent panels
+    // (e.g. ProviderPanel → generationProvider, FeatureFlagsTab →
+    // featureFlags). A bare `.set(data)` would overwrite the whole column,
+    // so each panel's save would silently wipe the other's keys
+    // (last-writer-wins). Shallow-merge the incoming top-level keys over the
+    // existing blob so concurrent panels coexist.
+    const patch: Partial<InsertSystemSetting> = { ...data };
+    if (data.extraSettings !== undefined && data.extraSettings !== null) {
+      patch.extraSettings = {
+        ...(existing.extraSettings ?? {}),
+        ...data.extraSettings,
+      };
+    }
     await db
       .update(systemSettings)
-      .set(data)
+      .set(patch)
       .where(eq(systemSettings.userId, userId));
     return existing.id;
   } else {
@@ -2671,6 +2745,28 @@ export async function getStuckJobsByType(
       and(
         eq(backgroundJobs.jobType, jobType),
         eq(backgroundJobs.status, "processing"),
+        sql`${backgroundJobs.updatedAt} < ${cutoff}`
+      )
+    )
+    .orderBy(backgroundJobs.createdAt)
+    .limit(limit);
+}
+
+export async function getQueuedStuckJobsByType(
+  jobType: typeof backgroundJobs.$inferSelect["jobType"],
+  stuckAfterMinutes = 10,
+  limit = 5
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const cutoff = new Date(Date.now() - stuckAfterMinutes * 60 * 1000);
+  return db
+    .select()
+    .from(backgroundJobs)
+    .where(
+      and(
+        eq(backgroundJobs.jobType, jobType),
+        eq(backgroundJobs.status, "queued"),
         sql`${backgroundJobs.updatedAt} < ${cutoff}`
       )
     )
@@ -4593,6 +4689,70 @@ export async function transferResourceOwnership(
 }
 
 /**
+ * AIDV-186：原子化「移轉擁有權 ＋ 清掉該資源全部共享」。
+ *
+ * 為什麼要包進單一交易：rbac.transferOwnership 原本分兩步各自跑獨立
+ * UPDATE（移 owner）＋ DELETE（清 shares），中間沒有共用交易。若第二步
+ * 失敗（或兩步之間有 concurrent share 寫入），會出現「擁有權已轉走、舊
+ * owner 的共享卻殘存」的狀態——舊 owner 對一個已不屬於他的資源仍保有殘餘
+ * 存取，違背此操作「move ownership AND wipe all shares」的安全不變式。
+ *
+ * 包進一個 db.transaction 後：任一步失敗即整體 rollback，擁有權不變、無殘餘
+ * shares；成功則兩步原子提交。delete 在 update 之後、同一原子單元內執行，
+ * 兩步之間的 concurrent share 寫入也會被這次 DELETE 一併清掉。
+ */
+export async function transferResourceOwnershipAndWipeShares(
+  resourceType: ResourceShareType,
+  resourceId: number,
+  newOwnerUserId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async tx => {
+    // 1) 移轉擁有權（更新 owner 欄位）。各資源表 owner 欄位皆為 userId。
+    switch (resourceType) {
+      case "project":
+        await tx
+          .update(creativeProjects)
+          .set({ userId: newOwnerUserId })
+          .where(eq(creativeProjects.id, resourceId));
+        break;
+      case "asset":
+        await tx
+          .update(digitalAssetLibrary)
+          .set({ userId: newOwnerUserId })
+          .where(eq(digitalAssetLibrary.id, resourceId));
+        break;
+      case "prompt":
+        await tx
+          .update(promptLibrary)
+          .set({ userId: newOwnerUserId })
+          .where(eq(promptLibrary.id, resourceId));
+        break;
+      case "material":
+        await tx
+          .update(teachingMaterials)
+          .set({ userId: newOwnerUserId })
+          .where(eq(teachingMaterials.id, resourceId));
+        break;
+      default: {
+        const _exhaustive: never = resourceType;
+        throw new Error(`未知資源型別: ${String(_exhaustive)}`);
+      }
+    }
+    // 2) 清掉此資源的全部共享（同一原子單元內，舊 owner 不留殘餘存取）。
+    await tx
+      .delete(resourceShares)
+      .where(
+        and(
+          eq(resourceShares.resourceType, resourceType),
+          eq(resourceShares.resourceId, resourceId)
+        )
+      );
+  });
+}
+
+/**
  * 讀某資源的 owner facts（{ ownerId, visibility, teamId }），給 canAccess /
  * share/transfer 的擁有權驗證用。找不到回 null。不同資源表欄位略異，這裡
  * 投影成統一形狀（沒有 visibility/teamId 的型別回 null）。
@@ -4707,6 +4867,17 @@ export async function getRealEarthEntry(id: number): Promise<RealEarthEntry | nu
     .where(eq(realEarthEntries.id, id))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** AIDV-802: Batch fetch multiple realEarthEntries in one query (replaces N+1 loop). */
+export async function getRealEarthEntriesByIds(ids: number[]): Promise<RealEarthEntry[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(realEarthEntries)
+    .where(inArray(realEarthEntries.id, ids));
 }
 
 export async function getRealEarthEntries(params: {
@@ -5108,7 +5279,7 @@ const USER_OWNED_TABLES = [
   "orb_workflow_executions",
   "orb_spirit_collaboration_metrics",
   "orb_cost_attribution",
-  "orb_system_alerts",
+  "orb_system_alerts", // MySQL legacy name; Supabase prod table is "system_alerts"
   "worldbuilding_frameworks",
   "world_storyboards",
   "creative_projects",
@@ -5120,6 +5291,14 @@ const USER_OWNED_TABLES = [
   "refresh_tokens",
   "user_workflows",
   "studio_recipes",
+  "model_wishes",
+  "model_wish_votes",
+  "webhook_subscriptions",
+  "api_keys",
+  "featured_showcase_comments",
+  "teaching_materials",
+  "teaching_material_access_log",
+  "video_projects",
 ] as const;
 
 /**

@@ -98,6 +98,19 @@ export interface AgentPlannerInput {
    * `critiquePlan`'s internal default.
    */
   critiqueRefineBelow?: number;
+  /**
+   * Maximum number of critique→refine round-trips when `enableCritique`
+   * is true. Each round re-invokes the planner with a directed critique
+   * prompt built from the BEST plan seen so far. The loop stops early
+   * when the critic is satisfied (no blockers and score >= refineBelow)
+   * OR a refined plan fails to beat the best score so far (no-improvement
+   * guard) OR the refined plan no longer yields a workflow.
+   *
+   * Defaults to 1 — identical to the previous single-pass behaviour, so
+   * existing call sites are unaffected unless they opt into more rounds.
+   * Clamped to [1, 3] to bound LLM cost on a direct-to-production path.
+   */
+  maxRefineRounds?: number;
 }
 
 function summarizePreferencesForPlanner(
@@ -129,6 +142,13 @@ export interface AgentPlannerResult extends GatedAgentPlanResult {
   critique?: PlanCritiqueResult | null;
   /** Set when the refine pass actually ran (the LLM was called twice). */
   critiqueRefined?: boolean;
+  /**
+   * Number of refine round-trips that actually ran (0 when critique was
+   * skipped or the draft was already healthy). Bounded by
+   * `maxRefineRounds`. Purely informational — callers/telemetry can read
+   * it to see how hard the loop worked.
+   */
+  critiqueRounds?: number;
 }
 
 function safeStringify(value: unknown, maxLength = 3_000): string {
@@ -993,117 +1013,147 @@ function extractWorkflowFromResult(
 }
 
 /**
- * Run the planner with optional critique + refine pass. Falls back to
- * `runSchemaFirstAgentPlanner` semantics whenever critique is disabled,
- * the gating layer rejected the plan, or no `runWorkflow` came out of the
- * conversion. The refine pass is bounded to 1 LLM round-trip; if the
- * second result is also invalid we surface that — we never loop.
+ * Run the planner with optional critique + bounded-iterative refine.
+ *
+ * Falls back to `runSchemaFirstAgentPlanner` semantics whenever critique
+ * is disabled, the gating layer rejected the plan, or no `runWorkflow`
+ * came out of the conversion.
+ *
+ * When `enableCritique` is true the function runs a Generator→Critic loop
+ * (Reflection pattern): the draft is scored, and while the critic is
+ * unsatisfied it re-invokes the planner with a directed critique prompt,
+ * up to `maxRefineRounds` times. It tracks the BEST-scoring plan across
+ * rounds and returns that — never a refined plan that scored worse than
+ * what we already had. The loop stops early on any of:
+ *   - the critic is satisfied (no blockers, score >= refineBelow),
+ *   - a refined round fails to improve on the best score (no-improvement
+ *     guard — avoids burning LLM budget on a model that's stuck),
+ *   - a refined round no longer yields a workflow (clarification/invalid),
+ *   - a refine LLM call throws.
+ *
+ * `maxRefineRounds` defaults to 1, which is byte-for-byte the previous
+ * single-pass behaviour for existing callers. Each refine round is wrapped
+ * in try/catch so a malformed second response degrades to the best plan so
+ * far rather than crashing the chat.
  */
 export async function runSchemaFirstAgentPlannerWithCritique(
   input: AgentPlannerInput
 ): Promise<AgentPlannerResult> {
   const draft = await runSchemaFirstAgentPlanner(input);
   if (!input.enableCritique) {
-    return { ...draft, critique: null, critiqueRefined: false };
+    return { ...draft, critique: null, critiqueRefined: false, critiqueRounds: 0 };
   }
   // Critique is meaningful only on plans the gate already accepted as a
   // workflow; clarification / blocked / invalid statuses skip refinement.
   if (draft.status !== "converted" && draft.status !== "tasked") {
-    return { ...draft, critique: null, critiqueRefined: false };
+    return { ...draft, critique: null, critiqueRefined: false, critiqueRounds: 0 };
   }
-  const workflow = extractWorkflowFromResult(draft);
-  if (!workflow) return { ...draft, critique: null, critiqueRefined: false };
+  const draftWorkflow = extractWorkflowFromResult(draft);
+  if (!draftWorkflow) {
+    return { ...draft, critique: null, critiqueRefined: false, critiqueRounds: 0 };
+  }
 
   const refineBelow = input.critiqueRefineBelow ?? 75;
+  const maxRounds = Math.max(1, Math.min(3, Math.trunc(input.maxRefineRounds ?? 1)));
   // Pass the latest user utterance into the critic so the modality coherence
   // check has something to compare against; without it the critic skips
   // coherence silently (back-compat).
   const userText = extractLatestUserTextFromMessages(input.messages);
-  const critique = critiquePlan(workflow, { refineBelow, userText });
-  if (!critique.shouldRefine) {
-    return { ...draft, critique, critiqueRefined: false };
-  }
-
-  // Build the refine prompt and re-invoke the same planner. We append the
-  // critique to the original message thread as a SYSTEM-style note so the
-  // LLM treats it as a constraint, not as user input.
   const llm = input.invoke ?? invokeLLM;
-  const refinePrompt = buildCritiquePromptForLLM(workflow, critique);
-  const refineMessages: Message[] = [
-    ...input.messages,
-    {
-      role: "user",
-      content: refinePrompt,
-    } as Message,
-  ];
+  // Re-detect the user-selected mode once so every refine round keeps the
+  // gate enforcing multi-step / navigate contracts on the refined plan too.
+  const critiqueGateModeMatch = input.context
+    ? input.context.match(/使用者選擇模式[:：]\s*([a-z_-]+)/i)
+    : null;
+  const critiqueGateMode = critiqueGateModeMatch?.[1]?.toLowerCase();
+  const gateOptions = critiqueGateMode ? { requestedMode: critiqueGateMode } : undefined;
 
-  // 第二次 LLM call 仍可能因 response_format 不完全強制（不同 provider 對
-  // strict json_schema 支援度不一）回傳壞掉的 JSON 或被 parseAndGatePlan
-  // gate 拒絕。整個 refine pass 包 try/catch — 失敗時 fall back 到 draft
-  // 並附 critique，比 crash 整條 chat 強。
-  let refinedGated: ReturnType<typeof parseAndGatePlan>;
-  let refinedRaw: string;
-  try {
-    const refineResult = await llm({
-      messages: buildAgentPlannerMessages({
-        ...input,
-        messages: refineMessages,
-      }),
-      runName: "orb-agent-schema-first-planner-refine",
-      maxTokens: input.maxTokens ?? 2_500,
-      response_format: {
-        type: "json_schema",
-        json_schema: AGENT_PLAN_V3_JSON_SCHEMA as unknown as {
-          name: string;
-          schema: Record<string, unknown>;
-          strict?: boolean;
+  // `best*` always holds the highest-scoring plan we've produced so far.
+  // We seed it with the draft and only replace it when a refined round
+  // strictly beats it, so a regression can never be returned.
+  let bestResult: AgentPlannerResult = draft;
+  let bestWorkflow: RunWorkflowAction = draftWorkflow;
+  let bestCritique = critiquePlan(draftWorkflow, { refineBelow, userText });
+  let rounds = 0;
+
+  while (rounds < maxRounds && bestCritique.shouldRefine) {
+    // The refine prompt is always built from the BEST plan so far — the
+    // critic's issue list describes exactly that plan, so the LLM gets a
+    // coherent "fix these N problems in this exact JSON" instruction.
+    const refinePrompt = buildCritiquePromptForLLM(bestWorkflow, bestCritique);
+    const refineMessages: Message[] = [
+      ...input.messages,
+      { role: "user", content: refinePrompt } as Message,
+    ];
+
+    let refinedGated: ReturnType<typeof parseAndGatePlan>;
+    let refinedRaw: string;
+    try {
+      const refineResult = await llm({
+        messages: buildAgentPlannerMessages({ ...input, messages: refineMessages }),
+        runName:
+          rounds === 0
+            ? "orb-agent-schema-first-planner-refine"
+            : `orb-agent-schema-first-planner-refine-${rounds + 1}`,
+        maxTokens: input.maxTokens ?? 2_500,
+        response_format: {
+          type: "json_schema",
+          json_schema: AGENT_PLAN_V3_JSON_SCHEMA as unknown as {
+            name: string;
+            schema: Record<string, unknown>;
+            strict?: boolean;
+          },
         },
-      },
-    });
-    refinedRaw = extractPlannerContent(refineResult);
-    // Re-detect the user-selected mode for the critique-refine pass so the
-    // gate keeps enforcing multi-step contracts on the refined plan too.
-    const critiqueGateModeMatch = input.context
-      ? input.context.match(/使用者選擇模式[:：]\s*([a-z_-]+)/i)
-      : null;
-    const critiqueGateMode = critiqueGateModeMatch?.[1]?.toLowerCase();
-    refinedGated = parseAndGatePlan(
-      refinedRaw,
-      critiqueGateMode ? { requestedMode: critiqueGateMode } : undefined
-    );
-  } catch (err) {
-    // refine 失敗 — 保留 draft + 原 critique。critiqueRefined=false 已經
-    // 告訴 caller「沒跑 refine」；錯誤詳情用 logger.warn 而不是塞進回傳
-    // 形狀，避免改 PlannerResult schema。
-    logger.warn("planner_refine_failed", {
-      error: err instanceof Error ? err.message : String(err),
-      draftStatus: draft.status,
-    });
-    return {
-      ...draft,
-      critique,
-      critiqueRefined: false,
-    };
-  }
-
-  // If the refine attempt itself produces a workflow, run the critic ONE
-  // more time so callers can see the post-refine score (purely informational
-  // — we never refine twice).
-  let postCritique: PlanCritiqueResult | null = null;
-  for (const action of refinedGated.actions) {
-    if (action.type === "runWorkflow") {
-      postCritique = critiquePlan(action, { refineBelow, userText });
+      });
+      refinedRaw = extractPlannerContent(refineResult);
+      refinedGated = parseAndGatePlan(refinedRaw, gateOptions);
+    } catch (err) {
+      // refine 失敗 — 保留目前 best + 其 critique，比 crash 整條 chat 強。
+      logger.warn("planner_refine_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        draftStatus: draft.status,
+        round: rounds + 1,
+      });
       break;
     }
+    rounds += 1;
+
+    // Build the refined plan into the SAME AgentPlannerResult shape the
+    // draft uses, then extract its workflow with the SAME helper
+    // (extractWorkflowFromResult). Critical: a "tasked" v3 plan carries no
+    // `runWorkflow` in its gated `actions` — the workflow only exists after
+    // adaptAgentPlanV3ToActions projection, which extractWorkflowFromResult
+    // performs. A plain `runWorkflow` scan here would return null for every
+    // tasked plan and silently stop the loop after one round (defeating the
+    // whole bounded-iteration / best-of mechanism).
+    const refinedResult: AgentPlannerResult = {
+      ...refinedGated,
+      rawContent: refinedRaw,
+      plannerUsed: true,
+      usedMultimodalPlanner: draft.usedMultimodalPlanner,
+    };
+    // A refined round that no longer yields a workflow (e.g. the LLM bailed
+    // to clarification, or the gate rejected it) can't be scored — keep the
+    // best plan so far and stop.
+    const refinedWorkflow = extractWorkflowFromResult(refinedResult);
+    if (!refinedWorkflow) break;
+
+    const refinedCritique = critiquePlan(refinedWorkflow, { refineBelow, userText });
+    // No-improvement guard: only adopt the refined plan when it strictly
+    // beats the best score. Otherwise stop — further rounds are unlikely
+    // to converge and each one costs an LLM call.
+    if (refinedCritique.score <= bestCritique.score) break;
+
+    bestResult = refinedResult;
+    bestWorkflow = refinedWorkflow;
+    bestCritique = refinedCritique;
   }
 
   return {
-    ...refinedGated,
-    rawContent: refinedRaw,
-    plannerUsed: true,
-    usedMultimodalPlanner: draft.usedMultimodalPlanner,
-    critique: postCritique ?? critique,
-    critiqueRefined: true,
+    ...bestResult,
+    critique: bestCritique,
+    critiqueRefined: rounds > 0,
+    critiqueRounds: rounds,
   };
 }
 

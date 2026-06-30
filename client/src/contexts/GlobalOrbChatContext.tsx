@@ -4732,12 +4732,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           && mentioned === "director"
           && cleanPrompt.length >= 6
         ) {
+          const capturedPath = locationPath;
           orbState.setState("thinking", "導導 開始排計畫…");
           setMessages(prev => [...prev, {
             role: "orb",
             text: `🗺️ 導導 排好計畫後，會把每一步交給對的精靈接手 — 你會看到他們一棒一棒接著做，最後第一位生成型精靈我會真的幫你做出來。`,
             at: Date.now(),
-            pagePath: locationPath,
+            pagePath: capturedPath,
             agentRole: "director",
             intent: "auto-multi-step-discussion",
           }]);
@@ -4763,7 +4764,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               role: "orb",
               text: `導導 啟動多步討論時遇到問題：${reason}`,
               at: Date.now(),
-              pagePath: locationPath,
+              pagePath: capturedPath,
               agentRole: "director",
             }]);
           } finally {

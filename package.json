@@ -18,6 +18,7 @@
     "check:learn-wiring": "node scripts/scan-learn-wiring.mjs",
     "check:settings-wiring": "node scripts/scan-settings-wiring.mjs",
     "check:smoke": "node scripts/smoke-routes.mjs",
+    "check:agent-health": "node scripts/check-agent-health.mjs",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:e2e": "playwright test",

@@ -53,7 +53,7 @@ export function ProviderPanel() {
     }
     spine.setProvider(pv);
     // 選配持久化（寫 extraSettings；失敗不影響本機切換）。
-    update.mutate({ extraSettings: { generationProvider: pv } } as any);
+    update.mutate({ extraSettings: { generationProvider: pv } });
   };
 
   return (

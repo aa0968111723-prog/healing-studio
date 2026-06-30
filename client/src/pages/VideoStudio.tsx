@@ -12,6 +12,12 @@ import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useWorldContext } from "@/contexts/WorldContextContext";
 import { WorldContextSidebar } from "@/components/WorldContextSidebar";
+import {
+  OutputSpecSelector,
+  OUTPUT_SPEC_DEFAULT,
+  outputSpecForGeneration,
+  type OutputSpecValue,
+} from "@/components/OutputSpecSelector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,6 +38,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import { useEmptyPromptHelper } from "@/lib/emptyPromptHelper";
 import {
   Film,
@@ -80,6 +87,7 @@ import { useLocation, useSearch } from "wouter";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
+import { parsePollStatus } from "@/lib/falResultParser";
 import { PromptVaultAdoption } from "@/components/promptVault";
 import { ENABLE_PROMPT_VAULT } from "@/config/promptVaultFlags";
 
@@ -242,8 +250,7 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
         <button
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
           onClick={() => {
-            navigator.clipboard.writeText(url);
-            toast.success("已複製影片 URL");
+            void copyToClipboard(url, "已複製影片 URL");
           }}
         >
           <Copy className="w-3 h-3" />
@@ -622,11 +629,17 @@ function ApiKeyBanner() {
 // ─── AIDV-520: Provider System Status Banner ───────────────────────────────
 
 function ProviderStatusBanner() {
-  const { data } = trpc.brain.providerSystemStatus.useQuery(undefined, {
+  // 缺口 1：retry: false 會讓任何瞬時失敗（網路抖動 / 401 / 5xx）→ data undefined →
+  // 這個「送出已暫停」安全橫幅自己變暗（fail-open）。改 retry: 2 收斂瞬時失敗，
+  // 並在持續失敗時以 console.warn 揭露，避免靜默。
+  const { data, isError } = trpc.brain.providerSystemStatus.useQuery(undefined, {
     refetchInterval: 60_000,
     refetchOnWindowFocus: false,
-    retry: false,
+    retry: 2,
   });
+  if (isError) {
+    console.warn("[ProviderStatusBanner] providerSystemStatus 查詢持續失敗，狀態橫幅暫時無法顯示");
+  }
   if (!data || data.status === "healthy") return null;
   const isDown = data.status === "down";
   const lastUpdated = data.lastCheckedAt
@@ -634,7 +647,13 @@ function ProviderStatusBanner() {
     : null;
   return (
     <div
-      role="alert"
+      // 缺口 2：依嚴重度拆分 live region。
+      // down（阻斷送出）→ role="alert"（隱含 assertive），即時搶播。
+      // degraded（非阻斷的常駐告知）→ role="status" + aria-live="polite"，禮貌通知不打斷。
+      // aria-atomic 讓 60s 輪詢更新時整段重讀，而非只讀差異片段。
+      role={isDown ? "alert" : "status"}
+      aria-live={isDown ? "assertive" : "polite"}
+      aria-atomic="true"
       className={`rounded-xl border px-3 py-2.5 text-xs flex items-start gap-2 leading-relaxed ${
         isDown
           ? "border-red-300/60 bg-red-50/70 dark:bg-red-900/20 text-red-900 dark:text-red-200"
@@ -683,15 +702,21 @@ function AsyncVideoPoller({
   onUpdate: (r: VideoResult) => void;
   label?: string;
 }) {
-  const modelId = (result.raw as any)?.raw_model_id ?? "";
+  const modelId =
+    (result.raw as Record<string, unknown> | undefined)?.raw_model_id as string ?? "";
   const [dismissed, setDismissed] = useState(false);
+
+  const onUpdateRef = useRef(onUpdate);
+  const resultRef = useRef(result);
+  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
+  useEffect(() => { resultRef.current = result; }, [result]);
 
   const { data, isError, error } = trpc.videoStudio.checkVideoStatus.useQuery(
     { requestId: result.request_id ?? "", modelId },
     {
       enabled: !!(result.request_id && !result.video_url && modelId),
       refetchInterval: query => {
-        const s = (query.state.data as any)?.status;
+        const s = parsePollStatus(query.state.data)?.status;
         return s === "COMPLETED" || s === "FAILED" ? false : 3000;
       },
       refetchIntervalInBackground: false,
@@ -700,19 +725,20 @@ function AsyncVideoPoller({
   );
 
   useEffect(() => {
-    if ((data as any)?.status === "COMPLETED" && (data as any)?.video_url) {
+    const poll = parsePollStatus(data);
+    if (poll?.status === "COMPLETED" && poll.video_url) {
       setDismissed(false); // 完成時自動顯示結果
       toast.success(`✅ ${label ?? "影片"} 生成完成！`);
-      onUpdate({
-        ...result,
-        video_url: (data as any).video_url,
-        raw: (data as any).raw,
+      onUpdateRef.current({
+        ...resultRef.current,
+        video_url: poll.video_url,
+        raw: poll.raw,
       });
-    } else if ((data as any)?.status === "FAILED") {
+    } else if (poll?.status === "FAILED") {
       toast.error(`❌ ${label ?? "影片"} 生成失敗`);
-      onUpdate({ ...result, raw: { ...(result.raw as any), failed: true } });
+      onUpdateRef.current({ ...resultRef.current, raw: { ...(resultRef.current.raw as Record<string, unknown>), failed: true } });
     }
-  }, [(data as any)?.status, (data as any)?.video_url, label]);
+  }, [data, label]);
 
   // 已有影片 URL → 直接顯示
   if (result.video_url) {
@@ -826,6 +852,24 @@ function TextToVideoTab() {
 
   // ─ PromptVault：最後一次送出的 t2v 提詞（存庫用）
   const [lastT2VPrompt, setLastT2VPrompt] = useState<string>("");
+
+  // ─ AIDV-255：共用輸出規格（resolution/fps/codec）。預設＝後端 VIDEO_OUTPUT_SPEC_DEFAULT，
+  //   未動時行為與改動前一致（後端「未帶/預設」皆走零行為變化路徑）。
+  const [t2vOutputSpec, setT2vOutputSpec] = useState<OutputSpecValue>(OUTPUT_SPEC_DEFAULT);
+  const outputSpecEntitlement = trpc.videoProject.outputSpecEntitlement.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+  });
+  const isPaidPlan = outputSpecEntitlement.data?.isPaid ?? false;
+  // 送給生成 mutation 的 outputSpec：套方案守門（4K→非付費退 1080p）；等於預設時回 undefined，
+  // 讓後端走零行為變化路徑——使用者沒動選擇器的既有生成完全不受影響（不對 Veo3 多注入 resolution）。
+  const effectiveOutputSpec = outputSpecForGeneration(t2vOutputSpec, isPaidPlan);
+
+  // ── AIDV-645: 送出前費用預估（對標 Studio.tsx pricingSummary pattern）
+  const pricingSummaryQuery = trpc.brain.pricingSummary.useQuery(
+    { durationSec: parseInt(klingDuration) || 5 },
+    { retry: false, staleTime: 60_000 }
+  );
+  const videoEstimate = pricingSummaryQuery.data?.video;
 
   // ─ Mutations
   const klingMut = trpc.videoStudio.klingTextToVideo.useMutation({
@@ -977,6 +1021,7 @@ function TextToVideoTab() {
         duration: klingDuration,
         aspectRatio: klingAspect,
         cfgScale: klingCfg,
+        outputSpec: effectiveOutputSpec,
       });
       setKlingResult(r);
       registerBgTask(r, "video", "Kling 文生影", klingPrompt);
@@ -1000,6 +1045,7 @@ function TextToVideoTab() {
         negativePrompt: wanNeg || undefined,
         resolution: wanRes,
         numFrames: wanFrames,
+        outputSpec: effectiveOutputSpec,
       });
       setWanResult(r);
       registerBgTask(r, "video", "Wan 文生影", wanPrompt);
@@ -1021,6 +1067,7 @@ function TextToVideoTab() {
       const r = await mmMut.mutateAsync({
         prompt: injectWorld(mmPrompt),
         promptOptimizer: mmOptimize,
+        outputSpec: effectiveOutputSpec,
       });
       setMmResult(r);
       registerBgTask(r, "video", "MiniMax 文生影", mmPrompt);
@@ -1043,6 +1090,7 @@ function TextToVideoTab() {
         prompt: injectWorld(veoPrompt),
         aspectRatio: veoAspect,
         generateAudio: veoAudio,
+        outputSpec: effectiveOutputSpec,
       });
       setVeoResult(r);
       registerBgTask(r, "video", "Veo 3 文生影", veoPrompt);
@@ -1124,7 +1172,32 @@ function TextToVideoTab() {
   runSoraRef.current = runSora;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+    <div className="space-y-3 sm:space-y-4">
+      {/* AIDV-255：共用輸出規格選擇器（套用本頁文生影各模型；解析度/幀率僅部分模型生效，4K 限付費） */}
+      <div className="rounded-xl border border-border/60 bg-card/40 p-3 sm:p-4">
+        <div className="mb-2">
+          <h3 className="text-sm font-medium">輸出規格</h3>
+          <p className="text-[11px] text-muted-foreground/70">
+            套用於下方文生影模型；實際生效程度依模型而定，4K 為付費方案專屬。
+          </p>
+        </div>
+        <OutputSpecSelector
+          value={t2vOutputSpec}
+          onChange={setT2vOutputSpec}
+          isPaid={isPaidPlan}
+        />
+      </div>
+      {videoEstimate && (
+        <div className="rounded-lg border border-border/50 bg-muted/40 px-3 py-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <Sparkles className="w-3.5 h-3.5 flex-shrink-0 text-primary/60" />
+          <span>
+            本次影片生成預估費用（{videoEstimate.label}）：約{" "}
+            <strong className="text-foreground">{videoEstimate.estimatedPoints}</strong> 點
+            {" ≈ US$"}{videoEstimate.estimatedUsd}
+          </span>
+        </div>
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Kling v2.1 */}
       <ToolCard
         icon={Clapperboard}
@@ -1709,6 +1782,7 @@ function TextToVideoTab() {
           />
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -4333,8 +4407,7 @@ function SmartPromptDialog({
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    navigator.clipboard.writeText(result);
-                    toast.success("已複製提詞");
+                    void copyToClipboard(result, "已複製提詞");
                   }}
                 >
                   <Copy className="w-3 h-3 mr-1" /> 複製
