@@ -23,6 +23,16 @@ vi.mock("@/contexts/ThemeContext", () => ({
 const h2 = vi.hoisted(() => ({ compileMutate: vi.fn() }));
 vi.mock("@/lib/trpc", () => ({
   trpc: {
+    useUtils: () => ({
+      agentPreferences: {
+        getPreferences: { invalidate: vi.fn() },
+        getDistilledProfile: { invalidate: vi.fn() },
+      },
+    }),
+    agentPreferences: {
+      getPreferences: { useQuery: () => ({ data: { onboardingCompletedAt: "2026-01-01T00:00:00Z" } }) },
+      updatePreferences: { useMutation: () => ({ mutate: vi.fn(), isPending: false }) },
+    },
     creativeProject: { list: { useQuery: () => ({ data: [{ id: 1, title: "雪山專案", status: "production" }, { id: 2, title: "森林專案", status: "concept" }] }) } },
     credits: { myBalance: { useQuery: () => ({ data: { remaining: 500 } }) } },
     contextPacket: {
