@@ -569,8 +569,8 @@ export function useBackgroundTasks() {
 export function useRegisterBgTask() {
   const ctx = useContext(BackgroundTasksContext);
   return useCallback(
-    async (result: unknown, studioType: StudioJobType, label?: string, prompt?: string) => {
-      if (!ctx) return;
+    async (result: unknown, studioType: StudioJobType, label?: string, prompt?: string): Promise<number | null> => {
+      if (!ctx) return null;
       const r = result as Record<string, unknown> | null;
       // 提取 request_id 和 model_id（支援直接和 raw 嵌套格式）
       const requestId =
@@ -583,8 +583,9 @@ export function useRegisterBgTask() {
         (r?.model as string) ??
         null;
       if (requestId && modelId) {
-        await ctx.submitTask({ studioType, requestId, modelId, label, prompt });
+        return await ctx.submitTask({ studioType, requestId, modelId, label, prompt });
       }
+      return null;
     },
     [ctx]
   );

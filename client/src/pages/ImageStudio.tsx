@@ -83,7 +83,7 @@ import { NextStepPanel } from "@/components/layout/NextStepPanel";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
 import { readImageStudioHandoff } from "@/components/home/OrbCreationStage";
 import { uploadFileToS3 } from "@/lib/upload";
-import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
+import { useRegisterBgTask, useBackgroundTasks } from "@/contexts/BackgroundTasksContext";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
 import { useGenerationTask } from "@/hooks/useGenerationTask";
 import { useAutoSavePrompt } from "@/hooks/useAutoSavePrompt";
@@ -2889,6 +2889,7 @@ export default function ImageStudio() {
   // 全站新手引導
   usePageTour("image-studio");
   const registerBgTask = useRegisterBgTask();
+  const { previewUrls: bgPreviewUrls, tasks: bgTasks } = useBackgroundTasks();
   const { openDrawer: openAssetsDrawer } = useAssetsDrawer();
   // 世界觀上下文：若用戶選定了創作專案，所有生成的 prompt 會自動注入
   // 該世界觀的一致性前綴（角色/場景/風格描述）。
@@ -3001,6 +3002,8 @@ export default function ImageStudio() {
     extras?: Record<string, string | null>;
   } | null>(null);
   const [resultPose, setResultPose] = useState<string | null>(null);
+  // jobId of an in-flight async background task; used to detect SSE completion
+  const [pendingBgJobId, setPendingBgJobId] = useState<number | null>(null);
 
   /**
    * 回到導演 AI：把目前 prompt + 第一張結果圖打包進 sessionStorage["directorReturn"]
@@ -3108,6 +3111,23 @@ export default function ImageStudio() {
     });
     return () => setPageContext(null);
   }, [model.name, activeTab, setPageContext]);
+
+  // ── Watch for SSE completion of a pending background job ──
+  useEffect(() => {
+    if (pendingBgJobId === null) return;
+    const previewUrl = bgPreviewUrls[pendingBgJobId];
+    if (previewUrl) {
+      setResultImages([previewUrl]);
+      setPendingBgJobId(null);
+      return;
+    }
+    // Also check tasks list (covers cases where previewUrls hasn't been populated yet)
+    const task = bgTasks.find(t => t.jobId === pendingBgJobId && t.status === "completed" && t.resultUrl);
+    if (task?.resultUrl) {
+      setResultImages([task.resultUrl]);
+      setPendingBgJobId(null);
+    }
+  }, [pendingBgJobId, bgPreviewUrls, bgTasks]);
 
   // ── 接手首頁光球的圖片交接 — 由 OrbCreationStage 透過 sessionStorage 傳遞
   //    prompt 與參考圖。一次性消費，避免回頭重訪時又覆蓋使用者新輸入。
@@ -3685,13 +3705,14 @@ export default function ImageStudio() {
 
       result = await currentMutation.mutateAsync(input);
       // For the background task label, use fullPrompt if present (text prompt is most meaningful)
-      registerBgTask(result, "image", `🖼️ ${model.name}`, fullPrompt || undefined);
+      const bgJobId = await registerBgTask(result, "image", `🖼️ ${model.name}`, fullPrompt || undefined);
 
       // 若為非同步任務（只有 request_id），不嘗試提取結果，直接提示並回傳
       const isAsyncResult = !!(
         result?.raw?.request_id || result?.raw?.is_async_polling
       );
       if (isAsyncResult) {
+        if (bgJobId) setPendingBgJobId(bgJobId);
         toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
         return;
       }
@@ -4368,7 +4389,7 @@ export default function ImageStudio() {
           </button>
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className={`hidden flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl border text-xs font-medium transition-all min-h-[44px] ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl border text-xs font-medium transition-all min-h-[44px] ${
               showHistory
                 ? "bg-primary text-primary-foreground border-primary"
                 : "border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground"
@@ -5154,7 +5175,7 @@ export default function ImageStudio() {
               {/* Content Area */}
               <div className="p-3 sm:p-4">
                 <AnimatePresence mode="wait">
-                  {isGenerating ? (
+                  {isGenerating || pendingBgJobId !== null ? (
                     <motion.div
                       key="generating"
                       initial={{ opacity: 0 }}
@@ -5171,7 +5192,7 @@ export default function ImageStudio() {
                         <div className="absolute inset-0 rounded-full border-2 border-violet-200/50 dark:border-violet-800/30 animate-ping" />
                       </div>
                       <div className="text-center">
-                        <p className="text-sm font-medium text-foreground">AI 正在創作中...</p>
+                        <p className="text-sm font-medium text-foreground">{pendingBgJobId !== null ? "後台生成中..." : "AI 正在創作中..."}</p>
                         <p className="text-xs text-muted-foreground mt-1">使用 {model.name} 生成</p>
                       </div>
                     </motion.div>
@@ -5260,7 +5281,7 @@ export default function ImageStudio() {
 
           {/* History Sidebar */}
           <AnimatePresence>
-            {false && showHistory && (
+            {showHistory && (
               <motion.div
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 260, opacity: 1 }}
