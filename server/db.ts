@@ -4869,6 +4869,17 @@ export async function getRealEarthEntry(id: number): Promise<RealEarthEntry | nu
   return rows[0] ?? null;
 }
 
+/** AIDV-802: Batch fetch multiple realEarthEntries in one query (replaces N+1 loop). */
+export async function getRealEarthEntriesByIds(ids: number[]): Promise<RealEarthEntry[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(realEarthEntries)
+    .where(inArray(realEarthEntries.id, ids));
+}
+
 export async function getRealEarthEntries(params: {
   category?: string;
   taiwanOnly?: boolean;
