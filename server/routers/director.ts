@@ -2866,30 +2866,40 @@ ${segmentSummaries}
       // 欄位，導演 AI 自動生成的內容會繞過 postGenActions，使用者永遠看不
       // 到自己的作品（這是「導演 AI 不走同一條儲存路線」的根因）。
       const studioType = persistedJobType;
-      const jobId = await db.createBackgroundJob({
-        userId,
-        jobType: persistedJobType as any,
-        status: "processing",
-        progress: 5,
-        progressMessage: label,
-        resultJson: {
-          segmentId: input.segmentId,
-          segmentIndex: input.segmentIndex,
-          prompt: input.prompt,
-          modelId: input.modelId,
-          studioType,
-          sourceStudio: "director",
-          label,
-          ...input.params,
-          // Persist the exact charged amount so pollGenerationTask's failure
-          // path can refund the same number of points instead of recomputing
-          // from a partial set of inputs (voice's charCount, for instance,
-          // is not part of params and would be silently dropped on refund).
-          chargedPoints: estimate.totalPoints,
-          // AIDV-9: 座艙操作類型 → 供 runPostGenForJob 建 prompt↔asset 邊
-          ...(input.relation ? { relation: input.relation } : {}),
-        } as any,
-      });
+      let jobId: number;
+      try {
+        jobId = await db.createBackgroundJob({
+          userId,
+          jobType: persistedJobType as any,
+          status: "processing",
+          progress: 5,
+          progressMessage: label,
+          resultJson: {
+            segmentId: input.segmentId,
+            segmentIndex: input.segmentIndex,
+            prompt: input.prompt,
+            modelId: input.modelId,
+            studioType,
+            sourceStudio: "director",
+            label,
+            ...input.params,
+            // Persist the exact charged amount so pollGenerationTask's failure
+            // path can refund the same number of points instead of recomputing
+            // from a partial set of inputs (voice's charCount, for instance,
+            // is not part of params and would be silently dropped on refund).
+            chargedPoints: estimate.totalPoints,
+            // AIDV-9: 座艙操作類型 → 供 runPostGenForJob 建 prompt↔asset 邊
+            ...(input.relation ? { relation: input.relation } : {}),
+          } as any,
+        });
+      } catch (jobErr) {
+        // AIDV-771: deductUserPoints 已扣點（非 demo），但 createBackgroundJob
+        // 失敗 → 沒有 jobId，pollGenerationTask 失敗路徑的退款（依 job.id）永遠
+        // 無法觸發，點數成孤兒。立即退款；demo 模式未扣點故跳過；尚無 jobId 故
+        // 與後續退款路徑互斥、不會雙退。
+        if (!isDemoMode()) await db.refundUserPoints(userId, estimate.totalPoints);
+        throw jobErr;
+      }
 
       try {
         // Build fal input based on modality

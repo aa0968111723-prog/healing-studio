@@ -170,16 +170,26 @@ export const generateRouter = router({
       if (demoMode) {
         jobId = Date.now() % 2147483647; // 用時間戳作為 demo jobId
       } else {
-        jobId = await db.createBackgroundJob({
-          userId,
-          jobType:
-            input.generationType === "multimodal"
-              ? "multimodal"
-              : input.generationType,
-          status: "processing",
-          progress: 2,
-          progressMessage: "準備中...",
-        });
+        try {
+          jobId = await db.createBackgroundJob({
+            userId,
+            jobType:
+              input.generationType === "multimodal"
+                ? "multimodal"
+                : input.generationType,
+            status: "processing",
+            progress: 2,
+            progressMessage: "準備中...",
+          });
+        } catch (jobErr) {
+          // AIDV-771: Step 4 已扣點，但 createBackgroundJob 失敗（DB 約束/連線）
+          // → 沒有產生 jobId，refundJobIfBilled（以 job.id 為退款依據）永遠無法
+          // 觸發，扣掉的點數會成為無法回收的孤兒。此處立即退款再 rethrow。
+          // 因尚未產生 jobId，本退款與 refundJobIfBilled 失敗路徑互斥、不會雙退；
+          // 且僅進入此 else 分支（!demoMode）時才有扣點，故此處退款是安全的。
+          await db.refundUserPoints(userId, pointsCost);
+          throw jobErr;
+        }
       }
 
       // ── Step 6: 推送初始思維鏈節點（含積分明細） ──
@@ -1880,20 +1890,30 @@ export const generateRouter = router({
       //   1. runPostGenForJob → doPostGenComplete: 寫入 generation_history.costCredits
       //   2. refundJobIfBilled: 失敗路徑（webhook ERROR / 超時 / no-URL）退點依據
       const label = `${modalityLabel}生成`;
-      const jobId = await db.createBackgroundJob({
-        userId,
-        jobType: input.generationType as any,
-        status: "processing",
-        progress: 5,
-        progressMessage: `${label} 已提交佇列...`,
-        resultJson: {
-          studioType: input.generationType,
-          label,
-          modelId,
-          prompt: (input.generationType === "voice" ? input.voiceText : input.prompt) ?? "",
-          costPoints: points,
-        },
-      });
+      let jobId: number;
+      try {
+        jobId = await db.createBackgroundJob({
+          userId,
+          jobType: input.generationType as any,
+          status: "processing",
+          progress: 5,
+          progressMessage: `${label} 已提交佇列...`,
+          resultJson: {
+            studioType: input.generationType,
+            label,
+            modelId,
+            prompt: (input.generationType === "voice" ? input.voiceText : input.prompt) ?? "",
+            costPoints: points,
+          },
+        });
+      } catch (jobErr) {
+        // AIDV-771: 點數已於上方 deductUserPoints 扣除（非 demo），但
+        // createBackgroundJob 失敗 → 沒有 jobId，下方 try-catch 內的
+        // refundJobIfBilled（依 job.id 退款）永遠無法觸發，點數成孤兒。立即退款；
+        // demo 模式未扣點故跳過；尚無 jobId 故與 refundJobIfBilled 互斥、不會雙退。
+        if (!isDemoMode()) await db.refundUserPoints(userId, points);
+        throw jobErr;
+      }
 
       // ── 5. 依引擎供應商送出任務 ───────────────────────────────────────
       try {
