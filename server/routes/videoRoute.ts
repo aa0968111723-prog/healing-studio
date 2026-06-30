@@ -115,13 +115,18 @@ videoRouter.get("/api/video", async (req: AuthedReq, res: Response) => {
     return void fail(res, 400, parsed.error.issues[0]?.message ?? "Bad Request", "BAD_REQUEST");
   }
 
-  const { cursor, limit, search } = parsed.data;
-  const page = await getVideoProjectsByUserPaged({ userId, limit, cursor, search });
+  try {
+    const { cursor, limit, search } = parsed.data;
+    const page = await getVideoProjectsByUserPaged({ userId, limit, cursor, search });
 
-  ok(res, {
-    items: page.items.map(serializeProject),
-    nextCursor: page.nextCursor,
-  });
+    ok(res, {
+      items: page.items.map(serializeProject),
+      nextCursor: page.nextCursor,
+    });
+  } catch (err) {
+    console.error("[GET /api/video]", err);
+    if (!res.headersSent) fail(res, 500, "內部伺服器錯誤", "INTERNAL_SERVER_ERROR");
+  }
 });
 
 // ── POST /api/video ───────────────────────────────────────────────────────────
@@ -153,39 +158,44 @@ videoRouter.post("/api/video", async (req: AuthedReq, res: Response) => {
   const { title, aspectRatio, creativeProjectId, outputSpec, deadlineAt, priorityClass } =
     parsed.data;
 
-  if (outputSpec?.resolution === "4K") {
-    if (!(await isPaidFor4K(userId))) {
-      return void fail(res, 403, "4K 解析度需付費方案", "FORBIDDEN");
+  try {
+    if (outputSpec?.resolution === "4K") {
+      if (!(await isPaidFor4K(userId))) {
+        return void fail(res, 403, "4K 解析度需付費方案", "FORBIDDEN");
+      }
     }
+
+    const meta = agentMeta(req);
+
+    const id = await createVideoProject({
+      userId,
+      title,
+      aspectRatio,
+      creativeProjectId: creativeProjectId ?? null,
+      outputSpec: outputSpec ?? VIDEO_OUTPUT_SPEC_DEFAULT,
+      deadlineAt: deadlineAt ? new Date(deadlineAt) : null,
+      priorityClass,
+    });
+
+    const row = await getVideoProject(id);
+    if (!row) return void fail(res, 500, "Project created but could not be retrieved", "INTERNAL_SERVER_ERROR");
+
+    recordAuditEvent({
+      actorUserId: userId,
+      actorRole: req.user?.role ?? "user",
+      action: "videoProject.create",
+      targetType: "videoProject",
+      targetId: id,
+      metadata: { title, agentId: meta.agentId, traceId: meta.traceId },
+      ipAddress: req.ip ?? null,
+      userAgent: req.headers["user-agent"] ?? null,
+    });
+
+    ok(res, serializeProject(row), 201);
+  } catch (err) {
+    console.error("[POST /api/video]", err);
+    if (!res.headersSent) fail(res, 500, "內部伺服器錯誤", "INTERNAL_SERVER_ERROR");
   }
-
-  const meta = agentMeta(req);
-
-  const id = await createVideoProject({
-    userId,
-    title,
-    aspectRatio,
-    creativeProjectId: creativeProjectId ?? null,
-    outputSpec: outputSpec ?? VIDEO_OUTPUT_SPEC_DEFAULT,
-    deadlineAt: deadlineAt ? new Date(deadlineAt) : null,
-    priorityClass,
-  });
-
-  const row = await getVideoProject(id);
-  if (!row) return void fail(res, 500, "Project created but could not be retrieved", "INTERNAL_SERVER_ERROR");
-
-  recordAuditEvent({
-    actorUserId: userId,
-    actorRole: req.user?.role ?? "user",
-    action: "videoProject.create",
-    targetType: "videoProject",
-    targetId: id,
-    metadata: { title, agentId: meta.agentId, traceId: meta.traceId },
-    ipAddress: req.ip ?? null,
-    userAgent: req.headers["user-agent"] ?? null,
-  });
-
-  ok(res, serializeProject(row), 201);
 });
 
 // ── GET /api/video/:id ────────────────────────────────────────────────────────
@@ -197,11 +207,16 @@ videoRouter.get("/api/video/:id", async (req: AuthedReq, res: Response) => {
   const id = parseInt(req.params.id ?? "", 10);
   if (isNaN(id) || id <= 0) return void fail(res, 400, "Invalid project ID", "BAD_REQUEST");
 
-  const row = await getVideoProject(id);
-  if (!row) return void fail(res, 404, "Project not found", "NOT_FOUND");
-  if (row.userId !== userId) return void fail(res, 403, "Forbidden", "FORBIDDEN");
+  try {
+    const row = await getVideoProject(id);
+    if (!row) return void fail(res, 404, "Project not found", "NOT_FOUND");
+    if (row.userId !== userId) return void fail(res, 403, "Forbidden", "FORBIDDEN");
 
-  ok(res, serializeProject(row));
+    ok(res, serializeProject(row));
+  } catch (err) {
+    console.error("[GET /api/video/:id]", err);
+    if (!res.headersSent) fail(res, 500, "內部伺服器錯誤", "INTERNAL_SERVER_ERROR");
+  }
 });
 
 // ── PUT /api/video/:id ────────────────────────────────────────────────────────
@@ -234,51 +249,56 @@ videoRouter.put("/api/video/:id", async (req: AuthedReq, res: Response) => {
 
   const { expectedVersion, ...fields } = parsed.data;
 
-  if (fields.outputSpec?.resolution === "4K") {
-    if (!(await isPaidFor4K(userId))) {
-      return void fail(res, 403, "4K 解析度需付費方案", "FORBIDDEN");
+  try {
+    if (fields.outputSpec?.resolution === "4K") {
+      if (!(await isPaidFor4K(userId))) {
+        return void fail(res, 403, "4K 解析度需付費方案", "FORBIDDEN");
+      }
     }
-  }
 
-  const patch: Record<string, unknown> = {};
-  if (fields.title !== undefined) patch.title = fields.title;
-  if (fields.aspectRatio !== undefined) patch.aspectRatio = fields.aspectRatio;
-  if (fields.outputSpec !== undefined) patch.outputSpec = fields.outputSpec;
-  if (fields.deadlineAt !== undefined)
-    patch.deadlineAt = fields.deadlineAt ? new Date(fields.deadlineAt) : null;
-  if (fields.priorityClass !== undefined) patch.priorityClass = fields.priorityClass;
+    const patch: Record<string, unknown> = {};
+    if (fields.title !== undefined) patch.title = fields.title;
+    if (fields.aspectRatio !== undefined) patch.aspectRatio = fields.aspectRatio;
+    if (fields.outputSpec !== undefined) patch.outputSpec = fields.outputSpec;
+    if (fields.deadlineAt !== undefined)
+      patch.deadlineAt = fields.deadlineAt ? new Date(fields.deadlineAt) : null;
+    if (fields.priorityClass !== undefined) patch.priorityClass = fields.priorityClass;
 
-  const meta = agentMeta(req);
-  const { updated } = await updateVideoProject(
-    id,
-    patch as Parameters<typeof updateVideoProject>[1],
-    { expectedVersion }
-  );
-
-  if (!updated) {
-    return void fail(
-      res,
-      409,
-      "Version conflict — reload and retry",
-      "CONFLICT"
+    const meta = agentMeta(req);
+    const { updated } = await updateVideoProject(
+      id,
+      patch as Parameters<typeof updateVideoProject>[1],
+      { expectedVersion }
     );
+
+    if (!updated) {
+      return void fail(
+        res,
+        409,
+        "Version conflict — reload and retry",
+        "CONFLICT"
+      );
+    }
+
+    const newVersion = (row.version ?? 0) + 1;
+    res.setHeader("ETag", `"${newVersion}"`);
+
+    recordAuditEvent({
+      actorUserId: userId,
+      actorRole: req.user?.role ?? "user",
+      action: "videoProject.update",
+      targetType: "videoProject",
+      targetId: id,
+      metadata: { patch: Object.keys(patch), agentId: meta.agentId, traceId: meta.traceId },
+      ipAddress: req.ip ?? null,
+      userAgent: req.headers["user-agent"] ?? null,
+    });
+
+    ok(res, { ok: true, version: newVersion });
+  } catch (err) {
+    console.error("[PUT /api/video/:id]", err);
+    if (!res.headersSent) fail(res, 500, "內部伺服器錯誤", "INTERNAL_SERVER_ERROR");
   }
-
-  const newVersion = (row.version ?? 0) + 1;
-  res.setHeader("ETag", `"${newVersion}"`);
-
-  recordAuditEvent({
-    actorUserId: userId,
-    actorRole: req.user?.role ?? "user",
-    action: "videoProject.update",
-    targetType: "videoProject",
-    targetId: id,
-    metadata: { patch: Object.keys(patch), agentId: meta.agentId, traceId: meta.traceId },
-    ipAddress: req.ip ?? null,
-    userAgent: req.headers["user-agent"] ?? null,
-  });
-
-  ok(res, { ok: true, version: newVersion });
 });
 
 // ── DELETE /api/video/:id ────────────────────────────────────────────────────
