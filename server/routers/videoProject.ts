@@ -40,6 +40,16 @@ function resolveOutputSpec(raw: VideoOutputSpec | null | undefined): VideoOutput
   return raw ?? VIDEO_OUTPUT_SPEC_DEFAULT;
 }
 
+/** AIDV-788: 4K 需付費方案；免費帳號直接拋 FORBIDDEN。 */
+async function assertPaidFor4K(userId: number): Promise<void> {
+  const plan = await db.getUserSubscription(userId);
+  const isPaid =
+    !!plan &&
+    (plan.status === "active" || plan.status === "trialing") &&
+    plan.planId.toLowerCase() !== "free";
+  if (!isPaid) throw new TRPCError({ code: "FORBIDDEN", message: "4K 解析度需付費方案" });
+}
+
 export const videoProjectRouter = router({
   create: protectedProcedure
     .input(
@@ -54,6 +64,7 @@ export const videoProjectRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       checkAgentRateLimit(ctx.user.id, ctx.req, ctx.res);
+      if (input.outputSpec?.resolution === "4K") await assertPaidFor4K(ctx.user.id);
       const id = await db.createVideoProject({
         userId: ctx.user.id,
         title: input.title,
@@ -135,6 +146,7 @@ export const videoProjectRouter = router({
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
       if (row.userId !== ctx.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
+      if (input.outputSpec?.resolution === "4K") await assertPaidFor4K(ctx.user.id);
       const patch: Record<string, unknown> = {};
       if (input.aspectRatio !== undefined) patch.aspectRatio = input.aspectRatio;
       if (input.title !== undefined) patch.title = input.title;

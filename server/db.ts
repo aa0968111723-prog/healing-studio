@@ -1061,6 +1061,17 @@ export async function getModelTrainingConsentsByUser(userId: number) {
     .orderBy(desc(modelTrainingConsents.createdAt));
 }
 
+/** AIDV-796: Batch fetch — replaces N individual getModelTrainingConsent calls. */
+export async function getModelTrainingConsentsByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(modelTrainingConsents)
+    .where(inArray(modelTrainingConsents.id, ids));
+}
+
 export async function revokeModelTrainingConsent(
   id: number,
   reason: string | null
@@ -2467,7 +2478,8 @@ export async function getCustomBlocksByUser(
     .orderBy(desc(customBlocks.createdAt));
 }
 
-export async function getCustomBlockById(id: number, userId: number) {
+/** AIDV-793: Fetch a single custom block, enforcing userId ownership (IDOR prevention). */
+export async function getCustomBlock(id: number, userId: number) {
   const db = await getDb();
   if (!db) return null;
   const rows = await db
@@ -2477,6 +2489,15 @@ export async function getCustomBlockById(id: number, userId: number) {
     .limit(1);
   return rows[0] ?? null;
 }
+
+/**
+ * Alias of {@link getCustomBlock}. Kept so existing callers that import the
+ * `getCustomBlockById` name (e.g. server/services/agentToolExecutor.ts) keep
+ * resolving after AIDV-793 standardised the canonical name to `getCustomBlock`.
+ * Both share identical signature/behaviour: (id, userId) with userId-scoped
+ * ownership filtering (IDOR prevention).
+ */
+export const getCustomBlockById = getCustomBlock;
 
 export async function deleteCustomBlock(id: number, userId: number) {
   const db = await getDb();
@@ -4855,6 +4876,17 @@ export async function getRealEarthEntry(id: number): Promise<RealEarthEntry | nu
     .where(eq(realEarthEntries.id, id))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** AIDV-802: Batch fetch multiple realEarthEntries in one query (replaces N+1 loop). */
+export async function getRealEarthEntriesByIds(ids: number[]): Promise<RealEarthEntry[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(realEarthEntries)
+    .where(inArray(realEarthEntries.id, ids));
 }
 
 export async function getRealEarthEntries(params: {

@@ -3424,6 +3424,13 @@ async function dispatchOrchestratorTool(
       case "orchestrator.getTeamStatus": {
         // Get complete team status including all spirits
         const teamStatus = getAllSpiritsStatus();
+        // AIDV-779: redact task-specific fields for spirits running other users' tasks
+        const requestingUserId = opts.userId;
+        const filteredSpirits = teamStatus.spirits.map(spirit =>
+          spirit.userId === undefined || spirit.userId === requestingUserId
+            ? spirit
+            : { spiritId: spirit.spiritId, status: spirit.status, lastUpdatedAt: spirit.lastUpdatedAt }
+        );
 
         return {
           name: call.name,
@@ -3434,7 +3441,7 @@ async function dispatchOrchestratorTool(
             busyCount: teamStatus.busyCount,
             errorCount: teamStatus.errorCount,
             offlineCount: teamStatus.offlineCount,
-            spirits: teamStatus.spirits,
+            spirits: filteredSpirits,
             longRunningTasks: teamStatus.longRunningTasks,
             recentErrors: teamStatus.recentErrors,
           },
