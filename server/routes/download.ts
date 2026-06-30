@@ -8,9 +8,12 @@
  */
 
 import { Router, Request, Response } from "express";
+import { eq, and, or } from "drizzle-orm";
 import { serverEnv } from "../_core/env.validated";
 import { verifyToken } from "../middleware/verifyToken";
 import { isExactOriginAllowed } from "../_core/ssrfGuard";
+import { getDb } from "../db";
+import { digitalAssetLibrary, generationHistory } from "../../drizzle/schema";
 
 type AuthedReq = Request & {
   user?: { id: number; openId: string; email: string | null };
@@ -43,6 +46,50 @@ function guessContentType(url: string): string {
   return "application/octet-stream";
 }
 
+// Strip query params before ownership lookup so signed-URL tokens don't affect matching.
+function normalizeForOwnershipCheck(url: string): string {
+  return url.split("?")[0];
+}
+
+async function isOwnedByUser(url: string, userId: number): Promise<boolean> {
+  const db = await getDb();
+  const normalized = normalizeForOwnershipCheck(url);
+
+  // Check digitalAssetLibrary first (primary persistent store after archival).
+  const [assetRow] = await db
+    .select({ id: digitalAssetLibrary.id })
+    .from(digitalAssetLibrary)
+    .where(
+      and(
+        eq(digitalAssetLibrary.userId, userId),
+        or(
+          eq(digitalAssetLibrary.fileUrl, normalized),
+          eq(digitalAssetLibrary.fileUrl, url)
+        )
+      )
+    )
+    .limit(1);
+
+  if (assetRow) return true;
+
+  // Fallback: check generation_history (covers freshly generated items not yet archived).
+  const [histRow] = await db
+    .select({ id: generationHistory.id })
+    .from(generationHistory)
+    .where(
+      and(
+        eq(generationHistory.userId, userId),
+        or(
+          eq(generationHistory.resultUrl, normalized),
+          eq(generationHistory.resultUrl, url)
+        )
+      )
+    )
+    .limit(1);
+
+  return !!histRow;
+}
+
 mediaDownloadRouter.get(
   "/api/media/download",
   verifyToken,
@@ -72,6 +119,12 @@ mediaDownloadRouter.get(
       res.status(403).json({
         error: "只允許下載已持久化至內部儲存的媒體",
       });
+      return;
+    }
+
+    const owned = await isOwnedByUser(decoded, req.user.id);
+    if (!owned) {
+      res.status(403).json({ error: "無此資產的下載權限" });
       return;
     }
 
