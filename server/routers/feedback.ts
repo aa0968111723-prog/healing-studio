@@ -20,6 +20,27 @@ export const feedbackRouter = router({
         priority: z
           .enum(["low", "medium", "high", "critical"])
           .default("medium"),
+        // AIDV-864: 快速情境回饋擴充（PR①）— 皆 optional
+        featureArea: z.string().max(120).optional(),
+        pageContext: z.object({
+          route: z.string().optional(),
+          url: z.string().optional(),
+          shell: z.string().optional(),
+          viewport: z.string().optional(),
+          appVersion: z.string().optional(),
+        }).optional(),
+        landmark: z.object({
+          selector: z.string().max(2000).optional(),
+          label: z.string().max(300).optional(),
+          rect: z.object({
+            x: z.number().optional(),
+            y: z.number().optional(),
+            w: z.number().optional(),
+            h: z.number().optional(),
+          }).optional(),
+          textSnippet: z.string().max(500).optional(),
+        }).optional(),
+        screenshotKey: z.string().max(512).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
