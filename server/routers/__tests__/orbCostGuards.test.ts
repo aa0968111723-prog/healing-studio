@@ -116,6 +116,44 @@ describe("H7: orbScheduler.runScheduledOrbJob 必須有 per-job in-flight lock",
   });
 });
 
+describe("AIDV-896: orbTask.retry 必須有 retry-chain 成本守衛", () => {
+  const costGuardSrc = readFileSync(
+    path.join(repoRoot, "server/services/orbCostGuard.ts"),
+    "utf8"
+  );
+
+  it("orbCostGuard 匯出 checkRetryChainCost 函式", () => {
+    expect(costGuardSrc).toMatch(/export\s+function\s+checkRetryChainCost/);
+  });
+
+  it("checkRetryChainCost 呼叫 detectRetryChains", () => {
+    expect(costGuardSrc).toMatch(/detectRetryChains\s*\(/);
+  });
+
+  it("ai.ts orbTask.retry 有呼叫 checkRetryChainCost", () => {
+    expect(routersSrc).toMatch(/checkRetryChainCost\s*\(/);
+  });
+
+  it("ENABLE_RETRY_CHAIN_COST_GUARD 旗標控制開關", () => {
+    expect(routersSrc).toMatch(/ENABLE_RETRY_CHAIN_COST_GUARD/);
+  });
+
+  it("超限拋 TRPCError code: TOO_MANY_REQUESTS", () => {
+    const idx = routersSrc.indexOf("checkRetryChainCost(");
+    expect(idx).toBeGreaterThan(-1);
+    const window = routersSrc.slice(idx, idx + 400);
+    expect(window).toMatch(/TOO_MANY_REQUESTS/);
+  });
+
+  it("DB 不可用時 fail-open（不擋重試）", () => {
+    const idx = routersSrc.indexOf("checkRetryChainCost(");
+    expect(idx).toBeGreaterThan(-1);
+    const window = routersSrc.slice(idx, idx + 600);
+    expect(window).toMatch(/catch/);
+    expect(window).toMatch(/TRPCError.*throw|throw.*TRPCError/);
+  });
+});
+
 describe("H3: orbSchedulerRouter 必須有 per-user job 上限", () => {
   const routerSrc = readFileSync(
     path.join(repoRoot, "server/routers/orbSchedulerRouter.ts"),

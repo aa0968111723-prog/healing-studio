@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { and, eq, gte } from "drizzle-orm";
+import { aiUsageEvents } from "../../drizzle/schema";
 import { router, protectedProcedure, brainProcedure } from "../_core/trpc";
 import { isDemoMode } from "../_core/googleAuth";
 import * as db from "../db";
@@ -137,7 +139,8 @@ import {
   markProviderFailure,
   markProviderRecovered,
 } from "../services/providerHealth";
-import { estimateOrbTaskCost } from "../services/orbCostGuard";
+import { estimateOrbTaskCost, checkRetryChainCost } from "../services/orbCostGuard";
+import type { UsageEventLike } from "../services/costAnalytics";
 import { checkAndConsumeQuota, getOrbQuotaSnapshot } from "../services/orbQuota";
 import {
   buildOrbIdempotencyKey,
@@ -3129,6 +3132,40 @@ export const aiRouter = router({
           process.env.ENABLE_ORB_TASK_RECOVERY ?? serverEnv.ENABLE_ORB_TASK_RECOVERY,
           true
         );
+        // AIDV-896: retry-chain rolling cost guard — block when the user's
+        // accumulated retry cost in the last 5 minutes exceeds the threshold.
+        const retryChainGuardEnabled = isFlagEnabled(
+          process.env.ENABLE_RETRY_CHAIN_COST_GUARD ?? serverEnv.ENABLE_RETRY_CHAIN_COST_GUARD,
+          true
+        );
+        if (retryChainGuardEnabled) {
+          try {
+            const database = await db.getDb();
+            if (!database) throw new Error("db unavailable");
+            const since = new Date(Date.now() - 300_000);
+            const recentRows = await database
+              .select()
+              .from(aiUsageEvents)
+              .where(and(eq(aiUsageEvents.userId, ctx.user.id), gte(aiUsageEvents.createdAt, since)));
+            const recentEvents: UsageEventLike[] = recentRows.map(r => ({
+              provider: r.provider,
+              endpoint: r.endpoint,
+              status: r.status as UsageEventLike["status"],
+              costUsd: Number(r.costUsd ?? 0),
+              latencyMs: r.latencyMs,
+              userId: r.userId,
+              createdAt: r.createdAt,
+            }));
+            const chainCheck = checkRetryChainCost(ctx.user.id, recentEvents);
+            if (chainCheck.blocked) {
+              throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: chainCheck.reason });
+            }
+          } catch (err) {
+            if (err instanceof TRPCError) throw err;
+            // DB unavailable — fail open so infra errors don't block retries
+          }
+        }
+
         const result = retryOrbAgentTask(input.taskId, { enableRecovery });
         // Re-arm the autonomous driver after retry too.
         orbTaskRepository.approve(input.taskId, ctx.user.id, true);
