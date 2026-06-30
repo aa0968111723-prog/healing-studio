@@ -70,6 +70,7 @@ import {
 import {
   getRecentOrbTaskMemory,
   summarizeRecentOrbTaskMemoryForPlanner,
+  summarizeRecentOrbTaskMemoryForUser,
 } from "../services/orbTaskMemory";
 import {
   buildOrbMemorySummaryForPlanner,
@@ -992,7 +993,7 @@ export const aiRouter = router({
       );
       const telemetryEvents: Array<Record<string, unknown>> = [];
       const recentTaskMemorySummary = orbTaskMemoryEnabled
-        ? summarizeRecentOrbTaskMemoryForPlanner(10)
+        ? summarizeRecentOrbTaskMemoryForUser(ctx.user.id, 10)
         : "Task memory disabled.";
       const recentOrbMemories = orbLongTermMemoryEnabled
         ? getRecentOrbMemories({ userId: ctx.user.id, limit: 10 })
