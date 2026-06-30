@@ -3063,6 +3063,9 @@ export const aiRouter = router({
         // and then the retry button gets stuck (the task is already
         // terminal so no more steps run).
         const existing = getOrbAgentTask(input.taskId);
+        if (existing?.userId != null && existing.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
         if (existing && (
           existing.status === "completed" ||
           existing.status === "failed" ||
