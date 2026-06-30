@@ -638,6 +638,19 @@ async function startServer() {
   app.use(handoffTraceRouter);
   // Programmatic REST API v1 (AIDV-276)
   app.use(v1Router);
+  // AIDV-770: rawBody capture for /api/webhook/* signature verification (fal/suno/replicate).
+  // Must be scoped to /api/webhook (NOT /api/webhooks) and mounted BEFORE the webhook routers.
+  app.use(
+    "/api/webhook",
+    express.json({
+      limit: "4mb",
+      verify: (req, _res, buf) => {
+        if (buf && buf.length) {
+          (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+        }
+      },
+    })
+  );
   // (LangSmith stats moved to tRPC: trpc.langsmith.stats)
   app.use(falWebhookRouter);
   app.use(sunoWebhookRouter);
