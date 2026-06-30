@@ -1061,6 +1061,17 @@ export async function getModelTrainingConsentsByUser(userId: number) {
     .orderBy(desc(modelTrainingConsents.createdAt));
 }
 
+/** AIDV-796: Batch fetch — replaces N individual getModelTrainingConsent calls. */
+export async function getModelTrainingConsentsByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(modelTrainingConsents)
+    .where(inArray(modelTrainingConsents.id, ids));
+}
+
 export async function revokeModelTrainingConsent(
   id: number,
   reason: string | null
@@ -2467,6 +2478,18 @@ export async function getCustomBlocksByUser(
     .orderBy(desc(customBlocks.createdAt));
 }
 
+/** AIDV-793: Fetch a single custom block, enforcing userId ownership (IDOR prevention). */
+export async function getCustomBlock(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(customBlocks)
+    .where(and(eq(customBlocks.id, id), eq(customBlocks.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function deleteCustomBlock(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;
@@ -2656,9 +2679,22 @@ export async function upsertSystemSettings(
   if (!db) throw new Error("Database not available");
   const existing = await getSystemSettings(userId);
   if (existing) {
+    // extraSettings is a shared JSON blob written by independent panels
+    // (e.g. ProviderPanel → generationProvider, FeatureFlagsTab →
+    // featureFlags). A bare `.set(data)` would overwrite the whole column,
+    // so each panel's save would silently wipe the other's keys
+    // (last-writer-wins). Shallow-merge the incoming top-level keys over the
+    // existing blob so concurrent panels coexist.
+    const patch: Partial<InsertSystemSetting> = { ...data };
+    if (data.extraSettings !== undefined && data.extraSettings !== null) {
+      patch.extraSettings = {
+        ...(existing.extraSettings ?? {}),
+        ...data.extraSettings,
+      };
+    }
     await db
       .update(systemSettings)
-      .set(data)
+      .set(patch)
       .where(eq(systemSettings.userId, userId));
     return existing.id;
   } else {
@@ -4831,6 +4867,17 @@ export async function getRealEarthEntry(id: number): Promise<RealEarthEntry | nu
     .where(eq(realEarthEntries.id, id))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** AIDV-802: Batch fetch multiple realEarthEntries in one query (replaces N+1 loop). */
+export async function getRealEarthEntriesByIds(ids: number[]): Promise<RealEarthEntry[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(realEarthEntries)
+    .where(inArray(realEarthEntries.id, ids));
 }
 
 export async function getRealEarthEntries(params: {

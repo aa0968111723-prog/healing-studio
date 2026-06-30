@@ -6,6 +6,7 @@
  * AC2: When a matching agent exists, assign returns the agent details.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { agentEventBus } from "../../services/agentEventBus";
 
 const mockLimit = vi.hoisted(() => vi.fn());
 const mockDb = vi.hoisted(() => ({
@@ -106,5 +107,54 @@ describe("AIDV-514 agentCapabilityRouter.assign — empty-registry fail-fast", (
         requiredScope: ["studio.video"],
       })
     ).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+  });
+});
+
+// AIDV-467 Issue 6: assign broadcasts agent_task_status when videoProjectId is provided
+describe("AIDV-467 agentCapabilityRouter.assign — agent_task_status broadcast", () => {
+  const fakeAgent = {
+    agentId: "agent-001",
+    capabilities: ["video"],
+    allowedEndpoints: null,
+    currentLoad: "0.1",
+    costPerToken: "0.001",
+    isActive: true,
+    lastHeartbeatAt: new Date(),
+  };
+
+  it("emits agent_task_status: assigned on per-project channel when videoProjectId provided", async () => {
+    mockLimit.mockResolvedValue([fakeAgent]);
+
+    const received: unknown[] = [];
+    const unsub = agentEventBus.subscribeToProject(999, e => received.push(e));
+
+    const caller = agentCapabilityRouter.createCaller(ctx);
+    const result = await caller.assign({
+      taskType: "video_generation",
+      requiredCapabilities: ["video"],
+      videoProjectId: 999,
+    });
+    unsub();
+
+    expect(result.agentId).toBe("agent-001");
+    expect(received).toHaveLength(1);
+    const ev = received[0] as { type: string; status: string; agentId: string; projectId: number };
+    expect(ev.type).toBe("agent_task_status");
+    expect(ev.status).toBe("assigned");
+    expect(ev.agentId).toBe("agent-001");
+    expect(ev.projectId).toBe(999);
+  });
+
+  it("does NOT emit project event when videoProjectId is omitted", async () => {
+    mockLimit.mockResolvedValue([fakeAgent]);
+
+    const received: unknown[] = [];
+    const unsub = agentEventBus.subscribeToProject(999, e => received.push(e));
+
+    const caller = agentCapabilityRouter.createCaller(ctx);
+    await caller.assign({ taskType: "video_generation", requiredCapabilities: ["video"] });
+    unsub();
+
+    expect(received).toHaveLength(0);
   });
 });

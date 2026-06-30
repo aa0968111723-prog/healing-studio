@@ -24,13 +24,28 @@ export type AgentCollabEvent = {
 };
 
 /** AIDV-325: broadcast event emitted whenever a videoProject is mutated. */
-export type AgentProjectEvent = {
+export type AgentProjectUpdatedEvent = {
   type: "project_updated";
   projectId: number;
   version: number;
   updatedFields: string[];
   triggeredBy: "agent" | "user";
 };
+
+/**
+ * AIDV-467 Issue 6: intermediate task status broadcast on the per-project SSE channel.
+ * Emitted when an agent is selected for a video project task so the creator
+ * can see queued → assigned progression without polling.
+ */
+export type AgentTaskStatusEvent = {
+  type: "agent_task_status";
+  projectId: number;
+  status: "queued" | "in_progress" | "assigned";
+  agentId?: string;
+  runId?: number;
+};
+
+export type AgentProjectEvent = AgentProjectUpdatedEvent | AgentTaskStatusEvent;
 
 class AgentEventBus {
   private ee = new EventEmitter();

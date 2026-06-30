@@ -629,11 +629,17 @@ function ApiKeyBanner() {
 // ─── AIDV-520: Provider System Status Banner ───────────────────────────────
 
 function ProviderStatusBanner() {
-  const { data } = trpc.brain.providerSystemStatus.useQuery(undefined, {
+  // 缺口 1：retry: false 會讓任何瞬時失敗（網路抖動 / 401 / 5xx）→ data undefined →
+  // 這個「送出已暫停」安全橫幅自己變暗（fail-open）。改 retry: 2 收斂瞬時失敗，
+  // 並在持續失敗時以 console.warn 揭露，避免靜默。
+  const { data, isError } = trpc.brain.providerSystemStatus.useQuery(undefined, {
     refetchInterval: 60_000,
     refetchOnWindowFocus: false,
-    retry: false,
+    retry: 2,
   });
+  if (isError) {
+    console.warn("[ProviderStatusBanner] providerSystemStatus 查詢持續失敗，狀態橫幅暫時無法顯示");
+  }
   if (!data || data.status === "healthy") return null;
   const isDown = data.status === "down";
   const lastUpdated = data.lastCheckedAt
@@ -641,7 +647,13 @@ function ProviderStatusBanner() {
     : null;
   return (
     <div
-      role="alert"
+      // 缺口 2：依嚴重度拆分 live region。
+      // down（阻斷送出）→ role="alert"（隱含 assertive），即時搶播。
+      // degraded（非阻斷的常駐告知）→ role="status" + aria-live="polite"，禮貌通知不打斷。
+      // aria-atomic 讓 60s 輪詢更新時整段重讀，而非只讀差異片段。
+      role={isDown ? "alert" : "status"}
+      aria-live={isDown ? "assertive" : "polite"}
+      aria-atomic="true"
       className={`rounded-xl border px-3 py-2.5 text-xs flex items-start gap-2 leading-relaxed ${
         isDown
           ? "border-red-300/60 bg-red-50/70 dark:bg-red-900/20 text-red-900 dark:text-red-200"

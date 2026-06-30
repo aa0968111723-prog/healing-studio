@@ -42,6 +42,7 @@ import { proStudioRouter } from "./routers/proStudio";
 import { imageStudioRouter } from "./routers/imageStudio";
 import { videoStudioRouter } from "./routers/videoStudio";
 import { videoProjectRouter } from "./routers/videoProject";
+import { videoAnalyticsRouter } from "./routers/videoAnalyticsRouter";
 import { webhookRouter } from "./routers/webhook";
 import { apiKeyRouter } from "./routers/apiKeyRouter";
 import { exportRouter } from "./routers/export";
@@ -310,6 +311,7 @@ export const appRouter = router({
   imageStudio: imageStudioRouter,
   videoStudio: videoStudioRouter,
   videoProject: videoProjectRouter,
+  videoAnalytics: videoAnalyticsRouter,
   webhook: webhookRouter,
   apiKey: apiKeyRouter,
   export: exportRouter,

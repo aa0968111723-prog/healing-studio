@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";
 import { orbTaskTracer } from "../services/orbTaskTracer";
 
@@ -6,8 +7,12 @@ export const orbTracesRouter = router({
   /** Get trace by ID for debugging */
   getTrace: protectedProcedure
     .input(z.object({ traceId: z.string() }))
-    .query(({ input }) => {
-      return orbTaskTracer.getTrace(input.traceId);
+    .query(({ ctx, input }) => {
+      const trace = orbTaskTracer.getTrace(input.traceId);
+      if (trace && trace.userId !== undefined && trace.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+      return trace;
     }),
 
   /** Get recent traces for user */
@@ -20,7 +25,11 @@ export const orbTracesRouter = router({
   /** Get execution timeline for visualization */
   getTimeline: protectedProcedure
     .input(z.object({ traceId: z.string() }))
-    .query(({ input }) => {
+    .query(({ ctx, input }) => {
+      const trace = orbTaskTracer.getTrace(input.traceId);
+      if (trace && trace.userId !== undefined && trace.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
       return orbTaskTracer.getTimeline(input.traceId);
     }),
 
@@ -30,7 +39,11 @@ export const orbTracesRouter = router({
       traceId: z.string(),
       format: z.enum(["langfuse", "langsmith", "otlp"]).optional(),
     }))
-    .query(({ input }) => {
+    .query(({ ctx, input }) => {
+      const trace = orbTaskTracer.getTrace(input.traceId);
+      if (trace && trace.userId !== undefined && trace.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
       return orbTaskTracer.exportTrace(input.traceId, input.format);
     }),
 

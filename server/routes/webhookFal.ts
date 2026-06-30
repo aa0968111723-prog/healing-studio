@@ -308,6 +308,20 @@ falWebhookRouter.post(
           imageUrl: extracted.image_url,
         });
         generationBus.emit(jobId, { type: "complete", thoughtChain: [], preview_url: resultUrl });
+        // AIDV-527: emit segment-completed for director AI batch jobs
+        if (existingMeta.sourceStudio === "director" && existingMeta.segmentId) {
+          const startedAt = typeof existingMeta.startedAt === "number" ? existingMeta.startedAt : 0;
+          generationBus.emit(jobId, {
+            type: "segment_completed",
+            segmentId: String(existingMeta.segmentId),
+            segmentIndex: typeof existingMeta.segmentIndex === "number" ? existingMeta.segmentIndex : 0,
+            of: typeof existingMeta.totalTasks === "number" ? existingMeta.totalTasks : 1,
+            stage: String(existingMeta.studioType ?? "image"),
+            duration_ms: startedAt > 0 ? Date.now() - startedAt : 0,
+            userId: job.userId,
+            at: Date.now(),
+          });
+        }
         console.log(
           `[WebhookFal] ✅ Job ${jobId} completed. orbTraceId=${orbTraceId} Result URLs saved.`
         );

@@ -13,6 +13,8 @@
 | **Agent（我）** | 0–7 階全自動：建工作表→範圍設計→開發→三門→PR→對帳 | 不按合併鍵、不貼金鑰、不替 Bruce 拍 `待議` |
 | **Bruce** | 三件事：① `待議`/碰後端/碰金鑰的**設計門拍板** ② 金鑰貼 Railway ③ **按合併**＋真站開旗標走查 | 工程細節不需碰 |
 
+> **升級條款（AIDV-468）**：若某張卡因等待 Bruce 拍板已連續卡超過 **3 個工作循環**（即 3 次 `/aidv-plan next` 都跳過同一張），Agent 自動在該堵塞票留「🔴 催拍板：已等待 N 循環，請協助推進」留言，並在下次 `/aidv-plan next` 輸出中標示 🔴。
+
 ---
 
 ## 1. 九階流水線（每張卡都走這條）
@@ -36,6 +38,7 @@
 - **零後端＋可回滾＋（旗標預設依下方政策）** → **自動通過**（Wave I 慣例，如 I-1~I-9）。
 - **碰後端 / 碰金鑰 / 標 `待議` / 破壞性改動** → **需 Bruce 在 Jira 卡拍板後才進階 2**（鐵律 6：要改未來先確認）。
 - 金鑰一律「貼 Railway」，**絕不寫進卡片/程式碼/doc**（鐵律 3）。
+- **代理基礎設施例外（AIDV-468）**：凡觸及 `agentDynamicRegistry`、`video_projects`、`video_segments` 的票，**無論後端純度**，一律需要 Bruce 設計門拍板後才進入階 2。理由：這三張表直接影響多代理排程與影片產出核心狀態，任何漏洞都可能導致線上資料損毀或計費異常。
 
 > **🆕 線上開啟政策（2026-06-16 Bruce 拍板：「之後的任務都要開啟預設、線上要有變動」）**
 > 自即日起，**新任務一律「預設 ON、線上即有變動」**——不再 default OFF 躲著。意義：
@@ -50,8 +53,10 @@ npx tsc --noEmit                 # 型別
 npm run check:routes             # 路由/registry 對齊
 npm run check:navigation         # 禁 window.location 內部導航
 npx vitest run <新測> <鄰測>     # 新元件 + 受影響鄰居
+npm run check:agent-health       # 代理健康（可選；CI 環境無 DB 時 warn-only）
 ```
 > 基準避雷：jsdom29+vitest2 的 localStorage/環境問題使 main baseline 有 13 failed/6 檔＝既有，**勿當新回歸**（AIDV-29）。
+> **check:routes 已知限制（AIDV-468）**：`scan-routes.mjs` 為**宣告型**檢查——僅比對 `App.tsx` ↔ `appRegistry` ↔ `useRegisterPageAgent` 的靜態宣告，**不驗路由功能性**。Mock 後端、純前端佔位路由可通過此檢查，但實際 API 呼叫無法驗出。功能性驗收仍須靠 vitest + 真站走查。
 
 ### 🚪 審查門（階 6→7）— 逐條 triage
 | 來源/嚴重度 | 處置 |
