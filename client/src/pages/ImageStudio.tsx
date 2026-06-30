@@ -3122,9 +3122,15 @@ export default function ImageStudio() {
       return;
     }
     // Also check tasks list (covers cases where previewUrls hasn't been populated yet)
-    const task = bgTasks.find(t => t.jobId === pendingBgJobId && t.status === "completed" && t.resultUrl);
-    if (task?.resultUrl) {
+    const task = bgTasks.find(t => t.jobId === pendingBgJobId);
+    if (task?.status === "completed" && task.resultUrl) {
       setResultImages([task.resultUrl]);
+      setPendingBgJobId(null);
+      return;
+    }
+    // Failed/cancelled jobs already surface a global toast.error (BackgroundTasksContext
+    // polling); just release the local loading state so the panel doesn't spin forever.
+    if (task?.status === "failed" || task?.status === "cancelled") {
       setPendingBgJobId(null);
     }
   }, [pendingBgJobId, bgPreviewUrls, bgTasks]);
