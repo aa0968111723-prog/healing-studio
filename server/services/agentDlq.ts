@@ -7,6 +7,7 @@
 
 import { and, isNull } from "drizzle-orm";
 import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { agentDlq } from "../../drizzle/schema";
 import { getDb } from "../db";
 import type { ValidationState } from "../_core/validationGateRouter";
@@ -14,21 +15,28 @@ import type { ValidationState } from "../_core/validationGateRouter";
 export interface DlqInsertResult {
   id: number;
   action: "retry" | "decision" | "escalate";
+  correlationId: string;
 }
 
 /**
  * Persist a validation gate failure to the DLQ table.
  * Returns the new row id and the routing action so callers can log/notify.
  * Returns null if the DB is unavailable.
+ *
+ * AIDV-926: correlationId 若未傳入則自動產生（randomUUID），讓呼叫端把它
+ * 印進自己的 log，跟這筆 DLQ row 串起來追蹤。
  */
 export async function insertDlqEntry(
   state: ValidationState,
   failureReason?: string,
   agentId?: string,
-  payload?: Record<string, unknown>
+  payload?: Record<string, unknown>,
+  correlationId?: string
 ): Promise<DlqInsertResult | null> {
   const db = await getDb();
   if (!db) return null;
+
+  const resolvedCorrelationId = correlationId ?? randomUUID();
 
   const [result] = await db
     .insert(agentDlq)
@@ -41,10 +49,11 @@ export async function insertDlqEntry(
       failureReason: failureReason ?? null,
       payload: payload ?? null,
       retryCount: state.retryCount,
+      correlationId: resolvedCorrelationId,
     })
     .$returningId();
 
-  return { id: result.id as number, action: state.action };
+  return { id: result.id as number, action: state.action, correlationId: resolvedCorrelationId };
 }
 
 /**

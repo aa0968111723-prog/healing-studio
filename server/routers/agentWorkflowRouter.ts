@@ -7,6 +7,7 @@
  */
 
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   classifyValidationFailure,
@@ -46,16 +47,24 @@ export const agentWorkflowRouter = router({
         input.maxRetries ?? 3
       );
       // AIDV-877: persist routing decision to DLQ (best-effort — never block the agent)
+      // AIDV-926: correlationId 讓呼叫端把它印進自己的 log，跟這筆 DLQ row 跨日誌串起來。
       const failureReason = [input.tscOutput, input.vitestOutput]
         .map(s => s.trim())
         .filter(Boolean)
         .join("\n")
         .slice(0, 2_000) || undefined;
-      await insertDlqEntry(state, failureReason, input.agentId, {
-        tscOutput: input.tscOutput.slice(0, 500),
-        vitestOutput: input.vitestOutput.slice(0, 500),
-      }).catch(() => { /* DLQ write is best-effort */ });
-      return state;
+      const correlationId = randomUUID();
+      await insertDlqEntry(
+        state,
+        failureReason,
+        input.agentId,
+        {
+          tscOutput: input.tscOutput.slice(0, 500),
+          vitestOutput: input.vitestOutput.slice(0, 500),
+        },
+        correlationId
+      ).catch(() => { /* DLQ write is best-effort */ });
+      return { ...state, correlationId };
     }),
 
   /** Read current retry state without mutating it. */

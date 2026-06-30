@@ -2676,6 +2676,8 @@ export const agentDlq = mysqlTable(
     failureReason: text("failure_reason"),
     payload: json("payload").$type<Record<string, unknown>>(),
     retryCount: int("retry_count").notNull().default(0),
+    /** AIDV-926: 跨日誌追蹤用——同一次驗證門失敗請求的 server log 與 DLQ row 共用同一個 ID。 */
+    correlationId: varchar("correlation_id", { length: 64 }),
     resolvedAt: timestamp("resolved_at"),
     resolvedBy: varchar("resolved_by", { length: 64 }),
     resolutionNote: text("resolution_note"),
@@ -2688,6 +2690,7 @@ export const agentDlq = mysqlTable(
       table.routingAction,
       table.resolvedAt
     ),
+    correlationIdx: index("adlq_correlation_idx").on(table.correlationId),
   })
 );
 
