@@ -173,16 +173,14 @@ function ResultPreview({ job }: { job: JobRow }) {
 
   const resultUrl = (meta.resultUrl as string) ?? null;
   // Also check nested result data for URLs
-  const resultData = meta.result as Record<string, unknown> | null;
-  const imageUrl = resultUrl ?? extractResultUrl("image", resultData) ?? null;
+  const resultData = meta.result as unknown;
+  const imageUrl = resultUrl ?? extractResultUrl("image", resultData);
   const videoUrl =
     (job.jobType === "video" ? resultUrl : null) ??
-    extractResultUrl("video", resultData) ??
-    null;
+    extractResultUrl("video", resultData);
   const audioUrl =
     (job.jobType === "audio" || job.jobType === "voice" ? resultUrl : null) ??
-    extractResultUrl("audio", resultData) ??
-    null;
+    extractResultUrl("audio", resultData);
 
   if (job.jobType === "image" && imageUrl) {
     return (
@@ -502,7 +500,17 @@ export default function BackgroundTasksPage() {
 
   // ── Query: all active + recent jobs ─────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
-    refetchInterval: 5000,
+    // AIDV-588：與 BackgroundTasksContext 一致的 adaptive 輪詢——有進行中任務時 5s，
+    // 全部閒置時退到 30s。避免停在本頁但零 active 任務時仍固定每 5s 輪詢。
+    refetchInterval: query => {
+      const jobs = (query.state.data ?? []) as unknown as Array<{
+        status?: string;
+      }>;
+      const hasActive = jobs.some(
+        j => j.status === "queued" || j.status === "processing",
+      );
+      return hasActive ? 5000 : 30_000;
+    },
     refetchIntervalInBackground: false,
     retry: 2,
   });

@@ -17,6 +17,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import type { AgentAction, AgentActionResult, AgentCapability } from "@/contexts/PageAgentContext";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 const ACCOUNT_TAB_IDS = ["profile", "security", "activity"] as const;
 type AccountTabId = (typeof ACCOUNT_TAB_IDS)[number];
@@ -89,6 +90,7 @@ export default function AccountSettingsPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Export failed:", err);
+      toast.error("資料匯出失敗，請稍後再試");
     } finally {
       setExportLoading(false);
     }

@@ -9,7 +9,7 @@
  */
 
 import * as cron from "node-cron";
-import { getStuckJobsByType, updateBackgroundJob } from "../db.js";
+import { getStuckJobsByType, getQueuedStuckJobsByType, updateBackgroundJob } from "../db.js";
 import { generationBus } from "../generationEvents.js";
 import { getRedisClient } from "../_core/redisClient.js";
 
@@ -19,6 +19,7 @@ const DLQ_KEY = "dlq:video_jobs";
 
 const STUCK_MINUTES = 5;
 const MAX_RETRIES = 3;
+const QUEUED_STUCK_MINUTES = 10;
 const STALE_JOB_TYPES = ["video", "audio", "image", "voice"] as const;
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -43,6 +44,7 @@ function log(level: "info" | "warn" | "error", msg: string): void {
 // ─── Core logic ──────────────────────────────────────────────────────────────
 
 export async function checkStaleJobs(): Promise<void> {
+  await checkQueuedStuckJobs();
   for (const jobType of STALE_JOB_TYPES) {
     const stuckJobs = await getStuckJobsByType(jobType, STUCK_MINUTES, 10);
     if (stuckJobs.length === 0) continue;
@@ -86,6 +88,34 @@ export async function checkStaleJobs(): Promise<void> {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         log("error", `處理卡住任務 #${job.id} 時發生錯誤：${msg}`);
+      }
+    }
+  }
+}
+
+// ─── Queued-stuck detection (AIDV-648) ───────────────────────────────────────
+
+async function checkQueuedStuckJobs(): Promise<void> {
+  for (const jobType of STALE_JOB_TYPES) {
+    const stuckJobs = await getQueuedStuckJobsByType(jobType, QUEUED_STUCK_MINUTES, 10);
+    if (stuckJobs.length === 0) continue;
+
+    log("warn", `發現 ${stuckJobs.length} 個排程超時的 ${jobType} 任務`);
+
+    for (const job of stuckJobs) {
+      try {
+        await updateBackgroundJob(job.id, {
+          status: "failed",
+          errorMessage: `queued_timeout：任務已等待超過 ${QUEUED_STUCK_MINUTES} 分鐘，目前無可用處理代理，請稍後重試`,
+        });
+        generationBus.emit(job.id, {
+          type: "error",
+          message: `queued_timeout: no capable agent after ${QUEUED_STUCK_MINUTES}m`,
+        });
+        log("error", `任務 #${job.id}（${jobType}）排程等待超時，標記 failed`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log("error", `處理排程超時任務 #${job.id} 時發生錯誤：${msg}`);
       }
     }
   }

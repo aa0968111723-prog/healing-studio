@@ -50,7 +50,7 @@ export function FeatureFlagsTab() {
   const toggle = (key: string) => {
     const next = { ...runtime, [key]: !runtime[key] };
     setRuntime(next);
-    update.mutate({ extraSettings: { featureFlags: next } } as any);
+    update.mutate({ extraSettings: { featureFlags: next } });
   };
 
   return (

@@ -100,7 +100,7 @@ export function RoughCutCanvas() {
         <PackGateSummary ready={readyCount} partial={unapproved.length} blocked={blockedCount} />
       ) : (
         unapproved.length > 0 && (
-          <div role="status" aria-atomic="true" className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          <div role="alert" aria-atomic="true" className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
             <AlertTriangle className="size-3.5 shrink-0" />
             <span className="flex-1">{unapproved.length} 個鏡頭已生成但未核准 — 打包前請先到「分鏡」核准。</span>
           </div>

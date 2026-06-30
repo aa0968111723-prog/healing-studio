@@ -348,6 +348,21 @@ export default function FeedbackPage() {
             );
           })}
         </div>
+      ) : feedbacksQuery.isError ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center" role="alert">
+          <AlertTriangle className="w-10 h-10 text-destructive/70" />
+          <h3 className="hs-h3 !mb-0 mt-6">回饋紀錄載入失敗</h3>
+          <p className="hs-small !mb-0 text-muted-foreground mt-2 max-w-sm">
+            暫時拿不回你的回饋紀錄，請稍後再試一次。
+          </p>
+          <Button
+            variant="outline"
+            className="rounded-xl mt-4"
+            onClick={() => feedbacksQuery.refetch()}
+          >
+            重試
+          </Button>
+        </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <VisualSoul size="lg" personality={personality} />

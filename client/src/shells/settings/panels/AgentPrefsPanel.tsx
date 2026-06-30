@@ -3,11 +3,13 @@
 // ----------------------------------------------------------------------------
 // 對映盤點 §3-14：/settings/agent（預設人格、行為、最近活動…）。
 // 真實接點（protectedProcedure）：
-//   agentPreferences.getPreferences() → 偏好物件                         ✅
-//   agentPreferences.updatePreferences(partial) → 更新                   ✅
+//   directorPreferences.get() → { personality, preferredFormat }         ✅（承載三人格）
+//   directorPreferences.update({ personality }) → 更新並真持久化          ✅
 //   agentPreferences.getRecentActivity() → 最近活動（接受/取消/完成/失敗）✅
-// persona（calm/creative/technical）對映導演 AI 三人格；input 以 as any 寬鬆化避免與
-// 後端 UpdateSchema 緊耦合（對齊 P0 adapter「鬆綁 tRPC 邊界」慣例）。
+// persona（calm/creative/technical）＝ ai_director_preferences.personality。
+// 早期版本誤打 agentPreferences.updatePreferences({ persona })，但該 UpdateSchema
+// 無 persona 欄、zod .strip() 會靜默丟掉 → 永不持久化；改走 directorPreferences 並
+// 移除 as any，讓型別在編譯期擋下契約不符（AIDV-612）。
 // ============================================================================
 import { Brain, Activity, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,7 +22,11 @@ import { PanelError } from "@/shells/_shared/PanelState";
 import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
 import { AidvKit, SettingRow as DkSettingRow } from "@/components/design-kit";
 
-const PERSONAS = [{ v: "calm", l: "平靜" }, { v: "creative", l: "創意" }, { v: "technical", l: "技術" }];
+const PERSONAS: { v: "calm" | "creative" | "technical"; l: string }[] = [
+  { v: "calm", l: "平靜" },
+  { v: "creative", l: "創意" },
+  { v: "technical", l: "技術" },
+];
 
 const SIX_AGENTS = [
   { emoji: "🎬", label: "導演 AI", role: "創作對話 · 三人格", status: "可用" },
@@ -31,20 +37,34 @@ const SIX_AGENTS = [
   { emoji: "🧮", label: "財財（成本）", role: "先估成本再確認", status: "可用" },
 ];
 
+// 後端 getRecentActivity 回 { events:[{ id, at, status, actionType, note, pageId }] }（agentPreferencesRouter.ts:198-215）。
+type ActivityEvent = {
+  id: number;
+  at: number;
+  status: string;
+  actionType: string;
+  note: string | null;
+  pageId: string | null;
+};
+
+// 導演三人格（calm/creative/technical）由 directorPreferences 承載
+// （ai_director_preferences.personality）。agentPreferences 沒有 persona 欄位，
+// 寫進去會被 zod .strip() 靜默丟掉、永不持久化 —— 故人格的讀寫都走 directorPreferences。
+type Persona = "calm" | "creative" | "technical";
+
 export function AgentPrefsPanel() {
   const utils = trpc.useUtils();
-  const prefQ = trpc.agentPreferences.getPreferences.useQuery(undefined, { retry: false });
+  const dirPrefQ = trpc.directorPreferences.get.useQuery(undefined, { retry: false });
   const actQ = trpc.agentPreferences.getRecentActivity.useQuery(undefined, { retry: false });
-  const update = trpc.agentPreferences.updatePreferences.useMutation({
-    onSuccess: () => { toast.success("已更新代理偏好"); utils.agentPreferences.getPreferences.invalidate(); },
+  const update = trpc.directorPreferences.update.useMutation({
+    onSuccess: () => { toast.success("已更新代理偏好"); utils.directorPreferences.get.invalidate(); },
     onError: () => toast.error("更新失敗（需登入）"),
   });
 
-  const pref: any = prefQ.data ?? {};
-  const persona = pref.persona ?? pref.defaultPersona ?? "calm";
-  const acts: any[] = (actQ.data as any)?.events ?? (actQ.data as any)?.items ?? [];
+  const persona: Persona = dirPrefQ.data?.personality ?? "calm";
+  const acts: ActivityEvent[] = actQ.data?.events ?? [];
 
-  const setPersona = (v: string) => update.mutate({ persona: v } as any);
+  const setPersona = (v: Persona) => update.mutate({ personality: v });
 
   return (
     <div className="space-y-4">
@@ -92,9 +112,9 @@ export function AgentPrefsPanel() {
           <div className="max-h-64 overflow-auto divide-y">
             {acts.slice(0, 15).map((a, i) => (
               <div key={a.id ?? i} className="flex items-center gap-2 py-1.5 text-xs">
-                <span className="flex-1 truncate">{a.action ?? a.label ?? a.type ?? "活動"}</span>
+                <span className="flex-1 truncate">{a.actionType || "活動"}{a.pageId ? ` · ${a.pageId}` : ""}</span>
                 {a.status && <Badge variant="outline" className="text-[10px]">{a.status}</Badge>}
-                <span className="text-[10px] text-muted-foreground">{a.createdAt ? new Date(a.createdAt).toLocaleDateString("zh-TW") : ""}</span>
+                <span className="text-[10px] text-muted-foreground">{a.at ? new Date(a.at).toLocaleDateString("zh-TW") : ""}</span>
               </div>
             ))}
           </div>

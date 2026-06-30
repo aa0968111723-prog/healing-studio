@@ -1,34 +1,46 @@
-export type FalJobType = "image" | "video" | "audio" | "voice";
+import { z } from "zod";
 
-/**
- * Extracts the primary media URL from a raw Fal/Suno background-job resultJson payload.
- * Provider response shapes vary; this centralises all known patterns.
- */
-export function extractResultUrl(jobType: FalJobType, raw: unknown): string | undefined {
-  if (raw === null || typeof raw !== "object") return undefined;
-  const r = raw as Record<string, unknown>;
+const FalJobResultSchema = z
+  .object({
+    images: z.array(z.object({ url: z.string() })).optional(),
+    image: z.object({ url: z.string() }).optional(),
+    video: z.object({ url: z.string() }).optional(),
+    video_url: z.string().optional(),
+    audio: z.object({ url: z.string() }).optional(),
+    audio_url: z.string().optional(),
+    url: z.string().optional(),
+  })
+  .passthrough();
 
-  if (jobType === "image") {
-    const images = r.images;
-    if (Array.isArray(images) && images.length > 0) {
-      const first = images[0] as Record<string, unknown>;
-      if (typeof first?.url === "string") return first.url;
-    }
-    const image = r.image as Record<string, unknown> | undefined;
-    if (typeof image?.url === "string") return image.url;
-  }
+const FalPollStatusSchema = z
+  .object({
+    status: z.string().optional(),
+    audio_url: z.string().optional(),
+    audioUrl: z.string().optional(),
+    video_url: z.string().optional(),
+    url: z.string().optional(),
+    text: z.string().optional(),
+    raw: z.unknown().optional(),
+  })
+  .passthrough();
 
-  if (jobType === "video") {
-    const video = r.video as Record<string, unknown> | undefined;
-    if (typeof video?.url === "string") return video.url;
-    if (typeof r.video_url === "string") return r.video_url;
-  }
+export type FalJobResult = z.infer<typeof FalJobResultSchema>;
+export type FalPollStatus = z.infer<typeof FalPollStatusSchema>;
 
-  if (jobType === "audio" || jobType === "voice") {
-    const audio = r.audio as Record<string, unknown> | undefined;
-    if (typeof audio?.url === "string") return audio.url;
-    if (typeof r.audio_url === "string") return r.audio_url;
-  }
+export function extractResultUrl(
+  jobType: string | null | undefined,
+  resultData: unknown
+): string | null {
+  const parsed = FalJobResultSchema.safeParse(resultData);
+  if (!parsed.success) return null;
+  const d = parsed.data;
+  if (jobType === "video") return d.video?.url ?? d.video_url ?? d.url ?? null;
+  if (jobType === "audio" || jobType === "voice")
+    return d.audio?.url ?? d.audio_url ?? d.url ?? null;
+  return d.images?.[0]?.url ?? d.image?.url ?? d.url ?? null;
+}
 
-  return undefined;
+export function parsePollStatus(raw: unknown): FalPollStatus | null {
+  const result = FalPollStatusSchema.safeParse(raw);
+  return result.success ? result.data : null;
 }

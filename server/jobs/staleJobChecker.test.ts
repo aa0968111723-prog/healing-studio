@@ -13,10 +13,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ─── DB mock ─────────────────────────────────────────────────────────────────
 
 const mockGetStuck = vi.fn(async () => []);
+const mockGetQueuedStuck = vi.fn(async () => []);
 const mockUpdate = vi.fn(async () => {});
 
 vi.mock("../db.js", () => ({
   getStuckJobsByType: (...args: unknown[]) => mockGetStuck(...args),
+  getQueuedStuckJobsByType: (...args: unknown[]) => mockGetQueuedStuck(...args),
   updateBackgroundJob: (...args: unknown[]) => mockUpdate(...args),
 }));
 
@@ -48,9 +50,11 @@ function makeJob(id: number, jobType = "video", retryCount?: number) {
 
 beforeEach(() => {
   mockGetStuck.mockClear();
+  mockGetQueuedStuck.mockClear();
   mockUpdate.mockClear();
   mockEmit.mockClear();
   mockGetStuck.mockResolvedValue([]);
+  mockGetQueuedStuck.mockResolvedValue([]);
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

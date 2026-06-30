@@ -157,6 +157,21 @@ export function AccuracyTab({ active }: { active: boolean }) {
         </h3>
         {testsQuery.isLoading ? (
           <ZenSkeleton lines={3} />
+        ) : testsQuery.isError ? (
+          <div
+            role="alert"
+            className="flex flex-col items-center gap-2 py-4 text-center text-xs text-red-600"
+          >
+            <p>測試記錄載入失敗，無法判斷系統狀態。</p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void testsQuery.refetch()}
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1" />
+              重試
+            </Button>
+          </div>
         ) : (
           <div className="space-y-2">
             {(testsQuery.data ?? []).length === 0 && (

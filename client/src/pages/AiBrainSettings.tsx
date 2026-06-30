@@ -452,8 +452,10 @@ export default function AiBrainSettings() {
   // ── Sync from server ──────────────────────────────────────────────────
   useEffect(() => {
     if (!brainQuery.data) return;
-    const r = brainQuery.data.reasoning as any;
-    const g = brainQuery.data.generation as any;
+    type ReasoningSlot = { model: string; temperature: number; topP: number; systemPrompt: string | null; enabled: boolean; healthy: boolean };
+    type GenerationSlot = { engine: string; params: unknown; enabled: boolean; healthy: boolean };
+    const r = brainQuery.data.reasoning as Record<string, ReasoningSlot>;
+    const g = brainQuery.data.generation as Record<string, GenerationSlot>;
 
     if (r.director) {
       setDirectorModel(r.director.model);
@@ -510,7 +512,7 @@ export default function AiBrainSettings() {
       setVoiceEnabled(g.voiceEngine.enabled);
       setVoiceEngineParams(g.voiceEngine.params ? JSON.stringify(g.voiceEngine.params, null, 2) : "");
     }
-    const fal = brainQuery.data?.falTasks;
+    const fal = brainQuery.data.falTasks;
     if (fal) {
       setFalTaskEngines(prev => ({
         ...prev,

@@ -961,6 +961,42 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     files: ["server/routes/handoffTraceRoute.ts"],
     downstream: ["db:supabase"],
   },
+  {
+    id: "api:video-list",
+    label: "GET /api/video",
+    description: "AIDV-735 REST：cursor 分頁列出目前使用者的影片專案",
+    method: "GET",
+    path: "/api/video",
+    files: ["server/routes/videoRoute.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:video-create",
+    label: "POST /api/video",
+    description: "AIDV-735 REST：建立影片專案，回傳 201 + 序列化專案物件",
+    method: "POST",
+    path: "/api/video",
+    files: ["server/routes/videoRoute.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:video-get",
+    label: "GET /api/video/:id",
+    description: "AIDV-735 REST：取得單一影片專案（含 403 owner 守門）",
+    method: "GET",
+    path: "/api/video/:id",
+    files: ["server/routes/videoRoute.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:video-update",
+    label: "PUT /api/video/:id",
+    description: "AIDV-736 REST：CAS 樂觀鎖更新，回傳 ETag + 新版本號",
+    method: "PUT",
+    path: "/api/video/:id",
+    files: ["server/routes/videoRoute.ts"],
+    downstream: ["db:main"],
+  },
 ];
 
 /**

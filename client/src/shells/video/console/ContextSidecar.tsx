@@ -24,7 +24,7 @@ import { useDirectorConsole } from "../DirectorConsoleProvider";
 import { ConfirmGate } from "../ConfirmGate";
 import { AgentProgressPanel } from "./AgentProgressPanel";
 import { trpc } from "@/lib/trpc";
-import { PanelError } from "@/shells/_shared/PanelState";
+import { PanelError, PanelLoading } from "@/shells/_shared/PanelState";
 
 const CLOUD_RE = /教材|Drive|發佈|選題|品牌|news/i;
 
@@ -229,7 +229,21 @@ function AssetLineageCard() {
   const q = trpc.assets.recentLineage.useQuery(undefined, { staleTime: 60_000, retry: 1 });
 
   if (q.isLoading) return null;
-  if (q.isError || !q.data?.length) return null;
+  if (q.isError) {
+    return (
+      <Card className="glass-card-static">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Link2 className="size-4 text-primary" /> 資產血統 · 生成溯源
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PanelError compact message="資產血統讀取失敗" onRetry={() => q.refetch()} />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!q.data?.length) return null;
 
   return (
     <Card className="glass-card-static">
@@ -254,12 +268,12 @@ function AssetLineageCard() {
                 ← {row.promptTitle || row.promptContent?.slice(0, 60) || "（無標題）"}
               </div>
               {row.sourceStudio && (
-                <div className="text-[10px] text-muted-foreground/50">{row.sourceStudio}{row.modelId ? ` · ${row.modelId.split("/").pop()}` : ""}</div>
+                <div className="text-[10px] text-muted-foreground">{row.sourceStudio}{row.modelId ? ` · ${row.modelId.split("/").pop()}` : ""}</div>
               )}
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-[10px] text-muted-foreground/60">僅顯示已連結到提示詞庫的最近 5 筆；完整血統樹待 M2。</p>
+        <p className="mt-2 text-[10px] text-muted-foreground">僅顯示已連結到提示詞庫的最近 5 筆；完整血統樹待 M2。</p>
       </CardContent>
     </Card>
   );
@@ -291,6 +305,7 @@ export function VideoProjectLifecycleCard() {
   });
 
   if (projectsQ.isError) return <PanelError compact message="影片專案讀取失敗" onRetry={() => projectsQ.refetch()} />;
+  if (projectsQ.isLoading) return <PanelLoading count={2} className="h-10 rounded-lg" label="載入影片專案…" />;
   if (!project) return null;
 
   return (
