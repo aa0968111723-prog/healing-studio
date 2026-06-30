@@ -543,7 +543,10 @@ export default function BackgroundTasksPage() {
   }, [activeJobsQuery.data, allJobsQuery.data]);
 
   const activeJobIds = useMemo(
-    () => allJobs.filter(j => j.status === "queued" || j.status === "processing").map(j => j.id),
+    () =>
+      allJobs
+        .filter(j => j.status === "queued" || j.status === "processing")
+        .map(j => j.id),
     [allJobs]
   );
 
