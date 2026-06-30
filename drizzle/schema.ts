@@ -2676,6 +2676,7 @@ export const agentDlq = mysqlTable(
     failureReason: text("failure_reason"),
     payload: json("payload").$type<Record<string, unknown>>(),
     retryCount: int("retry_count").notNull().default(0),
+    correlationId: varchar("correlation_id", { length: 36 }),
     resolvedAt: timestamp("resolved_at"),
     resolvedBy: varchar("resolved_by", { length: 64 }),
     resolutionNote: text("resolution_note"),
@@ -2688,6 +2689,7 @@ export const agentDlq = mysqlTable(
       table.routingAction,
       table.resolvedAt
     ),
+    correlationIdIdx: index("adlq_correlation_id_idx").on(table.correlationId),
   })
 );
 
