@@ -416,7 +416,7 @@ function VersionHistoryPanel({ projectId }: { projectId: number }) {
             <Button
               size="sm"
               variant="ghost"
-              className="h-5 px-1.5 text-[9px] shrink-0"
+              className="h-11 min-w-[44px] px-2 text-[9px] shrink-0"
               disabled={restoreMut.isPending}
               onClick={() => restoreMut.mutate({ projectId, snapshotId: snap.id })}
               title="回溯至此版本"
