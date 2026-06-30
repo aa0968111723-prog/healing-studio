@@ -94,6 +94,7 @@ function formatTime(iso?: string) {
 // ─── Task Row ─────────────────────────────────────────────────────────────────
 
 function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: string }) {
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const isDispatchFailed =
     task.status === "failed" &&
     (task.errorMessage?.startsWith("queued_timeout") ?? false);
@@ -190,7 +191,7 @@ function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: stri
           <div className="w-8 h-1 rounded-full bg-muted overflow-hidden flex-shrink-0">
             {task.progress > 0 ? (
               <div
-                className="h-full bg-primary rounded-full transition-all duration-500"
+                className={`h-full bg-primary rounded-full${prefersReducedMotion ? "" : " transition-all duration-500"}`}
                 style={{ width: `${task.progress}%` }}
               />
             ) : (
