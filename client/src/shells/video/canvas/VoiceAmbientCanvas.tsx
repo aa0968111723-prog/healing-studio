@@ -97,7 +97,10 @@ export function VoiceAmbientCanvas() {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {meta.ambient ? <Waves className="size-3.5 text-primary" /> : <Mic className="size-3.5 text-primary" />}
         配音 / 環境音 · proStudio → fal.ai
-        {!providerStatusQ.isLoading && providerStatusQ.data && (
+        {providerStatusQ.isError && (
+          <span className="ml-auto flex items-center gap-1 text-[10px] text-destructive"><AlertCircle className="size-3" /> 狀態查詢失敗</span>
+        )}
+        {!providerStatusQ.isLoading && !providerStatusQ.isError && providerStatusQ.data && (
           falDown
             ? <span className="ml-auto flex items-center gap-1 text-[10px] text-destructive"><WifiOff className="size-3" /> fal 離線</span>
             : <span className="ml-auto flex items-center gap-1 text-[10px] text-green-600"><CheckCircle2 className="size-3" /> fal 正常</span>
