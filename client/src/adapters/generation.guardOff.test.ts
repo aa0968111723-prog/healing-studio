@@ -6,19 +6,30 @@
 // 這證明本次改動是「旗標可回退」的（fail 方向預設不扣費；關閉旗標才回舊行為）。
 // ============================================================================
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { AdapterDeps, GenRequest } from "./types";
+import type { AdapterDeps, GenEvent, GenRequest } from "./types";
 import type { ProviderId } from "@/spine/types";
 
+// AIDV-959：submitStudioJob 真實 payload 不帶 provider 欄位，provider 改從 "attempt"
+// 事件取得（見 generation.costConsent.test.ts 同款 track() 寫法）。
 const submitCalls: ProviderId[] = [];
+let currentProvider: ProviderId | undefined;
+
+function track(onEvent: (e: GenEvent) => void = () => {}) {
+  return (e: GenEvent) => {
+    if (e.type === "attempt") currentProvider = e.provider;
+    onEvent(e);
+  };
+}
 
 vi.mock("./trpcClient", () => ({
   getTrpcClient: () => ({
     generate: {
       estimateCost: { query: async () => ({ costUsd: 0.012 }) },
       submitStudioJob: {
-        mutate: async (input: { provider: ProviderId }) => {
-          submitCalls.push(input.provider);
-          return { jobId: `job-${input.provider}` };
+        mutate: async () => {
+          const provider = currentProvider as ProviderId;
+          submitCalls.push(provider);
+          return { jobId: `job-${provider}` };
         },
       },
       jobStatus: {
@@ -44,7 +55,7 @@ function makeDeps(provider: ProviderId, faults: Record<string, boolean> = {}): A
 }
 const req = (provider: ProviderId): GenRequest => ({ kind: "image", prompt: "p", seed: 1, provider });
 
-beforeEach(() => { submitCalls.length = 0; });
+beforeEach(() => { submitCalls.length = 0; currentProvider = undefined; });
 
 describe("守門 OFF → 舊跨層全鏈回退", () => {
   it("buildProviderChain 回到全鏈（mock 後接付費 provider）", () => {
@@ -54,7 +65,7 @@ describe("守門 OFF → 舊跨層全鏈回退", () => {
 
   it("選 mock + mock 故障 → 沿付費鏈回退到 hf（舊行為）", async () => {
     const gen = makeGenerationTrpc(makeDeps("mock", { mock: true }));
-    const res = await gen.generate(req("mock"), () => {});
+    const res = await gen.generate(req("mock"), track());
     expect(res.provider).toBe("hf");
     expect(submitCalls).toEqual(["hf"]);
   });

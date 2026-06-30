@@ -75,10 +75,15 @@ export function makeGenerationTrpc(deps: AdapterDeps): GenerationAdapter {
   async function estimateCost(req: GenRequest): Promise<{ costUsd: number }> {
     try {
       // 🔧 generate.estimateCost（段落級替代：director.estimateSegmentCost）
-      const r = await client.generate.estimateCost.query({
-        kind: req.kind, prompt: req.prompt, model: req.model, provider: req.provider ?? deps.getProvider(),
-      });
-      return { costUsd: Number(r?.costUsd ?? r?.cost ?? 0) };
+      // AIDV-959：伺服器 zod schema 只收 generationType（image|video|audio|voice）+
+      // durationSec/charCount，沒有 kind/prompt/model/provider 欄位 —— 送 kind 會被
+      // schema 擋下回 400（path: generationType, invalid_value）。keyframe 比照
+      // submitStudioJob 的既有映射歸類為 image（伺服器端無 keyframe 這個 generationType）。
+      const generationType = (req.kind === "keyframe" ? "image" : req.kind) as "image" | "video" | "audio" | "voice";
+      const r = await client.generate.estimateCost.query({ generationType });
+      // 伺服器回傳的是 pointsCost（積分制，無 costUsd/cost 欄位）；沿用既有
+      // GenerationAdapter.costUsd 介面命名以維持下游零變動，僅修正讀取欄位。
+      return { costUsd: Number(r?.costUsd ?? r?.cost ?? r?.pointsCost ?? 0) };
     } catch (err) {
       throw new AdapterError("estimateCost failed", { seam: "generation", procedure: "generate.estimateCost", cause: err });
     }
