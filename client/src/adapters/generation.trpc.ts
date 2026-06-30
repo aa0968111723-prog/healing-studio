@@ -68,6 +68,14 @@ function toGenError(provider: ProviderId, err: unknown): GenError {
   };
 }
 
+// AIDV-959：伺服器端 generate.estimateCost / submitStudioJob 的 zod schema 都只收
+// image|video|audio|voice 這四個值（沒有 keyframe）。這個映射曾經各自在兩個呼叫點
+// 重複一份——正是這張卡在修的那種「兩處各自硬編碼、改一邊忘改另一邊」漂移風險，
+// 故收斂成單一 helper，server 若新增/改名 enum 值只需改一處。
+function mapKindToGenerationType(kind: GenRequest["kind"]): "image" | "video" | "audio" | "voice" {
+  return (kind === "keyframe" ? "image" : kind) as "image" | "video" | "audio" | "voice";
+}
+
 export function makeGenerationTrpc(deps: AdapterDeps): GenerationAdapter {
   // tRPC 邊界寬鬆化（見檔頭說明）。介面對外仍強型別。
   const client = getTrpcClient() as unknown as any;
@@ -75,11 +83,10 @@ export function makeGenerationTrpc(deps: AdapterDeps): GenerationAdapter {
   async function estimateCost(req: GenRequest): Promise<{ costUsd: number }> {
     try {
       // 🔧 generate.estimateCost（段落級替代：director.estimateSegmentCost）
-      // AIDV-959：伺服器 zod schema 只收 generationType（image|video|audio|voice）+
-      // durationSec/charCount，沒有 kind/prompt/model/provider 欄位 —— 送 kind 會被
-      // schema 擋下回 400（path: generationType, invalid_value）。keyframe 比照
-      // submitStudioJob 的既有映射歸類為 image（伺服器端無 keyframe 這個 generationType）。
-      const generationType = (req.kind === "keyframe" ? "image" : req.kind) as "image" | "video" | "audio" | "voice";
+      // 伺服器 zod schema 只收 generationType + durationSec/charCount，沒有
+      // kind/prompt/model/provider 欄位 —— 送 kind 會被 schema 擋下回 400
+      // （path: generationType, invalid_value）。
+      const generationType = mapKindToGenerationType(req.kind);
       const r = await client.generate.estimateCost.query({ generationType });
       // 伺服器回傳的是 pointsCost（積分制，無 costUsd/cost 欄位）；沿用既有
       // GenerationAdapter.costUsd 介面命名以維持下游零變動，僅修正讀取欄位。
@@ -116,7 +123,7 @@ export function makeGenerationTrpc(deps: AdapterDeps): GenerationAdapter {
 
     // ── image / keyframe：generate.* 非同步 job ──────────────────────────────
     // keyframe 在伺服器端以 "image"（i2i edit 模型）登錄；requestId 由前端產生作為關聯 key
-    const studioType = (req.kind === "keyframe" ? "image" : req.kind) as "image" | "video" | "audio" | "voice";
+    const studioType = mapKindToGenerationType(req.kind);
     const requestId = crypto.randomUUID();
     const submit = await client.generate.submitStudioJob.mutate({
       studioType,
