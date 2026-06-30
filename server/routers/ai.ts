@@ -2430,7 +2430,7 @@ export const aiRouter = router({
               });
             }
             if (globalWorkflowsEnabled && taskDraft && orbTaskStateMachineEnabled) {
-              stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult, ctx.user.id);
+              stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult, ctx.user.id, "normal", spiritSelection?.role);
             }
             // Always materialize a legacy orbTaskRepository record so the
             // existing reportTaskStep flow (which queries the legacy store)
