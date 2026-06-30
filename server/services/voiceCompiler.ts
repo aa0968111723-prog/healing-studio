@@ -992,3 +992,47 @@ export function getVoiceCompiler(): VoiceCompiler {
   }
   return _compiler;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Voice customBlock → ElevenLabs/Qwen 參數解析（AIDV-793）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** customBlock.prompt JSON 解析後可直接套用於 TTS 呼叫的參數 */
+export interface VoiceBlockSettings {
+  /** ElevenLabs stability（0–1）*/
+  stability?: number;
+  /** ElevenLabs similarity_boost（0–1）*/
+  similarity_boost?: number;
+  /** ElevenLabs style（0–1）*/
+  style?: number;
+  /** eleven-v3 emotion tag（prepend to text）*/
+  styleHint?: string;
+  /** Qwen / 通用語速倍率（0.5–2.0）*/
+  speed?: number;
+}
+
+/**
+ * 從 customBlocks.prompt 解析 TTS 呼叫可直接套用的設定。
+ * prompt 格式為 JSON；欄位缺失時回傳空物件，呼叫端保留原本預設值。
+ * 解析失敗（非合法 JSON）同樣回傳空物件，不拋錯。
+ */
+export function parseVoiceBlockSettings(prompt: string): VoiceBlockSettings {
+  try {
+    const raw = JSON.parse(prompt);
+    if (typeof raw !== "object" || raw === null) return {};
+    const out: VoiceBlockSettings = {};
+    if (typeof raw.stability === "number" && raw.stability >= 0 && raw.stability <= 1)
+      out.stability = raw.stability;
+    if (typeof raw.similarity_boost === "number" && raw.similarity_boost >= 0 && raw.similarity_boost <= 1)
+      out.similarity_boost = raw.similarity_boost;
+    if (typeof raw.style === "number" && raw.style >= 0 && raw.style <= 1)
+      out.style = raw.style;
+    if (typeof raw.styleHint === "string" && raw.styleHint.trim())
+      out.styleHint = raw.styleHint.trim();
+    if (typeof raw.speed === "number" && raw.speed >= 0.5 && raw.speed <= 2.0)
+      out.speed = raw.speed;
+    return out;
+  } catch {
+    return {};
+  }
+}
