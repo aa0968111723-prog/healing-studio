@@ -2478,6 +2478,18 @@ export async function getCustomBlocksByUser(
     .orderBy(desc(customBlocks.createdAt));
 }
 
+/** AIDV-793: Fetch a single custom block, enforcing userId ownership (IDOR prevention). */
+export async function getCustomBlock(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(customBlocks)
+    .where(and(eq(customBlocks.id, id), eq(customBlocks.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function deleteCustomBlock(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;
