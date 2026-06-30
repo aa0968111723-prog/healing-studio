@@ -28,6 +28,9 @@ vi.mock("../_core/env.validated.js", () => ({
     SUPABASE_URL: "",
   },
 }));
+vi.mock("../_core/ssrfGuard.js", () => ({
+  assertSafeExternalUrl: vi.fn().mockReturnValue(new URL("https://api.anthropic.com/v1/models")),
+}));
 
 describe("providerHealthProbeJob", () => {
   let mod: typeof import("./providerHealthProbeJob.js");
@@ -148,6 +151,52 @@ describe("AIDV-574: providerSystemStatus judgment convergence (unit-level logic)
       { kind: "generation", consecutiveFailures: 2 },
     ], 2, 3);
     expect(result).toBe("degraded");
+  });
+});
+
+describe("AIDV-930: auth-aware ok determination (401/403 = unhealthy for requiresKey providers)", () => {
+  let mod: typeof import("./providerHealthProbeJob.js");
+  let setProviderHealthFn: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    mod = await import("./providerHealthProbeJob.js");
+    const ph = await import("../services/providerHealth.js");
+    setProviderHealthFn = ph.setProviderHealth as ReturnType<typeof vi.fn>;
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    mod.stopProviderHealthProbeCron();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("invalid/expired API key (401) marks requiresKey provider as failing", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 401, ok: false }));
+    await mod._runProbeCycleForTest();
+    await mod._runProbeCycleForTest();
+    // anthropic is requiresKey=true — 401 should now count as failure
+    expect(setProviderHealthFn).toHaveBeenCalledWith(
+      "anthropic",
+      "degraded",
+      expect.stringContaining("401")
+    );
+  });
+
+  it("rate-limited (429) marks requiresKey provider as healthy", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 429, ok: false }));
+    const markRecoveredFn = (await import("../services/providerHealth.js")).markProviderRecovered as ReturnType<typeof vi.fn>;
+    vi.clearAllMocks();
+    await mod._runProbeCycleForTest();
+    // 429 = key valid, rate-limited = healthy → markProviderRecovered should be called
+    expect(markRecoveredFn).toHaveBeenCalledWith("anthropic");
+  });
+
+  it("network timeout returns false (does not throw)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(Object.assign(new Error("TimeoutError"), { name: "TimeoutError" })));
+    // Should not throw, probe cycle completes
+    await expect(mod._runProbeCycleForTest()).resolves.toBeUndefined();
   });
 });
 

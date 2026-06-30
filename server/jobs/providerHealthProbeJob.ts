@@ -12,6 +12,7 @@ import { getDb } from "../db.js";
 import { orbSystemAlerts } from "../../drizzle/schema.js";
 import { eq, and, isNull } from "drizzle-orm";
 import { setProviderHealth, markProviderRecovered } from "../services/providerHealth.js";
+import { assertSafeExternalUrl } from "../_core/ssrfGuard.js";
 
 // ─── Provider Probe Config ───────────────────────────────────────────────────
 
@@ -149,15 +150,19 @@ async function probeProvider(
 ): Promise<{ ok: boolean; statusCode?: number; latencyMs: number; error?: string }> {
   const start = Date.now();
   try {
+    assertSafeExternalUrl(config.url); // SSRF guard — catches dynamic URLs like SUPABASE_URL
     const res = await fetch(config.url, {
       method: config.method,
       headers: config.headers(),
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - start;
-    // 4xx means the service is reachable; treat as ok for reachability
-    // 401/403 means bad key; 429 means quota/rate-limit — all "reachable"
-    const ok = res.status < 500;
+    // For auth-key-required providers: 401/403 = key invalid/expired = UNHEALTHY.
+    // 429 = rate-limited but key is valid = HEALTHY.
+    // For reachability-only probes (no key): any non-5xx = reachable = HEALTHY.
+    const ok = config.requiresKey
+      ? (res.status >= 200 && res.status < 400) || res.status === 429
+      : res.status < 500;
     return { ok, statusCode: res.status, latencyMs };
   } catch (err) {
     return {
