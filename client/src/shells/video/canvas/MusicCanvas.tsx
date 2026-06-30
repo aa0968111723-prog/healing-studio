@@ -7,7 +7,7 @@
 //   註：並無 Suno 接點（proStudio.generateMusicSuno 不存在），配樂統一走 textToMusic。
 // ============================================================================
 import { useState } from "react";
-import { Music, Loader2, Coins, CircleCheck } from "lucide-react";
+import { Music, Loader2, Coins, CircleCheck, WifiOff, CheckCircle2, AlertCircle } from "lucide-react";
 // U-5 續（AIDV-149）採用片 · /video S6 配樂：旗標 ON 時送出成功態改用 design-kit 暖光 Card + Pill；OFF＝沿用原版。
 import { ENABLE_VIDEO_GATE_KIT } from "@/config/videoFlags";
 import { AidvKit, Card as DkCard, Pill } from "@/components/design-kit";
@@ -27,6 +27,17 @@ const MODELS = ["ace-step", "sonauto", "stable-audio", "musicgen"] as const;
 export function MusicCanvas() {
   const utils = trpc.useUtils();
   const music = trpc.proStudio.textToMusic.useMutation();
+
+  // AIDV-858: fal.ai provider health — stale 60s, non-blocking
+  const providerStatusQ = trpc.brain.providerSystemStatus.useQuery(undefined, {
+    staleTime: 60_000,
+    refetchInterval: 90_000,
+    refetchOnWindowFocus: false,
+  });
+  const falDown =
+    !providerStatusQ.isLoading &&
+    !!providerStatusQ.data &&
+    providerStatusQ.data.affectedProviders.includes("fal");
 
   const [prompt, setPrompt] = useState("");
   const [tags, setTags] = useState("ambient, healing, warm");
@@ -70,7 +81,19 @@ export function MusicCanvas() {
     <div className="flex h-full flex-col gap-3 overflow-y-auto">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Music className="size-3.5 text-primary" /> 配樂 · proStudio.textToMusic → fal.ai
+        {!providerStatusQ.isLoading && providerStatusQ.data && (
+          falDown
+            ? <span className="ml-auto flex items-center gap-1 text-[10px] text-destructive"><WifiOff className="size-3" /> fal 離線</span>
+            : <span className="ml-auto flex items-center gap-1 text-[10px] text-green-600"><CheckCircle2 className="size-3" /> fal 正常</span>
+        )}
       </div>
+
+      {falDown && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive" role="alert">
+          <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+          <span>配樂引擎目前無法使用，請稍後再試。（fal.ai 服務異常）</span>
+        </div>
+      )}
 
       <Textarea
         value={prompt}
@@ -84,10 +107,17 @@ export function MusicCanvas() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground">引擎</span>
-          <Select value={model} onValueChange={(v) => setModel(v as (typeof MODELS)[number])}>
+          <Select value={model} onValueChange={(v) => setModel(v as (typeof MODELS)[number])} disabled={falDown}>
             <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {MODELS.map((m) => <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>)}
+              {MODELS.map((m) => (
+                <SelectItem key={m} value={m} className="text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className={`inline-block size-1.5 rounded-full shrink-0 ${falDown ? "bg-destructive" : "bg-green-500"}`} aria-hidden />
+                    {m}
+                  </span>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -112,7 +142,7 @@ export function MusicCanvas() {
           <Coins className="size-4" /> 估算成本
         </Button>
         {estimate !== null && <Badge variant="secondary" className="text-[10px]">約 {estimate} pts</Badge>}
-        <Button size="sm" className="ml-auto" onClick={() => void doSubmit()} disabled={music.isPending || !prompt.trim()}>
+        <Button size="sm" className="ml-auto" onClick={() => void doSubmit()} disabled={music.isPending || !prompt.trim() || falDown}>
           {music.isPending ? <Loader2 className="size-4 animate-spin" /> : <Music className="size-4" />} 確認生成
         </Button>
       </div>
