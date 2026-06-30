@@ -1023,7 +1023,7 @@ async function startServer() {
   // deploy FAILED. Only scan when PORT is unset (genuine local dev).
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port =
-    process.env.PORT || process.env.NODE_ENV === "production"
+    process.env.PORT && process.env.NODE_ENV === "production"
       ? preferredPort
       : await findAvailablePort(preferredPort);
 
