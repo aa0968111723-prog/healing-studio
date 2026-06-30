@@ -1,5 +1,6 @@
 import { LLMPermanentError } from "../_core/llm";
 import { TRPCError } from "@trpc/server";
+import { tryAcquireCreatorSlot, releaseCreatorSlot } from "../_core/agentCreatorQuota";
 import { getOrbToolRegistry } from "../config/orbToolRegistry";
 import { loadAgentPreferencesForUser } from "../services/agentPreferenceService";
 import { orbToolCallLogStore } from "../services/orbToolCallLogStore";
@@ -65,6 +66,23 @@ export async function driveOrbTaskInBackground(input: {
   userRole: string;
 }): Promise<void> {
   if (isOrbAutoDriverInFlight(input.taskId)) return;
+
+  // AIDV-878: per-user concurrent task quota — prevent one user from
+  // monopolising the agent executor pool
+  const maxConcurrentTasks = Number(process.env.ORB_MAX_CONCURRENT_TASKS ?? 3);
+  if (!tryAcquireCreatorSlot(input.userId, maxConcurrentTasks)) {
+    const reason = `agent creator quota exceeded (max ${maxConcurrentTasks} concurrent tasks per user)`;
+    console.warn(`[Orb] ${reason} taskId=${input.taskId} userId=${input.userId}`);
+    try {
+      const fsmTask = getOrbAgentTask(input.taskId);
+      if (fsmTask) {
+        const failingStepId = fsmTask.currentStepId ?? fsmTask.steps[0]?.id;
+        if (failingStepId) failOrbAgentStep(input.taskId, failingStepId, reason);
+      }
+    } catch { /* best-effort */ }
+    return;
+  }
+
   orbAutoDriverInFlight.set(input.taskId, Date.now());
   try {
     const tools = getOrbToolRegistry();
@@ -254,6 +272,7 @@ export async function driveOrbTaskInBackground(input: {
     }
   } finally {
     orbAutoDriverInFlight.delete(input.taskId);
+    releaseCreatorSlot(input.userId); // AIDV-878
   }
 }
 

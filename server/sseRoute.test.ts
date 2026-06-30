@@ -32,7 +32,7 @@ vi.mock("./db", () => ({
 // SSE_OWNERSHIP_LOCKDOWN 旗標：用 vi.hoisted 建立可變物件（vi.mock 工廠會被提升到檔頭，
 // 不能引用一般 top-level 變數，必須走 hoisted）。預設 "true"（鎖門 ON＝安全預設）。
 const { sseEnvMock } = vi.hoisted(() => ({
-  sseEnvMock: { SSE_OWNERSHIP_LOCKDOWN: "true" },
+  sseEnvMock: { SSE_OWNERSHIP_LOCKDOWN: "true", SSE_MAX_CONNECTIONS_PER_USER: "5" },
 }));
 vi.mock("./_core/env.validated", () => ({
   serverEnv: sseEnvMock,

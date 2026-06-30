@@ -123,7 +123,9 @@ describe("AIDV-467 agentCapabilityRouter.assign — agent_task_status broadcast"
   };
 
   it("emits agent_task_status: assigned on per-project channel when videoProjectId provided", async () => {
-    mockLimit.mockResolvedValue([fakeAgent]);
+    // First limit() call: agent candidate list; second: videoProject ownership check (AIDV-820)
+    mockLimit.mockResolvedValueOnce([fakeAgent]);
+    mockLimit.mockResolvedValueOnce([{ userId: 1 }]);
 
     const received: unknown[] = [];
     const unsub = agentEventBus.subscribeToProject(999, e => received.push(e));

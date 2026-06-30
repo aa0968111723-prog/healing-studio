@@ -14,6 +14,7 @@ import {
   getValidationState,
   clearValidationState,
 } from "../_core/validationGateRouter";
+import { insertDlqEntry } from "../services/agentDlq";
 
 const IssueKeySchema = z
   .string()
@@ -33,9 +34,10 @@ export const agentWorkflowRouter = router({
         tscOutput: z.string().max(65_536),
         vitestOutput: z.string().max(65_536),
         maxRetries: z.number().int().min(1).max(10).optional(),
+        agentId: z.string().min(1).max(64).optional(),
       })
     )
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
       const failureType = classifyValidationFailure(input.tscOutput, input.vitestOutput);
       const state = routeValidationFailure(
         input.issueKey,
@@ -43,6 +45,16 @@ export const agentWorkflowRouter = router({
         failureType,
         input.maxRetries ?? 3
       );
+      // AIDV-877: persist routing decision to DLQ (best-effort — never block the agent)
+      const failureReason = [input.tscOutput, input.vitestOutput]
+        .map(s => s.trim())
+        .filter(Boolean)
+        .join("\n")
+        .slice(0, 2_000) || undefined;
+      await insertDlqEntry(state, failureReason, input.agentId, {
+        tscOutput: input.tscOutput.slice(0, 500),
+        vitestOutput: input.vitestOutput.slice(0, 500),
+      }).catch(() => { /* DLQ write is best-effort */ });
       return state;
     }),
 
