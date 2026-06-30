@@ -524,6 +524,86 @@ describe("Brain Context Middleware", () => {
     });
   });
 
+  // ─── PREFER_CHEAP_MODELS tiers (AIDV-938) ───────────────────────────────
+
+  describe("PREFER_CHEAP_MODELS tiers", () => {
+    const ORIGINAL = process.env.PREFER_CHEAP_MODELS;
+
+    afterEach(() => {
+      if (ORIGINAL === undefined) delete process.env.PREFER_CHEAP_MODELS;
+      else process.env.PREFER_CHEAP_MODELS = ORIGINAL;
+    });
+
+    it("premium tier reasoning brains equal balanced (AIDV-856 規格：同 balanced)", () => {
+      process.env.PREFER_CHEAP_MODELS = "premium";
+      expect(getActiveDefaultBrains()).toEqual(DEFAULT_REASONING_BRAINS);
+    });
+
+    it("premium tier upgrades videoEngine to Kling Pro t2v and voiceEngine to ElevenLabs Multilingual v2", () => {
+      process.env.PREFER_CHEAP_MODELS = "premium";
+      const engines = getActiveDefaultEngines();
+      expect(engines.videoEngine.engine).toBe(
+        "fal-ai/kling-video/v2.1/pro/text-to-video"
+      );
+      expect(engines.voiceEngine.engine).toBe(
+        "fal-ai/elevenlabs/tts/multilingual-v2"
+      );
+      // imageEngine/audioEngine 同 balanced（理由見 brainContext.ts 註解）
+      expect(engines.imageEngine.engine).toBe(
+        DEFAULT_GENERATION_ENGINES.imageEngine.engine
+      );
+      expect(engines.audioEngine.engine).toBe(
+        DEFAULT_GENERATION_ENGINES.audioEngine.engine
+      );
+    });
+
+    it("premium tier never silently downgrades reasoning brains to the economy (gemini) models", () => {
+      process.env.PREFER_CHEAP_MODELS = "premium";
+      const brains = getActiveDefaultBrains();
+      for (const slot of Object.keys(brains) as ReasoningBrainSlot[]) {
+        expect(brains[slot].model).not.toContain("gemini");
+      }
+    });
+
+    it("unknown PREFER_CHEAP_MODELS value falls back to economy and warns exactly once per value (not once per getActiveDefault* call)", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      process.env.PREFER_CHEAP_MODELS = "ultra-aidv938";
+
+      const brains = getActiveDefaultBrains();
+      const engines = getActiveDefaultEngines();
+
+      expect(brains.director.model).toBe("google/gemini-2.5-pro");
+      expect(engines.imageEngine.engine).toBe("fal-ai/flux/schnell");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Unknown PREFER_CHEAP_MODELS="ultra-aidv938"')
+      );
+      // getActiveDefaultBrains() + getActiveDefaultEngines() both resolve the
+      // tier internally — must dedup to 1 warn, not 2, per request.
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+
+      // Calling again with the same unknown value must not re-warn.
+      getActiveDefaultBrains();
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+
+      // A *different* unknown value must warn again.
+      process.env.PREFER_CHEAP_MODELS = "ultra-aidv938-v2";
+      getActiveDefaultBrains();
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+
+      warnSpy.mockRestore();
+    });
+
+    it("unset PREFER_CHEAP_MODELS still defaults to economy without warning", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      delete process.env.PREFER_CHEAP_MODELS;
+
+      expect(getActiveDefaultBrains().director.model).toBe("google/gemini-2.5-pro");
+      expect(warnSpy).not.toHaveBeenCalled();
+
+      warnSpy.mockRestore();
+    });
+  });
+
   // ─── Default Constants ──────────────────────────────────────────────────
 
   describe("Default Constants", () => {

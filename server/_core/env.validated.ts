@@ -583,7 +583,14 @@ const multimodalSchema = z.object({
   ENABLE_AGENT_DLQ: z.string().optional().default("true"),
   /** AIDV-879: 代理角色範圍強制（agentScopeGuard 接線）。預設 ON；設為 "false"/"0" 切換為僅記錄（log-only）模式不阻擋。 */
   ENABLE_AGENT_SCOPE_GUARD: z.string().optional().default("true"),
-  /** AIDV-856: 模型成本分層預設。economy=省成本（預設）；balanced=現狀；premium=高品質。設 balanced 回現狀，零碼變更。 */
+  /**
+   * AIDV-856/AIDV-938: 模型成本分層預設。economy=省成本（預設）；balanced=現狀；
+   * premium=高品質（director/storyteller/technician/curator/analyst/imageEngine
+   * 同 balanced；videoEngine 升級 Kling Pro t2v；voiceEngine 升級 ElevenLabs
+   * Multilingual v2；audioEngine 仍同 balanced，suno-v4 尚未接通見
+   * brainContext.ts PREMIUM_GENERATION_ENGINES 註解）。未知值安全退回 economy
+   * 並 console.warn。設 balanced 回現狀，零碼變更。
+   */
   PREFER_CHEAP_MODELS: z.string().optional().default("economy"),
 
   /**
