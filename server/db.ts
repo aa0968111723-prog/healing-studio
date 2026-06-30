@@ -318,6 +318,36 @@ export async function getDb() {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
+
+    // ── Bound metadata-lock waits on every pooled connection ────────────────
+    // MySQL's default `lock_wait_timeout` is 31536000s (~1 year). A migration's
+    // DDL (ALTER TABLE / CREATE INDEX) takes a metadata lock; if a long-running
+    // transaction on the same table holds a conflicting lock, that DDL BLOCKS —
+    // and with the ~1-year default it blocks effectively forever. Because
+    // startup awaits migrations (applyMigrations → migrate()), a single blocked
+    // DDL hangs the whole boot: `migrate()` never returns, /api/health never
+    // reports ready, and EVERY Railway deploy fails the healthcheck regardless
+    // of what code changed (real incident 2026-06-30: all deploys red for hours
+    // while the last healthy one stayed ACTIVE).
+    //
+    // Cap it to 60s so a blocked migration THROWS (a catchable error) instead of
+    // hanging. With MIGRATION_FAIL_CLOSED off (default) that error is logged and
+    // boot continues, so the deploy goes healthy (the migration retries on the
+    // next boot once the blocking transaction clears); with it on, boot refuses
+    // loudly as designed. Either way one stuck lock can no longer wedge every
+    // deploy. Only metadata-lock (DDL) waits are affected — normal row-lock
+    // waits still use innodb_lock_wait_timeout — so app query behaviour is
+    // unchanged. Set per physical connection via the pool's `connection` event
+    // so the connection migrate() uses is covered.
+    const pool = (_db as unknown as { $client?: { on?: (ev: string, cb: (c: unknown) => void) => void } })?.$client;
+    if (pool && typeof pool.on === "function") {
+      pool.on("connection", (conn: unknown) => {
+        const c = conn as { query?: (sql: string, cb: (err: unknown) => void) => void };
+        c.query?.("SET SESSION lock_wait_timeout = 60", err => {
+          if (err) console.warn("[Database] Failed to set lock_wait_timeout on new connection:", err);
+        });
+      });
+    }
   }
 
   // AIDV-61（H6）：applyMigrations 刻意放在連線 try/catch **之外**。
