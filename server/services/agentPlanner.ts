@@ -106,8 +106,8 @@ export interface AgentPlannerInput {
    * OR a refined plan fails to beat the best score so far (no-improvement
    * guard) OR the refined plan no longer yields a workflow.
    *
-   * Defaults to 1 — identical to the previous single-pass behaviour, so
-   * existing call sites are unaffected unless they opt into more rounds.
+   * Defaults to 2 — two refine rounds when critique is enabled.
+   * Pass `maxRefineRounds: 1` explicitly to get single-pass behaviour.
    * Clamped to [1, 3] to bound LLM cost on a direct-to-production path.
    */
   maxRefineRounds?: number;
@@ -1031,8 +1031,8 @@ function extractWorkflowFromResult(
  *   - a refined round no longer yields a workflow (clarification/invalid),
  *   - a refine LLM call throws.
  *
- * `maxRefineRounds` defaults to 1, which is byte-for-byte the previous
- * single-pass behaviour for existing callers. Each refine round is wrapped
+ * `maxRefineRounds` defaults to 2 when `enableCritique` is true — two
+ * refine passes before returning. Each refine round is wrapped
  * in try/catch so a malformed second response degrades to the best plan so
  * far rather than crashing the chat.
  */
@@ -1054,7 +1054,7 @@ export async function runSchemaFirstAgentPlannerWithCritique(
   }
 
   const refineBelow = input.critiqueRefineBelow ?? 75;
-  const maxRounds = Math.max(1, Math.min(3, Math.trunc(input.maxRefineRounds ?? 1)));
+  const maxRounds = Math.max(1, Math.min(3, Math.trunc(input.maxRefineRounds ?? 2)));
   // Pass the latest user utterance into the critic so the modality coherence
   // check has something to compare against; without it the critic skips
   // coherence silently (back-compat).
