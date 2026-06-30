@@ -562,7 +562,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   {
     id: "lora-trainer",
     label: "模型訓練中心",
-    path: "/models",
+    path: "/lora-trainer",
     group: "train",
     description: "LoRA 訓練流程",
     aliases: ["lora", "訓練", "trainer", "角色鍛造", "鍛造所", "character-forge"],

@@ -119,18 +119,6 @@ export function AidvShellChrome() {
   const balanceQ = trpc.credits.myBalance.useQuery(undefined, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   const credits = typeof balanceQ.data?.remaining === "number" ? balanceQ.data.remaining : undefined;
 
-  // ⌘K / Ctrl+K 開關命令面板（全站快捷）。
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setCmdkOpen((v) => !v);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
   const goShell = (id: ShellId) => {
     const meta = SHELL_META.find((s) => s.id === id);
     if (meta) navigate(meta.path);
