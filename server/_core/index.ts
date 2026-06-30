@@ -374,13 +374,24 @@ async function startServer() {
   // REDIS_URL → keeps the in-memory store (single-instance, zero change).
   // Never throws; a Redis problem leaves the in-memory store in place.
   initGenerationLockBackend();
-  const elevenLabsHealthy = await checkElevenLabsHealth();
-  setElevenLabsAvailability(elevenLabsHealthy);
-  if (!elevenLabsHealthy) {
-    console.warn(
-      "[Voice] ElevenLabs health check failed at startup. Please update ELEVENLABS_API_KEY; Google TTS fallback will be used."
-    );
-  }
+  // AIDV: fire-and-forget — never block boot on this non-essential probe.
+  // ELEVENLABS_AVAILABLE defaults to true and is updated when this resolves, so
+  // until then the app behaves as available (Google TTS is the fallback anyway).
+  // Awaiting it here would gate server.listen() on an external network call;
+  // a slow/unreachable ElevenLabs would delay port binding and risk a Railway
+  // healthcheck timeout. It already carries its own 5s fetch timeout.
+  void checkElevenLabsHealth()
+    .then(elevenLabsHealthy => {
+      setElevenLabsAvailability(elevenLabsHealthy);
+      if (!elevenLabsHealthy) {
+        console.warn(
+          "[Voice] ElevenLabs health check failed at startup. Please update ELEVENLABS_API_KEY; Google TTS fallback will be used."
+        );
+      }
+    })
+    .catch(() => {
+      setElevenLabsAvailability(false);
+    });
 
   if (process.env.NODE_ENV === "production") {
     const explicitAllowOrigins = (process.env.ORB_TOOL_ALLOWED_ORIGINS ?? "")
