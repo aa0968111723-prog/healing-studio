@@ -154,6 +154,7 @@ import { featureFlags } from "./featureFlags";
 import { rateLimiters, rateLimitContextMiddleware } from "./rateLimiter";
 import { initErrorTracking, errorTrackingExpressErrorHandler } from "./errorTracking";
 import { metricsRouter } from "./metricsRoute";
+import { versionRouter } from "./versionRoute";
 import {
   initGenerationLockBackend,
   closeGenerationLockBackend,
@@ -938,6 +939,12 @@ async function startServer() {
 
     res.status(allOk ? 200 : 503).json(body);
   });
+
+  // ── Build-version self-check endpoint（AIDV-952）─────────────────────────
+  // 公開、唯讀、零認證：讓 qa-explore/sec-patrol 以 GitHub API 比對此端點回報的
+  // commit SHA 與 main HEAD，確認 prod 部署新舊，取代 Last-Modified header 推斷
+  // （AIDV-949/951）。掛在 /api/health 旁，回 RAILWAY_GIT_COMMIT_SHA（缺則 "dev"）。
+  app.use(versionRouter);
 
   // ── Performance metrics endpoint（AIDV-58 H3：admin-only）────────────────
   // 守門邏輯抽到 _core/metricsRoute.ts（沿用 @shared/const 單一 isAdmin、可單元測試）。
