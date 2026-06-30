@@ -67,7 +67,10 @@ export function GenerationConsole({ prompt, kind = "image", className, disabled,
             // AIDV-160：免費引擎不可用，守門不無聲跨付費扣點 → 明確告知、不扣點。
             toast.error("免費引擎暫時無法使用 · 未扣點", { description: e.reason });
           }
-          if (e.type === "fail") toast.warning(`${e.provider} 生成失敗`, { description: `${e.error.msg}（HTTP ${e.error.http}）` });
+          // AIDV-959：單一 provider 失敗只是回退鏈的一步（通常會自動換下一個），
+          // 不對使用者跳出 HTTP_400/hf/gemini/fal 等內部代碼 toast——避免「看起來壞了」
+          // 的誤導；技術細節仍留在下方事件列表（describe()）供除錯，不彈窗轟炸。
+          // 真正全部失敗時，下方 catch 區塊的白話 toast 才會顯示。
         },
       );
       setStatus("done");
