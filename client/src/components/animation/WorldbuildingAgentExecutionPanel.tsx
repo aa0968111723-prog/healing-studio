@@ -18,7 +18,6 @@ export function WorldbuildingAgentExecutionPanel({ tasks }: { tasks: Worldbuildi
       <Button size="sm" variant="outline" onClick={() => copy(JSON.stringify(tasks, null, 2), "任務 JSON")}>複製任務 JSON</Button>
       <Button size="sm" variant="outline" onClick={() => copy(JSON.stringify(workflow, null, 2), "workflow JSON")}>建立代理工作流</Button>
       <Button size="sm" variant="outline" onClick={() => toast.success("dry-run 僅預覽 payload，不會執行模型。")}>Dry-run 內建模型呼叫</Button>
-      <Button size="sm" disabled>執行內建模型呼叫（coming soon）</Button>
     </div>
   </div>;
 }
