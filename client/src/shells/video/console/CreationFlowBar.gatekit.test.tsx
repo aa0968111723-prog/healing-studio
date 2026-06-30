@@ -20,7 +20,10 @@ vi.mock("@/config/videoFlags", async (orig) => ({
   get ENABLE_VIDEO_GATE_KIT() { return flags.gateKit; },
 }));
 vi.mock("@/lib/trpc", () => ({
-  trpc: { apiUsage: { textLlmStatus: { useQuery: () => ({ data: undefined }) } } },
+  trpc: {
+    apiUsage: { textLlmStatus: { useQuery: () => ({ data: undefined }) } },
+    brain: { providerSystemStatus: { useQuery: () => ({ data: undefined }) } },
+  },
 }));
 
 const h = vi.hoisted(() => ({

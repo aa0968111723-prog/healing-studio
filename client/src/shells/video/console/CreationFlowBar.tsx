@@ -6,7 +6,7 @@
 // 流程列反映「可設定工作流」當前啟用步驟集（console_.steps）。
 // ============================================================================
 import { useMemo, useState } from "react";
-import { Wand2, Zap, Wrench, Check, Coins, Brain, Download, PackageOpen, Captions, Star } from "lucide-react";
+import { Wand2, Zap, Wrench, Check, Coins, Brain, Download, PackageOpen, Captions, Star, Activity } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -53,6 +53,31 @@ function AiBrainChip() {
     >
       <Brain className="size-3" />
       AI 腦&thinsp;·&thinsp;{status === "online" ? "線上" : status === "degraded" ? "降級" : "離線"}
+    </span>
+  );
+}
+
+/** AIDV-857: 生成引擎聚合健康指示 — 消費 brain.providerSystemStatus，補足 AiBrainChip 只顯示文字 LLM 的缺口。 */
+function GenerationEngineChip() {
+  const { data } = trpc.brain.providerSystemStatus.useQuery(undefined, { staleTime: 60_000, retry: false });
+  const status = data?.status ?? "healthy";
+  const affected = data?.affectedProviders ?? [];
+  const title =
+    status === "healthy" ? "生成引擎全部正常" :
+    status === "degraded" ? `部分引擎異常：${affected.join(", ")}` :
+    `生成引擎全部離線${affected.length > 0 ? `：${affected.join(", ")}` : ""}`;
+  return (
+    <span
+      title={title}
+      className={cn(
+        "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        status === "healthy" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+        status === "degraded" && "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+        status === "down" && "border-destructive/40 bg-destructive/10 text-destructive",
+      )}
+    >
+      <Activity className="size-3" />
+      生成引擎&thinsp;·&thinsp;{status === "healthy" ? "線上" : status === "degraded" ? "降級" : "離線"}
     </span>
   );
 }
@@ -205,6 +230,7 @@ export function CreationFlowBar({ onGuided }: { onGuided: () => void }) {
           </span>
 
           <AiBrainChip />
+          <GenerationEngineChip />
         </div>
       </CardContent>
     </Card>
