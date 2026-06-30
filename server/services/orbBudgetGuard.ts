@@ -21,6 +21,15 @@ import { getDb } from "../db.js";
 import { costAggregations } from "../../drizzle/schema.js";
 import { serverEnv } from "../_core/env.validated.js";
 
+// ─── TTL cache (AIDV-870): prevent DB hotspot when flag is ON ────────────────
+const BUDGET_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+let _budgetCache: { decision: BudgetDecision; expiresAt: number } | null = null;
+
+/** Invalidate the budget cache (call after cost is recorded, or in tests). */
+export function invalidateBudgetCache(): void {
+  _budgetCache = null;
+}
+
 // ─── Pure decision logic (testable without DB) ───────────────────────────────
 
 export interface BudgetDecision {
@@ -68,6 +77,10 @@ export function decideBudget(
 // ─── DB query ────────────────────────────────────────────────────────────────
 
 export async function checkMonthlyBudget(): Promise<BudgetDecision> {
+  if (_budgetCache && Date.now() < _budgetCache.expiresAt) {
+    return _budgetCache.decision;
+  }
+
   const monthlyBudgetUsd = Number(serverEnv.AI_MONTHLY_BUDGET_USD || 500);
   const db = await getDb();
 
@@ -85,7 +98,9 @@ export async function checkMonthlyBudget(): Promise<BudgetDecision> {
     .where(gte(costAggregations.date, monthStart));
 
   const currentSpend = Number(row?.totalCost ?? 0);
-  return decideBudget(currentSpend, monthlyBudgetUsd);
+  const decision = decideBudget(currentSpend, monthlyBudgetUsd);
+  _budgetCache = { decision, expiresAt: Date.now() + BUDGET_CACHE_TTL_MS };
+  return decision;
 }
 
 // ─── Gate (throws on budget exceeded) ────────────────────────────────────────
