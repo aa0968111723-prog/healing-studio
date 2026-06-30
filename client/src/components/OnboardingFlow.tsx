@@ -624,6 +624,10 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                           } else {
                             setResultUrl(null);
                             setStep("input");
+                            setUserInput("");
+                            setChoiceChips(STARTER_CHIPS);
+                            setChipsSource("static");
+                            lastChipQueryRef.current = "";
                           }
                         }}
                         className="rounded-full px-4 py-2 text-sm bg-white/60 hover:bg-white/80 border border-white/50 shadow-sm motion-safe:transition-all cursor-pointer text-foreground/80 hover:text-foreground"
