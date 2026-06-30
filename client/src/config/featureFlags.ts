@@ -155,6 +155,14 @@ export const ORB_SMILEY_ONLY: boolean =
 export const FEATURE_EXPORT_CHAIN: boolean =
   readRuntimeOverride("exportchain") ?? readFlag("VITE_FEATURE_EXPORT_CHAIN", true);
 
+/**
+ * OrbOnboarding 引導對話框開關（AIDV-823）。
+ * 首次登入時彈出引導問卷，讓代理了解使用者偏好。
+ * 預設 OFF（引導體驗完整測試前不開放）。
+ * 關閉退路：部署環境設 VITE_ENABLE_ORB_ONBOARDING=0；無需改碼。
+ */
+export const ENABLE_ORB_ONBOARDING: boolean = readFlag("VITE_ENABLE_ORB_ONBOARDING", false);
+
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
   ENABLE_4SHELL,
@@ -163,6 +171,7 @@ export const FEATURE_FLAGS = {
   ENABLE_AIDV_CHROME,
   ORB_SMILEY_ONLY,
   FEATURE_EXPORT_CHAIN,
+  ENABLE_ORB_ONBOARDING,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
