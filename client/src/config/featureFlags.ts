@@ -196,6 +196,13 @@ export const FEATURE_LEARN_BEGINNER_PATH: boolean =
 export const FEATURE_PROMPT_DIAGNOSTIC: boolean =
   readRuntimeOverride("promptdiagnostic") ?? readFlag("VITE_FEATURE_PROMPT_DIAGNOSTIC", true);
 
+/**
+ * AIDV-864 PR②：快速情境回饋浮動按鈕（右下角常駐）。
+ * 預設 ON；關閉退路：VITE_ENABLE_QUICK_FEEDBACK=0 或 ?quickfeedback=0。
+ */
+export const ENABLE_QUICK_FEEDBACK: boolean =
+  readRuntimeOverride("quickfeedback") ?? readFlag("VITE_ENABLE_QUICK_FEEDBACK", true);
+
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
   ENABLE_4SHELL,
@@ -209,6 +216,7 @@ export const FEATURE_FLAGS = {
   FEATURE_ONBOARDING_BRANCH,
   FEATURE_LEARN_BEGINNER_PATH,
   FEATURE_PROMPT_DIAGNOSTIC,
+  ENABLE_QUICK_FEEDBACK,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

@@ -46,9 +46,10 @@ import AppleDock, {
   type DockDensity,
   type DockVariant,
 } from "./AppleDock";
-import { ENABLE_AIDV_CHROME, ORB_SMILEY_ONLY } from "@/config/featureFlags";
+import { ENABLE_AIDV_CHROME, ENABLE_QUICK_FEEDBACK, ORB_SMILEY_ONLY } from "@/config/featureFlags";
 import { AidvShellChrome } from "@/shells/AidvShellChrome";
 import { AidvOrbMount } from "@/shells/AidvOrbMount";
+import { QuickFeedbackButton } from "./QuickFeedbackButton";
 
 const DOCK_POSITION_KEY = "apple-dock-position";
 const DOCK_MINIMIZED_KEY = "apple-dock-minimized";
@@ -954,6 +955,8 @@ function DashboardLayoutContent({
           ON 時於左下並存（Bruce 2026-06-16 拍板「另一種型態·同時存在」）。視覺實裝，
           尚未接 spine 資料（adapter＝後續片）。 */}
       {ENABLE_AIDV_CHROME && user && location !== "/agent" && <AidvOrbMount />}
+      {/* AIDV-864：快速情境回饋浮動鈕（預設 ON，退路 VITE_ENABLE_QUICK_FEEDBACK=0 或 ?quickfeedback=0） */}
+      {ENABLE_QUICK_FEEDBACK && user && <QuickFeedbackButton />}
       {/* 破壞性動作執行前的柔軟確認卡片（全站都可觸發，含 /agent） */}
       {user && <AgentIntentPreview />}
       {/* 光球「看這裡」視覺聚焦（focusElement 動作的畫面層） */}
