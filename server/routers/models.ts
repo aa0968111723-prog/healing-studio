@@ -802,7 +802,11 @@ export const modelsRouter = router({
   // ── 增加使用計數（生成時呼叫）────────────────────────────────────────
   incrementUsage: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const model = await db.getFineTunedModel(input.id);
+      if (!model || model.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
       await db.incrementModelUsage(input.id);
       return { success: true };
     }),
