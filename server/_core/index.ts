@@ -114,6 +114,7 @@ import {
   stopGoTrueHealthMonitorCron,
 } from "../jobs/goTrueHealthMonitor";
 import { agentStatusRouter } from "../routes/agentStatusRoute";
+import { handoffTraceRouter } from "../routes/handoffTraceRoute";
 import { v1Router } from "../routes/v1";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
@@ -581,6 +582,8 @@ async function startServer() {
   app.use(agentEventsRouter);
   // Agent status dashboard + SSE heartbeat + Prometheus metrics (AIDV-334/336)
   app.use(agentStatusRouter);
+  // Multi-agent handoff trace (AIDV-318)
+  app.use(handoffTraceRouter);
   // Programmatic REST API v1 (AIDV-276)
   app.use(v1Router);
   // (LangSmith stats moved to tRPC: trpc.langsmith.stats)

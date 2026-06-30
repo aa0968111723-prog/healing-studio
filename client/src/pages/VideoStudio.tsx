@@ -746,7 +746,7 @@ function AsyncVideoPoller({
   }
 
   // API 錯誤或任務失敗
-  if (isError || (result.raw as any)?.failed) {
+  if (isError || (result.raw as Record<string, unknown>)?.failed) {
     return (
       <div className="mt-4 p-4 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
         <AlertCircle className="w-4 h-4 flex-shrink-0" />
