@@ -32,7 +32,7 @@ export function NewsPanel() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold flex items-center gap-2"><Newspaper className="h-4 w-4" />情報新聞</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">news_articles · sense（/social 時事選題經脊椎讀此份）</p>
+          <p className="text-xs text-muted-foreground mt-0.5">最新情報 · /social 時事選題同步自此來源</p>
         </div>
         <Badge variant="secondary">{q.isLoading ? "…" : `${items.length} 則`}</Badge>
       </div>

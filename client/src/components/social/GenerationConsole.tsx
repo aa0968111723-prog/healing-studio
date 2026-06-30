@@ -147,8 +147,7 @@ export function GenerationConsole({ prompt, kind = "image", className, disabled,
       )}
 
       <p className="text-[11px] text-muted-foreground">
-        時事選題經脊椎讀 <Badge variant="outline" className="px-1 py-0 text-[10px]">news.list</Badge> （不開 /learn 頁）。
-        provider 可在 /settings 切換、注入故障看回退。像素走 GenerationProvider；文字層走 composeLayout（確定性）。
+        時事選題同步自 /learn 的新聞來源。
       </p>
     </div>
   );

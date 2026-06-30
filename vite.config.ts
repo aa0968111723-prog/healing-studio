@@ -178,7 +178,7 @@ export default defineConfig(({ mode }) => {
   // - VITE_POSTHOG_KEY / VITE_POSTHOG_HOST：index.html 內聯 PostHog init
   define: {
     "import.meta.env.VITE_SITE_URL": JSON.stringify(
-      process.env.VITE_SITE_URL ?? "https://healing-studio-production.up.railway.app"
+      process.env.VITE_SITE_URL ?? "https://director.today"
     ),
     "import.meta.env.VITE_POSTHOG_KEY": JSON.stringify(
       process.env.VITE_POSTHOG_KEY ?? ""

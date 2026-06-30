@@ -132,7 +132,7 @@ export default function SocialCockpitPage() {
           )}
         </div>
         <Badge variant="outline" className="gap-1">
-          <FolderOpen className="h-3.5 w-3.5" /> {active?.activeProject?.name ?? "未選專案（脊椎共用）"}
+          <FolderOpen className="h-3.5 w-3.5" /> {active?.activeProject?.name ?? "未選專案（跨頁共用）"}
         </Badge>
       </div>
 
@@ -192,7 +192,7 @@ export default function SocialCockpitPage() {
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Newspaper className="h-4 w-4" /> 時事選題（經脊椎讀 news.list · 不開 /learn）
+              <Newspaper className="h-4 w-4" /> 時事選題（同步自 /learn 的新聞來源）
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -202,7 +202,7 @@ export default function SocialCockpitPage() {
                 <Skeleton className="h-5 w-2/3" />
               </div>
             ) : news.length === 0 ? (
-              <p className="text-sm text-muted-foreground">目前無情報。可在 /learn 維護新聞來源（脊椎共用）。</p>
+              <p className="text-sm text-muted-foreground">目前無情報。可在 /learn 維護新聞來源。</p>
             ) : (
               <SocialNewsList news={news.slice(0, 4)} onCite={cite} />
             )}
@@ -213,7 +213,7 @@ export default function SocialCockpitPage() {
       {/* 風格庫（block_combos） */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-muted-foreground">風格庫（block_combos）— 選一個版型起手</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">風格版型庫</CardTitle>
         </CardHeader>
         <CardContent>
           <TemplatePicker value={template} onChange={(id) => { setTemplate(id); toast.message("已選版型", { description: id }); }} />
