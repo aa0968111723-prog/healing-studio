@@ -45,6 +45,7 @@ import {
   ShieldAlert,
   FileCode,
   CircleDot,
+  Puzzle,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { formatTwd } from "@shared/currency";
@@ -67,6 +68,7 @@ const ADMIN_TAB_IDS = [
   "feedback",
   "brain",
   "ai-research",
+  "skills",
 ] as const;
 type AdminTabId = (typeof ADMIN_TAB_IDS)[number];
 
@@ -576,6 +578,14 @@ export default function AdminPage() {
               className="rounded-lg gap-1 text-xs shrink-0"
             >
               <Search className="w-3 h-3" /> AI 全站研究
+            </TabsTrigger>
+          )}
+          {isTabVisible("skills") && (
+            <TabsTrigger
+              value="skills"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
+              <Puzzle className="w-3 h-3" /> 技能登錄
             </TabsTrigger>
           )}
         </TabsList>
@@ -1571,6 +1581,11 @@ export default function AdminPage() {
         <TabsContent value="ai-research" className="mt-4">
           <AiSiteResearchPanel />
         </TabsContent>
+
+        {/* ═══ Tab 11: Skill Registry ═══ */}
+        <TabsContent value="skills" className="mt-4">
+          <SkillRegistryTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -2160,5 +2175,89 @@ function AiSiteResearchPanel() {
         </div>
       </GlassCard>
     </div>
+  );
+}
+
+// ─── Skill Registry Tab ──────────────────────────────────────────────────────
+
+const TRUST_BADGE: Record<string, string> = {
+  official: "border-blue-500/40 text-blue-600 bg-blue-500/10",
+  reviewed: "border-green-500/40 text-green-600 bg-green-500/10",
+  community: "border-yellow-500/40 text-yellow-600 bg-yellow-500/10",
+};
+
+function SkillRegistryTab() {
+  const skillsQ = trpc.skillRegistry.listSkills.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Puzzle className="w-4 h-4" /> 技能登錄表
+        </h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => skillsQ.refetch()}
+          disabled={skillsQ.isFetching}
+        >
+          <RefreshCw className={`w-3 h-3 ${skillsQ.isFetching ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+
+      {skillsQ.isLoading ? (
+        <ZenSkeleton lines={4} />
+      ) : skillsQ.error ? (
+        <p className="text-sm text-destructive">載入失敗：{skillsQ.error.message}</p>
+      ) : !skillsQ.data?.length ? (
+        <p className="text-sm text-muted-foreground text-center py-8">尚無已安裝技能</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border/40 text-muted-foreground">
+                <th className="text-left py-2 pr-3 font-medium">技能 ID</th>
+                <th className="text-left py-2 pr-3 font-medium">名稱</th>
+                <th className="text-left py-2 pr-3 font-medium">版本</th>
+                <th className="text-left py-2 pr-3 font-medium">信任等級</th>
+                <th className="text-left py-2 pr-3 font-medium">狀態</th>
+                <th className="text-left py-2 font-medium">需重審</th>
+              </tr>
+            </thead>
+            <tbody>
+              {skillsQ.data.map(s => (
+                <tr key={s.skillId} className="border-b border-border/20 hover:bg-muted/20">
+                  <td className="py-2 pr-3 font-mono text-[11px]">{s.skillId}</td>
+                  <td className="py-2 pr-3">{s.name}</td>
+                  <td className="py-2 pr-3 font-mono">{s.version}</td>
+                  <td className="py-2 pr-3">
+                    <Badge className={`text-[10px] border ${TRUST_BADGE[s.trust] ?? ""}`} variant="outline">
+                      {s.trust}
+                    </Badge>
+                  </td>
+                  <td className="py-2 pr-3">
+                    {s.status === "active" ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5 text-destructive" />
+                    )}
+                  </td>
+                  <td className="py-2">
+                    {s.needsReaudit ? (
+                      <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </GlassCard>
   );
 }

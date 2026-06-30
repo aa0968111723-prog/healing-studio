@@ -103,6 +103,7 @@ import { plansRouter } from "./routers/plans";
 import { customBlocksRouter } from "./routers/customBlocks";
 import { blockCombosRouter } from "./routers/blockCombos";
 import { adminRouter as adminFullRouter } from "./routers/admin";
+import { skillRegistryRouter } from "./routers/skillRegistryRouter";
 import { profileRouter } from "./routers/profile";
 import { settingsRouter } from "./routers/settings";
 import { dashboardRouter } from "./routers/dashboard";
@@ -488,6 +489,10 @@ export const appRouter = router({
   // ─── Admin Dashboard ────────────────────────────────────────────────────────
 
   admin: adminFullRouter,
+
+  // ─── Skill Registry（AIDV-129 / AIDV-848）────────────────────────────────
+  // 唯讀端點：列出/查詢已安裝技能；寫端（install/trust/enable）待 PR-2。
+  skillRegistry: skillRegistryRouter,
 
   // ─── User Profile & Settings ───────────────────────────────────────────────
 

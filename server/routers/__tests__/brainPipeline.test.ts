@@ -336,6 +336,7 @@ describe("brainPipeline graph builder", () => {
       "orbMemory", // Orb 使用者記憶 CRUD — 純資料持久化（append/search/clear），不直接觸發 AI provider
       "agentWorkflow", // AIDV-339：驗證門失敗路由 — 純 in-memory 狀態追蹤，不觸發 AI provider
       "videoAnalytics", // AIDV-272：影片播放事件追蹤 CRUD — 純資料持久化，不觸發 AI provider
+      "skillRegistry", // AIDV-848: skill registry read-only queries — pure DB, no AI provider
     ]);
 
     const inGraph = new Set(
