@@ -528,9 +528,16 @@ const multimodalSchema = z.object({
   // openrouter = 強制走 OpenRouter（推薦：一支金鑰即可使用 Claude / Gemini / GPT 等所有家）
   // 其他選項保留向後相容；若您想全面遷移到 OpenRouter，把 OPENROUTER_API_KEY 設好即可
   LLM_ENGINE: z
-    .enum(["auto", "openrouter", "gemini", "vertex", "forge", "nvidia", "anthropic"])
+    .enum(["auto", "openrouter", "gemini", "vertex", "forge", "nvidia", "anthropic", "freellmapi"])
     .optional()
     .default("auto"),
+
+  // ── FreeLLM API（免費 LLM 備援引擎，最低優先，無需 API 金鑰）──────────
+  // 來源：https://github.com/tashfeenahmed/freellmapi
+  // 設定 FREE_LLM_API_ENABLED=true 啟用；FREE_LLM_API_URL 可覆寫端點。
+  // 此引擎排在所有付費引擎之後，僅在全部付費引擎失敗時作為最終備援。
+  FREE_LLM_API_ENABLED: z.string().optional().default("false"),
+  FREE_LLM_API_URL: z.string().optional().default("https://api.freellmapi.com"),
 
   // ── OpenRouter（統一 LLM 閘道，OpenAI 相容）─────────────
   // 取得金鑰：https://openrouter.ai/keys

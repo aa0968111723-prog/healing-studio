@@ -64,4 +64,8 @@ export const ENV = {
   ownerOpenId: serverEnv.OWNER_OPEN_ID,
   forgeApiUrl: serverEnv.BUILT_IN_FORGE_API_URL,
   forgeApiKey: serverEnv.BUILT_IN_FORGE_API_KEY,
+
+  // ── FreeLLM API（免費 LLM 備援引擎，最低優先，無需 API 金鑰）─────────
+  freeLlmApiEnabled: serverEnv.FREE_LLM_API_ENABLED,
+  freeLlmApiUrl: serverEnv.FREE_LLM_API_URL,
 };
