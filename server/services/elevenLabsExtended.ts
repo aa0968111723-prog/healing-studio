@@ -16,6 +16,7 @@ import {
   providerGatewayHeaders,
 } from "../_core/providerFacade";
 import { withExponentialBackoff } from "../utils/withExponentialBackoff";
+import { assertSafeUrl } from "../lib/urlValidator";
 
 // ─── Models & Voices Catalog ─────────────────────────────────────────────
 
@@ -386,6 +387,7 @@ export class ElevenLabsExtendedClient {
 
     // Fetch audio files and append
     for (let i = 0; i < params.audioUrls.length; i++) {
+      assertSafeUrl(params.audioUrls[i]);
       const audioRes = await fetch(params.audioUrls[i]);
       const blob = await audioRes.blob();
       formData.append("files", blob, `sample_${i}.mp3`);
@@ -420,6 +422,7 @@ export class ElevenLabsExtendedClient {
     formData.append("mode", "automatic");
 
     // Fetch video
+    assertSafeUrl(params.videoUrl);
     const videoRes = await fetch(params.videoUrl);
     const videoBlob = await videoRes.blob();
     formData.append("file", videoBlob, "video.mp4");
@@ -473,6 +476,7 @@ export class ElevenLabsExtendedClient {
     }
 
     // Fetch audio
+    assertSafeUrl(params.audioUrl);
     const audioRes = await fetch(params.audioUrl);
     const audioBlob = await audioRes.blob();
     formData.append("file", audioBlob, "audio.mp3");

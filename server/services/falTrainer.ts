@@ -13,6 +13,7 @@
  */
 
 import JSZip from "jszip";
+import { assertSafeUrl } from "../lib/urlValidator";
 import { createFalClient } from "@fal-ai/client";
 import { storagePut } from "../storage.js";
 import { updateFineTunedModel, updateBackgroundJob } from "../db.js";
@@ -105,6 +106,7 @@ export async function buildZipBuffer(urls: string[]): Promise<Buffer> {
 
     const fileName = `${paddedIndex}${ext}`;
     try {
+      assertSafeUrl(url);
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
       const arrayBuffer = await response.arrayBuffer();

@@ -172,8 +172,9 @@ export function getOrbAgentTask(taskId: string): OrbAgentTask | null {
   return taskStore.get(taskId) ?? null;
 }
 
-export function listRecentOrbAgentTasks(limit = 20): OrbAgentTask[] {
+export function listRecentOrbAgentTasks(limit = 20, userId?: number): OrbAgentTask[] {
   return Array.from(taskStore.values())
+    .filter((t) => userId == null || t.userId == null || t.userId === userId)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, Math.max(1, Math.min(limit, 100)));
 }
