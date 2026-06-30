@@ -14,6 +14,61 @@ import { parseAndGatePlan } from "../../shared/agent-plan-adapter";
 import { recordOrbTaskMemory } from "./orbTaskMemory";
 import { recordOrbMemory } from "./orbMemory";
 import { genId } from "../../shared/genId";
+import type { AgentRole } from "../../shared/orb-agent-roles";
+import {
+  checkAgentScope,
+  AgentScopeViolation,
+} from "../_core/agentScopeGuard";
+import type { AgentScopeAction } from "../_core/agentScopeGuard";
+
+// ─── AIDV-879: toolName → AgentScopeAction mapping ──────────────────────────
+
+function toolNameToScopeAction(toolName: string | undefined): AgentScopeAction | null {
+  if (!toolName) return null;
+  if (toolName.startsWith("studio.generateVideo") || toolName.startsWith("studio.enhanceVideo")) return "write:video";
+  if (toolName.startsWith("studio.generateImage")) return "write:image";
+  if (toolName.startsWith("studio.generateAudio")) return "write:music";
+  if (toolName.startsWith("studio.generateVoice")) return "write:voice";
+  if (toolName.startsWith("studio.trainLora")) return "write:training";
+  if (toolName.startsWith("studio.generate3D")) return "write:asset";
+  if (toolName.startsWith("director.")) return "write:script";
+  if (toolName.startsWith("media.")) return "write:asset";
+  if (toolName.startsWith("research.")) return "read:notes";
+  if (toolName.startsWith("pro-studio.")) return "write:project";
+  return "write:project";
+}
+
+/**
+ * AIDV-879: Check scope for a step before it starts running.
+ * - Flag OFF ("false"/"0"): log only, never block.
+ * - Flag ON (default): block when role is known and action is out of scope.
+ * - Missing role context: log a warning and allow (fail-open) — safe during rollout
+ *   before all call sites propagate the role.
+ */
+function checkStepScope(task: OrbAgentTask, step: OrbAgentTaskStep): void {
+  const flagValue = process.env.ENABLE_AGENT_SCOPE_GUARD;
+  const enforce = flagValue !== "false" && flagValue !== "0";
+
+  const role = task.agentRole as AgentRole | undefined;
+  if (!role) {
+    // Missing role — log-only regardless of flag; don't block unknown-origin tasks.
+    console.warn(
+      `[agentScopeGuard] step "${step.label}" (${step.id}): no agentRole on task ${task.taskId} — scope check skipped`
+    );
+    return;
+  }
+
+  const action = toolNameToScopeAction(step.toolName) ?? "read:project";
+  const allowed = checkAgentScope(role, action);
+  if (!allowed) {
+    const msg = `[agentScopeGuard] VIOLATION: role "${role}" may not perform "${action}" (step: "${step.label}", tool: "${step.toolName ?? "ui-only"}", task: ${task.taskId})`;
+    if (enforce) {
+      throw new AgentScopeViolation(role, action);
+    } else {
+      console.warn(msg + " — flag=log-only, allowing");
+    }
+  }
+}
 
 const taskStore = new Map<string, OrbAgentTask>();
 
@@ -71,7 +126,9 @@ export function createOrbAgentTaskFromPlanner(
    */
   userId?: number,
   /** Scheduling priority declared by the submitting agent (AIDV-324). */
-  priority: "urgent" | "normal" | "background" = "normal"
+  priority: "urgent" | "normal" | "background" = "normal",
+  /** AIDV-879: Agent role that submitted this task — used by scope guard. */
+  agentRole?: AgentRole
 ): OrbAgentTask | null {
   if (result.status !== "tasked" || !result.task) return null;
   const plan = result.plan && typeof result.plan === "object" ? (result.plan as Record<string, unknown>) : null;
@@ -101,6 +158,7 @@ export function createOrbAgentTaskFromPlanner(
     label: step.label,
     pagePath: step.pagePath,
     actionType: step.uiActions[0]?.type,
+    toolName: step.toolCalls[0]?.name,
     status: "pending",
     requiresApproval: step.toolCalls.some(t => t.requiresApproval),
     condition: step.condition,
@@ -136,6 +194,7 @@ export function createOrbAgentTaskFromPlanner(
     capabilities,
     isolation: claudeCodeTask ? "code" : result.task.isolation,
     priority,
+    agentRole,
   };
   pushEvent(task, "task.created", "Task created from planner");
   if (task.status === "awaiting_approval") {
@@ -192,6 +251,15 @@ export function approveOrbAgentTask(taskId: string): OrbAgentTask | null {
   task.updatedAt = now();
   pushEvent(task, "task.approved", "Task approved by user");
   if (task.steps.length > 0) {
+    try {
+      checkStepScope(task, task.steps[0]);
+    } catch (err) {
+      task.status = "failed";
+      task.failedReason = err instanceof AgentScopeViolation ? err.message : "scope-check-failed";
+      task.updatedAt = now();
+      pushEvent(task, "task.failed", task.failedReason);
+      return task;
+    }
     task.status = "executing";
     task.steps[0].status = "running";
     task.currentStepId = task.steps[0].id;
@@ -278,6 +346,9 @@ export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTa
         pushEvent(task, "step.completed", `Step skipped by condition: ${next.label}`, { stepId: next.id, skipped: true });
         const afterSkipped = task.steps[index + 2];
         if (afterSkipped) {
+          try { checkStepScope(task, afterSkipped); } catch (err) {
+            return failOrbAgentStep(taskId, afterSkipped.id, err instanceof AgentScopeViolation ? err.message : "scope-check-failed");
+          }
           afterSkipped.status = "running";
           task.currentStepId = afterSkipped.id;
           task.status = "executing";
@@ -291,12 +362,18 @@ export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTa
       } else if (condition.onFail === "goto" && condition.gotoStepId) {
         const goto = task.steps.find(step => step.id === condition.gotoStepId);
         if (!goto) return failOrbAgentStep(taskId, next.id, "condition-failed");
+        try { checkStepScope(task, goto); } catch (err) {
+          return failOrbAgentStep(taskId, goto.id, err instanceof AgentScopeViolation ? err.message : "scope-check-failed");
+        }
         goto.status = "running";
         task.currentStepId = goto.id;
         task.status = "executing";
         pushEvent(task, "step.started", `Step started: ${goto.label}`, { stepId: goto.id, via: "condition-goto" });
       }
     } else {
+      try { checkStepScope(task, next); } catch (err) {
+        return failOrbAgentStep(taskId, next.id, err instanceof AgentScopeViolation ? err.message : "scope-check-failed");
+      }
       next.status = "running";
       task.currentStepId = next.id;
       task.status = "executing";

@@ -69,7 +69,7 @@ describe("AidvShellChrome（U-4 / AIDV-94）", () => {
   it("⌘K 開命令面板 → 選項導航到對應 shell", () => {
     render(<AidvShellChrome />);
     expect(screen.queryByRole("dialog")).toBeNull();
-    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getAllByRole("button", { name: "命令面板" })[0]);
     expect(screen.getByRole("dialog")).toBeTruthy();
     fireEvent.click(screen.getByText("前往 學習文件"));
     expect(h.navigate).toHaveBeenCalledWith("/learn");
@@ -77,14 +77,14 @@ describe("AidvShellChrome（U-4 / AIDV-94）", () => {
 
   it("⌘K 分組指令：點『導演企劃台』→ /director", () => {
     render(<AidvShellChrome />);
-    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getAllByRole("button", { name: "命令面板" })[0]);
     fireEvent.click(screen.getByText("導演企劃台"));
     expect(h.navigate).toHaveBeenCalledWith("/director");
   });
 
   it("⌘K 帳號指令：點『登出』→ 呼叫 logout（P1 修：chrome 取代 AppleDock 後保留登出）", () => {
     render(<AidvShellChrome />);
-    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getAllByRole("button", { name: "命令面板" })[0]);
     fireEvent.click(screen.getByText("登出"));
     expect(h.logout).toHaveBeenCalledTimes(1);
   });
@@ -112,7 +112,7 @@ describe("AidvShellChrome（U-4 / AIDV-94）", () => {
   // AIDV-136：⌘K 代理動作群組（排程生成所有就緒鏡/重建 Context Packet/研究 i2v 一致性/自訂工作流）
   it("⌘K 代理動作群組：顯示『排程生成所有就緒鏡』且點擊後導航到影片殼層", () => {
     render(<AidvShellChrome />);
-    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getAllByRole("button", { name: "命令面板" })[0]);
     expect(screen.getByText("排程生成所有就緒鏡")).toBeTruthy();
     fireEvent.click(screen.getByText("排程生成所有就緒鏡"));
     expect(h.navigate).toHaveBeenCalledWith("/video");
@@ -121,14 +121,14 @@ describe("AidvShellChrome（U-4 / AIDV-94）", () => {
   // AIDV-136：⌘K 主題群組（淺色/深色/跟隨系統/自動）
   it("⌘K 主題群組：點『深色主題』→ setAppearanceMode('dark')", () => {
     render(<AidvShellChrome />);
-    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getAllByRole("button", { name: "命令面板" })[0]);
     fireEvent.click(screen.getByText("深色主題"));
     expect(h.setAppearanceMode).toHaveBeenCalledWith("dark");
   });
 
   it("⌘K 主題群組：點『跟隨系統』→ setAppearanceMode('system')", () => {
     render(<AidvShellChrome />);
-    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.click(screen.getAllByRole("button", { name: "命令面板" })[0]);
     fireEvent.click(screen.getByText("跟隨系統"));
     expect(h.setAppearanceMode).toHaveBeenCalledWith("system");
   });

@@ -66,6 +66,9 @@ export interface OrbAgentTaskStep {
   label: string;
   pagePath?: string;
   actionType?: string;
+  /** Primary server-side tool name from the first toolCall (e.g. "studio.generateVideo").
+   *  Used by agentScopeGuard to map the step to an AgentScopeAction. */
+  toolName?: string;
   status: "pending" | "running" | "completed" | "failed" | "blocked" | "skipped";
   requiresApproval?: boolean;
   condition?: {
@@ -130,6 +133,11 @@ export interface OrbAgentTask {
    *  setter populates it whenever createOrbAgentTaskFromPlanner gets
    *  the userId from the brain router. */
   userId?: number;
+  /** AIDV-879: Agent role that submitted this task (e.g. "voice-specialist").
+   *  Used by agentScopeGuard to enforce per-role action boundaries at step
+   *  execution time. Optional for backwards-compatibility; absence means
+   *  scope check falls back to log-only (fail-open). */
+  agentRole?: string;
   intent: string;
   summaryForUser: string;
   status: OrbTaskState;
