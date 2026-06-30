@@ -6,6 +6,7 @@
 // 流程列反映「可設定工作流」當前啟用步驟集（console_.steps）。
 // ============================================================================
 import { useMemo, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Wand2, Zap, Wrench, Check, Coins, Brain, Download, PackageOpen, Captions, Star, Activity } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -59,8 +60,9 @@ function AiBrainChip() {
 
 /** AIDV-857: 生成引擎聚合健康指示 — 消費 brain.providerSystemStatus，補足 AiBrainChip 只顯示文字 LLM 的缺口。 */
 function GenerationEngineChip() {
-  const { data } = trpc.brain.providerSystemStatus.useQuery(undefined, { staleTime: 60_000, retry: false });
-  const status = data?.status ?? "healthy";
+  const { data, isLoading } = trpc.brain.providerSystemStatus.useQuery(undefined, { staleTime: 60_000, retry: false });
+  if (isLoading) return <Skeleton className="h-5 w-24 rounded-full" />;
+  const status = data?.status ?? "down";
   const affected = data?.affectedProviders ?? [];
   const title =
     status === "healthy" ? "生成引擎全部正常" :
