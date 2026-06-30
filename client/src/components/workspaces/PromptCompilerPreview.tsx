@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import {
   Code,
@@ -44,7 +45,7 @@ export function PromptCompilerPreview({
   const warningCount = useMemo(() => warnings.length, [warnings]);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(compiledPrompt);
+    await copyToClipboard(compiledPrompt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

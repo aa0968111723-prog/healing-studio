@@ -27,6 +27,7 @@
  */
 
 import { FAL_QUEUE_BASE } from "../_core/providerFacade";
+import { sleep as defaultSleep } from "./_util/sleep";
 
 function getFalKey(): string | null {
   const key = process.env.FAL_API_KEY?.trim();
@@ -68,9 +69,6 @@ const DEFAULT_MAX_INTERVAL_MS = 8_000;
 
 const TERMINAL_STATUSES = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
 
-function defaultSleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 /**
  * Walk a fal.ai response payload and return the first canonical media URL

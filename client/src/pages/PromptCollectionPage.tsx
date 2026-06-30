@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   Plus,
   Search,
@@ -203,8 +204,7 @@ export default function PromptCollectionPage() {
   // ─── Handlers ────────────────────────────────────────────────────────────
 
   const handleCopy = (content: string, id: number) => {
-    navigator.clipboard.writeText(content);
-    toast.success("已複製到剪貼簿");
+    void copyToClipboard(content, "已複製到剪貼簿");
     incUseMut.mutate({ id });
   };
 
@@ -571,8 +571,7 @@ export default function PromptCollectionPage() {
                     })
                   }
                   onCopy={() => {
-                    navigator.clipboard.writeText(entry.content);
-                    toast.success("已複製到剪貼簿");
+                    void copyToClipboard(entry.content, "已複製到剪貼簿");
                   }}
                 />
               );

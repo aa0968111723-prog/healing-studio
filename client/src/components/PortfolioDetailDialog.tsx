@@ -11,6 +11,7 @@
  */
 
 import { motion, AnimatePresence } from "framer-motion";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   Heart,
   MessageCircle,
@@ -169,11 +170,11 @@ export default function PortfolioDetailDialog({
   const handleCopyPrompt = async () => {
     if (!prompt) return;
     try {
-      await navigator.clipboard.writeText(prompt);
+      await copyToClipboard(prompt);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
-      // silent fail
+      // error toast shown by copyToClipboard
     }
   };
 

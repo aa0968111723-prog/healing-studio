@@ -31,6 +31,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   Music2,
   Mic2,
@@ -76,7 +77,9 @@ import {
 import { useLocation } from "wouter";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
+import { shortErrorMsg, uploadFileToS3 } from "@/lib/upload";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
+import { parsePollStatus } from "@/lib/falResultParser";
 
 // ─── Agent Bridge：讓光球代理人能深度控制各分頁參數 ─────────────────────────────
 
@@ -275,8 +278,8 @@ function AsyncAudioPoller({
     {
       enabled: !!(result.request_id && !audioUrl && modelId),
       refetchInterval: query => {
-        const s = query.state.data?.status;
-        return s === "COMPLETED" ? false : 3000;
+        const s = parsePollStatus(query.state.data)?.status;
+        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
       },
       refetchIntervalInBackground: false,
       retry: 5,
@@ -284,15 +287,18 @@ function AsyncAudioPoller({
   );
 
   useEffect(() => {
-    if (data?.status === "COMPLETED") {
-      const newUrl = data.audio_url ?? data.text;
+    const poll = parsePollStatus(data);
+    if (poll?.status === "COMPLETED") {
+      const newUrl = poll.audio_url ?? poll.text;
       if (newUrl) {
         setDismissed(false); // 完成時自動顯示結果
         toast.success(`✅ ${label ?? "音訊"} 生成完成！`);
         onUpdate({ ...result, audio_url: newUrl });
       }
+    } else if (poll?.status === "FAILED") {
+      toast.error(`❌ ${label ?? "音訊"} 生成失敗`);
     }
-  }, [data?.status, label]);
+  }, [data, label]);
 
   if (audioUrl) return <AudioPlayer url={audioUrl as string} label={label} />;
 
@@ -362,8 +368,7 @@ function AudioPlayer({ url, label }: { url: string; label?: string }) {
         <button
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
           onClick={() => {
-            navigator.clipboard.writeText(url);
-            toast.success("已複製音訊 URL");
+            void copyToClipboard(url, "已複製音訊 URL");
           }}
         >
           <Copy className="w-3 h-3" />
@@ -398,8 +403,7 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
         <button
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
           onClick={() => {
-            navigator.clipboard.writeText(url);
-            toast.success("已複製影片 URL");
+            void copyToClipboard(url, "已複製影片 URL");
           }}
         >
           <Copy className="w-3 h-3" />
@@ -467,42 +471,13 @@ function FileUploadInput({
     async (file: File) => {
       setUploading(true);
       try {
-        const reader = new FileReader();
-        reader.onload = async e => {
-          try {
-            const base64 = (e.target?.result as string).split(",")[1];
-            const res = await fetch("/api/upload", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                fileName: file.name,
-                mimeType: file.type,
-                data: base64,
-              }),
-            });
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({ error: "上傳失敗" }));
-              toast.error("上傳失敗：" + (err.error ?? `HTTP ${res.status}`));
-              return;
-            }
-            const json = await res.json();
-            if (json.url) {
-              onChange(json.url);
-              toast.success(`✅ 上傳完成：${file.name}`);
-            } else {
-              toast.error("上傳失敗：" + (json.error ?? "未知錯誤"));
-            }
-          } catch {
-            toast.error("上傳失敗，請檢查網路連線");
-          } finally {
-            setUploading(false);
-          }
-        };
-        reader.readAsDataURL(file);
-      } catch {
+        const { url } = await uploadFileToS3(file);
+        onChange(url);
+        toast.success(`✅ 上傳完成：${file.name}`);
+      } catch (err: unknown) {
+        toast.error("上傳失敗：" + shortErrorMsg(err));
+      } finally {
         setUploading(false);
-        toast.error("讀取檔案失敗");
       }
     },
     [onChange]
@@ -1090,7 +1065,8 @@ function MusicTab() {
     onSuccess: data => {
       setResult(data as AudioResult);
       registerBgTask(data, "audio", "🎵 音樂生成", prompt);
-      const immediate = (data as AudioResult)?.audio_url ?? (data as AudioResult)?.url;
+      const r = data as { audio_url?: string; url?: string };
+      const immediate = r.audio_url ?? r.url;
       if (immediate) toast.success("🎵 音樂生成完成！");
       else toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
@@ -1134,8 +1110,8 @@ function MusicTab() {
     {
       enabled: !!sunoJob?.taskId,
       refetchInterval: query => {
-        const s = query.state.data?.status;
-        return s === "COMPLETED" ? false : 5000;
+        const s = parsePollStatus(query.state.data)?.status;
+        return s === "COMPLETED" || s === "completed" ? false : 5000;
       },
       refetchIntervalInBackground: false,
       retry: 5,
@@ -1144,12 +1120,12 @@ function MusicTab() {
 
   useEffect(() => {
     if (!sunoJob) return;
-    const data = sunoStatusQuery.data;
-    if (!data) return;
-    if (data.status === "COMPLETED" && data.audioUrl) {
+    const poll = parsePollStatus(sunoStatusQuery.data);
+    if (!poll) return;
+    if (poll.status === "COMPLETED" && poll.audioUrl) {
       setResult({
-        audio_url: data.audioUrl,
-        url: data.audioUrl,
+        audio_url: poll.audioUrl,
+        url: poll.audioUrl,
         request_id: sunoJob.taskId,
         model: `suno/${sunoJob.modelVersion}`,
       });
@@ -1157,8 +1133,7 @@ function MusicTab() {
     }
   }, [sunoStatusQuery.data, sunoJob]);
 
-  const audioUrl =
-    result?.audio_url ?? result?.audio?.url ?? result?.url;
+  const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
   // Sonauto 不支援 duration；Suno 由 API 控制時長
   const showDuration = !isSunoModel && musicModel !== "sonauto";
   // 支援歌詞的模型：sonauto / ace-step / suno
@@ -1581,8 +1556,7 @@ function SoundEffectsTab() {
     onSettled: () => setAIState("idle"),
   });
 
-  const audioUrl =
-    result?.audio_url ?? result?.audio?.url ?? result?.url;
+  const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
   // ElevenLabs max 22s, others up to 180s
   const maxDuration = sfxModel === "elevenlabs" ? 22 : 180;
   const showInfluence = sfxModel === "elevenlabs"; // 只有 ElevenLabs 支援 prompt_influence
@@ -1889,8 +1863,7 @@ function TTSTab() {
   });
 
   const isPending = elevenMutation.isPending || qwenMutation.isPending;
-  const audioUrl =
-    result?.audio_url ?? result?.audio?.url ?? result?.url;
+  const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
 
   const handleGenerate = () => {
     setResult(null);
@@ -2432,8 +2405,7 @@ function CloneTab() {
     voiceDesign.isPending ||
     klingVoice.isPending ||
     elevenLabsClone.isPending;
-  const audioUrl =
-    result?.audio_url ?? result?.audio?.url ?? result?.url;
+  const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
 
   const handleGenerate = () => {
     setResult(null);
@@ -2882,8 +2854,7 @@ function CloneTab() {
                           size="icon"
                           className="h-7 w-7 shrink-0"
                           onClick={() => {
-                            navigator.clipboard.writeText(klingResult.voice_id);
-                            toast.success("已複製語音 ID");
+                            void copyToClipboard(klingResult.voice_id, "已複製語音 ID");
                           }}
                         >
                           <Copy className="w-3 h-3" />
@@ -3012,8 +2983,7 @@ function CloneTab() {
                         size="icon"
                         className="h-7 w-7 shrink-0"
                         onClick={() => {
-                          navigator.clipboard.writeText(klingResult.voice_id);
-                          toast.success("已複製 voice_id");
+                          void copyToClipboard(klingResult.voice_id, "已複製 voice_id");
                         }}
                       >
                         <Copy className="w-3 h-3" />
@@ -3611,8 +3581,7 @@ function ASRTab() {
                 size="sm"
                 className="h-6 text-[10px] px-2"
                 onClick={() => {
-                  navigator.clipboard.writeText(text);
-                  toast.success("已複製");
+                  void copyToClipboard(text, "已複製");
                 }}
               >
                 <Copy className="w-3 h-3 mr-1" /> 複製

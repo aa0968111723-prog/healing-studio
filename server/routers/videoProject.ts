@@ -40,6 +40,16 @@ function resolveOutputSpec(raw: VideoOutputSpec | null | undefined): VideoOutput
   return raw ?? VIDEO_OUTPUT_SPEC_DEFAULT;
 }
 
+/** AIDV-788: 4K 需付費方案；免費帳號直接拋 FORBIDDEN。 */
+async function assertPaidFor4K(userId: number): Promise<void> {
+  const plan = await db.getUserSubscription(userId);
+  const isPaid =
+    !!plan &&
+    (plan.status === "active" || plan.status === "trialing") &&
+    plan.planId.toLowerCase() !== "free";
+  if (!isPaid) throw new TRPCError({ code: "FORBIDDEN", message: "4K 解析度需付費方案" });
+}
+
 export const videoProjectRouter = router({
   create: protectedProcedure
     .input(
@@ -54,6 +64,7 @@ export const videoProjectRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       checkAgentRateLimit(ctx.user.id, ctx.req, ctx.res);
+      if (input.outputSpec?.resolution === "4K") await assertPaidFor4K(ctx.user.id);
       const id = await db.createVideoProject({
         userId: ctx.user.id,
         title: input.title,
@@ -96,6 +107,11 @@ export const videoProjectRouter = router({
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
       if (row.userId !== ctx.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
+      const now = Date.now();
+      const signedUrlValid =
+        row.outputSignedUrl &&
+        row.outputExpiresAt &&
+        row.outputExpiresAt.getTime() > now;
       return {
         id: row.id,
         title: row.title,
@@ -104,6 +120,10 @@ export const videoProjectRouter = router({
         version: row.version,
         deadlineAt: row.deadlineAt ?? null,
         priorityClass: row.priorityClass,
+        // AIDV-684: 成片快取 URL（未過期時回傳，否則 null）
+        outputStoragePath: row.outputStoragePath ?? null,
+        outputSignedUrl: signedUrlValid ? row.outputSignedUrl : null,
+        outputExpiresAt: row.outputExpiresAt?.toISOString() ?? null,
       };
     }),
 
@@ -126,12 +146,13 @@ export const videoProjectRouter = router({
       if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
       if (row.userId !== ctx.user.id)
         throw new TRPCError({ code: "FORBIDDEN" });
+      if (input.outputSpec?.resolution === "4K") await assertPaidFor4K(ctx.user.id);
       const patch: Record<string, unknown> = {};
-      if (input.aspectRatio) patch.aspectRatio = input.aspectRatio;
-      if (input.title) patch.title = input.title;
-      if (input.outputSpec) patch.outputSpec = input.outputSpec;
+      if (input.aspectRatio !== undefined) patch.aspectRatio = input.aspectRatio;
+      if (input.title !== undefined) patch.title = input.title;
+      if (input.outputSpec !== undefined) patch.outputSpec = input.outputSpec;
       if (input.deadlineAt !== undefined) patch.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : null;
-      if (input.priorityClass) patch.priorityClass = input.priorityClass;
+      if (input.priorityClass !== undefined) patch.priorityClass = input.priorityClass;
       const { updated } = await db.updateVideoProject(
         input.id,
         patch as Parameters<typeof db.updateVideoProject>[1],
@@ -336,11 +357,11 @@ export const videoProjectRouter = router({
         throw new TRPCError({ code: "FORBIDDEN" });
 
       const patch: Record<string, unknown> = {};
-      if (input.title) patch.title = input.title;
-      if (input.aspectRatio) patch.aspectRatio = input.aspectRatio;
-      if (input.outputSpec) patch.outputSpec = input.outputSpec;
+      if (input.title !== undefined) patch.title = input.title;
+      if (input.aspectRatio !== undefined) patch.aspectRatio = input.aspectRatio;
+      if (input.outputSpec !== undefined) patch.outputSpec = input.outputSpec;
       if (input.deadlineAt !== undefined) patch.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : null;
-      if (input.priorityClass) patch.priorityClass = input.priorityClass;
+      if (input.priorityClass !== undefined) patch.priorityClass = input.priorityClass;
 
       const { updated } = await db.updateVideoProject(
         input.id,
@@ -383,6 +404,30 @@ export const videoProjectRouter = router({
         ...extractRequestSource(ctx.req),
       });
       return { ok: true, version: newVersion };
+    }),
+
+  /**
+   * AIDV-684: 從快取讀取已快取的下載 URL（若尚未生成或已過期則回傳 null）。
+   * 快取由 requestExport 成功呼叫後寫入；呼叫方只需知道 projectId。
+   */
+  getExportUrl: protectedProcedure
+    .input(z.object({ projectId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const project = await db.getVideoProject(input.projectId);
+      if (!project) throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
+      if (project.userId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const now = Date.now();
+      const valid =
+        project.outputSignedUrl &&
+        project.outputExpiresAt &&
+        project.outputExpiresAt.getTime() > now + 60_000;
+      if (!valid) return null;
+      return {
+        downloadUrl: project.outputSignedUrl!,
+        expiresAt: project.outputExpiresAt!.toISOString(),
+        storagePath: project.outputStoragePath ?? null,
+      };
     }),
 
   /**
@@ -431,13 +476,18 @@ export const videoProjectRouter = router({
         });
 
       const downloadUrl = await presignGetDownload(asset.fileKey);
-      const expiresAt = new Date(
-        Date.now() + EXPORT_PRESIGN_EXPIRES_SECONDS * 1000
-      ).toISOString();
+      const expiresAtDate = new Date(Date.now() + EXPORT_PRESIGN_EXPIRES_SECONDS * 1000);
+
+      // AIDV-684: 快取到 video_projects（fire-and-forget，失敗不影響回傳）
+      db.updateVideoProjectOutputUrl(input.projectId, {
+        storagePath: asset.fileKey,
+        signedUrl: downloadUrl,
+        expiresAt: expiresAtDate,
+      }).catch(() => undefined);
 
       return {
         downloadUrl,
-        expiresAt,
+        expiresAt: expiresAtDate.toISOString(),
         assetId: asset.id,
         projectId: project.id,
         format: input.format,
@@ -450,5 +500,41 @@ export const videoProjectRouter = router({
    */
   agentQuota: protectedProcedure.query(({ ctx }) => {
     return getAgentQuota(ctx.user.id);
+  }),
+
+  /**
+   * AIDV-623: 透過 fileUrl 取得帶所有權驗證的成片下載連結。
+   * CompletionCanvas 以原始 outputUrl 呼叫，後端確認 userId 所有權後
+   * 回傳 7 天有效的 R2 presigned GET URL，避免直接暴露 R2 raw URL。
+   */
+  requestDownloadByUrl: protectedProcedure
+    .input(z.object({ assetUrl: z.string().url() }))
+    .mutation(async ({ ctx, input }) => {
+      const asset = await db.getDigitalAssetByUrl(ctx.user.id, input.assetUrl);
+      if (!asset) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "找不到對應的影片資產" });
+      }
+      if (!asset.fileKey) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "影片尚未儲存至儲存空間" });
+      }
+      if (!isR2Configured()) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "儲存空間未設定" });
+      }
+      const downloadUrl = await presignGetDownload(asset.fileKey);
+      const expiresAt = new Date(Date.now() + EXPORT_PRESIGN_EXPIRES_SECONDS * 1000).toISOString();
+      return { downloadUrl, expiresAt };
+    }),
+
+  /**
+   * AIDV-255：回傳使用者是否為付費方案，供前端解析度選擇器決定 4K 是否鎖定。
+   * 付費 = planId !== "free" 且 status ∈ {active, trialing}。查不到 → 視為免費。
+   */
+  outputSpecEntitlement: protectedProcedure.query(async ({ ctx }) => {
+    const plan = await db.getUserSubscription(ctx.user.id);
+    const isPaid =
+      !!plan &&
+      (plan.status === "active" || plan.status === "trialing") &&
+      plan.planId.toLowerCase() !== "free";
+    return { isPaid, planId: plan?.planId ?? "free" };
   }),
 });

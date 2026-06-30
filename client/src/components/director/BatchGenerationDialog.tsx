@@ -54,6 +54,8 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
 
   const totalSegments = segments.length;
   const totalTasks = totalSegments * options.modalities.length;
+  const insufficientCredits =
+    remainingPoints != null && totalTasks > 0 && remainingPoints < totalTasks;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -78,10 +80,12 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
               </div>
             </div>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="關閉"
               className="p-2 hover:bg-muted rounded-lg transition-healing"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
           </div>
 
@@ -269,12 +273,18 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
             <Button
               className="flex-1 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white gap-2"
               onClick={onStartGeneration}
-              disabled={options.modalities.length === 0 || isPending}
+              disabled={options.modalities.length === 0 || isPending || insufficientCredits}
+              title={insufficientCredits ? `積分不足：需至少 ${totalTasks} pts，剩餘 ${remainingPoints} pts` : undefined}
             >
               {isPending ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   規劃中...
+                </>
+              ) : insufficientCredits ? (
+                <>
+                  <AlertTriangle className="w-4 h-4" />
+                  積分不足（需 ≥{totalTasks} pts）
                 </>
               ) : (
                 <>

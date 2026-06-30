@@ -86,7 +86,7 @@ function RealAssetsBody({ fallback }: { fallback: AssetRow[] }) {
       <PanelError message="資產庫讀取失敗（assets.myAssets）。" onRetry={() => void q.refetch()} />
     );
   }
-  const rows = Array.isArray(q.data) ? (q.data as Record<string, unknown>[]).map(rowToAsset) : [];
+  const rows = (q.data?.items ?? []).map(rowToAsset);
   return <AssetList assets={rows} />;
 }
 

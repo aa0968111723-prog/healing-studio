@@ -41,6 +41,7 @@ import { z } from "zod";
 import { safeMediaUrl, safeMediaUrlOptional } from "../lib/urlValidator";
 import { generationProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import * as db from "../db";
 import { FAL_QUEUE_BASE, FAL_RUN_BASE } from "../_core/providerFacade";
 import { signFalWebhookNonce } from "../_core/webhookTokens";
 import { recordErrorTrace } from "../services/brainAutoRepair";
@@ -53,6 +54,53 @@ import {
   doPostGenComplete,
   unifiedAssetPrefix,
 } from "../services/postGenActions";
+
+// ─── AIDV-678: fal.ai 回傳型別 ────────────────────────────────────────────────
+
+interface FalImageItem {
+  url: string;
+  [k: string]: unknown;
+}
+
+/** 涵蓋圖片、3D、upscale 等各類 fal.ai 端點輸出的寬鬆結構型別 */
+interface FalResultLike {
+  images?: FalImageItem[];
+  image?: { url?: string; [k: string]: unknown };
+  image_url?: string;
+  data?: { images?: FalImageItem[]; image?: { url?: string }; seed?: number };
+  output?: { images?: FalImageItem[] };
+  model_glb?: { url?: string };
+  model_mesh?: { url?: string };
+  model_urls?: {
+    glb?: { url?: string };
+    obj?: { url?: string };
+    usdz?: { url?: string };
+    fbx?: { url?: string };
+  };
+  gaussian_splat?: { url?: string };
+  artifacts_zip?: { url?: string };
+  individual_glbs?: Array<{ url?: string }>;
+  textures?: Array<{ url?: string }>;
+  thumbnail?: { url?: string };
+  world_file?: { url?: string };
+  seed?: number;
+  prompt?: string;
+  status?: string;
+  state?: string;
+  error?: string;
+  message?: string;
+  [k: string]: unknown;
+}
+
+/** AIDV-678: Zod schema — fal.ai 圖片結果最小契約（至少含 images[].url） */
+const FalImageResultSchema = z
+  .object({
+    images: z.array(z.object({ url: z.string() }).passthrough()).optional(),
+    image: z.object({ url: z.string() }).passthrough().optional(),
+    image_url: z.string().optional(),
+    seed: z.number().optional(),
+  })
+  .passthrough();
 
 // ─── fal.ai 呼叫工具（透過 falDispatcher 統一派發，享有 fallback chain；
 //     base URL 來自 providerFacade 單一來源）─────────────────────────────────
@@ -151,7 +199,7 @@ async function falQueueStatus(
 async function falQueueResult(
   requestId: string,
   modelId: string
-): Promise<unknown> {
+): Promise<FalResultLike> {
   const startedAt = Date.now();
   const key = getFalKey();
   const res = await falQueueFetchWithPrefixFallback(
@@ -176,7 +224,9 @@ async function falQueueResult(
       message: "取得結果失敗",
     });
   }
-  const data = await res.json();
+  const raw = await res.json();
+  const parsed = FalImageResultSchema.safeParse(raw);
+  const data: FalResultLike = parsed.success ? parsed.data : (raw as FalResultLike);
   void traceToolRun({
     runName: "image-studio/fal-queue-result",
     provider: "fal.ai",
@@ -185,7 +235,7 @@ async function falQueueResult(
     method: "GET",
     inputs: { request_id: requestId },
     outputs: {
-      status: (data as { status?: string })?.status ?? "unknown",
+      status: data.status ?? "unknown",
       request_id: requestId,
       has_result: true,
     },
@@ -253,14 +303,14 @@ async function falQueueRun(
   modelId: string,
   input: Record<string, unknown>,
   waitSec = 180
-): Promise<unknown> {
+): Promise<FalResultLike> {
   const { request_id } = await falQueueSubmit(modelId, input);
   // 直接回傳 request_id，不在後端等待（防止 504 Timeout）
   return { request_id, raw_model_id: modelId, is_async_polling: true };
 }
 
 /** 統一解析 fal.ai 圖片回應，回傳第一張圖片 URL */
-function extractImageUrl(raw: any): string | null {
+function extractImageUrl(raw: FalResultLike): string | null {
   // 各模型回傳格式不一，嘗試多種路徑
   const img =
     raw?.images?.[0]?.url ||
@@ -273,10 +323,10 @@ function extractImageUrl(raw: any): string | null {
   return img;
 }
 
-function extractAllImageUrls(raw: any): string[] {
+function extractAllImageUrls(raw: FalResultLike): string[] {
   const imgs = raw?.images || raw?.data?.images || raw?.output?.images || [];
   return Array.isArray(imgs)
-    ? imgs.map((i: any) => i?.url).filter(Boolean)
+    ? (imgs as FalImageItem[]).map(i => i.url).filter(Boolean) as string[]
     : [];
 }
 
@@ -397,7 +447,7 @@ export const imageStudioRouter = router({
         "fal-ai/nano-banana-2",
         payload,
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -431,7 +481,7 @@ export const imageStudioRouter = router({
         "fal-ai/nano-banana-pro",
         payload,
         180
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -465,7 +515,7 @@ export const imageStudioRouter = router({
           ...(input.seed !== undefined && { seed: input.seed }),
         },
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -497,7 +547,7 @@ export const imageStudioRouter = router({
           negative_prompt: mergeNegativePrompt(input.negative_prompt),
         },
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -539,7 +589,7 @@ export const imageStudioRouter = router({
           num_images: input.num_images,
         },
         180
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -563,7 +613,7 @@ export const imageStudioRouter = router({
       const raw = (await falQueueRun("fal-ai/nano-banana/edit", {
         prompt: input.prompt,
         image_urls: urls,
-      })) as any;
+      }));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -599,7 +649,7 @@ export const imageStudioRouter = router({
         "fal-ai/bytedance/seedream/v4.5/edit",
         payload,
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -635,7 +685,7 @@ export const imageStudioRouter = router({
         "fal-ai/bytedance/seedream/v5/lite/edit",
         payload,
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -662,7 +712,7 @@ export const imageStudioRouter = router({
           image_url: input.image_url,
         },
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -698,7 +748,7 @@ export const imageStudioRouter = router({
         "fal-ai/gpt-image-1.5/edit",
         payload,
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -734,7 +784,7 @@ export const imageStudioRouter = router({
           output_format: input.output_format,
         },
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -781,7 +831,15 @@ export const imageStudioRouter = router({
         num_images: z.number().min(1).max(4).optional().default(1),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (input.resolution === "4K") {
+        const plan = await db.getUserSubscription(ctx.user.id);
+        const isPaid =
+          !!plan &&
+          (plan.status === "active" || plan.status === "trialing") &&
+          plan.planId.toLowerCase() !== "free";
+        if (!isPaid) throw new TRPCError({ code: "FORBIDDEN", message: "4K 解析度需付費方案" });
+      }
       const urls = [input.image_url, ...(input.image_urls ?? [])];
       const raw = (await falQueueRun(
         "fal-ai/nano-banana-2/edit",
@@ -793,7 +851,7 @@ export const imageStudioRouter = router({
           num_images: input.num_images,
         },
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -837,7 +895,7 @@ export const imageStudioRouter = router({
           ...(input.seed !== undefined && { seed: input.seed }),
         },
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -882,7 +940,7 @@ export const imageStudioRouter = router({
           ...(input.seed !== undefined && { seed: input.seed }),
         },
         180
-      )) as any;
+      ));
       const imgUrl = raw?.image?.url || raw?.image_url || extractImageUrl(raw);
       return { image_url: imgUrl, seed: raw?.seed ?? null, raw };
     }),
@@ -922,7 +980,7 @@ export const imageStudioRouter = router({
           draw_mode: input.draw_mode,
         },
         60
-      )) as any;
+      ));
       const poseUrl = raw?.image?.url || raw?.image_url || extractImageUrl(raw);
       return { pose_image_url: poseUrl, raw };
     }),
@@ -991,7 +1049,7 @@ export const imageStudioRouter = router({
         "fal-ai/stable-diffusion-v35-large",
         payload,
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -1037,7 +1095,7 @@ export const imageStudioRouter = router({
       if (input.lora_path) {
         payload.loras = [{ path: input.lora_path, scale: input.lora_scale }];
       }
-      const raw = (await falQueueRun("fal-ai/fast-sdxl", payload, 90)) as any;
+      const raw = (await falQueueRun("fal-ai/fast-sdxl", payload, 90));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -1095,7 +1153,7 @@ export const imageStudioRouter = router({
           ...(input.loras?.length && { loras: input.loras }),
         },
         120
-      )) as any;
+      ));
       return {
         image_url: extractImageUrl(raw),
         images: extractAllImageUrls(raw),
@@ -1142,7 +1200,7 @@ export const imageStudioRouter = router({
           ...(input.seed !== undefined && { seed: input.seed }),
         },
         300
-      )) as any;
+      ));
       const glbUrl = raw?.model_glb?.url || null;
       return { model_glb_url: glbUrl, raw };
     }),
@@ -1175,14 +1233,14 @@ export const imageStudioRouter = router({
           ...(input.seed !== undefined && { seed: input.seed }),
         },
         300
-      )) as any;
+      ));
       return {
         model_glb_url: raw?.model_glb?.url || null,
         gaussian_splat_url: raw?.gaussian_splat?.url || null,
         artifacts_zip_url: raw?.artifacts_zip?.url || null,
         individual_glbs: (raw?.individual_glbs || [])
-          .map((f: any) => f?.url)
-          .filter(Boolean),
+          .map(f => f?.url)
+          .filter(Boolean) as string[],
         raw,
       };
     }),
@@ -1234,7 +1292,7 @@ export const imageStudioRouter = router({
         "fal-ai/hunyuan3d-v3/image-to-3d",
         payload,
         300
-      )) as any;
+      ));
       return {
         model_glb_url: raw?.model_glb?.url || null,
         thumbnail_url: raw?.thumbnail?.url || null,
@@ -1291,10 +1349,10 @@ export const imageStudioRouter = router({
         "fal-ai/hyper3d/rodin",
         payload,
         300
-      )) as any;
+      ));
       return {
         model_glb_url: raw?.model_mesh?.url || null,
-        textures: (raw?.textures || []).map((t: any) => t?.url).filter(Boolean),
+        textures: (raw?.textures || []).map(t => t?.url).filter(Boolean) as string[],
         seed: raw?.seed ?? null,
         raw,
       };
@@ -1326,7 +1384,7 @@ export const imageStudioRouter = router({
           export_drc: input.export_drc,
         },
         300
-      )) as any;
+      ));
       const worldUrl = raw?.world_file?.url || null;
       return { world_file_url: worldUrl, raw };
     }),
@@ -1369,14 +1427,14 @@ export const imageStudioRouter = router({
       const status = (await falQueueStatus(
         input.requestId,
         input.modelId
-      )) as any;
+      )) as FalResultLike;
       const s = status?.status ?? status?.state;
 
       if (s === "COMPLETED") {
         const result = (await falQueueResult(
           input.requestId,
           input.modelId
-        )) as any;
+        ));
         // 統一前綴：generated/studio/<userId>/image/<modelId>
         const localized = (await localizeResultUrls(
           result,
@@ -1385,7 +1443,7 @@ export const imageStudioRouter = router({
             source: "image",
             modelId: input.modelId,
           })
-        )) as any;
+        )) as FalResultLike;
 
         const primaryUrl =
           extractImageUrl(localized) ||

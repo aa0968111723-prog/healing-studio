@@ -20,6 +20,7 @@ import type {
   RunWorkflowAction,
 } from "../../../shared/agent-actions";
 import { getPageLabelByPath } from "@/lib/orbChatHelpers";
+import { copyToClipboard } from "@/lib/clipboard";
 
 export interface ChatMessageForExport {
   role: "user" | "orb";
@@ -483,10 +484,8 @@ export async function shareViaProcessLink(
 
   let copied = false;
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
-      copied = true;
-    }
+    await copyToClipboard(url);
+    copied = true;
   } catch {
     copied = false;
   }

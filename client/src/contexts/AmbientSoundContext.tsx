@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useCurrentScene } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbientSound } from "@/components/AmbientSoundEngine";
@@ -19,8 +19,10 @@ export function AmbientProvider({ children }: { children: ReactNode }) {
   const scene = useCurrentScene();
   const sound = useAmbientSound(scene.sceneId);
 
+  const value = useMemo(() => ({ ...scene, ...sound }), [scene, sound]);
+
   return (
-    <AmbientContext.Provider value={{ ...scene, ...sound }}>
+    <AmbientContext.Provider value={value}>
       {children}
     </AmbientContext.Provider>
   );

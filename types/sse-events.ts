@@ -60,7 +60,9 @@ export type GenerationEventType =
   | "chain_started"
   | "chain_completed"
   | "task_queued"
-  | "task_in_progress";
+  | "task_in_progress"
+  | "segment_started"
+  | "segment_completed";
 
 export type GenerationEvent =
   | ({ type: "thought-update"; node: ThoughtNodeEvent } & GenerationEventBase)
@@ -126,6 +128,27 @@ export type GenerationEvent =
       userId: number;
       modelId: string;
       at: number;
+    } & GenerationEventBase)
+  | ({
+      // AIDV-527: 導演 AI 批次生成 — 單一分鏡任務已開始派送 fal
+      type: "segment_started";
+      segmentId: string;
+      segmentIndex: number;
+      of: number;
+      stage: string;
+      userId: number;
+      at: number;
+    } & GenerationEventBase)
+  | ({
+      // AIDV-527: 導演 AI 批次生成 — 單一分鏡任務已完成（webhook 回傳 OK）
+      type: "segment_completed";
+      segmentId: string;
+      segmentIndex: number;
+      of: number;
+      stage: string;
+      duration_ms: number;
+      userId: number;
+      at: number;
     } & GenerationEventBase);
 
 // ── Bus 2: orbChatProgress ────────────────────────────────────────────────────
@@ -167,13 +190,29 @@ export type AgentCollabEvent = {
   updatedFields: string[];
 };
 
-export type AgentProjectEvent = {
+/** AIDV-325: broadcast event emitted whenever a videoProject is mutated. */
+export type AgentProjectUpdatedEvent = {
   type: "project_updated";
   projectId: number;
   version: number;
   updatedFields: string[];
   triggeredBy: "agent" | "user";
 };
+
+/**
+ * AIDV-467 Issue 6: intermediate task status broadcast on the per-project SSE channel.
+ * Emitted when an agent is selected for a video project task so the creator
+ * can see queued → assigned progression without polling.
+ */
+export type AgentTaskStatusEvent = {
+  type: "agent_task_status";
+  projectId: number;
+  status: "queued" | "in_progress" | "assigned";
+  agentId?: string;
+  runId?: number;
+};
+
+export type AgentProjectEvent = AgentProjectUpdatedEvent | AgentTaskStatusEvent;
 
 export type AgentEvent = AgentCollabEvent | AgentProjectEvent;
 

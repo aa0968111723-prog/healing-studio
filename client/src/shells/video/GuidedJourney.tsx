@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import type { ScriptBreakdown } from "@/adapters/types";
+import { shortErrorMsg } from "@/lib/upload";
 
 const SAMPLE = `雪山道上，狂風大作。密勒日巴獨自盤坐於岩石，閉目入定。
 
@@ -54,7 +55,8 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
     } catch (err) {
       if (runSeq.current !== token) return;
       toast.error("腳本拆解失敗，請稍後再試", {
-        description: err instanceof Error ? err.message : "請稍後重試，或先按「填入範例腳本」測試流程。",
+        description: shortErrorMsg(err) || "伺服器暫時無法處理，請稍後重試，或先按「填入範例腳本」測試流程。",
+        duration: 7000,
       });
       setStep("input");
     }
@@ -72,8 +74,9 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
         await spine.ingestBreakdown(name || spine.project?.name || "引導式新專案", bd, { newProject });
       } catch (err) {
         // 寫入失敗不關窗：拆解結果還在，使用者可改名或換目標重試。
-        toast.error("寫入分鏡失敗（worldStoryboard.createFromSegments）", {
-          description: err instanceof Error ? err.message : "請稍後重試。",
+        toast.error("寫入分鏡資料失敗，請稍後重試", {
+          description: "拆解結果仍保留，你可以改名或換目標後重試。",
+          duration: 7000,
         });
         return;
       }

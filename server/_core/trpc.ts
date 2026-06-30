@@ -165,10 +165,21 @@ const requireGenerationLimit = t.middleware(async ({ ctx, next }) => {
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 
+// Audio generation calls: 10 req / 60s per user (separate bucket from image/video gen).
+// Covers music, TTS, SFX, voice-clone — all external paid calls but faster than GPU video.
+// AIDV-622: guard against cost-DoS on paid proStudio mutations.
+const requireAudioGenerationLimit = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  checkTrpcRateLimit(ctx.user.id, { limit: 10, windowMs: 60_000, label: "audio:gen" }, ctx.res);
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
 /** brainProcedure + 20 req/min per-user limit — for director.chat / LLM planning. */
 export const aiChatProcedure = brainProcedure.use(requireAiChatLimit);
 /** brainProcedure + 5 req/min per-user limit — for imageStudio/videoStudio generation. */
 export const generationProcedure = brainProcedure.use(requireGenerationLimit);
+/** brainProcedure + 10 req/min per-user limit — for all paid proStudio audio generation. */
+export const audioGenerationProcedure = brainProcedure.use(requireAudioGenerationLimit);
 
 // AIDV-242: Video Studio generation limits — per-hour + per-day on top of shared 5/min.
 // GPU cost per call ($0.05–$0.5) is far higher than text/image, so tighter hourly/daily caps.

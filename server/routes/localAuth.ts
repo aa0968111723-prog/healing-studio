@@ -511,13 +511,13 @@ export function createLocalAuthRouter(
       return;
     }
 
-    // Rotate: revoke old, store new (both fire-and-forget to avoid blocking)
+    // AIDV-630: insert 先，revoke 後（先有新後棄舊）
+    // insert 失敗→舊 token 未撤，使用者可重試（不鎖出）
+    // revoke 失敗→舊新短暫並存，下輪輪替修正（可接受）
     const newHash = hashSessionToken(newToken);
     const newExpiresAt = new Date(Date.now() + newLifetimeMs);
-    await Promise.all([
-      revokeRefreshToken(oldHash),
-      insertRefreshToken({ tokenHash: newHash, userId: user.id, expiresAt: newExpiresAt }),
-    ]);
+    await insertRefreshToken({ tokenHash: newHash, userId: user.id, expiresAt: newExpiresAt });
+    await revokeRefreshToken(oldHash);
 
     const cookieOptions = getSessionCookieOptions(req);
     res.cookie(COOKIE_NAME, newToken, { ...cookieOptions, maxAge: newLifetimeMs });

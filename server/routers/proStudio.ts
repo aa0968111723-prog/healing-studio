@@ -35,7 +35,8 @@
  */
 
 import { z } from "zod";
-import { brainProcedure, publicProcedure, router } from "../_core/trpc";
+import { safeMediaUrlOptional } from "../lib/urlValidator";
+import { audioGenerationProcedure, brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { signWebhookToken, signFalWebhookNonce } from "../_core/webhookTokens";
 import { FAL_QUEUE_BASE, FAL_RUN_BASE } from "../_core/providerFacade";
@@ -48,7 +49,9 @@ import { dispatchFalQueueTask } from "../services/falDispatcher";
 import { resolveActiveModelId } from "../services/falModels";
 import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
 import { estimatePoints } from "../services/modelPricing";
-import { deductUserPoints, refundUserPoints } from "../db";
+import { deductUserPoints, refundUserPoints, getCustomBlock } from "../db";
+import { parseVoiceBlockPrompt } from "../services/voiceCompiler";
+import type { EmotionProfile } from "../services/voiceCompiler";
 import {
   doPostGenComplete,
   unifiedAssetPrefix,
@@ -507,7 +510,7 @@ export const proStudioRouter = router({
    *
    * 當主模型失敗時前端可切換至其他備選模型重試。
    */
-  textToMusic: brainProcedure
+  textToMusic: audioGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000).optional(),
@@ -678,7 +681,7 @@ export const proStudioRouter = router({
    * ⚠️ 原先使用 ElevenLabs Sound Effects 會產生「配音說話」而非音效，
    *    已改為 Stable Audio 作為預設模型。
    */
-  soundEffects: brainProcedure
+  soundEffects: audioGenerationProcedure
     .input(
       z.object({
         text: z.string().min(1).max(500),
@@ -776,7 +779,7 @@ export const proStudioRouter = router({
    *  - multilingual-v2 — 29 語言、品質穩定（pricing: multilingual-v2）
    *  - eleven-v3 — 最強情緒表達、最高品質（pricing: eleven-v3）
    */
-  elevenLabsTTS: brainProcedure
+  elevenLabsTTS: audioGenerationProcedure
     .input(
       z.object({
         text: z.string().min(1).max(5000),
@@ -786,10 +789,12 @@ export const proStudioRouter = router({
           .optional(),
         /** 直接傳入 ElevenLabs 原生 model_id（覆寫 engine 對應） */
         model_id: z.string().optional(),
-        stability: z.number().min(0).max(1).optional().default(0.5),
-        similarity_boost: z.number().min(0).max(1).optional().default(0.75),
-        style: z.number().min(0).max(1).optional().default(0),
+        stability: z.number().min(0).max(1).optional(),
+        similarity_boost: z.number().min(0).max(1).optional(),
+        style: z.number().min(0).max(1).optional(),
         language_code: z.string().optional(),
+        /** AIDV-793: 自訂語音 preset（customBlocks.id），若提供則從 prompt 欄位解析 EmotionProfile 作為語音設定基底。 */
+        customBlockId: z.number().int().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -833,6 +838,30 @@ export const proStudioRouter = router({
             "ElevenLabs TTS 需要 ELEVENLABS_API_KEY。請改用 Qwen TTS / Dia TTS 等本地引擎，或聯絡管理員設定金鑰。",
         });
       }
+
+      // AIDV-793: resolve voice_settings from customBlock preset → explicit input → hardcoded defaults.
+      let blockStability: number | undefined;
+      let blockSimilarityBoost: number | undefined;
+      let blockStyle: number | undefined;
+      if (input.customBlockId != null) {
+        const block = await getCustomBlock(input.customBlockId, ctx.user.id);
+        if (block?.prompt) {
+          const ep: Partial<EmotionProfile> = parseVoiceBlockPrompt(block.prompt);
+          // emphasisLevel → style + stability
+          if (ep.emphasisLevel === "strong") { blockStyle = 0.8; blockStability = 0.3; }
+          else if (ep.emphasisLevel === "moderate") { blockStyle = 0.5; blockStability = 0.45; }
+          else if (ep.emphasisLevel === "reduced") { blockStyle = 0.1; blockStability = 0.6; }
+          else if (ep.emphasisLevel === "none") { blockStyle = 0; blockStability = 0.7; }
+          // volume → similarity_boost
+          if (ep.volume === "loud") blockSimilarityBoost = 0.85;
+          else if (ep.volume === "medium") blockSimilarityBoost = 0.75;
+          else if (ep.volume === "soft") blockSimilarityBoost = 0.65;
+        }
+      }
+      const resolvedStability = input.stability ?? blockStability ?? 0.5;
+      const resolvedSimilarityBoost = input.similarity_boost ?? blockSimilarityBoost ?? 0.75;
+      const resolvedStyle = input.style ?? blockStyle ?? 0;
+
       const charged = await chargeForFalTask(ctx.user.id, route.pricingKey, {
         charCount: input.text.length,
       });
@@ -854,9 +883,9 @@ export const proStudioRouter = router({
           voice_id: input.voice_id,
           model_id: nativeModelId,
           voice_settings: {
-            stability: input.stability,
-            similarity_boost: input.similarity_boost,
-            style: input.style,
+            stability: resolvedStability,
+            similarity_boost: resolvedSimilarityBoost,
+            style: resolvedStyle,
           },
           language_code: input.language_code,
         }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
@@ -886,7 +915,7 @@ export const proStudioRouter = router({
       z.object({
         text: z.string().min(1).max(5000),
         voice: z.string().optional(), // 預訓練語音名稱，如 "Vivian"
-        speaker_voice_embedding_file_url: z.string().url().optional(), // 從 qwenCloneVoice 取得
+        speaker_voice_embedding_file_url: safeMediaUrlOptional, // 從 qwenCloneVoice 取得
         reference_text: z.string().optional(),
         language: z
           .enum([
@@ -943,7 +972,7 @@ export const proStudioRouter = router({
    * 要合成語音需取得 speaker_embedding.url，再呼叫 qwenTTS
    * 並傳入 speaker_voice_embedding_file_url。
    */
-  qwenCloneVoice: brainProcedure
+  qwenCloneVoice: audioGenerationProcedure
     .input(
       z.object({
         audio_url: z.string().url(), // 參考音訊 URL（3-30秒）
@@ -970,7 +999,7 @@ export const proStudioRouter = router({
    * 步驟：clone → 取得 embedding → TTS
    * ⚠️ 使用非同步 queue 避免超時
    */
-  qwenCloneAndSpeak: brainProcedure
+  qwenCloneAndSpeak: audioGenerationProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -1086,7 +1115,7 @@ export const proStudioRouter = router({
    * 只接受 { text }，用 [S1]/[S2] 標籤標注不同說話者。
    * 例如："[S1] 你好 [S2] 我很好"
    */
-  diaTTSVoiceClone: brainProcedure
+  diaTTSVoiceClone: audioGenerationProcedure
     .input(
       z.object({
         text: z.string().min(1).max(5000),
@@ -1120,7 +1149,7 @@ export const proStudioRouter = router({
    *  - Qwen 回 .safetensors embedding（only Qwen TTS 可用）
    *  - ElevenLabs 回 voice_id（可走 ElevenLabs 全家族 TTS / dubbing / voice-changer）
    */
-  elevenLabsVoiceClone: brainProcedure
+  elevenLabsVoiceClone: audioGenerationProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -1791,7 +1820,7 @@ export const proStudioRouter = router({
    * 流程：AudioBlock[] → AudioCompiler.compile() → textToMusic (ace-step / sonauto)
    * 解決：proStudio.textToMusic 只接受純文字，繞過了 28KB 的 audioCompiler 邏輯。
    */
-  compiledTextToMusic: brainProcedure
+  compiledTextToMusic: audioGenerationProcedure
     .input(
       z.object({
         blocks: z.array(
@@ -1973,7 +2002,7 @@ export const proStudioRouter = router({
    *
    * 完成後使用 checkMusicSunoStatus 輪詢結果。
    */
-  generateMusicSuno: brainProcedure
+  generateMusicSuno: audioGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),

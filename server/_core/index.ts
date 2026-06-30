@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import compression from "compression";
 import helmet from "helmet";
+import { helmetOptions, permissionsPolicyMiddleware } from "./securityHeaders";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { assertJwtSecretReady, authenticateRequest } from "./googleAuth";
@@ -47,6 +48,7 @@ import { replicateWebhookRouter } from "../routes/webhookReplicate";
 import { stripeWebhookRouter } from "../routes/stripeWebhook";
 import { mediaDownloadRouter } from "../routes/download";
 import { videoOutputRouter } from "../routes/videoOutputRoute";
+import { videoRouter } from "../routes/videoRoute";
 import { icsFeedRouter } from "../routes/icsFeed";
 import {
   initR2SnapshotCron,
@@ -445,45 +447,15 @@ async function startServer() {
   app.use(requestTraceMiddleware);
 
   // ── Security headers ─────────────────────────────────────────────────────
-  // AIDV-313/251: helmet with CSP + DENY frame-guard + Permissions-Policy.
+  // AIDV-313/251/312: helmet with CSP + DENY frame-guard + HSTS(preload) +
+  // Referrer-Policy + Permissions-Policy. Config lives in ./securityHeaders so
+  // production and the unit test share one source of truth (no header drift).
   // CORS wildcard stays on CDN-proxy-download route only — intentional for
   // public media delivery; tRPC/auth routes share same origin so no CORS needed.
-  // CSP notes (AIDV-251):
-  //   - 'unsafe-inline' required: Vite dev HMR + some inline styles in SPA shell
-  //   - connect-src 'https:' covers all proxied API calls (fal/supabase/etc. via server)
-  //   - frame-ancestors 'none' duplicates X-Frame-Options DENY for CSP-aware browsers
-  //   - Disable with CSP_ENFORCEMENT=0 env if a CDN/widget requires a new directive
-  app.use(
-    helmet({
-      contentSecurityPolicy: process.env.CSP_ENFORCEMENT === "0" ? false : {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", "data:", "blob:", "https:"],
-          mediaSrc: ["'self'", "blob:", "https:"],
-          connectSrc: ["'self'", "https:", "wss:"],
-          fontSrc: ["'self'", "data:"],
-          objectSrc: ["'none'"],
-          baseUri: ["'self'"],
-          frameSrc: ["'none'"],
-          workerSrc: ["'self'", "blob:"],
-          frameAncestors: ["'none'"],
-        },
-      },
-      crossOriginEmbedderPolicy: false, // Allow cross-origin media assets
-      frameguard: { action: "deny" }, // X-Frame-Options: DENY
-    })
-  );
-  // Permissions-Policy: disable browser features not used by healing-studio.
-  // Helmet 8.x does not set this header by default; added manually (AIDV-313).
-  app.use((_req, res, next) => {
-    res.setHeader(
-      "Permissions-Policy",
-      "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-    );
-    next();
-  });
+  // NOTE: helmet(...) is called inline here (not via applySecurityHeaders) so the
+  // brainPipeline MIDDLEWARE_STACK static scan still detects the `helmet(` signal.
+  app.use(helmet(helmetOptions));
+  app.use(permissionsPolicyMiddleware);
 
   // ── Gzip/Brotli compression (60-80% smaller text/JSON responses) ────────
   app.use(compression({ threshold: 1024 }));
@@ -543,6 +515,44 @@ async function startServer() {
     })
   );
   app.use(express.urlencoded({ limit: "4mb", extended: true }));
+
+  // AIDV-558: Global CSRF origin guard for non-tRPC, non-webhook state-changing Express routes.
+  // Complements the tRPC x-trpc-source check (line ~845) for auth routes like /api/oauth/logout.
+  // Skipped in dev/test and when CSRF_PROTECTION=0 kill-switch is set.
+  const CSRF_BYPASS_PREFIXES = ["/api/trpc", "/api/webhook/"];
+  const CSRF_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (
+      process.env.CSRF_PROTECTION === "0" ||
+      process.env.NODE_ENV === "test" ||
+      CSRF_SAFE_METHODS.has(req.method) ||
+      CSRF_BYPASS_PREFIXES.some((p) => req.path.startsWith(p))
+    ) {
+      return next();
+    }
+    const siteUrl = process.env.VITE_SITE_URL?.trim().replace(/\/$/, "");
+    if (!siteUrl || siteUrl.includes("localhost") || siteUrl.includes("127.0.0.1")) {
+      return next();
+    }
+    const origin = req.headers.origin as string | undefined;
+    const referer = req.headers.referer as string | undefined;
+    let requestOrigin: string | undefined;
+    if (origin) {
+      requestOrigin = origin.replace(/\/$/, "");
+    } else if (referer) {
+      try { requestOrigin = new URL(referer).origin; } catch { /* malformed referer — block */ }
+    }
+    if (!requestOrigin) {
+      res.status(403).json({ error: "CSRF 防護：缺少 Origin header" });
+      return;
+    }
+    if (requestOrigin !== siteUrl) {
+      res.status(403).json({ error: "CSRF 防護：不允許的 Origin" });
+      return;
+    }
+    return next();
+  });
+
   app.use(googleAuthRouter);
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
@@ -585,6 +595,7 @@ async function startServer() {
   app.use(stripeWebhookRouter);
   app.use(mediaDownloadRouter);
   app.use(videoOutputRouter);
+  app.use(videoRouter);
   app.use(icsFeedRouter);
   // AI Provider Proxy Gateway
   app.use(aiProxyRouter);
@@ -672,6 +683,32 @@ async function startServer() {
     }
   });
 
+  // AIDV-311: CORS allowlist for the proxy-download endpoint.
+  // Builds allowed origins from BASE_URL (e.g. https://director.today) plus localhost
+  // in development. Returns the reflected origin if matched, null otherwise — never
+  // uses wildcard because the endpoint requires auth and Cache-Control: private.
+  function getProxyDownloadCorsOrigin(reqOrigin: string | undefined): string | null {
+    if (!reqOrigin) return null;
+    const allowed: string[] = [];
+    const base = (serverEnv.BASE_URL || "").replace(/\/$/, "");
+    if (base) {
+      allowed.push(base);
+      // Also allow www. variant if base is apex (e.g. https://director.today → https://www.director.today)
+      try {
+        const u = new URL(base);
+        if (!u.hostname.startsWith("www.")) {
+          allowed.push(`${u.protocol}//www.${u.hostname}${u.port ? `:${u.port}` : ""}`);
+        }
+      } catch {
+        // ignore malformed BASE_URL
+      }
+    }
+    if (serverEnv.NODE_ENV !== "production") {
+      allowed.push("http://localhost:3000", "http://localhost:5173");
+    }
+    return allowed.includes(reqOrigin) ? reqOrigin : null;
+  }
+
   // AIDV-265: Max bytes the proxy-download stream will forward.
   // Prevents a malicious/massive upstream response from exhausting server RAM.
   const PROXY_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024; // 100 MB
@@ -716,7 +753,11 @@ async function startServer() {
       res.setHeader("Content-Type", contentType);
       // private: endpoint now requires auth — no shared cache should store this.
       res.setHeader("Cache-Control", "private, max-age=86400");
-      res.setHeader("Access-Control-Allow-Origin", "*");
+      // AIDV-311: reflect specific origin from allowlist; never use wildcard on an
+      // auth-gated endpoint (browsers block credentials + '*' anyway, and it signals
+      // unauthenticated cross-origin reads are intended when they are not).
+      const corsOrigin = getProxyDownloadCorsOrigin(req.headers.origin);
+      if (corsOrigin) res.setHeader("Access-Control-Allow-Origin", corsOrigin);
       if (contentLength) res.setHeader("Content-Length", contentLength);
       // Stream the response body instead of buffering into memory.
       // AIDV-265: track bytes forwarded; abort and close once the cap is hit.

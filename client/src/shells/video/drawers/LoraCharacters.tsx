@@ -8,6 +8,7 @@
 //   • 模型庫 = worldbuilding.linkableModels（含 trainedLoraUrl）。
 // ============================================================================
 import { useState } from "react";
+import { copyToClipboard } from "@/lib/clipboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -19,7 +20,7 @@ import { Check, Copy, Link2 } from "lucide-react";
 function useCopy() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const copy = (text: string, key: string) => {
-    void navigator.clipboard.writeText(text).then(() => {
+    void copyToClipboard(text).then(() => {
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(k => (k === key ? null : k)), 1800);
     });
@@ -91,13 +92,14 @@ export function LoraCharactersBody() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="ml-auto h-5 w-5 shrink-0"
+                          className="ml-auto min-h-[44px] min-w-[44px] shrink-0"
                           title="複製 LoRA URL"
+                          aria-label="複製 LoRA URL"
                           onClick={() => copy(linkedModel.trainedLoraUrl!, `url:${c.id}`)}
                         >
                           {copiedKey === `url:${c.id}`
-                            ? <Check className="h-3 w-3 text-emerald-500" />
-                            : <Copy className="h-3 w-3" />}
+                            ? <Check className="h-3 w-3 text-emerald-500" aria-hidden="true" />
+                            : <Copy className="h-3 w-3" aria-hidden="true" />}
                         </Button>
                       </div>
 
@@ -109,13 +111,14 @@ export function LoraCharactersBody() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="ml-auto h-5 w-5 shrink-0"
+                            className="ml-auto min-h-[44px] min-w-[44px] shrink-0"
                             title="複製觸發詞"
+                            aria-label="複製觸發詞"
                             onClick={() => copy(linkedModel.triggerWord!, `tw:${c.id}`)}
                           >
                             {copiedKey === `tw:${c.id}`
-                              ? <Check className="h-3 w-3 text-emerald-500" />
-                              : <Copy className="h-3 w-3" />}
+                              ? <Check className="h-3 w-3 text-emerald-500" aria-hidden="true" />
+                              : <Copy className="h-3 w-3" aria-hidden="true" />}
                           </Button>
                         </div>
                       )}
@@ -182,13 +185,14 @@ export function LoraCharactersBody() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="ml-auto h-5 w-5"
+                    className="ml-auto min-h-[44px] min-w-[44px]"
                     title="複製 LoRA URL"
+                    aria-label="複製 LoRA URL"
                     onClick={() => copy(m.trainedLoraUrl!, `lib:${m.id}`)}
                   >
                     {copiedKey === `lib:${m.id}`
-                      ? <Check className="h-3 w-3 text-emerald-500" />
-                      : <Copy className="h-3 w-3" />}
+                      ? <Check className="h-3 w-3 text-emerald-500" aria-hidden="true" />
+                      : <Copy className="h-3 w-3" aria-hidden="true" />}
                   </Button>
                 )}
               </div>

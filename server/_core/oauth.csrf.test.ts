@@ -187,8 +187,11 @@ describe("/api/oauth/callback — login nonce enforcement (flag ON)", () => {
 });
 
 describe("/api/oauth/callback — flag OFF preserves legacy behaviour", () => {
-  it("a legacy state with no nonce/cookie still logs in (zero-behaviour-change default)", async () => {
-    // No OAUTH_LOGIN_STATE_CSRF set → enforcement off.
+  beforeEach(() => {
+    process.env.OAUTH_LOGIN_STATE_CSRF = "0"; // explicit kill-switch
+  });
+
+  it("a legacy state with no nonce/cookie still logs in when flag is explicitly disabled", async () => {
     const legacyState = Buffer.from("/", "utf-8").toString("base64");
     const res = await get(`/api/oauth/callback?code=GOOD_CODE&state=${legacyState}`);
 

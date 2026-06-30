@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/ZenCoPilot";
 import { LocationPicker, type ScheduleLocation } from "@/components/LocationPicker";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   CalendarDays,
   Plus,
@@ -48,6 +49,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "@/components/VisualSoul";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -559,6 +570,7 @@ export default function CalendarPage({ embedded = false }: { embedded?: boolean 
   // 行為：點待排程列表中的筆記 → 進入 "armed" 狀態 → 點日曆上的日期 →
   // 立刻把該筆記排到那一天的 09:00。再點一次同一筆筆記則取消選取。
   const [armedNoteId, setArmedNoteId] = useState<number | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   const notesQuery = trpc.notes.list.useQuery();
   const trpcUtils = trpc.useUtils();
@@ -1334,7 +1346,7 @@ export default function CalendarPage({ embedded = false }: { embedded?: boolean 
                       <EventCard
                         key={note.id}
                         note={note}
-                        onDelete={id => deleteNote.mutate({ id })}
+                        onDelete={id => setPendingDeleteId(id)}
                         onCycleStatus={cycleStatus}
                       />
                     ))}
@@ -1396,7 +1408,7 @@ export default function CalendarPage({ embedded = false }: { embedded?: boolean 
                       >
                         <EventCard
                           note={note}
-                          onDelete={id => deleteNote.mutate({ id })}
+                          onDelete={id => setPendingDeleteId(id)}
                           onCycleStatus={cycleStatus}
                           compact
                         />
@@ -1437,6 +1449,32 @@ export default function CalendarPage({ embedded = false }: { embedded?: boolean 
           <PhoneSubscribePanel />
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={open => !open && setPendingDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除日曆事件？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原，事件將永久刪除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteId !== null) deleteNote.mutate({ id: pendingDeleteId });
+                setPendingDeleteId(null);
+              }}
+            >
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1496,8 +1534,7 @@ function PhoneSubscribePanel() {
               variant="outline"
               className="h-9 px-2 shrink-0"
               onClick={() => {
-                navigator.clipboard.writeText(fullUrl);
-                toast.success("已複製訂閱連結");
+                void copyToClipboard(fullUrl, "已複製訂閱連結");
               }}
               title="複製連結"
             >

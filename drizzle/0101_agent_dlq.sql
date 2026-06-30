@@ -1,4 +1,4 @@
--- 0098: agent_dlq — AIDV-346 驗證門失敗路由 DLQ
+-- 0101: agent_dlq — AIDV-346 驗證門失敗路由 DLQ
 -- 紀錄驗證門失敗的路由決策，支援 lint/build 自動重試、test/max-retry 人工審查。
 --
 -- 三鐵則：禁 CREATE INDEX IF NOT EXISTS；一句一 statement-breakpoint；

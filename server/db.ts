@@ -29,6 +29,7 @@ import {
   consistencyVault,
   InsertConsistencyVaultItem,
   subscriptionPlans,
+  userSubscriptions,
   aiDirectorPreferences,
   InsertAiDirectorPreference,
   generationHistory,
@@ -528,7 +529,24 @@ export async function getUsersByIds(ids: number[]) {
 export async function getAllUsers() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(users).orderBy(desc(users.createdAt));
+  return db.select().from(users).orderBy(desc(users.createdAt)).limit(10000);
+}
+
+// AIDV-618: cursor pagination — cursor = id of last fetched row; orderBy desc(id)
+export async function getAllUsersPaginated(opts?: { cursor?: number; limit?: number }) {
+  const db = await getDb();
+  if (!db) return { items: [] as (typeof users.$inferSelect)[], nextCursor: null as number | null };
+  const limit = Math.min(opts?.limit ?? 50, 100);
+  const q = db
+    .select()
+    .from(users)
+    .where(opts?.cursor ? lt(users.id, opts.cursor) : undefined)
+    .orderBy(desc(users.id))
+    .limit(limit + 1);
+  const rows = await q;
+  const hasNext = rows.length > limit;
+  const items = rows.slice(0, limit);
+  return { items, nextCursor: hasNext ? (items[items.length - 1]?.id ?? null) : null };
 }
 
 export async function updateUserQuota(userId: number, amount: number) {
@@ -1043,6 +1061,17 @@ export async function getModelTrainingConsentsByUser(userId: number) {
     .orderBy(desc(modelTrainingConsents.createdAt));
 }
 
+/** AIDV-796: Batch fetch — replaces N individual getModelTrainingConsent calls. */
+export async function getModelTrainingConsentsByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(modelTrainingConsents)
+    .where(inArray(modelTrainingConsents.id, ids));
+}
+
 export async function revokeModelTrainingConsent(
   id: number,
   reason: string | null
@@ -1139,6 +1168,23 @@ export async function getDigitalAsset(id: number) {
   return rows[0] || null;
 }
 
+export async function getDigitalAssetByUrl(userId: number, fileUrl: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(
+      and(
+        eq(digitalAssetLibrary.userId, userId),
+        eq(digitalAssetLibrary.fileUrl, fileUrl),
+        eq(digitalAssetLibrary.assetType, "video")
+      )
+    )
+    .limit(1);
+  return rows[0] || null;
+}
+
 export async function getDigitalAssetsByUser(userId: number, limit?: number) {
   const db = await getDb();
   if (!db) return [];
@@ -1203,6 +1249,70 @@ export async function getDigitalAssetsByUserFiltered(opts: {
     .where(and(...conditions))
     .orderBy(desc(digitalAssetLibrary.createdAt))
     .limit(opts.limit ?? 200);
+}
+
+export interface DigitalAssetsPage {
+  items: Awaited<ReturnType<typeof getDigitalAssetsByUserFiltered>>;
+  nextCursor: number | null;
+}
+
+export async function getDigitalAssetsByUserFilteredPaged(opts: {
+  userId: number;
+  assetType?: string;
+  sourceStudio?: string;
+  search?: string;
+  cursor?: number | null;
+  limit: number;
+}): Promise<DigitalAssetsPage> {
+  const db = await getDb();
+  if (!db) return { items: [], nextCursor: null };
+
+  const conditions: SQL[] = [eq(digitalAssetLibrary.userId, opts.userId)];
+
+  if (opts.assetType && opts.assetType !== "all") {
+    conditions.push(
+      eq(digitalAssetLibrary.assetType, opts.assetType as "image" | "video" | "audio" | "voice" | "script" | "zip_bundle")
+    );
+  }
+
+  if (opts.sourceStudio && opts.sourceStudio !== "all") {
+    if (opts.sourceStudio === "unknown") {
+      conditions.push(isNull(digitalAssetLibrary.sourceStudio));
+    } else {
+      conditions.push(eq(digitalAssetLibrary.sourceStudio, opts.sourceStudio));
+    }
+  }
+
+  if (opts.search) {
+    const trimmed = opts.search.trim();
+    if (trimmed) {
+      const escaped = escapeLikePattern(trimmed);
+      const pattern = `%${escaped}%`;
+      conditions.push(
+        or(
+          like(digitalAssetLibrary.title, pattern),
+          like(digitalAssetLibrary.description, pattern),
+          like(digitalAssetLibrary.promptUsed, pattern)
+        )!
+      );
+    }
+  }
+
+  if (opts.cursor != null) {
+    conditions.push(lt(digitalAssetLibrary.id, opts.cursor));
+  }
+
+  const rows = await db
+    .select()
+    .from(digitalAssetLibrary)
+    .where(and(...conditions))
+    .orderBy(desc(digitalAssetLibrary.id))
+    .limit(opts.limit + 1);
+
+  const hasMore = rows.length > opts.limit;
+  const items = hasMore ? rows.slice(0, opts.limit) : rows;
+  const nextCursor = hasMore ? (items[items.length - 1]?.id ?? null) : null;
+  return { items, nextCursor };
 }
 
 // ─── Prompt ↔ Asset 關聯（prompt_assets junction, migration 0075）────────────
@@ -2063,6 +2173,13 @@ export async function getBackgroundJob(id: number) {
   return result[0];
 }
 
+/** AIDV-651: 批次取得多個 background job（WHERE id IN (...)），避免逐筆 N+1。 */
+export async function getBackgroundJobsByIds(ids: number[]) {
+  const db = await getDb();
+  if (!db || ids.length === 0) return [];
+  return db.select().from(backgroundJobs).where(inArray(backgroundJobs.id, ids));
+}
+
 /**
  * AIDV-244：透過 fal.ai request_id 反查任意狀態的 backgroundJob（用於 ownership 驗證）。
  * 與 findProcessingJobByRequestId 的差異：不限制 status，適用於 checkVideoStatus 查詢已完成的 job。
@@ -2209,6 +2326,26 @@ export async function getPlanById(id: number) {
   return result[0];
 }
 
+/**
+ * AIDV-255：取得使用者目前訂閱（planId / status），供 4K 付費守門判定。
+ * 查不到（無列）→ 回 null（呼叫端 fail-closed 視為免費方案）。
+ */
+export async function getUserSubscription(
+  userId: number
+): Promise<{ planId: string; status: string | null } | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db
+    .select({
+      planId: userSubscriptions.planId,
+      status: userSubscriptions.status,
+    })
+    .from(userSubscriptions)
+    .where(eq(userSubscriptions.userId, userId))
+    .limit(1);
+  return result[0] ?? null;
+}
+
 // ─── AI Director Preferences ────────────────────────────────────────────────
 
 export async function getDirectorPreferences(userId: number) {
@@ -2339,6 +2476,18 @@ export async function getCustomBlocksByUser(
     .from(customBlocks)
     .where(eq(customBlocks.userId, userId))
     .orderBy(desc(customBlocks.createdAt));
+}
+
+/** AIDV-793: Fetch a single custom block, enforcing userId ownership (IDOR prevention). */
+export async function getCustomBlock(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(customBlocks)
+    .where(and(eq(customBlocks.id, id), eq(customBlocks.userId, userId)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function deleteCustomBlock(id: number, userId: number) {
@@ -2530,16 +2679,22 @@ export async function upsertSystemSettings(
   if (!db) throw new Error("Database not available");
   const existing = await getSystemSettings(userId);
   if (existing) {
-    const merged: Partial<InsertSystemSetting> = { ...data };
-    if (data.extraSettings != null && existing.extraSettings != null) {
-      merged.extraSettings = {
-        ...(existing.extraSettings as Record<string, unknown>),
-        ...(data.extraSettings as Record<string, unknown>),
+    // extraSettings is a shared JSON blob written by independent panels
+    // (e.g. ProviderPanel → generationProvider, FeatureFlagsTab →
+    // featureFlags). A bare `.set(data)` would overwrite the whole column,
+    // so each panel's save would silently wipe the other's keys
+    // (last-writer-wins). Shallow-merge the incoming top-level keys over the
+    // existing blob so concurrent panels coexist.
+    const patch: Partial<InsertSystemSetting> = { ...data };
+    if (data.extraSettings !== undefined && data.extraSettings !== null) {
+      patch.extraSettings = {
+        ...(existing.extraSettings ?? {}),
+        ...data.extraSettings,
       };
     }
     await db
       .update(systemSettings)
-      .set(merged)
+      .set(patch)
       .where(eq(systemSettings.userId, userId));
     return existing.id;
   } else {
@@ -2590,6 +2745,28 @@ export async function getStuckJobsByType(
       and(
         eq(backgroundJobs.jobType, jobType),
         eq(backgroundJobs.status, "processing"),
+        sql`${backgroundJobs.updatedAt} < ${cutoff}`
+      )
+    )
+    .orderBy(backgroundJobs.createdAt)
+    .limit(limit);
+}
+
+export async function getQueuedStuckJobsByType(
+  jobType: typeof backgroundJobs.$inferSelect["jobType"],
+  stuckAfterMinutes = 10,
+  limit = 5
+) {
+  const db = await getDb();
+  if (!db) return [];
+  const cutoff = new Date(Date.now() - stuckAfterMinutes * 60 * 1000);
+  return db
+    .select()
+    .from(backgroundJobs)
+    .where(
+      and(
+        eq(backgroundJobs.jobType, jobType),
+        eq(backgroundJobs.status, "queued"),
         sql`${backgroundJobs.updatedAt} < ${cutoff}`
       )
     )
@@ -3162,15 +3339,17 @@ export async function getCreativeProject(
 }
 
 export async function getCreativeProjectsByUser(
-  userId: number
+  userId: number,
+  opts?: { limit?: number }
 ): Promise<CreativeProject[]> {
   const db = await getDb();
   if (!db) return [];
-  return db
+  const q = db
     .select()
     .from(creativeProjects)
     .where(eq(creativeProjects.userId, userId))
     .orderBy(desc(creativeProjects.updatedAt));
+  return opts?.limit ? q.limit(opts.limit) : q;
 }
 
 // AIDV-314: cursor-based paginated variant. Cursor = last seen row id.
@@ -4100,14 +4279,16 @@ export async function updateTeam(id: number, data: Partial<InsertTeam>) {
 export async function deleteTeam(id: number) {
   const db = await getDb();
   if (!db) return;
-  // 順序很重要：先把該團隊的素材 teamId 退回 null（轉成個人素材），再砍 membership，
-  // 最後刪 team row。沒有 FK CASCADE 因為素材要留下來。
-  await db
-    .update(teachingMaterials)
-    .set({ teamId: null, visibility: "private" })
-    .where(eq(teachingMaterials.teamId, id));
-  await db.delete(teamMemberships).where(eq(teamMemberships.teamId, id));
-  await db.delete(teams).where(eq(teams.id, id));
+  // AIDV-629: 三步包進 transaction，部分失敗全回滾，不留孤兒 membership 或脫鉤素材。
+  // 順序：先退材料 teamId → 再刪 membership → 再刪 team row（素材保留，無 FK CASCADE）。
+  await db.transaction(async (tx) => {
+    await tx
+      .update(teachingMaterials)
+      .set({ teamId: null, visibility: "private" })
+      .where(eq(teachingMaterials.teamId, id));
+    await tx.delete(teamMemberships).where(eq(teamMemberships.teamId, id));
+    await tx.delete(teams).where(eq(teams.id, id));
+  });
 }
 
 /** 列出 user 加入的所有團隊（含 owner 自己建的）。 */
@@ -4151,6 +4332,23 @@ export async function addTeamMember(
   if (!db) throw new Error("Database not available");
   const result = await db.insert(teamMemberships).values(data);
   return result[0].insertId;
+}
+
+/** AIDV-629: createTeam + addTeamMember (owner) 包進單一 transaction。
+ *  addTeamMember 失敗時整個 team row 一起回滾，不留沒成員的孤兒 team。 */
+export async function createTeamWithOwner(data: InsertTeam): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (tx) => {
+    const [{ insertId: teamId }] = await tx.insert(teams).values(data);
+    await tx.insert(teamMemberships).values({
+      teamId,
+      userId: data.ownerId,
+      role: "owner",
+      invitedBy: data.ownerId,
+    });
+    return teamId;
+  });
 }
 
 export async function removeTeamMember(teamId: number, userId: number) {
@@ -4318,6 +4516,49 @@ export async function getSharesForUserOnResource(
     );
 }
 
+/** AIDV-651: 批次版 getSharesForUserOnResource，一次查詢多個 resourceId。
+ *  回傳 Map<resourceId, ResourceShare[]>，未命中的 id 不在 map 內（視為 []）。 */
+export async function getSharesForUserOnManyResources(
+  resourceType: ResourceShareType,
+  resourceIds: number[],
+  userId: number,
+  userTeamIds: number[]
+): Promise<Map<number, ResourceShare[]>> {
+  const db = await getDb();
+  const out = new Map<number, ResourceShare[]>();
+  if (!db || resourceIds.length === 0) return out;
+  const targetConds = [
+    and(
+      eq(resourceShares.sharedWithType, "user"),
+      eq(resourceShares.sharedWithId, userId)
+    ),
+  ];
+  if (userTeamIds.length > 0) {
+    targetConds.push(
+      and(
+        eq(resourceShares.sharedWithType, "team"),
+        inArray(resourceShares.sharedWithId, userTeamIds)
+      )
+    );
+  }
+  const rows = await db
+    .select()
+    .from(resourceShares)
+    .where(
+      and(
+        eq(resourceShares.resourceType, resourceType),
+        inArray(resourceShares.resourceId, resourceIds),
+        or(...targetConds)
+      )
+    );
+  for (const row of rows) {
+    const list = out.get(row.resourceId) ?? [];
+    list.push(row);
+    out.set(row.resourceId, list);
+  }
+  return out;
+}
+
 /**
  * 列出某使用者（含其團隊）被顯式共享的「某型別資源 id 集合」。清單過濾用
  * （旗標 ON 時：A 的清單 = 自己的 ∪ 被共享給 A 的）。
@@ -4448,6 +4689,70 @@ export async function transferResourceOwnership(
 }
 
 /**
+ * AIDV-186：原子化「移轉擁有權 ＋ 清掉該資源全部共享」。
+ *
+ * 為什麼要包進單一交易：rbac.transferOwnership 原本分兩步各自跑獨立
+ * UPDATE（移 owner）＋ DELETE（清 shares），中間沒有共用交易。若第二步
+ * 失敗（或兩步之間有 concurrent share 寫入），會出現「擁有權已轉走、舊
+ * owner 的共享卻殘存」的狀態——舊 owner 對一個已不屬於他的資源仍保有殘餘
+ * 存取，違背此操作「move ownership AND wipe all shares」的安全不變式。
+ *
+ * 包進一個 db.transaction 後：任一步失敗即整體 rollback，擁有權不變、無殘餘
+ * shares；成功則兩步原子提交。delete 在 update 之後、同一原子單元內執行，
+ * 兩步之間的 concurrent share 寫入也會被這次 DELETE 一併清掉。
+ */
+export async function transferResourceOwnershipAndWipeShares(
+  resourceType: ResourceShareType,
+  resourceId: number,
+  newOwnerUserId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async tx => {
+    // 1) 移轉擁有權（更新 owner 欄位）。各資源表 owner 欄位皆為 userId。
+    switch (resourceType) {
+      case "project":
+        await tx
+          .update(creativeProjects)
+          .set({ userId: newOwnerUserId })
+          .where(eq(creativeProjects.id, resourceId));
+        break;
+      case "asset":
+        await tx
+          .update(digitalAssetLibrary)
+          .set({ userId: newOwnerUserId })
+          .where(eq(digitalAssetLibrary.id, resourceId));
+        break;
+      case "prompt":
+        await tx
+          .update(promptLibrary)
+          .set({ userId: newOwnerUserId })
+          .where(eq(promptLibrary.id, resourceId));
+        break;
+      case "material":
+        await tx
+          .update(teachingMaterials)
+          .set({ userId: newOwnerUserId })
+          .where(eq(teachingMaterials.id, resourceId));
+        break;
+      default: {
+        const _exhaustive: never = resourceType;
+        throw new Error(`未知資源型別: ${String(_exhaustive)}`);
+      }
+    }
+    // 2) 清掉此資源的全部共享（同一原子單元內，舊 owner 不留殘餘存取）。
+    await tx
+      .delete(resourceShares)
+      .where(
+        and(
+          eq(resourceShares.resourceType, resourceType),
+          eq(resourceShares.resourceId, resourceId)
+        )
+      );
+  });
+}
+
+/**
  * 讀某資源的 owner facts（{ ownerId, visibility, teamId }），給 canAccess /
  * share/transfer 的擁有權驗證用。找不到回 null。不同資源表欄位略異，這裡
  * 投影成統一形狀（沒有 visibility/teamId 的型別回 null）。
@@ -4562,6 +4867,17 @@ export async function getRealEarthEntry(id: number): Promise<RealEarthEntry | nu
     .where(eq(realEarthEntries.id, id))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/** AIDV-802: Batch fetch multiple realEarthEntries in one query (replaces N+1 loop). */
+export async function getRealEarthEntriesByIds(ids: number[]): Promise<RealEarthEntry[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(realEarthEntries)
+    .where(inArray(realEarthEntries.id, ids));
 }
 
 export async function getRealEarthEntries(params: {
@@ -4963,7 +5279,7 @@ const USER_OWNED_TABLES = [
   "orb_workflow_executions",
   "orb_spirit_collaboration_metrics",
   "orb_cost_attribution",
-  "orb_system_alerts",
+  "orb_system_alerts", // MySQL legacy name; Supabase prod table is "system_alerts"
   "worldbuilding_frameworks",
   "world_storyboards",
   "creative_projects",
@@ -4975,6 +5291,14 @@ const USER_OWNED_TABLES = [
   "refresh_tokens",
   "user_workflows",
   "studio_recipes",
+  "model_wishes",
+  "model_wish_votes",
+  "webhook_subscriptions",
+  "api_keys",
+  "featured_showcase_comments",
+  "teaching_materials",
+  "teaching_material_access_log",
+  "video_projects",
 ] as const;
 
 /**
@@ -5220,6 +5544,23 @@ export async function getProjectSnapshot(id: number): Promise<ProjectSnapshot | 
     .where(eq(projectSnapshots.id, id))
     .limit(1);
   return rows[0] ?? null;
+}
+
+// AIDV-684: 將成片輸出位址寫回 video_projects 列，供完成頁不必再查 digital_asset_library。
+export async function updateVideoProjectOutputUrl(
+  projectId: number,
+  data: { storagePath: string; signedUrl: string; expiresAt: Date }
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(videoProjects)
+    .set({
+      outputStoragePath: data.storagePath,
+      outputSignedUrl: data.signedUrl,
+      outputExpiresAt: data.expiresAt,
+    })
+    .where(eq(videoProjects.id, projectId));
 }
 
 export async function duplicateVideoProject(

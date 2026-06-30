@@ -19,6 +19,7 @@ import { VideoCockpit } from "./VideoCockpit";
 import { SSEFallbackBanner } from "@/components/SSEFallbackBanner";
 import { AgentStatusBar } from "@/components/AgentStatusBar";
 import { AgentQuotaBar } from "@/components/AgentQuotaBar";
+import { ActiveVideoTasksBanner } from "./ActiveVideoTasksBanner";
 
 /** 由座艙接管的路徑（其餘 video 子路由維持 P0 re-home）。 */
 const COCKPIT_PATHS = ["/video", "/video/director", "/video/cockpit"];
@@ -30,6 +31,7 @@ export function VideoCockpitFrame() {
   return (
     <DashboardLayout shell="video">
       <SSEFallbackBanner />
+      <ActiveVideoTasksBanner />
       <AgentQuotaBar />
       <AgentStatusBar />
       <ProjectSpineProvider>

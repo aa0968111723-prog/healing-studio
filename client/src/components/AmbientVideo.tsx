@@ -15,6 +15,7 @@
 
 import { useRef, useEffect, useState, memo, useCallback } from "react";
 import Hls from "hls.js";
+import { useReducedMotion } from "framer-motion";
 
 interface AmbientVideoProps {
   /** HLS .m3u8 播放清單 URL */
@@ -40,6 +41,7 @@ function AmbientVideoInner({
   const hlsRef = useRef<Hls | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   const handleCanPlay = useCallback(() => {
     setIsReady(true);
@@ -62,9 +64,11 @@ function AmbientVideoInner({
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
       video.addEventListener("canplay", handleCanPlay);
-      video.play().catch(() => {
-        // Autoplay blocked — silent fail, ambient video is non-essential
-      });
+      if (!prefersReducedMotion) {
+        video.play().catch(() => {
+          // Autoplay blocked — silent fail, ambient video is non-essential
+        });
+      }
       return () => {
         video.removeEventListener("canplay", handleCanPlay);
       };
@@ -90,9 +94,11 @@ function AmbientVideoInner({
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => {
-          // Autoplay blocked — silent fail
-        });
+        if (!prefersReducedMotion) {
+          video.play().catch(() => {
+            // Autoplay blocked — silent fail
+          });
+        }
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -129,7 +135,9 @@ function AmbientVideoInner({
     if (fallbackSrc) {
       video.src = fallbackSrc;
       video.addEventListener("canplay", handleCanPlay);
-      video.play().catch(() => {});
+      if (!prefersReducedMotion) {
+        video.play().catch(() => {});
+      }
       return () => {
         video.removeEventListener("canplay", handleCanPlay);
       };
@@ -138,7 +146,7 @@ function AmbientVideoInner({
     // No playback method available
     setHasError(true);
     return undefined;
-  }, [src, fallbackSrc, handleCanPlay]);
+  }, [src, fallbackSrc, handleCanPlay, prefersReducedMotion]);
 
   // If error and no fallback, don't render anything
   if (hasError && !fallbackSrc) {
@@ -154,6 +162,7 @@ function AmbientVideoInner({
       {/* Video element */}
       <video
         ref={videoRef}
+        autoPlay={!prefersReducedMotion}
         muted
         loop
         playsInline

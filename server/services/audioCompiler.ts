@@ -15,6 +15,7 @@
 import {
   validateCompilerInput,
   AudioCompilerInputSchema,
+  type ICompiler,
 } from "./compilerValidation";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -474,7 +475,7 @@ function inferStructureTemplate(
 // AudioCompiler 主類
 // ═══════════════════════════════════════════════════════════════════════════
 
-export class AudioCompiler {
+export class AudioCompiler implements ICompiler<AudioCompilerInput, AudioCompileResult> {
   private readonly maxElementsPerSection: number;
 
   constructor(maxElements: number = MAX_ELEMENTS_PER_SECTION) {

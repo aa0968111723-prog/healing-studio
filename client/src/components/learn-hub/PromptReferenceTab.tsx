@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   Search,
   Copy,
@@ -78,20 +79,18 @@ function PromptCard({
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(prompt.prompt);
-      toast.success("已複製到剪貼簿");
+      await copyToClipboard(prompt.prompt, "已複製到剪貼簿");
     } catch {
-      toast.error("複製失敗，請手動選取");
+      /* error toast shown by copyToClipboard */
     }
   };
 
   const handleCopyNegative = async () => {
     if (!prompt.negativePrompt) return;
     try {
-      await navigator.clipboard.writeText(prompt.negativePrompt);
-      toast.success("已複製負面提示詞");
+      await copyToClipboard(prompt.negativePrompt, "已複製負面提示詞");
     } catch {
-      toast.error("複製失敗");
+      /* error toast shown by copyToClipboard */
     }
   };
 

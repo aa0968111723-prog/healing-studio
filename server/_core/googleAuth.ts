@@ -143,13 +143,12 @@ export function generateOAuthStateNonce(): string {
 
 /**
  * Whether the callback ENFORCES the login `state` nonce against the
- * `oauth_state` cookie. Default OFF: merging is a zero-behaviour change — the
- * nonce is always minted and round-tripped, but rejection only kicks in once
- * Bruce sets `OAUTH_LOGIN_STATE_CSRF=1` (or true/on) after a prod login smoke.
- * Set to 0/false/off to disable as a kill-switch.
+ * `oauth_state` cookie. Default ON — every new login flow mints and embeds a
+ * nonce so the check succeeds for all in-flight requests. Set
+ * `OAUTH_LOGIN_STATE_CSRF=0` (or false/off) as a kill-switch if needed.
  */
 export function isOAuthLoginStateCheckEnabled(): boolean {
-  return isFlagEnabled(process.env.OAUTH_LOGIN_STATE_CSRF, false);
+  return isFlagEnabled(process.env.OAUTH_LOGIN_STATE_CSRF, true);
 }
 
 export type SessionPayload = {

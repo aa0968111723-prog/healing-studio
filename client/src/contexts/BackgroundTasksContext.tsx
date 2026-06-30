@@ -160,6 +160,9 @@ interface BackgroundTasksContextValue {
   sseConnected: boolean;
   /** Preview URLs captured from SSE complete events, keyed by jobId — available immediately, before DB refetch */
   previewUrls: Record<number, string>;
+  /** 通知 context 一個已在 DB 的 job 剛開始（例如 DirectorAI 伺服器端建立的任務），
+   *  立即觸發 activeJobs 重抓並啟動 5s 輪詢，讓 drawer badge 即時反映。 */
+  notifyJobStarted: (jobId: number) => void;
 }
 
 const BackgroundTasksContext =
@@ -198,7 +201,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
   // ─── 查詢所有活躍任務 ──────────────────────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
     refetchInterval: activeJobIds.length > 0 ? POLL_INTERVAL : 30_000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
     retry: 2,
   });
 
@@ -373,7 +376,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     };
 
     check(); // 立即檢查一次
-    const timer = setInterval(check, POLL_INTERVAL);
+    const timer = setInterval(check, sseConnected ? 30_000 : POLL_INTERVAL);
     return () => clearInterval(timer);
   }, [activeJobIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -522,6 +525,11 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     [submitMutation, activeJobsQuery, balanceQuery.data?.remaining, utils]
   );
 
+  const notifyJobStarted = useCallback((jobId: number) => {
+    setActiveJobIds(prev => (prev.includes(jobId) ? prev : [...prev, jobId]));
+    void activeJobsQuery.refetch();
+  }, [activeJobsQuery]);
+
   const value = useMemo<BackgroundTasksContextValue>(
     () => ({
       tasks,
@@ -531,8 +539,9 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
       setDrawerOpen,
       sseConnected,
       previewUrls: previewUrlsByJobId,
+      notifyJobStarted,
     }),
-    [tasks, activeCount, submitTask, drawerOpen, sseConnected, previewUrlsByJobId]
+    [tasks, activeCount, submitTask, drawerOpen, sseConnected, previewUrlsByJobId, notifyJobStarted]
   );
 
   return (

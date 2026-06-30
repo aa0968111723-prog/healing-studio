@@ -10,7 +10,7 @@
  */
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useFocusFlow, BREATHING_PHASES } from "@/contexts/FocusFlowContext";
 import {
   Timer,
@@ -61,12 +61,8 @@ function MiniPomodoro() {
         <span
           className="text-xs font-medium px-2 py-0.5 rounded-full"
           style={{
-            background:
-              pomodoroPhase === "work"
-                ? "rgba(239,68,68,0.1)"
-                : "rgba(34,197,94,0.1)",
-            color:
-              pomodoroPhase === "work" ? "rgb(239,68,68)" : "rgb(34,197,94)",
+            background: pomodoroPhase === "work" ? "var(--bad-tint)" : "var(--ok-tint)",
+            color: pomodoroPhase === "work" ? "var(--bad)" : "var(--ok)",
           }}
         >
           {pomodoroPhase === "work" ? "🍅 專注" : "☕ 休息"}
@@ -148,6 +144,7 @@ function MiniHealing() {
     toggleHealing,
     resetHealing,
   } = useFocusFlow();
+  const prefersReducedMotion = useReducedMotion();
 
   const currentBreathPhase = BREATHING_PHASES[breathPhaseIdx];
   const healingSec = healingMin * 60;
@@ -163,9 +160,9 @@ function MiniHealing() {
         <motion.div
           className="absolute rounded-full"
           animate={{
-            scale: healingRunning ? currentBreathPhase.scale : 1,
+            scale: (healingRunning && !prefersReducedMotion) ? currentBreathPhase.scale : 1,
           }}
-          transition={{
+          transition={prefersReducedMotion ? { duration: 0 } : {
             scale: {
               duration: currentBreathPhase.duration / 1000,
               ease: "easeInOut",
@@ -281,10 +278,10 @@ function MiniThoughts() {
             </span>
             <button
               onClick={() => removeThought(t.id)}
-              className="opacity-0 group-hover:opacity-100 p-0.5 hover:text-red-400 transition-all shrink-0"
+              className="opacity-0 group-hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center hover:text-red-400 transition-all shrink-0"
               aria-label="刪除"
             >
-              <Trash2 className="h-2.5 w-2.5" />
+              <Trash2 className="h-2.5 w-2.5" aria-hidden="true" />
             </button>
           </div>
         ))}

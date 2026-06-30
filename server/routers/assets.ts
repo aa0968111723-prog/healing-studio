@@ -7,7 +7,7 @@ import { isDemoMode } from "../_core/googleAuth";
 import * as db from "../db";
 import { storageDelete } from "../storage";
 import { recordAuditEvent, extractRequestSource } from "../services/audit/auditLog";
-import { isDataRbacEnabled } from "../services/authz/resourceAccess";
+import { isDataRbacEnabled, canAccess } from "../services/authz/resourceAccess";
 import { canAccessResource } from "../services/authz/resourceAccessResolver";
 
 // ─── Assets ──────────────────────────────────────────────────────────────
@@ -47,15 +47,19 @@ export const assetsRouter = router({
             ])
             .default("all"),
           search: z.string().optional(),
+          cursor: z.number().int().positive().nullish(),
+          limit: z.number().int().min(1).max(100).default(50),
         })
         .optional()
     )
     .query(async ({ ctx, input }) => {
-      return db.getDigitalAssetsByUserFiltered({
+      return db.getDigitalAssetsByUserFilteredPaged({
         userId: ctx.user.id,
         assetType: input?.assetType,
         sourceStudio: input?.sourceStudio,
         search: input?.search,
+        cursor: input?.cursor,
+        limit: input?.limit ?? 50,
       });
     }),
 
@@ -131,24 +135,27 @@ export const assetsRouter = router({
       //   行為，含已知 cross-tenant 洩漏；本 PR 刻意不在 OFF 時改它）。
       // 旗標 ON = 經 canAccess 過濾，只留 ctx.user 真正能看到的（owner /
       //   被顯式共享 / team_shared 池成員），A 看不到 B 未共享的資產。
-      // 逐筆權限過濾在 SQL 取回的結果上執行（與舊行為一致，AND 語意，順序不影響最終集合）。
+      // AIDV-651: 以批次查詢取代逐筆 N+1——listTeamIds 1次 + getSharesForMany 1次，
+      //   再以純函式 canAccess 逐筆判定（無額外 DB 往返）。結果集語意與逐筆版完全相同。
       if (isDataRbacEnabled()) {
-        const visible: typeof result = [];
-        for (const asset of result) {
-          const ok = await canAccessResource(
-            "asset",
-            asset.id,
-            {
-              ownerId: asset.userId,
-              visibility: asset.visibility,
-              teamId: null, // digital_asset_library 尚無 teamId 欄；靠顯式共享授權
-            },
-            ctx.user.id,
+        const memberTeamIds = await db.listTeamIdsForUser(ctx.user.id);
+        const sharesMap = await db.getSharesForUserOnManyResources(
+          "asset",
+          result.map(a => a.id),
+          ctx.user.id,
+          memberTeamIds
+        );
+        result = result.filter(asset => {
+          const shares = sharesMap.get(asset.id) ?? [];
+          const explicitShareRole =
+            shares.some(s => s.role === "editor") ? "editor" :
+            shares.some(s => s.role === "viewer") ? "viewer" : null;
+          return canAccess(
+            { ownerId: asset.userId, visibility: asset.visibility, teamId: null },
+            { userId: ctx.user.id, memberTeamIds, explicitShareRole },
             "view"
           );
-          if (ok) visible.push(asset);
-        }
-        result = visible;
+        });
       }
 
       return result;

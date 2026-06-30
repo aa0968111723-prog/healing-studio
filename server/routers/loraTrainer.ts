@@ -13,6 +13,8 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { signWebhookToken } from "../_core/webhookTokens";
+import { checkTrpcRateLimit } from "../_core/trpcRateLimit";
+import { logger } from "../_core/logger";
 
 export const loraTrainerRouter = router({
   /**
@@ -170,6 +172,21 @@ export const loraTrainerRouter = router({
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: "REPLICATE_API_TOKEN 未設定，請在 Railway → Environment Variables 中新增",
+        });
+      }
+
+      // AIDV-622: per-user rate limit (3/hr) — GPU LoRA training costs several USD per run
+      checkTrpcRateLimit(ctx.user.id, { limit: 3, windowMs: 60 * 60_000, label: "lora:hr" });
+
+      // AIDV-622: concurrent pending/training cap (≤2) — prevents unbounded GPU queue backlog
+      const existingModels = await db.getFineTunedModelsByUser(ctx.user.id);
+      const activeCount = existingModels.filter(
+        (m: { status: string }) => m.status === "pending" || m.status === "training"
+      ).length;
+      if (activeCount >= 2) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "最多同時進行 2 個 LoRA 訓練任務，請等待現有任務完成後再試",
         });
       }
 
@@ -352,8 +369,12 @@ export const loraTrainerRouter = router({
             };
           }
           replicateInfo = info;
-        } catch {
-          // Silently fail — will show null
+        } catch (err) {
+          // AIDV-801: warn so Replicate polling failures are observable.
+          logger.warn("replicateTrainingStatus: Replicate prediction query failed", {
+            predictionId,
+            err: err instanceof Error ? err.message : String(err),
+          });
         }
       }
 

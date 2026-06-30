@@ -11,6 +11,7 @@ import { serverEnv } from "../_core/env.validated.js";
 import { getDb } from "../db.js";
 import { orbSystemAlerts } from "../../drizzle/schema.js";
 import { eq, and, isNull } from "drizzle-orm";
+import { setProviderHealth, markProviderRecovered } from "../services/providerHealth.js";
 
 // ─── Provider Probe Config ───────────────────────────────────────────────────
 
@@ -21,6 +22,8 @@ interface ProbeConfig {
   /** If true, skip probe when key is not configured (don't alert for missing keys) */
   requiresKey: boolean;
   hasKey: () => boolean;
+  /** 'generation' = user-facing AI provider; 'infra' = internal health check (supabase_auth etc.) */
+  kind: "generation" | "infra";
 }
 
 const PROBE_CONFIG: Record<string, ProbeConfig> = {
@@ -34,6 +37,7 @@ const PROBE_CONFIG: Record<string, ProbeConfig> = {
     },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.FAL_API_KEY),
+    kind: "generation",
   },
   elevenlabs: {
     url: "https://api.elevenlabs.io/v1/user",
@@ -45,6 +49,7 @@ const PROBE_CONFIG: Record<string, ProbeConfig> = {
     },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.ELEVENLABS_API_KEY),
+    kind: "generation",
   },
   replicate: {
     url: "https://api.replicate.com/v1/models",
@@ -56,6 +61,7 @@ const PROBE_CONFIG: Record<string, ProbeConfig> = {
     },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.REPLICATE_API_TOKEN),
+    kind: "generation",
   },
   anthropic: {
     url: "https://api.anthropic.com/v1/models",
@@ -70,6 +76,7 @@ const PROBE_CONFIG: Record<string, ProbeConfig> = {
     },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.ANTHROPIC_API_KEY),
+    kind: "generation",
   },
   gemini: {
     url: "https://generativelanguage.googleapis.com/v1beta/models",
@@ -77,6 +84,7 @@ const PROBE_CONFIG: Record<string, ProbeConfig> = {
     headers: () => ({} as Record<string, string>),
     requiresKey: false,
     hasKey: () => true,
+    kind: "generation",
   },
   openrouter: {
     url: "https://openrouter.ai/api/v1/models",
@@ -88,6 +96,7 @@ const PROBE_CONFIG: Record<string, ProbeConfig> = {
     },
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.OPENROUTER_API_KEY),
+    kind: "generation",
   },
   supabase_auth: {
     url: `${serverEnv.SUPABASE_URL}/auth/v1/health`,
@@ -95,12 +104,20 @@ const PROBE_CONFIG: Record<string, ProbeConfig> = {
     headers: () => ({} as Record<string, string>),
     requiresKey: true,
     hasKey: () => Boolean(serverEnv.SUPABASE_URL),
+    kind: "infra",
   },
 };
 
 const PROBE_TIMEOUT_MS = 8_000;
-const ALERT_THRESHOLD = 2; // consecutive failures before alert
+export const ALERT_THRESHOLD = 2; // consecutive failures before alert
 const PROBE_INTERVAL_MINUTES = 10;
+
+/** IDs of configured generation providers (hasKey = true at startup) used as down-denominator. */
+export function getConfiguredGenerationProviderIds(): string[] {
+  return Object.entries(PROBE_CONFIG)
+    .filter(([, cfg]) => cfg.kind === "generation" && cfg.hasKey())
+    .map(([id]) => id);
+}
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -113,6 +130,7 @@ interface ProbeResult {
   consecutiveFailures: number;
   lastCheckedAt: number;
   alertWritten: boolean;
+  kind: "generation" | "infra";
 }
 
 const probeState = new Map<string, ProbeResult>();
@@ -255,6 +273,7 @@ async function runProbeCycle(): Promise<void> {
         consecutiveFailures,
         lastCheckedAt: Date.now(),
         alertWritten: wasAlerting,
+        kind: config.kind,
       };
 
       if (probeResult.ok) {
@@ -263,11 +282,23 @@ async function runProbeCycle(): Promise<void> {
           await resolveProviderAlert(providerId);
           state.alertWritten = false;
         }
+        // Bridge: update router health store so providerRouter can resume using this provider
+        if (config.kind === "generation") {
+          markProviderRecovered(providerId);
+        }
       } else {
         // Failure path
         if (consecutiveFailures >= ALERT_THRESHOLD && !wasAlerting) {
           await writeProviderAlert(providerId, state);
           state.alertWritten = true;
+        }
+        // Bridge: mark provider degraded in router health store after threshold
+        if (config.kind === "generation" && consecutiveFailures >= ALERT_THRESHOLD) {
+          setProviderHealth(
+            providerId,
+            "degraded",
+            `probe failed ${consecutiveFailures}× ${state.error ?? `HTTP ${state.statusCode ?? "none"}`}`
+          );
         }
         console.warn(
           `[ProviderHealthProbe] ⚠️  provider=${providerId} consecutive_failures=${consecutiveFailures}` +
@@ -319,3 +350,5 @@ export function stopProviderHealthProbeCron(): void {
     console.log("[ProviderHealthProbe] 🛑 Cron stopped");
   }
 }
+
+export { runProbeCycle as _runProbeCycleForTest };

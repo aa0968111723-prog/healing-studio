@@ -2469,6 +2469,8 @@ export const agentDynamicRegistry = mysqlTable(
     allowedEndpoints: json("allowedEndpoints").$type<string[]>(),
     costPerToken: decimal("costPerToken", { precision: 16, scale: 10 }).notNull().default("0"),
     currentLoad: decimal("currentLoad", { precision: 5, scale: 4 }).notNull().default("0"),
+    /** 並發容量上限（AIDV-496）：currentLoad 達到此值時不再派工，預設 1.0（即任何負載皆可接）。 */
+    maxLoad: decimal("maxLoad", { precision: 5, scale: 4 }).notNull().default("1.0000"),
     isActive: boolean("isActive").notNull().default(true),
     lastHeartbeatAt: timestamp("lastHeartbeatAt").defaultNow().notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -3385,6 +3387,12 @@ export const orbCostAttribution = mysqlTable(
 export type OrbCostAttribution = typeof orbCostAttribution.$inferSelect;
 export type InsertOrbCostAttribution = typeof orbCostAttribution.$inferInsert;
 
+// MYSQL LEGACY — not used in Postgres/Supabase prod.
+// The live production table is "system_alerts" (Supabase public schema, created via
+// supabase/migrations/). providerHealthProbeJob writes there via Supabase client SDK,
+// not via this Drizzle object. Any code reading `orbSystemAlerts` from this file is
+// reading the MySQL schema only. New monitoring code must target Supabase "system_alerts".
+// AIDV-726, AIDV-730: naming gap documented to prevent future confusion.
 export const orbSystemAlerts = mysqlTable(
   "orb_system_alerts",
   {
@@ -4587,6 +4595,10 @@ export const videoProjects = mysqlTable(
     priorityClass: mysqlEnum("priority_class", ["standard", "express", "critical"])
       .notNull()
       .default("standard"),
+    // AIDV-684: 快取影片輸出位址，避免每次查 digital_asset_library
+    outputStoragePath: text("output_storage_path"),
+    outputSignedUrl: text("output_signed_url"),
+    outputExpiresAt: timestamp("output_expires_at"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -4683,3 +4695,40 @@ export const apiKeys = mysqlTable(
 
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertApiKey = typeof apiKeys.$inferInsert;
+
+// ─── Video Analytics (AIDV-272) ───────────────────────────────────────────────
+// 影片播放事件追蹤表；匿名觀看者透過 visitorId（SHA-256 hash，無 PII），已登入
+// 用戶透過 userId（可為 null 表示退出追蹤）。資料保留 90 天滾動視窗。
+
+export const VIDEO_ANALYTICS_EVENT_TYPES = [
+  "play",
+  "pause",
+  "pct25",
+  "pct50",
+  "pct75",
+  "complete",
+] as const;
+export type VideoAnalyticsEventType = typeof VIDEO_ANALYTICS_EVENT_TYPES[number];
+
+export const videoAnalytics = mysqlTable(
+  "video_analytics",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    videoProjectId: int("video_project_id").notNull(),
+    /** null ＝ 匿名訪客或用戶已退出追蹤（GDPR opt-out）*/
+    userId: int("user_id"),
+    /** 匿名訪客識別符（SHA-256 of sessionToken，無 IP/PII）；已登入時可為 null */
+    visitorId: varchar("visitor_id", { length: 64 }),
+    eventType: mysqlEnum("event_type", VIDEO_ANALYTICS_EVENT_TYPES).notNull(),
+    /** 播放至事件發生時的累計秒數（0 = 不適用，如 pause 時 durationWatched=播放秒數） */
+    durationWatched: int("duration_watched").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => ({
+    videoProjectIdx: index("va_video_project_id_idx").on(table.videoProjectId),
+    createdAtIdx: index("va_created_at_idx").on(table.createdAt),
+  })
+);
+
+export type VideoAnalytic = typeof videoAnalytics.$inferSelect;
+export type InsertVideoAnalytic = typeof videoAnalytics.$inferInsert;

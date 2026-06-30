@@ -20,12 +20,18 @@ const getBackgroundJobMock = vi.fn(async (id: number) => ({
 }));
 const runPostGenForJobMock = vi.fn(async () => true);
 const refundJobIfBilledMock = vi.fn(async () => false);
+// AIDV-615: control verifyWebhookToken in tests; default true mirrors dev mode (no JWT_SECRET)
+const verifyWebhookTokenMock = vi.fn(() => true);
 
 vi.mock("../../db.js", () => ({
   getBackgroundJob: (...args: unknown[]) =>
     getBackgroundJobMock(...(args as [number])),
   updateBackgroundJob: (...args: unknown[]) =>
     updateBackgroundJobMock(...(args as [number, unknown])),
+}));
+
+vi.mock("../../_core/webhookTokens", () => ({
+  verifyWebhookToken: (...args: unknown[]) => verifyWebhookTokenMock(...args),
 }));
 
 vi.mock("../../services/internalMedia.js", () => ({
@@ -77,6 +83,9 @@ describe("webhookSuno /api/webhook/suno", () => {
     runPostGenForJobMock.mockResolvedValue(true);
     refundJobIfBilledMock.mockReset();
     refundJobIfBilledMock.mockResolvedValue(false);
+    // default: token passes (mirrors dev mode / valid-token prod)
+    verifyWebhookTokenMock.mockReset();
+    verifyWebhookTokenMock.mockReturnValue(true);
   });
 
   it("complete 階段把 audio URL 寫回 backgroundJob 並推 SSE complete 事件", async () => {
@@ -276,6 +285,55 @@ describe("webhookSuno /api/webhook/suno", () => {
     });
     await new Promise(r => setTimeout(r, 30));
     expect(updateBackgroundJobMock).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  // AIDV-615: capability token auth tests.
+  // Suno (apibox.erweima.ai) provides no webhook signing API, so we layer a
+  // server-side HMAC-SHA256 capability token: HMAC(JWT_SECRET, "suno:<jobId>").
+  // The token is unforgeable without the server secret — numeric jobId
+  // enumeration alone cannot produce a valid token.
+  it("AIDV-615: 無效 token → 丟棄 payload，不寫 DB（防偽造 Suno 回調）", async () => {
+    verifyWebhookTokenMock.mockReturnValue(false);
+    const { server, baseUrl } = await startTestServer();
+    await fetch(`${baseUrl}/api/webhook/suno?jobId=5&token=wrong`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code: 200,
+        msg: "success",
+        data: {
+          task_id: "suno-abc",
+          callbackType: "complete",
+          data: [{ id: "c1", audio_url: "https://attacker.example/evil.mp3" }],
+        },
+      }),
+    });
+    await new Promise(r => setTimeout(r, 30));
+    expect(updateBackgroundJobMock).not.toHaveBeenCalled();
+    expect(getBackgroundJobMock).not.toHaveBeenCalled();
+    server.close();
+  });
+
+  it("AIDV-615: 缺 token → 丟棄 payload，不寫 DB", async () => {
+    verifyWebhookTokenMock.mockReturnValue(false);
+    const { server, baseUrl } = await startTestServer();
+    await fetch(`${baseUrl}/api/webhook/suno?jobId=5`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        code: 200,
+        msg: "success",
+        data: {
+          task_id: "suno-abc",
+          callbackType: "complete",
+          data: [{ id: "c1", audio_url: "https://attacker.example/evil.mp3" }],
+        },
+      }),
+    });
+    await new Promise(r => setTimeout(r, 30));
+    expect(updateBackgroundJobMock).not.toHaveBeenCalled();
+    expect(getBackgroundJobMock).not.toHaveBeenCalled();
     server.close();
   });
 });

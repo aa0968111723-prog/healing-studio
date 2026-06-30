@@ -37,7 +37,12 @@ export function StoryboardTimelineUploader({
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Query timeline frames for this storyboard
-  const { data: timelineFrames, refetch: refetchFrames } = trpc.worldbuilding.listTimelineFrames.useQuery(
+  const {
+    data: timelineFrames,
+    refetch: refetchFrames,
+    isLoading: framesLoading,
+    isError: framesError,
+  } = trpc.worldbuilding.listTimelineFrames.useQuery(
     { storyboardId: storyboard.id ?? 0 },
     { enabled: !!storyboard.id }
   );
@@ -246,8 +251,34 @@ export function StoryboardTimelineUploader({
             )}
           </div>
 
+          {/* Frame list states: loading / error（與「真的還沒有圖幀」區分開） */}
+          {framesLoading && (
+            <div
+              role="status"
+              className="flex items-center gap-2 text-sm text-muted-foreground py-2"
+            >
+              <Clock className="w-4 h-4 animate-pulse" />
+              載入已上傳圖幀中…
+            </div>
+          )}
+
+          {!framesLoading && framesError && (
+            <div
+              role="alert"
+              className="flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+            >
+              <span className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                圖幀清單載入失敗，請稍後再試。
+              </span>
+              <Button size="sm" variant="outline" onClick={() => refetchFrames()}>
+                重試
+              </Button>
+            </div>
+          )}
+
           {/* Uploaded Frames for Selected Scene */}
-          {sceneFrames.length > 0 && (
+          {!framesLoading && !framesError && sceneFrames.length > 0 && (
             <div className="space-y-2">
               <h4 className="text-sm font-medium">已上傳圖幀 ({sceneFrames.length})</h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">

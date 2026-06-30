@@ -6,7 +6,6 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { extractResultUrl } from "@/lib/falResultParser";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
@@ -36,6 +35,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AgentAction, AgentActionResult, AgentCapability } from "../../../shared/agent-actions";
+import { extractResultUrl } from "@/lib/falResultParser";
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 
@@ -172,8 +172,15 @@ function ResultPreview({ job }: { job: JobRow }) {
   if (!meta) return null;
 
   const resultUrl = (meta.resultUrl as string) ?? null;
-  const resultData = meta.result as Record<string, unknown> | null;
-  const { imageUrl, videoUrl, audioUrl } = extractResultUrl(job.jobType ?? "", resultUrl, resultData);
+  // Also check nested result data for URLs
+  const resultData = meta.result as unknown;
+  const imageUrl = resultUrl ?? extractResultUrl("image", resultData);
+  const videoUrl =
+    (job.jobType === "video" ? resultUrl : null) ??
+    extractResultUrl("video", resultData);
+  const audioUrl =
+    (job.jobType === "audio" || job.jobType === "voice" ? resultUrl : null) ??
+    extractResultUrl("audio", resultData);
 
   if (job.jobType === "image" && imageUrl) {
     return (
@@ -493,8 +500,18 @@ export default function BackgroundTasksPage() {
 
   // ── Query: all active + recent jobs ─────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    // AIDV-588：與 BackgroundTasksContext 一致的 adaptive 輪詢——有進行中任務時 5s，
+    // 全部閒置時退到 30s。避免停在本頁但零 active 任務時仍固定每 5s 輪詢。
+    refetchInterval: query => {
+      const jobs = (query.state.data ?? []) as unknown as Array<{
+        status?: string;
+      }>;
+      const hasActive = jobs.some(
+        j => j.status === "queued" || j.status === "processing",
+      );
+      return hasActive ? 5000 : 30_000;
+    },
+    refetchIntervalInBackground: false,
     retry: 2,
   });
 
@@ -524,6 +541,11 @@ export default function BackgroundTasksPage() {
     }
     return merged;
   }, [activeJobsQuery.data, allJobsQuery.data]);
+
+  const activeJobIds = useMemo(
+    () => allJobs.filter(j => j.status === "queued" || j.status === "processing").map(j => j.id),
+    [allJobs]
+  );
 
   // ── Filter & search ─────────────────────────────────────────────────────
   const filteredJobs = useMemo(() => {
@@ -588,26 +610,6 @@ export default function BackgroundTasksPage() {
     },
     [utils, activeJobsQuery]
   );
-
-  // ── Poll active jobs ────────────────────────────────────────────────────
-  const activeJobIds = useMemo(
-    () =>
-      allJobs
-        .filter(j => j.status === "queued" || j.status === "processing")
-        .map(j => j.id),
-    [allJobs]
-  );
-
-  useEffect(() => {
-    if (activeJobIds.length === 0) return;
-    const interval = setInterval(() => {
-      for (const id of activeJobIds) {
-        utils.generate.checkStudioJob.fetch({ jobId: id }).catch(() => {});
-      }
-      activeJobsQuery.refetch();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [activeJobIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isLoading = activeJobsQuery.isLoading && allJobsQuery.isLoading;
 

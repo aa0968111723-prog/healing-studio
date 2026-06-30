@@ -53,6 +53,7 @@ import {
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { copyToClipboard } from "@/lib/clipboard";
 import { trpc } from "@/lib/trpc";
 import { getPageByPath } from "@/config/appRegistry";
 import { useFocusFlow } from "@/contexts/FocusFlowContext";
@@ -605,8 +606,7 @@ function PromptsPanel({ fullscreen }: { fullscreen: boolean }) {
   const handleCopy = useCallback(
     async (content: string, id: number) => {
       try {
-        await navigator.clipboard.writeText(content);
-        toast.success("已複製到剪貼簿");
+        await copyToClipboard(content, "已複製到剪貼簿");
         incrementMutation.mutate(
           { id },
           {
@@ -618,7 +618,7 @@ function PromptsPanel({ fullscreen }: { fullscreen: boolean }) {
           }
         );
       } catch {
-        toast.error("瀏覽器不允許複製，請手動長按文字選取");
+        /* error toast shown by copyToClipboard */
       }
     },
     [incrementMutation, scope, utils]

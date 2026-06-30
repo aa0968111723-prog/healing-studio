@@ -14,6 +14,18 @@ export const adminRouter = router({
     return db.getAllUsers();
   }),
 
+  // AIDV-618: cursor pagination for UsersCreditsTab (prevents OOM on large user counts)
+  allUsersPaginated: adminProcedure
+    .input(
+      z.object({
+        cursor: z.number().int().positive().optional(),
+        limit: z.number().int().min(1).max(100).default(50),
+      })
+    )
+    .query(async ({ input }) => {
+      return db.getAllUsersPaginated({ cursor: input.cursor, limit: input.limit });
+    }),
+
   updateQuota: adminProcedure
     .input(
       z.object({

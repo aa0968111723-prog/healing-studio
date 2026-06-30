@@ -9,6 +9,10 @@ import {
   GENERATION_ENGINE_CATALOG,
   FAL_TASK_ENGINE_CATALOG,
 } from "./routers/brain";
+import {
+  isCanonicalOrKnownModel,
+  normalizeEngineModelId,
+} from "./_core/modelRegistry";
 import { FAL_MODEL_CATALOG } from "./services/falModels";
 
 describe("Brain Router — Model Catalog", () => {
@@ -258,5 +262,96 @@ describe("Live Preview — Soul Messages", () => {
     const gptMsg = SOUL_PREVIEW_MESSAGES["gpt-4o"][0];
     const claudeMsg = SOUL_PREVIEW_MESSAGES["claude-3.5-sonnet"][0];
     expect(gptMsg).not.toBe(claudeMsg);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Brain Catalog Consistency (AIDV-594)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Brain Catalog Consistency (AIDV-594)", () => {
+  it("default reasoning model per slot must appear in that slot's catalog options", () => {
+    for (const [slot, config] of Object.entries(DEFAULT_REASONING_BRAINS)) {
+      const catalogSlot = REASONING_MODEL_CATALOG[slot as keyof typeof REASONING_MODEL_CATALOG];
+      expect(catalogSlot, `slot "${slot}" missing from REASONING_MODEL_CATALOG`).toBeTruthy();
+      const values = catalogSlot.options.map((o: { value: string }) => o.value);
+      expect(values, `default model "${config.model}" for slot "${slot}" not found in catalog`).toContain(config.model);
+    }
+  });
+
+  it("default generation engine per slot must resolve to a catalog option (direct or via alias normalization)", () => {
+    // Generation catalog stores legacy fal/ short-form keys; LEGACY_FAL_ALIAS_MAP
+    // normalizes them to canonical fal-ai/ IDs — so the default must equal either
+    // a raw catalog value or the normalized form of one.
+    for (const [slot, config] of Object.entries(DEFAULT_GENERATION_ENGINES)) {
+      const catalogSlot = GENERATION_ENGINE_CATALOG[slot as keyof typeof GENERATION_ENGINE_CATALOG];
+      expect(catalogSlot, `slot "${slot}" missing from GENERATION_ENGINE_CATALOG`).toBeTruthy();
+      const values = catalogSlot.options.map((o: { value: string }) => o.value);
+      const normalizedValues = values.map(normalizeEngineModelId);
+      const found = values.includes(config.engine) || normalizedValues.includes(config.engine);
+      expect(found, `default engine "${config.engine}" for slot "${slot}" not found in catalog (direct or normalized)`).toBe(true);
+    }
+  });
+
+  it("isCanonicalOrKnownModel returns true for all default reasoning models", () => {
+    for (const [slot, config] of Object.entries(DEFAULT_REASONING_BRAINS)) {
+      expect(
+        isCanonicalOrKnownModel(config.model),
+        `default model "${config.model}" for reasoning slot "${slot}" not in known model set`
+      ).toBe(true);
+    }
+  });
+
+  it("isCanonicalOrKnownModel returns true for all default generation engines", () => {
+    for (const [slot, config] of Object.entries(DEFAULT_GENERATION_ENGINES)) {
+      expect(
+        isCanonicalOrKnownModel(config.engine),
+        `default engine "${config.engine}" for generation slot "${slot}" not in known model set`
+      ).toBe(true);
+    }
+  });
+
+  it("normalizeEngineModelId is idempotent for all catalog generation option values", () => {
+    for (const [slot, config] of Object.entries(GENERATION_ENGINE_CATALOG)) {
+      for (const opt of config.options) {
+        const once = normalizeEngineModelId(opt.value);
+        const twice = normalizeEngineModelId(once);
+        expect(twice, `normalizeEngineModelId not idempotent for "${opt.value}" in slot "${slot}"`).toBe(once);
+      }
+    }
+  });
+
+  it("invalid slot names are absent from both catalogs (negative enum test)", () => {
+    expect((REASONING_MODEL_CATALOG as Record<string, unknown>)["invalidSlot"]).toBeUndefined();
+    expect((GENERATION_ENGINE_CATALOG as Record<string, unknown>)["invalidSlot"]).toBeUndefined();
+    expect((REASONING_MODEL_CATALOG as Record<string, unknown>)["videoEngine"]).toBeUndefined();
+    expect((GENERATION_ENGINE_CATALOG as Record<string, unknown>)["director"]).toBeUndefined();
+  });
+
+  it("all reasoning catalog option values are recognized by isCanonicalOrKnownModel", () => {
+    for (const [slot, config] of Object.entries(REASONING_MODEL_CATALOG)) {
+      for (const opt of config.options) {
+        expect(
+          isCanonicalOrKnownModel(opt.value),
+          `reasoning slot "${slot}" option "${opt.value}" not in known model set`
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("reasoning catalog values do not overlap with generation catalog values (cross-slot isolation)", () => {
+    const generationValues = new Set(
+      Object.values(GENERATION_ENGINE_CATALOG).flatMap((config) =>
+        config.options.map((o: { value: string }) => o.value)
+      )
+    );
+    for (const [slot, config] of Object.entries(REASONING_MODEL_CATALOG)) {
+      for (const opt of config.options) {
+        expect(
+          generationValues.has(opt.value),
+          `reasoning slot "${slot}" value "${opt.value}" also appears in generation catalog`
+        ).toBe(false);
+      }
+    }
   });
 });

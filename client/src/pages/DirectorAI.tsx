@@ -134,6 +134,24 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AdvancedSection } from "@/components/layout/AdvancedSection";
 import { getVisualDensity, shouldShowDiagnostics } from "@/lib/visualDensity";
+import { useBackgroundTasks } from "@/contexts/BackgroundTasksContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type {
   CoStarScript,
   ScriptSegment,
@@ -1725,6 +1743,13 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
   const pending = tasks.filter(t => t.status === "pending").length;
   const allDone =
     tasks.length > 0 && completed + failed === tasks.length;
+  // AIDV-527: segment-level progress (each segment may have multiple modality tasks)
+  const uniqueSegmentIds = [...new Set(tasks.map(t => t.segmentId))];
+  const segmentsTotal = uniqueSegmentIds.length;
+  const segmentsDone = uniqueSegmentIds.filter(id =>
+    tasks.filter(t => t.segmentId === id).every(t => t.status === "completed" || t.status === "failed")
+  ).length;
+  const segmentPct = segmentsTotal > 0 ? Math.round((segmentsDone / segmentsTotal) * 100) : 0;
   const completedMediaTasks = FEATURE_EXPORT_CHAIN
     ? tasks.filter(t => t.status === "completed" && t.resultUrl)
     : [];
@@ -1737,6 +1762,9 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
         <Zap className="w-4 h-4 text-amber-500" />
         <span className="text-sm font-semibold">批次生成進度</span>
         <span className="text-2xs text-muted-foreground">
+          {segmentsTotal > 1
+            ? `分鏡 ${segmentsDone}/${segmentsTotal} · `
+            : ""}
           {completed}/{tasks.length} 完成
           {processing > 0 ? ` · ${processing} 進行中` : ""}
           {pending > 0 ? ` · ${pending} 等待中` : ""}
@@ -1776,6 +1804,16 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
             </button>
           )}
         </div>
+        {segmentsTotal > 1 && !allDone && (
+          <div className="px-3 pb-2">
+            <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                style={{ width: `${segmentPct}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
       {!collapsed && (
         <ScrollArea className="max-h-[40vh]">
@@ -2332,6 +2370,7 @@ const ScriptCard = memo(function ScriptCard({
 export default function DirectorAI() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  const { notifyJobStarted } = useBackgroundTasks();
 
   // 全站新手引導
   usePageTour("director");
@@ -2595,49 +2634,17 @@ export default function DirectorAI() {
       return;
     }
 
-    const ok = window.confirm(
-      `導演 AI 收到${sourceLabel}的成品。\n要把 prompt / 成品連結回填到場景「${sceneName}」嗎？\n\n（會覆寫該場景的 ${fillTargetLabel}，並把成品連結附加到備註）`
-    );
-    if (!ok) {
-      setPendingStudioReturn(null);
-      toast(`已忽略「${sceneName}」的回填`);
-      return;
-    }
-
-    setImportedSegments(prev =>
-      prev.map((s, i) => {
-        if (i !== matchIdx) return s;
-        const baseCostar: CoStarScript = s.costar ?? {
-          context: "",
-          situation: "",
-          task: "",
-          action: "",
-          result: "",
-          visualPrompt: "",
-          audioScript: "",
-          musicVibe: "",
-        };
-        const value = data.finalPrompt ?? baseCostar[fillTarget];
-        const newCostar: CoStarScript = {
-          ...baseCostar,
-          [fillTarget]: value,
-        };
-        const noteLine = [
-          `${sourceEmoji} ${sourceLabel}成品`,
-          data.modelId ? `model: ${data.modelId}` : null,
-          data.resultUrl ? `url: ${data.resultUrl}` : null,
-        ]
-          .filter(Boolean)
-          .join(" | ");
-        const newNotes = s.notes ? `${s.notes}\n${noteLine}` : noteLine;
-        return { ...s, costar: newCostar, notes: newNotes };
-      })
-    );
-    setSelectedSegmentIdx(matchIdx);
     setPendingStudioReturn(null);
-    toast.success(`已回填到場景「${sceneName}」`, {
-      description: data.resultUrl ?? undefined,
-      duration: 8_000,
+    setPendingFill({
+      matchIdx,
+      fillTarget,
+      sceneName,
+      sourceLabel,
+      sourceEmoji,
+      fillTargetLabel,
+      finalPrompt: data.finalPrompt ?? undefined,
+      resultUrl: data.resultUrl ?? undefined,
+      modelId: data.modelId ?? undefined,
     });
   }, [pendingStudioReturn, importedSegments]);
 
@@ -2755,6 +2762,33 @@ export default function DirectorAI() {
   const deleteSessionMut = trpc.director.deleteSession.useMutation({
     onSuccess: () => sessionsQuery.refetch(),
   });
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<number | null>(null);
+
+  // AIDV-567: replace window.prompt / window.confirm
+  const [pendingFill, setPendingFill] = useState<{
+    matchIdx: number;
+    fillTarget: "visualPrompt" | "audioScript" | "musicVibe";
+    sceneName: string;
+    sourceLabel: string;
+    sourceEmoji: string;
+    fillTargetLabel: string;
+    finalPrompt?: string;
+    resultUrl?: string;
+    modelId?: string;
+  } | null>(null);
+  const [pendingClearAnalysis, setPendingClearAnalysis] = useState(false);
+  const [pendingClearPlanning, setPendingClearPlanning] = useState(false);
+  const [refineDialog, setRefineDialog] = useState<{
+    script: CoStarScript;
+    idx: number;
+  } | null>(null);
+  const [refineInstruction, setRefineInstruction] = useState("");
+  const [saveDialog, setSaveDialog] = useState<{
+    mode: "session" | "analysis";
+    sessionData: string;
+    defaultTitle: string;
+  } | null>(null);
+  const [saveTitle, setSaveTitle] = useState("");
 
   // Phase 2 後續：把當前腳本段落一鍵轉成分鏡板。需要當前選定的創作專案
   // 有綁定世界觀，沒有的話會 toast 引導使用者去 /creative-projects。
@@ -3041,6 +3075,7 @@ export default function DirectorAI() {
           voiceText: t.voiceText,
           params: t.params,
           mode: batchGenerationOptions.mode,
+          totalTasks: tasksWithDef.length,
         });
       }
       const deferred = tasksWithDef.length - independent.length;
@@ -3087,6 +3122,7 @@ export default function DirectorAI() {
           voiceText: t.voiceText,
           params: t.params,
           mode: batchGenerationOptions.mode,
+          totalTasks: newTasks.length,
           relation: "variant",
         });
       }
@@ -3110,6 +3146,8 @@ export default function DirectorAI() {
             : t
         )
       );
+      // 登記到 BackgroundTasksContext 讓 drawer badge 即時反映進度
+      notifyJobStarted(data.jobId);
       toast.success(`${data.label} 已開始生成`);
     },
     onError: (e, vars) => {
@@ -3220,6 +3258,7 @@ export default function DirectorAI() {
         voiceText: target.voiceText,
         params: target.params,
         mode: batchGenerationOptions.mode,
+        totalTasks: generationTasks.length,
         ...(firstFrameUrl ? { firstFrameUrl } : {}),
       });
     },
@@ -3278,6 +3317,7 @@ export default function DirectorAI() {
         voiceText: task.voiceText,
         params: task.params,
         mode: batchGenerationOptions.mode,
+        totalTasks: generationTasks.length,
         firstFrameUrl,
       });
     }
@@ -3406,14 +3446,10 @@ export default function DirectorAI() {
 
   const handleRefineScript = useCallback(
     (script: CoStarScript, idx: number) => {
-      const instruction = window.prompt(
-        "請輸入修改指示（例如：讓氛圍更溫暖、加入慢動作鏡頭）"
-      );
-      if (!instruction?.trim()) return;
-      setRefiningIdx(idx);
-      refineMutation.mutate({ script, instruction, personality });
+      setRefineDialog({ script, idx });
+      setRefineInstruction("");
     },
-    [personality, refineMutation]
+    []
   );
 
   const handleCopyScript = useCallback((script: CoStarScript) => {
@@ -3433,18 +3469,15 @@ export default function DirectorAI() {
   }, []);
 
   const handleSaveSession = useCallback(() => {
-    const title = window.prompt(
-      "為這段對話命名",
-      `導演對話 ${new Date().toLocaleDateString("zh-TW")}`
-    );
-    if (!title?.trim()) return;
+    const defaultTitle = `導演對話 ${new Date().toLocaleDateString("zh-TW")}`;
     const sessionData = JSON.stringify({
       messages: messages.filter(m => m.role !== "system"),
       scripts,
       personality,
     });
-    saveSessionMut.mutate({ title, sessionData, personality });
-  }, [messages, scripts, personality, saveSessionMut]);
+    setSaveDialog({ mode: "session", sessionData, defaultTitle });
+    setSaveTitle(defaultTitle);
+  }, [messages, scripts, personality]);
 
   const handleLoadSession = useCallback(
     (sessionData: string) => {
@@ -4109,9 +4142,6 @@ export default function DirectorAI() {
     const defaultTitle = importedTitle?.trim()
       ? `${importedTitle}（腳本分析）`
       : `腳本分析 ${new Date().toLocaleDateString("zh-TW")}`;
-    const title = window.prompt("為這份腳本分析命名", defaultTitle);
-    if (!title?.trim()) return;
-
     const sessionData = JSON.stringify({
       personality,
       mode: "script-analysis",
@@ -4120,9 +4150,9 @@ export default function DirectorAI() {
       scriptOverview,
       savedAt: new Date().toISOString(),
     });
-
-    saveSessionMut.mutate({ title, sessionData, personality });
-  }, [importedSegments, importedTitle, personality, scriptOverview, saveSessionMut]);
+    setSaveDialog({ mode: "analysis", sessionData, defaultTitle });
+    setSaveTitle(defaultTitle);
+  }, [importedSegments, importedTitle, personality, scriptOverview]);
 
   const handleMoveSegment = useCallback(
     (fromIdx: number, direction: "up" | "down") => {
@@ -4683,7 +4713,7 @@ export default function DirectorAI() {
                     key={s.id}
                     session={s}
                     onLoad={handleLoadSession}
-                    onDelete={id => deleteSessionMut.mutate({ id })}
+                    onDelete={id => setPendingDeleteSessionId(id)}
                   />
                 ))}
               </div>
@@ -5182,14 +5212,7 @@ export default function DirectorAI() {
                     variant="outline"
                     size="sm"
                     className="rounded-xl text-xs gap-1 text-red-500 hover:text-red-600"
-                    onClick={() => {
-                      if (window.confirm("確定要清除目前的腳本分析嗎？")) {
-                        setImportedSegments([]);
-                        setImportedTitle("");
-                        setSelectedSegmentIdx(null);
-                        setScriptOverview(null);
-                      }
-                    }}
+                    onClick={() => setPendingClearAnalysis(true)}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     清除
@@ -5797,21 +5820,7 @@ export default function DirectorAI() {
                     variant="outline"
                     size="sm"
                     className="rounded-xl text-xs gap-1 text-red-500 hover:text-red-600"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "確定要結束目前的規劃嗎？未儲存的內容將遺失。"
-                        )
-                      ) {
-                        setPlanningSession(null);
-                        setCurrentPlanningId(null);
-                        try {
-                          localStorage.removeItem(PLANNING_DRAFT_KEY);
-                        } catch {
-                          // ignore
-                        }
-                      }
-                    }}
+                    onClick={() => setPendingClearPlanning(true)}
                   >
                     <X className="w-3.5 h-3.5" />
                     結束
@@ -6358,6 +6367,235 @@ export default function DirectorAI() {
         onClear={handleClearGenerationTasks}
         onRetry={handleRetryGenerationTask}
       />
+
+      {/* ── Studio return backfill confirm ─────────────────────────────────── */}
+      <AlertDialog
+        open={pendingFill !== null}
+        onOpenChange={open => {
+          if (!open) {
+            toast(`已忽略「${pendingFill?.sceneName}」的回填`);
+            setPendingFill(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>回填成品到腳本場景？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingFill &&
+                `導演 AI 收到${pendingFill.sourceLabel}的成品。將把 prompt / 成品連結回填到場景「${pendingFill.sceneName}」，並覆寫該場景的 ${pendingFill.fillTargetLabel}。`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>忽略</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingFill) return;
+                setImportedSegments(prev =>
+                  prev.map((s, i) => {
+                    if (i !== pendingFill.matchIdx) return s;
+                    const baseCostar: CoStarScript = s.costar ?? {
+                      context: "", situation: "", task: "", action: "", result: "",
+                      visualPrompt: "", audioScript: "", musicVibe: "",
+                    };
+                    const value = pendingFill.finalPrompt ?? baseCostar[pendingFill.fillTarget];
+                    const newCostar: CoStarScript = { ...baseCostar, [pendingFill.fillTarget]: value };
+                    const noteLine = [
+                      `${pendingFill.sourceEmoji} ${pendingFill.sourceLabel}成品`,
+                      pendingFill.modelId ? `model: ${pendingFill.modelId}` : null,
+                      pendingFill.resultUrl ? `url: ${pendingFill.resultUrl}` : null,
+                    ].filter(Boolean).join(" | ");
+                    const newNotes = s.notes ? `${s.notes}\n${noteLine}` : noteLine;
+                    return { ...s, costar: newCostar, notes: newNotes };
+                  })
+                );
+                setSelectedSegmentIdx(pendingFill.matchIdx);
+                toast.success(`已回填到場景「${pendingFill.sceneName}」`, {
+                  description: pendingFill.resultUrl ?? undefined,
+                  duration: 8_000,
+                });
+                setPendingFill(null);
+              }}
+            >
+              確認回填
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Clear script analysis confirm ────────────────────────────────────── */}
+      <AlertDialog
+        open={pendingClearAnalysis}
+        onOpenChange={open => !open && setPendingClearAnalysis(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>清除腳本分析？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作將清除目前所有已匯入的腳本分鏡，無法復原。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setImportedSegments([]);
+                setImportedTitle("");
+                setSelectedSegmentIdx(null);
+                setScriptOverview(null);
+                setPendingClearAnalysis(false);
+              }}
+            >
+              清除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── End planning session confirm ─────────────────────────────────────── */}
+      <AlertDialog
+        open={pendingClearPlanning}
+        onOpenChange={open => !open && setPendingClearPlanning(false)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>結束目前規劃？</AlertDialogTitle>
+            <AlertDialogDescription>
+              未儲存的規劃內容將遺失，此操作無法復原。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setPlanningSession(null);
+                setCurrentPlanningId(null);
+                try { localStorage.removeItem(PLANNING_DRAFT_KEY); } catch {}
+                setPendingClearPlanning(false);
+              }}
+            >
+              結束規劃
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Refine script instruction dialog ─────────────────────────────────── */}
+      <Dialog
+        open={refineDialog !== null}
+        onOpenChange={open => !open && setRefineDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>修改腳本指示</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={refineInstruction}
+            onChange={e => setRefineInstruction(e.target.value)}
+            placeholder="例如：讓氛圍更溫暖、加入慢動作鏡頭…"
+            rows={3}
+            className="resize-none"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRefineDialog(null)}>
+              取消
+            </Button>
+            <Button
+              disabled={!refineInstruction.trim()}
+              onClick={() => {
+                if (refineDialog && refineInstruction.trim()) {
+                  setRefiningIdx(refineDialog.idx);
+                  refineMutation.mutate({
+                    script: refineDialog.script,
+                    instruction: refineInstruction,
+                    personality,
+                  });
+                }
+                setRefineDialog(null);
+              }}
+            >
+              送出修改
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Save session / analysis naming dialog ────────────────────────────── */}
+      <Dialog
+        open={saveDialog !== null}
+        onOpenChange={open => !open && setSaveDialog(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {saveDialog?.mode === "analysis" ? "為腳本分析命名" : "為對話命名"}
+            </DialogTitle>
+          </DialogHeader>
+          <Input
+            value={saveTitle}
+            onChange={e => setSaveTitle(e.target.value)}
+            placeholder={saveDialog?.defaultTitle ?? ""}
+            onKeyDown={e => {
+              if (e.key === "Enter" && saveTitle.trim() && saveDialog) {
+                saveSessionMut.mutate({
+                  title: saveTitle.trim(),
+                  sessionData: saveDialog.sessionData,
+                  personality,
+                });
+                setSaveDialog(null);
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setSaveDialog(null)}>
+              取消
+            </Button>
+            <Button
+              disabled={!saveTitle.trim()}
+              onClick={() => {
+                if (saveDialog && saveTitle.trim()) {
+                  saveSessionMut.mutate({
+                    title: saveTitle.trim(),
+                    sessionData: saveDialog.sessionData,
+                    personality,
+                  });
+                }
+                setSaveDialog(null);
+              }}
+            >
+              儲存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={pendingDeleteSessionId !== null}
+        onOpenChange={open => !open && setPendingDeleteSessionId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除對話紀錄？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原，對話紀錄將永久刪除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteSessionId !== null) deleteSessionMut.mutate({ id: pendingDeleteSessionId });
+                setPendingDeleteSessionId(null);
+              }}
+            >
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -26,6 +26,16 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import {
   Collapsible,
@@ -513,6 +523,7 @@ export default function ModelsPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCaptioning, setIsCaptioning] = useState(false);
   const [trainingJobId, setTrainingJobId] = useState<number | null>(null);
+  const [pendingDeleteModelId, setPendingDeleteModelId] = useState<number | null>(null);
   const [analysisModelId, setAnalysisModelId] = useState<number | null>(null);
   const [guideOpenId, setGuideOpenId] = useState<string | null>("start");
 
@@ -1816,7 +1827,7 @@ export default function ModelsPage() {
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 rounded-lg text-destructive"
-                        onClick={() => deleteModel.mutate({ id: model.id })}
+                        onClick={() => setPendingDeleteModelId(model.id)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -1851,6 +1862,33 @@ export default function ModelsPage() {
       )}
         </>
       )}
+
+      <AlertDialog
+        open={pendingDeleteModelId !== null}
+        onOpenChange={open => !open && setPendingDeleteModelId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除 LoRA 模型？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原。已訓練的模型將永久刪除，如需重新使用須重新訓練。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteModelId !== null)
+                  deleteModel.mutate({ id: pendingDeleteModelId });
+                setPendingDeleteModelId(null);
+              }}
+            >
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

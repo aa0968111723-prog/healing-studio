@@ -834,7 +834,9 @@ export const learnHubRouter = router({
 
       const total = result.length;
       const items = result.slice(input.offset, input.offset + input.limit);
-      return { items, total };
+      // AIDV-190：影片目前僅存於模組級記憶體陣列（無 DB 表），redeploy/重啟即丟失。
+      // `ephemeral` 讓 admin UI 誠實提示「重啟後遺失」；DB 表落地後改為 false（待 Bruce 拍板表結構）。
+      return { items, total, ephemeral: true as const };
     }),
 
   /** 取得單部影片 */
@@ -975,7 +977,9 @@ export const learnHubRouter = router({
 
       const total = result.length;
       const items = result.slice(input.offset, input.offset + input.limit);
-      return { items, total };
+      // AIDV-190：測驗目前僅存於模組級記憶體陣列（無 DB 表），redeploy/重啟即丟失。
+      // `ephemeral` 讓 admin UI 誠實提示「重啟後遺失」；DB 表落地後改為 false（待 Bruce 拍板表結構）。
+      return { items, total, ephemeral: true as const };
     }),
 
   /** 取得單個測驗（含題目） */

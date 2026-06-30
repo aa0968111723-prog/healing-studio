@@ -23,6 +23,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -64,7 +74,7 @@ import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { DriveLibrarySection } from "@/components/DriveLibrarySection";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
-import { shortErrorMsg } from "@/lib/upload";
+import { shortErrorMsg, uploadFileToS3 } from "@/lib/upload";
 import {
   resolveAssetsLibraryRouteState,
   type AssetsLibrarySectionId as SectionId,
@@ -338,28 +348,7 @@ function UploadDialog({
     }
     setUploading(true);
     try {
-      // Read file as base64
-      const reader = new FileReader();
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
-      const resp = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          fileName: selectedFile.name,
-          mimeType: selectedFile.type,
-          data: base64Data,
-        }),
-      });
-      if (!resp.ok) {
-        const err = await resp.json();
-        throw new Error(err.error || "上傳失敗");
-      }
-      const { url, fileKey } = await resp.json();
+      const { url, fileKey } = await uploadFileToS3(selectedFile);
       await uploadMutation.mutateAsync({
         title: title.trim(),
         assetType,
@@ -521,6 +510,7 @@ export default function AssetsLibrary() {
   const [tab, setTab] = useState<"my" | "team">(getInitialTab);
   const [viewMode, setViewMode] = useState<AssetsViewMode>(getInitialViewMode);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<AssetTypeFilter>("all");
   const [sourceFilter, setSourceFilter] =
@@ -528,13 +518,17 @@ export default function AssetsLibrary() {
   const [sortKey, setSortKey] = useState<AssetSortKey>("newest");
   const [showUploadDialog, setShowUploadDialog] = useState(false);
 
-  const myAssetsQuery = trpc.assets.myAssets.useQuery(
+  const myAssetsQuery = trpc.assets.myAssets.useInfiniteQuery(
     {
       assetType: typeFilter,
       sourceStudio: sourceFilter,
       search: search || undefined,
+      limit: 50,
     },
-    { retry: false }
+    {
+      retry: false,
+      getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+    }
   );
   const teamAssetsQuery = trpc.assets.teamAssets.useQuery(
     {
@@ -560,10 +554,12 @@ export default function AssetsLibrary() {
     },
   });
 
-  const rawAssets = tab === "my" ? myAssetsQuery.data : teamAssetsQuery.data;
+  const rawAssets = tab === "my"
+    ? myAssetsQuery.data?.pages.flatMap(p => p.items)
+    : teamAssetsQuery.data;
   const isLoading =
     tab === "my" ? myAssetsQuery.isLoading : teamAssetsQuery.isLoading;
-  const totalMyAssets = myAssetsQuery.data?.length ?? 0;
+  const totalMyAssets = myAssetsQuery.data?.pages.flatMap(p => p.items).length ?? 0;
 
   // 是否有任何篩選作用中 — 用於切換「重設」chip 和空狀態文案。
   const hasActiveFilter =
@@ -1041,6 +1037,7 @@ export default function AssetsLibrary() {
               ))}
             </div>
           ) : filteredAssets && filteredAssets.length > 0 ? (
+        <>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {filteredAssets.map((asset, idx) => {
             const config = typeConfig[asset.assetType] || {
@@ -1148,9 +1145,7 @@ export default function AssetsLibrary() {
                                 variant="outline"
                                 size="sm"
                                 className="rounded-lg bg-card/90 text-xs h-7 text-destructive"
-                                onClick={() =>
-                                  deleteAsset.mutate({ id: asset.id })
-                                }
+                                onClick={() => setPendingDeleteId(asset.id)}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </Button>
@@ -1215,7 +1210,7 @@ export default function AssetsLibrary() {
                           <button
                             className="p-1.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 transition-colors"
                             title="刪除"
-                            onClick={() => deleteAsset.mutate({ id: asset.id })}
+                            onClick={() => setPendingDeleteId(asset.id)}
                           >
                             <Trash2 className="w-3.5 h-3.5 text-destructive" />
                           </button>
@@ -1384,6 +1379,20 @@ export default function AssetsLibrary() {
             );
           })}
         </div>
+        {tab === "my" && myAssetsQuery.hasNextPage && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-xs gap-1"
+              disabled={myAssetsQuery.isFetchingNextPage}
+              onClick={() => void myAssetsQuery.fetchNextPage()}
+            >
+              {myAssetsQuery.isFetchingNextPage ? "載入中…" : "載入更多"}
+            </Button>
+          </div>
+        )}
+        </>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
           <div className="w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center">
@@ -1450,6 +1459,32 @@ export default function AssetsLibrary() {
 
       {/* ─── Google Drive 素材庫 ───────────────────────────────────────────── */}
       {section === "drive" && <DriveLibrarySection />}
+
+      <AlertDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={open => !open && setPendingDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除資產？</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原，資產將永久刪除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteId !== null) deleteAsset.mutate({ id: pendingDeleteId });
+                setPendingDeleteId(null);
+              }}
+            >
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

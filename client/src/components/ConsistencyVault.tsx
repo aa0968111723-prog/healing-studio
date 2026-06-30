@@ -112,8 +112,16 @@ function VaultItemCard({
         }
         onDragStart?.(item, dragEvent);
       }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect?.(item);
+        }
+      }}
       onClick={() => onSelect?.(item)}
-      className={`group relative rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition-all hover:shadow-lg ${
+      className={`group relative rounded-xl overflow-hidden cursor-grab active:cursor-grabbing transition-all hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
         compact ? "aspect-square" : ""
       }`}
       style={{

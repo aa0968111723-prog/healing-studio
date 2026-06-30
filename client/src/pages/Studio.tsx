@@ -41,6 +41,7 @@ import {
   BottomSheet,
 } from "@/components/ZenCoPilot";
 import { toast } from "sonner";
+import { copyToClipboard } from "@/lib/clipboard";
 import {
   Image,
   Video,
@@ -3272,22 +3273,8 @@ export default function Studio() {
                     <Button
                       variant="outline"
                       className="w-full rounded-xl gap-2 text-sm"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(resultUrl);
-                          toast.success("已複製結果連結");
-                        } catch {
-                          // Fallback for older browsers
-                          const ta = document.createElement("textarea");
-                          ta.value = resultUrl;
-                          ta.style.position = "fixed";
-                          ta.style.opacity = "0";
-                          document.body.appendChild(ta);
-                          ta.select();
-                          document.execCommand("copy");
-                          document.body.removeChild(ta);
-                          toast.success("已複製結果連結");
-                        }
+                      onClick={() => {
+                        void copyToClipboard(resultUrl, "已複製結果連結");
                       }}
                     >
                       <Copy className="w-4 h-4" />
@@ -3737,7 +3724,7 @@ function MiniAssetsPanel() {
     );
   }
 
-  const assets = myAssetsQuery.data || [];
+  const assets = myAssetsQuery.data?.items ?? [];
 
   if (!assets.length) {
     return (

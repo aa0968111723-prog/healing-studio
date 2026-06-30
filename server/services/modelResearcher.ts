@@ -15,7 +15,8 @@
  *   4. 節流：每個模型的搜尋透過 checkPerplexityThrottle("auto_research") 限制。
  *   5. 結構化 JSON 輸出：強制 response_format=json_object，再 Zod 驗證一次，
  *      避免幻覺欄位寫進 store。
- *   6. In-memory store 在程序內存活；cron 重啟後重跑即可，無需 DB schema。
+ *   6. Write-through Redis 持久化：每次寫入同步到 Redis；程序重啟時從 Redis 暖啟動。
+ *      Redis 不可用時 fail-open（退化回純記憶體模式）。無需 DB schema 變動。
  */
 
 import { z } from "zod";
@@ -41,6 +42,11 @@ import {
 } from "./perplexityThrottle";
 import { serverEnv } from "../_core/env.validated";
 import { logger } from "../_core/logger";
+import {
+  saveEnrichmentToRedis,
+  loadAllEnrichmentsFromRedis,
+  clearAllEnrichmentsFromRedis,
+} from "./modelEnrichmentRedis";
 
 // ─── Types & constants ─────────────────────────────────────────────────────
 
@@ -63,6 +69,25 @@ interface EnrichmentRecord {
 }
 
 const enrichmentStore = new Map<string, EnrichmentRecord>();
+
+// Warm up in-memory store from Redis on module load (fail-open).
+// Runs once per process; if Redis is unavailable the Map starts empty as before.
+void loadAllEnrichmentsFromRedis<EnrichmentRecord>().then(records => {
+  for (const r of records) {
+    enrichmentStore.set(r.modelId, r);
+  }
+  if (records.length > 0) {
+    logger.info("[modelResearcher] warmed enrichment store from Redis", {
+      count: records.length,
+    });
+  }
+});
+
+/** Write to in-memory store and fire-and-forget persist to Redis. */
+function setEnrichment(modelId: string, record: EnrichmentRecord): void {
+  enrichmentStore.set(modelId, record);
+  saveEnrichmentToRedis(record).catch(() => {});
+}
 
 // ─── Discovery store ───────────────────────────────────────────────────────
 // 「發現」是 cron 在每次研究循環中找到的：新模型、新論文、或既有模型的重大更新。
@@ -616,7 +641,7 @@ export async function researchAndFactCheckModel(
     hasDiscrepancy: payload.factsStillValid === false,
   };
 
-  enrichmentStore.set(modelId, {
+  setEnrichment(modelId, {
     modelId,
     pricing: payload.pricing ?? base.pricing,
     benchmarks:
@@ -897,7 +922,7 @@ function flagModelStale(modelId: string, reason: string): void {
   const stalePast = new Date(
     Date.now() - (FACT_CHECK_STALE_DAYS + 1) * 24 * 60 * 60 * 1000
   ).toISOString();
-  enrichmentStore.set(modelId, {
+  setEnrichment(modelId, {
     modelId,
     pricing: existing?.pricing ?? base.pricing,
     benchmarks: existing?.benchmarks ?? base.benchmarks,
@@ -1371,7 +1396,7 @@ function storeError(modelId: string, reason: string): void {
     // 對於首次失敗者：維持 pending 狀態（不留 checkedAt），避免 UI 顯示成紅燈。
     if (existing) {
       const prevNotes = existing.factCheck.notes;
-      enrichmentStore.set(modelId, {
+      setEnrichment(modelId, {
         ...existing,
         factCheck: {
           ...existing.factCheck,
@@ -1379,7 +1404,7 @@ function storeError(modelId: string, reason: string): void {
         },
       });
     } else {
-      enrichmentStore.set(modelId, {
+      setEnrichment(modelId, {
         modelId,
         pricing: base.pricing,
         benchmarks: base.benchmarks,
@@ -1402,7 +1427,7 @@ function storeError(modelId: string, reason: string): void {
 
   // 真正的研究失敗（例如 LLM 回了 schema 不合的 JSON、找不到任何來源）—
   // 這時才把 status 設為 "error" 提示管理員手動覆核。
-  enrichmentStore.set(modelId, {
+  setEnrichment(modelId, {
     modelId,
     pricing: existing?.pricing ?? base.pricing,
     benchmarks: existing?.benchmarks ?? base.benchmarks,
@@ -1620,6 +1645,7 @@ function parseResearchPayload(raw: string): ResearchPayload {
 /** Reset the in-memory store (used by tests + admin tools). */
 export function __resetEnrichmentStore(): void {
   enrichmentStore.clear();
+  clearAllEnrichmentsFromRedis().catch(() => {});
   stats.lastRunAt = undefined;
   stats.lastRunDurationMs = undefined;
   stats.lastRunModelsTried = 0;
@@ -1656,7 +1682,7 @@ export function __ingestPayloadForTest(
 ): void {
   const base = AI_MODELS_CATALOG.find(m => m.id === modelId);
   if (!base) return;
-  enrichmentStore.set(modelId, {
+  setEnrichment(modelId, {
     modelId,
     pricing: payload.pricing ?? base.pricing,
     benchmarks: payload.benchmarks ?? base.benchmarks,

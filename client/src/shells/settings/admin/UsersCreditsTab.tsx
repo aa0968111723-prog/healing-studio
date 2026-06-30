@@ -30,9 +30,16 @@ export function UsersCreditsTab() {
   const isAdmin = role === "admin";
   const utils = trpc.useUtils();
 
-  const usersQ = trpc.admin.allUsers.useQuery(undefined, { retry: false });
+  // AIDV-618: cursor-paginated query — replaces unbounded allUsers
+  const usersQ = trpc.admin.allUsersPaginated.useInfiniteQuery(
+    { limit: 50 },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      retry: false,
+    }
+  );
 
-  const refresh = () => utils.admin.allUsers.invalidate();
+  const refresh = () => utils.admin.allUsersPaginated.invalidate();
   const quota = trpc.admin.updateQuota.useMutation({
     onSuccess: () => { toast.success("已調整配額"); refresh(); },
     onError: (e) => toast.error(`配額調整失敗：${e.message}`),
@@ -42,7 +49,7 @@ export function UsersCreditsTab() {
     onError: (e) => toast.error(`角色更新失敗：${e.message}`),
   });
 
-  const users: any[] = (usersQ.data as any[]) ?? [];
+  const users: any[] = usersQ.data?.pages.flatMap((p) => p.items) ?? [];
 
   const adjust = (u: any, delta: number) => {
     const current = Number(u.remainingGenerations ?? u.quota ?? u.credits ?? 0);
@@ -64,7 +71,7 @@ export function UsersCreditsTab() {
       {usersQ.isLoading ? (
         <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
       ) : (
-        <div className="max-h-[28rem] overflow-auto divide-y">
+        <div className="divide-y">
           {users.map((u) => {
             const credits = Number(u.remainingGenerations ?? u.quota ?? u.credits ?? 0);
             const uRole = u.role ?? "user";
@@ -89,6 +96,18 @@ export function UsersCreditsTab() {
           })}
           {users.length === 0 && <div className="py-8 text-center text-xs text-muted-foreground">無使用者資料。</div>}
         </div>
+      )}
+
+      {usersQ.hasNextPage && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full text-xs"
+          disabled={usersQ.isFetchingNextPage}
+          onClick={() => usersQ.fetchNextPage()}
+        >
+          {usersQ.isFetchingNextPage ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />載入中…</> : "載入更多"}
+        </Button>
       )}
 
       {(quota.isPending || roleMut.isPending) && (

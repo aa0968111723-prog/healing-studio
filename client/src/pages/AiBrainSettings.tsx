@@ -452,8 +452,8 @@ export default function AiBrainSettings() {
   // ── Sync from server ──────────────────────────────────────────────────
   useEffect(() => {
     if (!brainQuery.data) return;
-    type ReasoningSlot = { model: string; temperature: number; topP: number; enabled: boolean; systemPrompt: string };
-    type GenerationSlot = { engine: string; params: unknown; enabled: boolean };
+    type ReasoningSlot = { model: string; temperature: number; topP: number; systemPrompt: string | null; enabled: boolean; healthy: boolean };
+    type GenerationSlot = { engine: string; params: unknown; enabled: boolean; healthy: boolean };
     const r = brainQuery.data.reasoning as Record<string, ReasoningSlot>;
     const g = brainQuery.data.generation as Record<string, GenerationSlot>;
 

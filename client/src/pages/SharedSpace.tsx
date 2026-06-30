@@ -157,7 +157,7 @@ export default function SharedSpace() {
   // Contribution stats
   const mySharedAssetsCount = useMemo(
     () =>
-      (myAssetsQuery.data || []).filter(a => a.visibility === "team_shared")
+      (myAssetsQuery.data?.items ?? []).filter(a => a.visibility === "team_shared")
         .length,
     [myAssetsQuery.data]
   );

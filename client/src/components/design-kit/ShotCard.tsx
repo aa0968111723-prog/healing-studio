@@ -71,9 +71,9 @@ export function ShotCard({
         )}
         {status === "generating" && (
           <>
-            <div className="absolute left-0 right-0 h-[40%] bg-[linear-gradient(180deg,transparent,rgba(194,97,63,.32),transparent)] animate-[scan_1.3s_ease-in-out_infinite]" />
+            <div className="absolute left-0 right-0 h-[40%] bg-[linear-gradient(180deg,transparent,rgba(194,97,63,.32),transparent)] motion-safe:animate-[scan_1.3s_ease-in-out_infinite]" />
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[rgba(253,251,247,.78)] backdrop-blur-[2px]">
-              <div className="w-[34px] h-[34px] rounded-full border-[3px] border-[var(--line)] border-t-[var(--clay)] animate-spin" />
+              <div className="w-[34px] h-[34px] rounded-full border-[3px] border-[var(--line)] border-t-[var(--clay)] motion-safe:animate-spin" />
               <span className="text-[11px] text-[var(--muted)]">生成中…</span>
             </div>
           </>

@@ -45,6 +45,11 @@ import {
   type VideoBlock,
 } from "../services/videoCompiler";
 import { resolveFalSafetyChecker } from "../services/security/contentModeration";
+import {
+  mapOutputSpecWithMeta,
+  assertResolutionAllowed,
+  type OutputSpecDowngrades,
+} from "../services/videoOutputSpec";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式；base URL 來自 providerFacade）───
 
@@ -309,6 +314,80 @@ function withSubstitutionMeta<T extends Record<string, unknown>>(
   };
 }
 
+// ─── AIDV-255：影片輸出規格（resolution / fps / codec）接線 ───────────────────
+//
+// outputSpec 為「選用」欄位：未帶 → 對 fal 的 payload 位元級不變（零行為變化）。
+// 帶 → 先做 4K 付費守門，再把 mapper 結果「淺合併在端點專屬欄位之前」，
+// 確保 wan/minimax 自帶的 resolution enum 永遠勝出、不被覆蓋（HARD SAFETY #2）。
+
+/** outputSpec zod schema（與 videoProject.ts:29-33 對齊，三欄皆有 default）。 */
+const videoOutputSpecSchema = z.object({
+  resolution: z.enum(["720p", "1080p", "4K"]).default("1080p"),
+  fps: z.union([z.literal(24), z.literal(30), z.literal(60)]).default(30),
+  codec: z.enum(["h264", "h265", "vp9"]).default("h264"),
+});
+
+/**
+ * 套用 outputSpec 到生成 payload。
+ *
+ * @param modelId       目標 fal modelId（用於能力查表）
+ * @param basePayload   端點既有 payload（含端點專屬欄位）
+ * @param outputSpec    端點 input.outputSpec（可能 undefined）
+ * @param userId        ctx.user.id（用於查訂閱方案做 4K 守門）
+ * @returns 合併後 payload；未帶 outputSpec → 回傳原 basePayload 參照（零變化）
+ *
+ * 合併順序：{ ...mapper 結果, ...basePayload } —— basePayload 在後，
+ * 端點專屬欄位（如 wan/minimax 的 resolution）永遠勝出。
+ */
+/** outputSpec 套用結果：合併後 payload + 被靜默調整的維度（給前端提示用）。 */
+interface ApplyOutputSpecResult {
+  payload: Record<string, unknown>;
+  /**
+   * 被靜默調整的維度（相對使用者「請求值」與「實際送 fal 值」），
+   * 無調整 / 未帶 outputSpec → undefined。讓前端避免「已選 4K 卻產出非 4K」的無聲謊報。
+   */
+  outputSpecDowngrades?: OutputSpecDowngrades;
+}
+
+async function applyOutputSpec(
+  modelId: string,
+  basePayload: Record<string, unknown>,
+  outputSpec: z.infer<typeof videoOutputSpecSchema> | undefined,
+  userId: number
+): Promise<ApplyOutputSpecResult> {
+  // 未帶 outputSpec → 完全不動原 payload（HARD SAFETY #1：位元級零變化）。
+  if (!outputSpec) return { payload: basePayload };
+
+  // 4K 付費守門（唯一允許 throw 的地方）。
+  if (outputSpec.resolution === "4K") {
+    const plan = await db.getUserSubscription(userId);
+    assertResolutionAllowed(outputSpec.resolution, plan);
+  }
+
+  const { params, downgrades } = mapOutputSpecWithMeta(modelId, outputSpec);
+  // mapper 在前、basePayload 在後：端點專屬欄位不被覆蓋。
+  const payload = { ...params, ...basePayload };
+
+  // 以「最終送 fal 的值」為準重算 resolution 降級（basePayload 自帶 resolution
+  // 會勝出，故 mapper 算出的降級可能不是真正生效的值）。
+  let finalDowngrades: OutputSpecDowngrades | undefined = downgrades
+    ? { ...downgrades }
+    : undefined;
+  const appliedResolution = payload.resolution;
+  if (typeof appliedResolution === "string" && appliedResolution !== outputSpec.resolution) {
+    finalDowngrades = {
+      ...(finalDowngrades ?? {}),
+      resolution: { requested: outputSpec.resolution, applied: appliedResolution },
+    };
+  } else if (finalDowngrades?.resolution && appliedResolution === outputSpec.resolution) {
+    // mapper 想降級但 basePayload 反而把它拉回到請求值 → 不算降級。
+    const { resolution: _r, ...rest } = finalDowngrades;
+    finalDowngrades = Object.keys(rest).length ? rest : undefined;
+  }
+
+  return { payload, outputSpecDowngrades: finalDowngrades };
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const videoStudioRouter = router({
@@ -491,9 +570,11 @@ export const videoStudioRouter = router({
         cfgScale: z.number().min(0).max(1).default(0.5),
         /** 動態強度 — 0=靜態畫面, 1=高動態，預設 0.5 均衡 */
         motionIntensity: z.number().min(0).max(1).optional(),
+        /** AIDV-255：選用輸出規格（resolution/fps/codec）。Kling 解析度由 tier 隱含 → mapper no-op。 */
+        outputSpec: videoOutputSpecSchema.optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         duration: input.duration,
@@ -507,12 +588,19 @@ export const videoStudioRouter = router({
       const resolved = resolveModelOrThrow(
         "fal-ai/kling-video/v2.1/standard/text-to-video"
       );
-      const result = (await falQueueRun(resolved.modelId, payload, 300)) as any;
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
+        resolved.modelId,
+        payload,
+        input.outputSpec,
+        ctx.user.id
+      );
+      const result = (await falQueueRun(resolved.modelId, finalPayload, 300)) as any;
       return withSubstitutionMeta(
         {
           video_url: extractVideoUrl(result),
           request_id: result?.request_id ?? null,
           raw: result,
+          ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
         },
         resolved
       );
@@ -534,9 +622,11 @@ export const videoStudioRouter = router({
         enableSafety: z.boolean().default(false),
         /** 隨機種子 — 固定可重現相同生成結果，留空則隨機 */
         seed: z.number().int().nonnegative().optional(),
+        /** AIDV-255：選用輸出規格。注意 wan 自帶 resolution enum，淺合併時其值勝出（不被覆蓋）。 */
+        outputSpec: videoOutputSpecSchema.optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelId = "fal-ai/wan-t2v";
 
       const payload: Record<string, unknown> = {
@@ -551,11 +641,18 @@ export const videoStudioRouter = router({
       if (input.seed !== undefined) payload.seed = input.seed;
 
       assertModelEnabled(modelId);
-      const result = (await falQueueRun(modelId, payload, 300)) as any;
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
+        modelId,
+        payload,
+        input.outputSpec,
+        ctx.user.id
+      );
+      const result = (await falQueueRun(modelId, finalPayload, 300)) as any;
       return {
         video_url: extractVideoUrl(result),
         request_id: result?.request_id ?? null,
         raw: result,
+        ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
       };
     }),
 
@@ -572,9 +669,12 @@ export const videoStudioRouter = router({
         duration: z.enum(["6", "10"]).default("6"),
         resolution: z.enum(["768p", "1080p"]).default("1080p"),
         aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
+        /** AIDV-255：選用輸出規格。MiniMax 解析度由 endpoint 隱含 → mapper no-op；且其自帶 resolution 不被覆蓋。 */
+        outputSpec: videoOutputSpecSchema.optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/minimax/hailuo-02/pro/text-to-video";
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         prompt_optimizer: input.promptOptimizer,
@@ -583,16 +683,19 @@ export const videoStudioRouter = router({
         aspect_ratio: input.aspectRatio,
       };
       // MiniMax Hailuo-02 Pro 升級版端點（原 video-01 已升級）
-      assertModelEnabled("fal-ai/minimax/hailuo-02/pro/text-to-video");
-      const result = (await falQueueRun(
-        "fal-ai/minimax/hailuo-02/pro/text-to-video",
+      assertModelEnabled(modelId);
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
+        modelId,
         payload,
-        300
-      )) as any;
+        input.outputSpec,
+        ctx.user.id
+      );
+      const result = (await falQueueRun(modelId, finalPayload, 300)) as any;
       return {
         video_url: extractVideoUrl(result),
         request_id: result?.request_id ?? null,
         raw: result,
+        ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
       };
     }),
 
@@ -612,9 +715,12 @@ export const videoStudioRouter = router({
         enhancePrompt: z.boolean().default(true),
         /** 隨機種子 — 固定可重現相同生成結果 */
         seed: z.number().int().nonnegative().optional(),
+        /** AIDV-255：選用輸出規格。Veo3 resolution 可控（720p/1080p；4K 降級至 1080p），fps 鎖死 → no-op。 */
+        outputSpec: videoOutputSpecSchema.optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/veo3";
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         aspect_ratio: input.aspectRatio,
@@ -624,12 +730,19 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
-      assertModelEnabled("fal-ai/veo3");
-      const result = (await falQueueRun("fal-ai/veo3", payload, 480)) as any;
+      assertModelEnabled(modelId);
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
+        modelId,
+        payload,
+        input.outputSpec,
+        ctx.user.id
+      );
+      const result = (await falQueueRun(modelId, finalPayload, 480)) as any;
       return {
         video_url: extractVideoUrl(result),
         request_id: result?.request_id ?? null,
         raw: result,
+        ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
       };
     }),
 
