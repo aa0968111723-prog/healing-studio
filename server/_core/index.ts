@@ -102,6 +102,10 @@ import {
   stopLoginHistoryPurgeCron,
 } from "../jobs/loginHistoryPurgeJob";
 import {
+  initBackgroundJobPurgeCron,
+  stopBackgroundJobPurgeCron,
+} from "../jobs/backgroundJobPurgeJob";
+import {
   initCredentialExpiryAlertCron,
   stopCredentialExpiryAlertCron,
 } from "../jobs/credentialExpiryAlertJob";
@@ -251,6 +255,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "loginHistoryPurgeJob",
     start: initLoginHistoryPurgeCron,
     stop: stopLoginHistoryPurgeCron,
+  },
+  {
+    name: "backgroundJobPurgeJob",
+    start: initBackgroundJobPurgeCron,
+    stop: stopBackgroundJobPurgeCron,
   },
   {
     name: "credentialExpiryAlertJob",

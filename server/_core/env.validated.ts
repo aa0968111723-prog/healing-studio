@@ -368,6 +368,8 @@ const coreSchema = z.object({
   //   （仍保留登入要求，只略過擁有權比對）。預設與留空皆為鎖門 ON。
   // demo（getDb()===null）一律安全降級，不受此旗標影響。
   SSE_OWNERSHIP_LOCKDOWN: z.string().optional().default("true"),
+  // AIDV-632：每使用者並發 SSE 連線上限（預設 5）。設為 "0" 或 "false" 關閉限制（緊急回退）。
+  SSE_MAX_CONNECTIONS_PER_USER: z.string().optional().default("5"),
 
   // ── Migration fail-closed 開機門（AIDV-61 H6）─────────────────────────────
   // 預設「OFF = fail-open，維持現狀」（風險最低）：migration「真的套用失敗」時
