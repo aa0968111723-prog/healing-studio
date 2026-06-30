@@ -164,6 +164,38 @@ export const FEATURE_EXPORT_CHAIN: boolean =
  */
 export const UNIFIED_SSE_ROUTER: boolean = readFlag("VITE_UNIFIED_SSE_ROUTER", false);
 
+/**
+ * OrbOnboarding 引導對話框開關（AIDV-823 / AIDV-830）。
+ * 首次登入時彈出引導問卷，讓代理了解使用者偏好，完成後導向 /video。
+ * 預設 ON（AIDV-830：旗標政策，預設開啟、秒回滾退路）。
+ * 關閉退路：部署環境設 VITE_ENABLE_ORB_ONBOARDING=0；無需改碼。
+ */
+export const ENABLE_ORB_ONBOARDING: boolean = readFlag("VITE_ENABLE_ORB_ONBOARDING", true);
+
+/**
+ * 首次創作流「下一步」分支 chip（AIDV-810）。
+ * 首圖完成後顯示多模態引導 chip：配音/動畫/導演/再生一張。
+ * 預設 ON；關閉退路：VITE_FEATURE_ONBOARDING_BRANCH=0 或 ?onboardingbranch=0。
+ */
+export const FEATURE_ONBOARDING_BRANCH: boolean =
+  readRuntimeOverride("onboardingbranch") ?? readFlag("VITE_FEATURE_ONBOARDING_BRANCH", true);
+
+/**
+ * /learn 新手 0→1 路徑分頁（AIDV-811）。
+ * 在 /learn 新增「🚀 新手路徑」分頁為預設落點，含 5 步做中學路徑卡（localStorage 追蹤進度）。
+ * 預設 ON；關閉退路：VITE_FEATURE_LEARN_BEGINNER_PATH=0 或 ?learnbeginnerpath=0。
+ */
+export const FEATURE_LEARN_BEGINNER_PATH: boolean =
+  readRuntimeOverride("learnbeginnerpath") ?? readFlag("VITE_FEATURE_LEARN_BEGINNER_PATH", true);
+
+/**
+ * 提示診斷微文案＋範例卡（AIDV-812）。
+ * 空結果或弱提示時，升級「再試一次」為具體建議文案，並提供前後對照範例卡。
+ * 預設 ON；關閉退路：VITE_FEATURE_PROMPT_DIAGNOSTIC=0 或 ?promptdiagnostic=0。
+ */
+export const FEATURE_PROMPT_DIAGNOSTIC: boolean =
+  readRuntimeOverride("promptdiagnostic") ?? readFlag("VITE_FEATURE_PROMPT_DIAGNOSTIC", true);
+
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
   ENABLE_4SHELL,
@@ -173,6 +205,10 @@ export const FEATURE_FLAGS = {
   ORB_SMILEY_ONLY,
   FEATURE_EXPORT_CHAIN,
   UNIFIED_SSE_ROUTER,
+  ENABLE_ORB_ONBOARDING,
+  FEATURE_ONBOARDING_BRANCH,
+  FEATURE_LEARN_BEGINNER_PATH,
+  FEATURE_PROMPT_DIAGNOSTIC,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

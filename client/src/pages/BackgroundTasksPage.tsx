@@ -7,6 +7,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
+import { extractResultUrl } from "@/lib/falResultParser";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
@@ -35,7 +36,6 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AgentAction, AgentActionResult, AgentCapability } from "../../../shared/agent-actions";
-import { extractResultUrl } from "@/lib/falResultParser";
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 
@@ -543,7 +543,10 @@ export default function BackgroundTasksPage() {
   }, [activeJobsQuery.data, allJobsQuery.data]);
 
   const activeJobIds = useMemo(
-    () => allJobs.filter(j => j.status === "queued" || j.status === "processing").map(j => j.id),
+    () =>
+      allJobs
+        .filter(j => j.status === "queued" || j.status === "processing")
+        .map(j => j.id),
     [allJobs]
   );
 

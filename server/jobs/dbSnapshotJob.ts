@@ -300,15 +300,19 @@ export async function takeDbBackup(): Promise<DbBackupResult> {
         secretAccessKey: r2.secretAccessKey,
       },
     });
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: r2.bucket,
-        Key: key,
-        Body: createReadStream(tmpFile),
-        ContentLength: size,
-        ContentType: "application/gzip",
-      })
-    );
+    try {
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: r2.bucket,
+          Key: key,
+          Body: createReadStream(tmpFile),
+          ContentLength: size,
+          ContentType: "application/gzip",
+        })
+      );
+    } finally {
+      s3.destroy();
+    }
 
     const elapsedMs = Date.now() - startTime;
     console.log(

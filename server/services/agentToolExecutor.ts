@@ -2216,11 +2216,34 @@ async function dispatchStudioTool(
         const isDiaVoiceClone =
           modelId === "fal-ai/dia-tts/voice-clone" ||
           modelId === "fal-ai/dia-tts";
+        // AIDV-793：若呼叫端帶 customBlockId，查 customBlocks 表取自訂語音設定
+        // 作為 args 未指定時的 fallback（userId 過濾防 IDOR）。
+        let cbSettings: import("./voiceCompiler").VoiceBlockSettings = {};
+        if (typeof args.customBlockId === "number") {
+          try {
+            const { getCustomBlockById } = await import("../db");
+            const { parseVoiceBlockSettings } = await import("./voiceCompiler");
+            const block = await getCustomBlockById(args.customBlockId, opts.userId);
+            if (block?.prompt) {
+              cbSettings = parseVoiceBlockSettings(block.prompt);
+            }
+          } catch {
+            // 查詢失敗不阻斷合成，退回無自訂設定
+          }
+        }
         const input: Record<string, unknown> = {};
-        if (typeof args.text === "string") {
-          input.text = isDiaVoiceClone && !/\[S\d\]/.test(args.text)
-            ? `[S1] ${args.text}`
-            : args.text;
+        // 若 customBlock 有 styleHint，對 eleven-v3 以情緒標籤形式注入文字前綴
+        const rawText = typeof args.text === "string" ? args.text : "";
+        const styledText =
+          cbSettings.styleHint &&
+          modelId.includes("eleven-v3") &&
+          !rawText.startsWith("[")
+            ? `[${cbSettings.styleHint}] ${rawText}`
+            : rawText;
+        if (rawText) {
+          input.text = isDiaVoiceClone && !/\[S\d\]/.test(styledText)
+            ? `[S1] ${styledText}`
+            : styledText;
         }
         if (isDiaVoiceClone) {
           // Dia 不接受 voice_id / speed / voice_settings — 跳過所有額外欄位
@@ -2234,9 +2257,13 @@ async function dispatchStudioTool(
             input.speaker_voice_embedding_file_url =
               args.speaker_voice_embedding_file_url;
           }
+          // Qwen 支援 speed（0.5–2.0）
+          const resolvedSpeed = typeof args.speed === "number" ? args.speed : cbSettings.speed;
+          if (typeof resolvedSpeed === "number") input.speed = resolvedSpeed;
         } else {
           if (typeof args.voice_id === "string") input.voice_id = args.voice_id;
-          if (typeof args.speed === "number") input.speed = args.speed;
+          const resolvedSpeed = typeof args.speed === "number" ? args.speed : cbSettings.speed;
+          if (typeof resolvedSpeed === "number") input.speed = resolvedSpeed;
         }
         // DEF-V11：多語 TTS 與 ElevenLabs voice_settings 必須從光球 args
         // 傳到 fal payload，否則「日文 TTS」、「微調穩定度」這類請求會落回
@@ -2247,11 +2274,13 @@ async function dispatchStudioTool(
         }
         if (!isDiaVoiceClone && !isQwenTts) {
           const voiceSettings: Record<string, number> = {};
-          if (typeof args.stability === "number")
-            voiceSettings.stability = args.stability;
-          if (typeof args.similarity_boost === "number")
-            voiceSettings.similarity_boost = args.similarity_boost;
-          if (typeof args.style === "number") voiceSettings.style = args.style;
+          // args 明確傳入的值優先；無則用 customBlock preset 填補
+          const stability = typeof args.stability === "number" ? args.stability : cbSettings.stability;
+          const similarityBoost = typeof args.similarity_boost === "number" ? args.similarity_boost : cbSettings.similarity_boost;
+          const style = typeof args.style === "number" ? args.style : cbSettings.style;
+          if (typeof stability === "number") voiceSettings.stability = stability;
+          if (typeof similarityBoost === "number") voiceSettings.similarity_boost = similarityBoost;
+          if (typeof style === "number") voiceSettings.style = style;
           if (typeof args.use_speaker_boost === "boolean")
             voiceSettings.use_speaker_boost = args.use_speaker_boost ? 1 : 0;
           if (Object.keys(voiceSettings).length > 0) {
@@ -4909,18 +4938,39 @@ async function dispatchVoiceSpecialistTool(
         if (!text) {
           return { name: call.name, ok: false, error: "text is required" };
         }
+        // AIDV-793：若呼叫端帶 customBlockId，查 customBlocks 表取自訂語音設定
+        let vsCbSettings: import("./voiceCompiler").VoiceBlockSettings = {};
+        if (typeof args.customBlockId === "number") {
+          try {
+            const { getCustomBlockById } = await import("../db");
+            const { parseVoiceBlockSettings } = await import("./voiceCompiler");
+            const vsBlock = await getCustomBlockById(args.customBlockId, opts.userId);
+            if (vsBlock?.prompt) {
+              vsCbSettings = parseVoiceBlockSettings(vsBlock.prompt);
+            }
+          } catch {
+            // 查詢失敗不阻斷合成，退回無自訂設定
+          }
+        }
+        // styleHint → emotionTags prefix（eleven-v3 情緒標籤）
+        const vsBaseEmotionTags = Array.isArray(args.emotionTags)
+          ? (args.emotionTags as string[])
+          : [];
+        const vsEmotionTags =
+          vsCbSettings.styleHint && !vsBaseEmotionTags.includes(vsCbSettings.styleHint)
+            ? [vsCbSettings.styleHint, ...vsBaseEmotionTags]
+            : vsBaseEmotionTags;
         const result = await generateSpeech({
           userId: opts.userId,
           text,
           voiceId: args.voiceId as string | undefined,
           language: args.language as string | undefined,
-          speed: args.speed as number | undefined,
-          emotionTags: Array.isArray(args.emotionTags)
-            ? (args.emotionTags as string[])
-            : undefined,
-          stability: args.stability as number | undefined,
-          similarityBoost: args.similarityBoost as number | undefined,
-          style: args.style as number | undefined,
+          speed: (args.speed as number | undefined) ?? vsCbSettings.speed,
+          emotionTags: vsEmotionTags.length > 0 ? vsEmotionTags : undefined,
+          stability: (args.stability as number | undefined) ?? vsCbSettings.stability,
+          similarityBoost:
+            (args.similarityBoost as number | undefined) ?? vsCbSettings.similarity_boost,
+          style: (args.style as number | undefined) ?? vsCbSettings.style,
           modelId: args.modelId as string | undefined,
         });
         return {

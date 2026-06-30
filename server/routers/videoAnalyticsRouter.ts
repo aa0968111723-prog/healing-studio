@@ -12,7 +12,7 @@
  */
 
 import { z } from "zod";
-import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
+import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { eq, and, gte, sql, count, avg } from "drizzle-orm";
 import { getDb } from "../db";
@@ -25,28 +25,36 @@ const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 export const videoAnalyticsRouter = router({
   /**
    * 記錄播放事件。
-   * publicProcedure：允許匿名訪客（visitorId 傳 SHA-256 hash）。
-   * 若 userId 欄位需要，呼叫端可從 session 讀取並傳入。
+   * AIDV-821: 改為 protectedProcedure，防止匿名濫用與 IDOR；
+   * userId 固定取自 JWT context，不接受呼叫端自行傳入。
    */
-  track: publicProcedure
+  track: protectedProcedure
     .input(
       z.object({
         videoProjectId: z.number().int().positive(),
         eventType: eventTypeSchema,
         durationWatched: z.number().int().min(0).max(86400).default(0),
-        /** 已登入用戶的 userId（GDPR opt-out 時傳 null）*/
-        userId: z.number().int().positive().optional(),
         /** 匿名訪客識別符（SHA-256，長度 64）；已登入用戶可省略 */
         visitorId: z.string().length(64).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) return { ok: false };
 
+      const project = await db
+        .select({ id: videoProjects.id })
+        .from(videoProjects)
+        .where(eq(videoProjects.id, input.videoProjectId))
+        .limit(1);
+
+      if (project.length === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
+      }
+
       await db.insert(videoAnalytics).values({
         videoProjectId: input.videoProjectId,
-        userId: input.userId ?? null,
+        userId: ctx.user.id,
         visitorId: input.visitorId ?? null,
         eventType: input.eventType,
         durationWatched: input.durationWatched,

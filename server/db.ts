@@ -510,6 +510,15 @@ export async function purgeOldAuditLog(daysToKeep = 90): Promise<number> {
   return (result as unknown as { affectedRows?: number }).affectedRows ?? 0;
 }
 
+export async function purgeExpiredBackgroundJobs(): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db.execute(
+    sql`DELETE FROM background_jobs WHERE expiresAt IS NOT NULL AND expiresAt < NOW() AND status IN ('completed', 'failed', 'cancelled')`
+  );
+  return (result as unknown as { affectedRows?: number }).affectedRows ?? 0;
+}
+
 export async function getUsersByIds(ids: number[]) {
   if (ids.length === 0) return [];
   const db = await getDb();
@@ -2489,6 +2498,15 @@ export async function getCustomBlock(id: number, userId: number) {
     .limit(1);
   return rows[0] ?? null;
 }
+
+/**
+ * Alias of {@link getCustomBlock}. Kept so existing callers that import the
+ * `getCustomBlockById` name (e.g. server/services/agentToolExecutor.ts) keep
+ * resolving after AIDV-793 standardised the canonical name to `getCustomBlock`.
+ * Both share identical signature/behaviour: (id, userId) with userId-scoped
+ * ownership filtering (IDOR prevention).
+ */
+export const getCustomBlockById = getCustomBlock;
 
 export async function deleteCustomBlock(id: number, userId: number) {
   const db = await getDb();

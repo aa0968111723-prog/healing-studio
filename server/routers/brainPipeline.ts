@@ -953,6 +953,15 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
     downstream: ["db:main"],
   },
   {
+    id: "api:handoff-trace",
+    label: "GET /api/video/project/:projectId/handoff-trace",
+    description: "AIDV-318 多代理交棒鏈：回傳指定 video_project UUID 的完整 agent_handoff_log 序列（auth required）",
+    method: "GET",
+    path: "/api/video/project/:projectId/handoff-trace",
+    files: ["server/routes/handoffTraceRoute.ts"],
+    downstream: ["db:supabase"],
+  },
+  {
     id: "api:video-list",
     label: "GET /api/video",
     description: "AIDV-735 REST：cursor 分頁列出目前使用者的影片專案",
@@ -1449,6 +1458,15 @@ const CRON_JOBS: CronJobMeta[] = [
     schedule: "0 3 * * *",
     description: "刪除 login_history 中 90 天以上的舊記錄（AIDV-63 GDPR 資料最小化）",
     files: ["server/jobs/loginHistoryPurgeJob.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "cron:background-job-purge",
+    label: "背景工作 TTL 清理（每日 04:23 UTC）",
+    schedule: "23 4 * * *",
+    description:
+      "刪除 background_jobs 中 expiresAt 已到期且狀態為 completed/failed/cancelled 的舊工作（AIDV-231 Gap B；預設 ON，BACKGROUND_JOB_PURGE_ENABLED=false 可停用）",
+    files: ["server/jobs/backgroundJobPurgeJob.ts"],
     downstream: ["db:main"],
   },
   {

@@ -95,6 +95,9 @@ const PENDING_BLOCK = [
   "0099_agent_registry_max_load",
   // AIDV-272：video_analytics 影片播放事件追蹤表（CREATE TABLE IF NOT EXISTS + 索引守門）。
   "0100_video_analytics",
+  // AIDV-231 Gap B：background_jobs 加 expiresAt TTL 欄位，供每日清理 cron 使用（information_schema 守門）。
+  // 合併 origin/main 時與 0099_agent_registry_max_load/0100_video_analytics 撞號，改編 0101。
+  "0101_background_jobs_expires_at",
 ];
 
 function readSql(tag: string): string {

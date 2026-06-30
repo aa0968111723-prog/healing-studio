@@ -20,6 +20,8 @@ import {
 import { SHELL_META } from "@/config/shells";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
+import { ENABLE_ORB_ONBOARDING } from "@/config/featureFlags";
+import { OrbOnboardingDialog } from "@/components/orb-agent/OrbOnboardingDialog";
 import { useCreativeProject } from "@/spine/useCreativeProject";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useSpine } from "@/providers/SpineProvider";
@@ -45,6 +47,19 @@ export function AidvShellChrome() {
   const [provOpen, setProvOpen] = useState(false);
   const active = shellFromPath(location);
   const activeMeta = SHELL_META.find((s) => s.id === active) ?? SHELL_META[0];
+
+  // AIDV-823: onboarding dialog state — only active when flag is ON
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const prefsQ = trpc.agentPreferences.getPreferences.useQuery(undefined, {
+    enabled: ENABLE_ORB_ONBOARDING,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  useEffect(() => {
+    if (ENABLE_ORB_ONBOARDING && prefsQ.data && !prefsQ.data.onboardingCompletedAt) {
+      setOnboardingOpen(true);
+    }
+  }, [prefsQ.data]);
 
   // U-4 第二/三片：接真實資料（皆在旗標之下、僅 chrome ON 時查詢）。
   const world = useCreativeProject();
@@ -205,6 +220,13 @@ export function AidvShellChrome() {
       <CommandPalette open={cmdkOpen} items={cmdItems} onClose={() => setCmdkOpen(false)} />
       <Toasts />
     </AidvKit>
+    {ENABLE_ORB_ONBOARDING && (
+      <OrbOnboardingDialog
+        open={onboardingOpen}
+        onOpenChange={setOnboardingOpen}
+        onCompleted={() => navigate("/video")}
+      />
+    )}
     </ToastProvider>
   );
 }

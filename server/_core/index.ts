@@ -103,6 +103,10 @@ import {
   stopLoginHistoryPurgeCron,
 } from "../jobs/loginHistoryPurgeJob";
 import {
+  initBackgroundJobPurgeCron,
+  stopBackgroundJobPurgeCron,
+} from "../jobs/backgroundJobPurgeJob";
+import {
   initCredentialExpiryAlertCron,
   stopCredentialExpiryAlertCron,
 } from "../jobs/credentialExpiryAlertJob";
@@ -115,6 +119,7 @@ import {
   stopGoTrueHealthMonitorCron,
 } from "../jobs/goTrueHealthMonitor";
 import { agentStatusRouter } from "../routes/agentStatusRoute";
+import { handoffTraceRouter } from "../routes/handoffTraceRoute";
 import { v1Router } from "../routes/v1";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
@@ -251,6 +256,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "loginHistoryPurgeJob",
     start: initLoginHistoryPurgeCron,
     stop: stopLoginHistoryPurgeCron,
+  },
+  {
+    name: "backgroundJobPurgeJob",
+    start: initBackgroundJobPurgeCron,
+    stop: stopBackgroundJobPurgeCron,
   },
   {
     name: "credentialExpiryAlertJob",
@@ -586,6 +596,8 @@ async function startServer() {
   }
   // Agent status dashboard + SSE heartbeat + Prometheus metrics (AIDV-334/336)
   app.use(agentStatusRouter);
+  // Multi-agent handoff trace (AIDV-318)
+  app.use(handoffTraceRouter);
   // Programmatic REST API v1 (AIDV-276)
   app.use(v1Router);
   // (LangSmith stats moved to tRPC: trpc.langsmith.stats)
@@ -927,11 +939,17 @@ async function startServer() {
   app.use(errorTrackingExpressErrorHandler());
   app.use(globalErrorHandler);
 
-  // In production (Railway), always use the PORT env var directly and bind 0.0.0.0
-  // In development, scan for an available port starting from 3000
+  // Bind the PORT the platform assigns. Railway (and any PaaS) injects PORT and
+  // routes ALL proxy + healthcheck traffic to that exact port. If PORT is set we
+  // MUST bind it directly — scanning via findAvailablePort() can land on a
+  // DIFFERENT port when the assigned one transiently probes busy, so the proxy
+  // gets connection-refused and every healthcheck fails. Real prod incident
+  // 2026-06-30: NODE_ENV was unset → fell into the scan path → app bound 3000 ≠
+  // Railway's $PORT → 14/14 healthcheck attempts "service unavailable" → every
+  // deploy FAILED. Only scan when PORT is unset (genuine local dev).
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port =
-    process.env.NODE_ENV === "production"
+    process.env.PORT || process.env.NODE_ENV === "production"
       ? preferredPort
       : await findAvailablePort(preferredPort);
 

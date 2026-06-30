@@ -49,6 +49,7 @@ export type LLMEngine =
   | "vertex"
   | "forge"
   | "nvidia"
+  | "freellmapi"
   | "auto";
 
 export interface EngineConfig {
@@ -492,6 +493,15 @@ export function detectAvailableEngines(): Array<{
       reason: "NVIDIA_API 已設定（NVIDIA NIM 代理人引擎）",
     });
   }
+  if (
+    ENV.freeLlmApiEnabled === "true" ||
+    ENV.freeLlmApiEnabled === "1"
+  ) {
+    available.push({
+      engine: "freellmapi",
+      reason: "FREE_LLM_API_ENABLED=true（免費 LLM 備援引擎，無需 API 金鑰）",
+    });
+  }
 
   return available;
 }
@@ -511,9 +521,10 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
   }
 
   // ── Auto 模式 — 健康感知路由 ───────────────────────────────
-  // 優先順序：openrouter > anthropic > perplexity > gemini > nvidia > vertex > forge
+  // 優先順序：openrouter > anthropic > perplexity > gemini > nvidia > vertex > forge > freellmapi
   // perplexity 排在 anthropic 後面：Sonar 雖然是搜尋+推理代理，但 tool use
   // 與一般對話的覆蓋面不如 Claude，僅當顯式選擇 perplexity/sonar-* 時優先。
+  // freellmapi 排最後：免費服務可能有速率限制或可用性問題，僅作最終備援。
   const autoOrder: LLMEngine[] = [
     "openrouter",
     "anthropic",
@@ -522,6 +533,7 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
     "nvidia",
     "vertex",
     "forge",
+    "freellmapi",
   ];
 
   for (const engine of autoOrder) {
@@ -574,6 +586,7 @@ export function getEngineFallbackChain(
     "nvidia",
     "vertex",
     "forge",
+    "freellmapi",
   ];
   const fallbacks: EngineConfig[] = [];
 
@@ -754,6 +767,36 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         supportsLongContext: false,
         supportsToolCalling: true,
       };
+
+    case "freellmapi": {
+      // 免費 LLM API — 無需 API 金鑰，OpenAI 相容格式
+      // 來源：https://github.com/tashfeenahmed/freellmapi
+      // 僅在 FREE_LLM_API_ENABLED=true 時可用；排在所有付費引擎之後作為最終備援。
+      const isEnabled =
+        ENV.freeLlmApiEnabled === "true" || ENV.freeLlmApiEnabled === "1";
+      if (!isEnabled)
+        throw new Error(
+          "Engine 'freellmapi' 指定但 FREE_LLM_API_ENABLED 未設為 true"
+        );
+      const baseUrl = (
+        ENV.freeLlmApiUrl || "https://api.freellmapi.com"
+      ).replace(/\/$/, "");
+      return {
+        name: "FreeLLM API (Free Fallback)",
+        engine: "freellmapi",
+        // OpenAI-compatible chat completions endpoint
+        url: `${baseUrl}/v1/chat/completions`,
+        // 免費服務不需要 API 金鑰；傳空字串讓 HTTP 客戶端不帶 Authorization 標頭
+        apiKey: "",
+        // gpt-3.5-turbo 是 freellmapi 支援的標準模型 ID
+        model: "gpt-3.5-turbo",
+        // 免費 API 通常不支援進階功能
+        supportsThinking: false,
+        supportsGrounding: false,
+        supportsLongContext: false,
+        supportsToolCalling: false,
+      };
+    }
 
     default:
       throw new Error(`Unknown engine: ${engine}`);

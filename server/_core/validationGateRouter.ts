@@ -31,6 +31,14 @@ interface RetryEntry {
 }
 
 const retryMap = new Map<string, RetryEntry>();
+const RETRY_MAP_TTL_MS = 24 * 60 * 60 * 1000;
+
+function evictStaleRetryEntries(): void {
+  const cutoff = Date.now() - RETRY_MAP_TTL_MS;
+  for (const [key, entry] of retryMap) {
+    if (entry.updatedAt < cutoff) retryMap.delete(key);
+  }
+}
 
 const RETRY_ENTRY_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -82,6 +90,7 @@ export function routeValidationFailure(
   failureType: ValidationFailureType,
   maxRetries = 3
 ): ValidationState {
+  evictStaleRetryEntries();
   const mapKey = `${userId}:${issueKey}`;
   const now = Date.now();
   evictStaleEntries(now);

@@ -129,7 +129,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { FEATURE_EXPORT_CHAIN } from "@/config/featureFlags";
 import { useLocation } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AdvancedSection } from "@/components/layout/AdvancedSection";
@@ -1753,6 +1753,7 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
   const completedMediaTasks = FEATURE_EXPORT_CHAIN
     ? tasks.filter(t => t.status === "completed" && t.resultUrl)
     : [];
+  const reduceMotion = useReducedMotion() ?? false;
 
   if (tasks.length === 0) return null;
 
@@ -1804,17 +1805,21 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
             </button>
           )}
         </div>
-        {segmentsTotal > 1 && !allDone && (
-          <div className="px-3 pb-2">
-            <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+      </div>
+      {segmentsTotal > 0 && !allDone && (
+        <div className="px-3 py-1.5 border-b border-border/40">
+          <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+            {segmentsTotal > 1 ? (
               <div
-                className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                className={`h-full rounded-full bg-amber-500${reduceMotion ? "" : " transition-all duration-500"}`}
                 style={{ width: `${segmentPct}%` }}
               />
-            </div>
+            ) : (
+              <div className={`h-full w-full rounded-full bg-amber-500/70${reduceMotion ? "" : " animate-pulse"}`} />
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
       {!collapsed && (
         <ScrollArea className="max-h-[40vh]">
           <div className="p-2 space-y-1.5">

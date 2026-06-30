@@ -35,7 +35,7 @@
  */
 
 import { z } from "zod";
-import { safeMediaUrlOptional } from "../lib/urlValidator";
+import { safeMediaUrl, safeMediaUrlOptional } from "../lib/urlValidator";
 import { audioGenerationProcedure, brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { signWebhookToken, signFalWebhookNonce } from "../_core/webhookTokens";
@@ -975,7 +975,7 @@ export const proStudioRouter = router({
   qwenCloneVoice: audioGenerationProcedure
     .input(
       z.object({
-        audio_url: z.string().url(), // 參考音訊 URL（3-30秒）
+        audio_url: safeMediaUrl, // 參考音訊 URL（3-30秒，allowlist 防 SSRF）
         reference_text: z.string().optional(), // 參考音訊的文字（可提升品質）
       })
     )
@@ -1002,7 +1002,7 @@ export const proStudioRouter = router({
   qwenCloneAndSpeak: audioGenerationProcedure
     .input(
       z.object({
-        audio_url: z.string().url(),
+        audio_url: safeMediaUrl,
         text: z.string().min(1).max(5000),
         reference_text: z.string().optional(),
         language: z

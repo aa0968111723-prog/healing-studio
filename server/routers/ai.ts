@@ -3043,8 +3043,8 @@ export const aiRouter = router({
 
     listRecent: brainProcedure
       .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }).optional())
-      .query(({ input }) => {
-        return listRecentOrbAgentTasks(input?.limit ?? 20);
+      .query(({ input, ctx }) => {
+        return listRecentOrbAgentTasks(input?.limit ?? 20, ctx.user.id);
       }),
 
     approve: brainProcedure
@@ -3098,6 +3098,10 @@ export const aiRouter = router({
           true
         );
         if (!executorEnabled) return null;
+        const existingTask = getOrbAgentTask(input.taskId);
+        if (existingTask?.userId != null && existingTask.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
         // Mirror cancellation into the legacy store so any running
         // orchestrator loop exits on its next status check.
         orbTaskRepository.approve(input.taskId, ctx.user.id, false);
@@ -3112,6 +3116,10 @@ export const aiRouter = router({
           true
         );
         if (!executorEnabled) return { task: null, recoveryPlan: null };
+        const taskForRetry = getOrbAgentTask(input.taskId);
+        if (taskForRetry?.userId != null && taskForRetry.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
         const enableRecovery = isFlagEnabled(
           process.env.ENABLE_ORB_TASK_RECOVERY ?? serverEnv.ENABLE_ORB_TASK_RECOVERY,
           true
@@ -3185,23 +3193,31 @@ export const aiRouter = router({
 
     completeStep: brainProcedure
       .input(z.object({ taskId: z.string().min(1), stepId: z.string().min(1) }))
-      .mutation(({ input }) => {
+      .mutation(({ input, ctx }) => {
         const executorEnabled = isFlagEnabled(
           process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
           true
         );
         if (!executorEnabled) return null;
+        const taskForStep = getOrbAgentTask(input.taskId);
+        if (taskForStep?.userId != null && taskForStep.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
         return completeOrbAgentStep(input.taskId, input.stepId);
       }),
 
     failStep: brainProcedure
       .input(z.object({ taskId: z.string().min(1), stepId: z.string().min(1), reason: z.string().min(1).max(240) }))
-      .mutation(({ input }) => {
+      .mutation(({ input, ctx }) => {
         const executorEnabled = isFlagEnabled(
           process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
           true
         );
         if (!executorEnabled) return null;
+        const taskForFail = getOrbAgentTask(input.taskId);
+        if (taskForFail?.userId != null && taskForFail.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
         return failOrbAgentStep(input.taskId, input.stepId, input.reason);
       }),
 
