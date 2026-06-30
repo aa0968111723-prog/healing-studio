@@ -1061,6 +1061,17 @@ export async function getModelTrainingConsentsByUser(userId: number) {
     .orderBy(desc(modelTrainingConsents.createdAt));
 }
 
+/** AIDV-796: Batch fetch — replaces N individual getModelTrainingConsent calls. */
+export async function getModelTrainingConsentsByIds(ids: number[]) {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(modelTrainingConsents)
+    .where(inArray(modelTrainingConsents.id, ids));
+}
+
 export async function revokeModelTrainingConsent(
   id: number,
   reason: string | null
