@@ -224,6 +224,7 @@ export function AidvShellChrome() {
       <OrbOnboardingDialog
         open={onboardingOpen}
         onOpenChange={setOnboardingOpen}
+        onCompleted={() => navigate("/video")}
       />
     )}
     </ToastProvider>

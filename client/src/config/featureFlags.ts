@@ -156,12 +156,12 @@ export const FEATURE_EXPORT_CHAIN: boolean =
   readRuntimeOverride("exportchain") ?? readFlag("VITE_FEATURE_EXPORT_CHAIN", true);
 
 /**
- * OrbOnboarding 引導對話框開關（AIDV-823）。
- * 首次登入時彈出引導問卷，讓代理了解使用者偏好。
- * 預設 OFF（引導體驗完整測試前不開放）。
+ * OrbOnboarding 引導對話框開關（AIDV-823 / AIDV-830）。
+ * 首次登入時彈出引導問卷，讓代理了解使用者偏好，完成後導向 /video。
+ * 預設 ON（AIDV-830：旗標政策，預設開啟、秒回滾退路）。
  * 關閉退路：部署環境設 VITE_ENABLE_ORB_ONBOARDING=0；無需改碼。
  */
-export const ENABLE_ORB_ONBOARDING: boolean = readFlag("VITE_ENABLE_ORB_ONBOARDING", false);
+export const ENABLE_ORB_ONBOARDING: boolean = readFlag("VITE_ENABLE_ORB_ONBOARDING", true);
 
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
