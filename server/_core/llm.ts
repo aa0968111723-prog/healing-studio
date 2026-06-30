@@ -1994,7 +1994,7 @@ async function invokeSingleEngine(
     payload.thinking = { budget_tokens: 128 };
   }
 
-  if (tools && tools.length > 0) {
+  if (tools && tools.length > 0 && engineConfig.supportsToolCalling !== false) {
     if (isAnthropicEngine) {
       const anthropicTools = toolsToAnthropic(tools);
       if (anthropicTools) payload.tools = anthropicTools;
@@ -2006,7 +2006,7 @@ async function invokeSingleEngine(
   if (isAnthropicEngine) {
     const anthropicChoice = toolChoiceToAnthropic(toolChoice || tool_choice);
     if (anthropicChoice) payload.tool_choice = anthropicChoice;
-  } else {
+  } else if (engineConfig.supportsToolCalling !== false) {
     const normalizedToolChoice = normalizeToolChoice(
       toolChoice || tool_choice,
       tools
