@@ -67,7 +67,15 @@ export function decideBudget(
 
 // ─── DB query ────────────────────────────────────────────────────────────────
 
+let _budgetCache: { decision: BudgetDecision; cachedAt: number } | null = null;
+const BUDGET_CACHE_TTL_MS = 60_000;
+
 export async function checkMonthlyBudget(): Promise<BudgetDecision> {
+  const now = Date.now();
+  if (_budgetCache && now - _budgetCache.cachedAt < BUDGET_CACHE_TTL_MS) {
+    return _budgetCache.decision;
+  }
+
   const monthlyBudgetUsd = Number(serverEnv.AI_MONTHLY_BUDGET_USD || 500);
   const db = await getDb();
 
@@ -76,8 +84,8 @@ export async function checkMonthlyBudget(): Promise<BudgetDecision> {
     return { allowed: true, currentMonthSpendUsd: 0, monthlyBudgetUsd, remainingUsd: monthlyBudgetUsd };
   }
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const queryNow = new Date();
+  const monthStart = new Date(queryNow.getFullYear(), queryNow.getMonth(), 1);
 
   const [row] = await db
     .select({ totalCost: sql<number>`COALESCE(SUM(${costAggregations.totalCostUsd}), 0)` })
@@ -85,7 +93,9 @@ export async function checkMonthlyBudget(): Promise<BudgetDecision> {
     .where(gte(costAggregations.date, monthStart));
 
   const currentSpend = Number(row?.totalCost ?? 0);
-  return decideBudget(currentSpend, monthlyBudgetUsd);
+  const decision = decideBudget(currentSpend, monthlyBudgetUsd);
+  _budgetCache = { decision, cachedAt: now };
+  return decision;
 }
 
 // ─── Gate (throws on budget exceeded) ────────────────────────────────────────
