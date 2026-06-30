@@ -93,8 +93,15 @@ export function setElevenLabsAvailability(available: boolean): void {
 
 export async function checkElevenLabsHealth(): Promise<boolean> {
   try {
+    // AIDV: hard 5s timeout. Node's global fetch has NO default timeout, so a
+    // slow/unreachable ElevenLabs endpoint would otherwise hang this await
+    // indefinitely. Because startup awaits this BEFORE server.listen(), an
+    // unbounded hang here blocks the HTTP server from ever binding the port,
+    // so Railway's /api/health healthcheck never gets a response and the
+    // deploy FAILS with a healthcheck timeout despite a healthy app.
     const res = await fetch("https://api.elevenlabs.io/v1/user", {
       headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY ?? "" },
+      signal: AbortSignal.timeout(5000),
     });
     return res.status === 200;
   } catch {
