@@ -37,11 +37,12 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
   const [text, setText] = useState("");
   const [bd, setBd] = useState<ScriptBreakdown | null>(null);
   const [name, setName] = useState("");
+  const [commitErr, setCommitErr] = useState<string | null>(null);
 
   /** 遞增序號＝取消保護：按「取消返回」後，過期的拆解結果/錯誤直接丟棄。 */
   const runSeq = useRef(0);
 
-  const reset = () => { runSeq.current++; setStep("input"); setText(""); setBd(null); setName(""); };
+  const reset = () => { runSeq.current++; setStep("input"); setText(""); setBd(null); setName(""); setCommitErr(null); };
   const close = () => { onClose(); reset(); };
 
   const run = async () => {
@@ -69,19 +70,14 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
   };
 
   const commit = async (newProject: boolean) => {
-    if (bd) {
-      try {
-        await spine.ingestBreakdown(name || spine.project?.name || "引導式新專案", bd, { newProject });
-      } catch (err) {
-        // 寫入失敗不關窗：拆解結果還在，使用者可改名或換目標重試。
-        toast.error("寫入分鏡資料失敗，請稍後重試", {
-          description: "拆解結果仍保留，你可以改名或換目標後重試。",
-          duration: 7000,
-        });
-        return;
-      }
+    if (!bd) return; // AC4: never auto-close on null bd
+    setCommitErr(null);
+    try {
+      await spine.ingestBreakdown(name || spine.project?.name || "引導式新專案", bd, { newProject });
+      close();
+    } catch (err) {
+      setCommitErr(shortErrorMsg(err) || "寫入分鏡資料失敗，請稍後重試。");
     }
-    close();
   };
 
   const totalShots = bd ? bd.acts.reduce((n, a) => n + a.shots.length, 0) : 0;
@@ -178,6 +174,12 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
                 placeholder="專案名稱（留空＝寫入目前作用中專案）"
                 className="mb-3 h-9 text-sm"
               />
+              {commitErr && (
+                <div role="alert" className="mb-3 rounded-xl border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
+                  <strong>寫入失敗：</strong>{commitErr}
+                  <p className="mt-1 text-[10px] opacity-75">拆解結果仍保留，你可以改名或換目標後重試。</p>
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={() => void commit(false)}>
                   <Check className="size-4" /> 寫入目前專案
@@ -185,8 +187,8 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
                 <Button variant="secondary" onClick={() => void commit(true)}>
                   <Plus className="size-4" /> 建立新專案再寫入
                 </Button>
-                <Button variant="ghost" onClick={() => setStep("input")}>
-                  <ArrowLeft className="size-4" /> 返回
+                <Button variant="ghost" onClick={() => commitErr ? close() : setStep("input")}>
+                  <ArrowLeft className="size-4" /> {commitErr ? "捨棄並返回" : "返回"}
                 </Button>
               </div>
             </>

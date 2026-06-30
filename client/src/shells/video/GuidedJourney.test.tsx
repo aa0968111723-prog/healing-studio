@@ -6,8 +6,8 @@
  *   1. 拆解失敗 → toast.error 標真實 procedure 名（director.analyzeScriptOverview /
  *      generateVideoScript 過渡組合），並回到輸入步驟（不卡轉圈圈）。
  *   2. loading 有「取消返回」出口；取消後遲到的拆解結果直接丟棄（不會突然跳 review）。
- *   3. 寫入失敗（worldStoryboard.createFromSegments）→ toast.error＋不關窗，
- *      拆解結果保留可重試。
+ *   3. 寫入失敗（worldStoryboard.createFromSegments）→ 持久 error banner（非 toast）顯示
+ *      shortErrorMsg(err)，不關窗，拆解結果保留；「返回」改標「捨棄並返回」。
  *
  * 沿用 repo 慣例：模組級 vi.mock 釘 useProjectSpine 與 sonner，不掛真 provider。
  */
@@ -99,7 +99,7 @@ describe("GuidedJourney（從零引導表單）", () => {
     expect(screen.getByPlaceholderText(/把整份腳本貼進來/)).toBeTruthy();
   });
 
-  it("寫入失敗：toast.error 白話訊息＋不關窗、結果保留", async () => {
+  it("寫入失敗：持久 error banner＋不關窗、結果保留、返回鈕改為「捨棄並返回」", async () => {
     spineStub.breakdownScript.mockResolvedValue(BD);
     spineStub.ingestBreakdown.mockRejectedValue(new Error("DB 寫入失敗"));
     const onClose = open();
@@ -108,10 +108,12 @@ describe("GuidedJourney（從零引導表單）", () => {
     await screen.findByText(/確認拆解結果/);
 
     fireEvent.click(screen.getByRole("button", { name: /寫入目前專案/ }));
-    await waitFor(() => expect(toastStub.error).toHaveBeenCalled());
-    expect(String(toastStub.error.mock.calls[0][0])).toContain(
-      "寫入分鏡資料失敗"
-    );
+    // AC1/AC2: 持久 banner 顯示真實錯誤訊息
+    const banner = await screen.findByRole("alert");
+    expect(banner.textContent).toContain("DB 寫入失敗");
+    // AC3: 返回鈕改標籤
+    expect(screen.getByRole("button", { name: /捨棄並返回/ })).toBeTruthy();
+    // AC4: 不自動關窗
     expect(onClose).not.toHaveBeenCalled();
     // 拆解結果仍在（可改名重試）
     expect(screen.getByText(/確認拆解結果/)).toBeTruthy();
