@@ -496,7 +496,7 @@ export function retryOrbAgentTask(
 ): { task: OrbAgentTask | null; recoveryPlan?: GatedAgentPlanResult | null } {
   const task = taskStore.get(taskId);
   if (!task) return { task: null, recoveryPlan: null };
-  if (task.status === "blocked" || task.status === "cancelled") {
+  if (task.status === "blocked" || task.status === "cancelled" || task.status === "paused") {
     return { task, recoveryPlan: null };
   }
   if (task.retryBudget <= 0) {
@@ -536,6 +536,45 @@ export function retryOrbAgentTask(
   task.updatedAt = now();
   pushEvent(task, "task.approved", "Task retried");
   return { task, recoveryPlan: null };
+}
+
+/**
+ * Pause an executing task so it can be resumed later.
+ * Only valid when the task is in `executing` or `approved` state.
+ * A paused task is skipped by `retryOrbAgentTask`; call `resumeOrbAgentTask`
+ * to return it to executing.
+ */
+export function pauseOrbAgentTask(taskId: string, reason = "paused by user"): OrbAgentTask | null {
+  const task = taskStore.get(taskId);
+  if (!task) return null;
+  if (task.status !== "executing" && task.status !== "approved") return task;
+  task.status = "paused";
+  task.updatedAt = now();
+  pushEvent(task, "task.paused", reason);
+  return task;
+}
+
+/**
+ * Resume a paused task back to `executing`, re-marking the current step as
+ * running. If there is no current step the task transitions to `approved` so
+ * the orchestrator can advance it normally.
+ */
+export function resumeOrbAgentTask(taskId: string): OrbAgentTask | null {
+  const task = taskStore.get(taskId);
+  if (!task) return null;
+  if (task.status !== "paused") return task;
+  const currentStep = task.currentStepId
+    ? task.steps.find(s => s.id === task.currentStepId)
+    : null;
+  if (currentStep) {
+    currentStep.status = "running";
+    task.status = "executing";
+  } else {
+    task.status = "approved";
+  }
+  task.updatedAt = now();
+  pushEvent(task, "task.resumed", "Task resumed");
+  return task;
 }
 
 /**

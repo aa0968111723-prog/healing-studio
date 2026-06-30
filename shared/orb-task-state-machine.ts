@@ -47,6 +47,8 @@ export interface OrbTaskAuditEvent {
     | "task.failed"
     | "task.cancelled"
     | "task.blocked"
+    | "task.paused"
+    | "task.resumed"
     | "task.manual_intervention"
     | "claudeCode.requested"
     | "claudeCode.plan_created"
