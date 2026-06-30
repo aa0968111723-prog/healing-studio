@@ -53,6 +53,7 @@ function normalizeForOwnershipCheck(url: string): string {
 
 async function isOwnedByUser(url: string, userId: number): Promise<boolean> {
   const db = await getDb();
+  if (!db) return false;
   const normalized = normalizeForOwnershipCheck(url);
 
   // Check digitalAssetLibrary first (primary persistent store after archival).
