@@ -14,6 +14,7 @@ import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { signWebhookToken } from "../_core/webhookTokens";
 import { checkTrpcRateLimit } from "../_core/trpcRateLimit";
+import { logger } from "../_core/logger";
 
 export const loraTrainerRouter = router({
   /**
@@ -368,8 +369,12 @@ export const loraTrainerRouter = router({
             };
           }
           replicateInfo = info;
-        } catch {
-          // Silently fail — will show null
+        } catch (err) {
+          // AIDV-801: warn so Replicate polling failures are observable.
+          logger.warn("replicateTrainingStatus: Replicate prediction query failed", {
+            predictionId,
+            err: err instanceof Error ? err.message : String(err),
+          });
         }
       }
 
