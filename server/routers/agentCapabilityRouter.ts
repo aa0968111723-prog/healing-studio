@@ -35,8 +35,6 @@ export const agentCapabilityRouter = router({
         costPerToken: z.number().min(0).max(1).default(0),
         /** Agent Scope allowlist（AIDV-331）：此代理被允許執行的 endpoint scope */
         allowedEndpoints: z.array(z.string().min(1).max(64)).max(64).optional(),
-        /** 並發容量上限（AIDV-496）：currentLoad 達此值時不派工。預設 1.0。 */
-        maxLoad: z.number().min(0).max(1).default(1),
       })
     )
     .mutation(async ({ input }) => {
@@ -53,7 +51,6 @@ export const agentCapabilityRouter = router({
           allowedEndpoints: input.allowedEndpoints ?? null,
           costPerToken: String(input.costPerToken),
           currentLoad: "0",
-          maxLoad: String(input.maxLoad),
           isActive: true,
         })
         .onDuplicateKeyUpdate({
@@ -61,7 +58,6 @@ export const agentCapabilityRouter = router({
             capabilities: input.capabilities,
             allowedEndpoints: input.allowedEndpoints ?? null,
             costPerToken: String(input.costPerToken),
-            maxLoad: String(input.maxLoad),
             isActive: true,
             lastHeartbeatAt: sql`NOW()`,
           },
@@ -141,15 +137,13 @@ export const agentCapabilityRouter = router({
           : "normal";
 
       // 取出 5 分鐘內有心跳的活躍代理（上限 100 筆，負載排序）
-      // currentLoad < maxLoad 過濾：已達容量上限的代理不參選（AIDV-496）
       const candidates = await db
         .select()
         .from(agentDynamicRegistry)
         .where(
           and(
             eq(agentDynamicRegistry.isActive, true),
-            sql`${agentDynamicRegistry.lastHeartbeatAt} >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)`,
-            sql`${agentDynamicRegistry.currentLoad} < ${agentDynamicRegistry.maxLoad}`
+            sql`${agentDynamicRegistry.lastHeartbeatAt} >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)`
           )
         )
         .orderBy(agentDynamicRegistry.currentLoad)
@@ -204,7 +198,6 @@ export const agentCapabilityRouter = router({
       return {
         agentId: best.agentId,
         currentLoad: Number(best.currentLoad),
-        maxLoad: Number(best.maxLoad),
         capabilities: best.capabilities as string[],
         costPerToken: Number(best.costPerToken),
         priority,

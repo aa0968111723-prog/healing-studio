@@ -345,11 +345,8 @@ export const modelsRouter = router({
               "訓練真實人物或受版權保護的素材，必須先簽署數位肖像權 / 照片使用同意書",
           });
         }
-        // AIDV-796: batch fetch — 1 DB roundtrip instead of N
-        const fetched = await db.getModelTrainingConsentsByIds(ids);
-        const consentMap = new Map(fetched.map(c => [c.id, c]));
         for (const cid of ids) {
-          const c = consentMap.get(cid);
+          const c = await db.getModelTrainingConsent(cid);
           if (!c || c.userId !== ctx.user.id) {
             throw new TRPCError({
               code: "BAD_REQUEST",
@@ -368,6 +365,7 @@ export const modelsRouter = router({
               message: `同意書 #${cid}（${c.subjectName}）已撤回或過期，無法用於訓練`,
             });
           }
+          // 視訓練類型檢查授權範圍
           if (
             input.modelType === "portrait_lora" &&
             c.consentType === "photo_usage"

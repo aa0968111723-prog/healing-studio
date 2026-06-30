@@ -4,22 +4,8 @@ import { getProviderHealth, type ProviderHealthStatus } from "./providerHealth";
 export type ProviderKind = "llm" | "image" | "video" | "audio" | "voice" | "code" | "deploy";
 export type ProviderCostTier = "free" | "low" | "medium" | "high" | "unknown";
 
-// AIDV-794: compile-time guard — typo in fallbackProviderIds now fails tsc.
-export const PROVIDER_IDS = [
-  "gemini",
-  "default_llm",
-  "claudeCode",
-  "codex",
-  "fal",
-  "elevenlabs",
-  "suno",
-  "minimax",
-  "disabled",
-] as const;
-export type ProviderId = typeof PROVIDER_IDS[number];
-
 export interface ProviderConfig {
-  id: ProviderId;
+  id: string;
   label: string;
   kind: ProviderKind;
   enabled: boolean;
@@ -34,7 +20,7 @@ export interface ProviderConfig {
   retryBudget: number;
   estimatedCostTier: ProviderCostTier;
   requiredEnvKeys: string[];
-  fallbackProviderIds: ProviderId[];
+  fallbackProviderIds: string[];
 }
 
 export type ProviderRouteIntent =
@@ -318,7 +304,7 @@ function buildFallbackChain(provider: ProviderConfig, catalogById: Map<string, P
 }
 
 export function selectProvider(input: ProviderRouteInput, catalog = getProviderCatalog()): ProviderSelection {
-  const catalogById = new Map<string, ProviderConfig>(catalog.map(provider => [provider.id, provider]));
+  const catalogById = new Map(catalog.map(provider => [provider.id, provider]));
   const candidates = desiredProviderIds(input)
     .map(id => catalogById.get(id))
     .filter((entry): entry is ProviderConfig => Boolean(entry))

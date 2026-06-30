@@ -103,27 +103,6 @@ export type GenerationEvent =
       userId: number;
       modelId: string;
       at: number;
-    } & GenerationEventBase)
-  | ({
-      // AIDV-527: 導演 AI 批次生成 — 單一分鏡任務已開始派送 fal
-      type: "segment_started";
-      segmentId: string;
-      segmentIndex: number;
-      of: number;
-      stage: string;
-      userId: number;
-      at: number;
-    } & GenerationEventBase)
-  | ({
-      // AIDV-527: 導演 AI 批次生成 — 單一分鏡任務已完成（webhook 回傳 OK）
-      type: "segment_completed";
-      segmentId: string;
-      segmentIndex: number;
-      of: number;
-      stage: string;
-      duration_ms: number;
-      userId: number;
-      at: number;
     } & GenerationEventBase);
 
 class GenerationEventBus {

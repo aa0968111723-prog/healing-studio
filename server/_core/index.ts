@@ -47,7 +47,6 @@ import { replicateWebhookRouter } from "../routes/webhookReplicate";
 import { stripeWebhookRouter } from "../routes/stripeWebhook";
 import { mediaDownloadRouter } from "../routes/download";
 import { videoOutputRouter } from "../routes/videoOutputRoute";
-import { videoRouter } from "../routes/videoRoute";
 import { icsFeedRouter } from "../routes/icsFeed";
 import {
   initR2SnapshotCron,
@@ -590,7 +589,6 @@ async function startServer() {
   app.use(stripeWebhookRouter);
   app.use(mediaDownloadRouter);
   app.use(videoOutputRouter);
-  app.use(videoRouter);
   app.use(icsFeedRouter);
   // AI Provider Proxy Gateway
   app.use(aiProxyRouter);

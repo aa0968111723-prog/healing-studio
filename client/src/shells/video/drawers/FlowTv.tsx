@@ -223,7 +223,7 @@ export function FlowTvBody() {
                 </Button>
                 <Badge variant="outline" className="text-[9px]">{it.category}</Badge>
                 <Button size="icon" variant="ghost" className="size-6 text-destructive" aria-label="刪除"
-                  onClick={() => del.mutate({ id: it.id }, { onSuccess: () => { toast("已刪除"); void list.refetch(); }, onError: () => { void list.refetch(); } })}>
+                  onClick={() => del.mutate({ id: it.id }, { onSuccess: () => { toast("已刪除"); void list.refetch(); } })}>
                   <Trash2 className="size-3.5" />
                 </Button>
               </div>

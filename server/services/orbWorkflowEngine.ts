@@ -451,9 +451,12 @@ export class OrbWorkflowEngine {
         // a. Check conditions (skip if needed)
         let shouldSkip = false;
         if (step.conditions?.skipIf) {
-          // AIDV-779: safe literal-only evaluator — unparseable = no-skip (fail-safe)
-          const cond = step.conditions.skipIf.trim().toLowerCase();
-          shouldSkip = cond === "true" || cond === "1";
+          // Simple eval - in production, use safe expression evaluator
+          try {
+            shouldSkip = !!eval(step.conditions.skipIf);
+          } catch {
+            shouldSkip = false;
+          }
         }
 
         if (shouldSkip) {

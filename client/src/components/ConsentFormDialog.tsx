@@ -488,9 +488,6 @@ export default function ConsentFormDialog({
                 width={640}
                 height={180}
                 className="w-full h-44 touch-none cursor-crosshair"
-                aria-label="數位手寫簽名區域，請以滑鼠或觸控裝置書寫簽名"
-                role="img"
-                tabIndex={0}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
@@ -500,7 +497,6 @@ export default function ConsentFormDialog({
             </div>
             <p className="text-xs text-muted-foreground">
               請在上方框內以滑鼠或觸控筆手寫簽名。
-              鍵盤使用者如無法完成手寫，請聯絡客服取得替代同意方式。
             </p>
           </section>
         </div>

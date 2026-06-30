@@ -295,7 +295,6 @@ function QuickSaveForm({
             title: title || "未命名筆記",
             content,
             noteType: "note",
-            tags,
           });
         }}
         disabled={createNote.isPending}

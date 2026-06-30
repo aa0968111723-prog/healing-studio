@@ -64,7 +64,7 @@ export function RealEarthResearchBody() {
             placeholder="搜尋真實歷史 / 地理 / 文化…（空白＝全部）"
             className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs"
           />
-          <Button type="submit" size="sm" className="h-8 text-xs" disabled={res.isLoading}>搜尋</Button>
+          <Button type="submit" size="sm" className="h-8 text-xs">搜尋</Button>
         </div>
         <label className="flex items-center justify-between rounded-lg border px-2.5 py-1.5 text-xs">
           <span>只看台灣重點資料</span>

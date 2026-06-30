@@ -239,11 +239,15 @@ export const realEarthRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "找不到此條目" });
       }
 
-      // 先查詢已明確關聯的條目（AIDV-802: 批次查詢取代 N+1 loop）
+      // 先查詢已明確關聯的條目
       const relatedIds = (entry.relatedEntryIds as string[]) ?? [];
-      const batchIds = relatedIds.slice(0, input.limit).map((id) => parseInt(id, 10));
-      const batchRows = await db.getRealEarthEntriesByIds(batchIds);
-      const related: RealEarthEntry[] = batchRows.map(rowToEntry);
+      const related: RealEarthEntry[] = [];
+      for (const relId of relatedIds.slice(0, input.limit)) {
+        const relEntry = await db.getRealEarthEntry(parseInt(relId, 10));
+        if (relEntry) {
+          related.push(rowToEntry(relEntry));
+        }
+      }
 
       // 如果不足，根據標籤和類別查找相似條目
       if (related.length < input.limit) {

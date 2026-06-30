@@ -272,10 +272,6 @@ export default function NotesPage() {
       refetchAll();
       toast.success("已刪除");
     },
-    onError: (e) => {
-      refetchAll();
-      toast.error(e.message);
-    },
   });
 
   // AIDV-619: optimistic update — patch cache immediately, rollback on error

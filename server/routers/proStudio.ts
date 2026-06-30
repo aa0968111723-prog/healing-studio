@@ -49,9 +49,7 @@ import { dispatchFalQueueTask } from "../services/falDispatcher";
 import { resolveActiveModelId } from "../services/falModels";
 import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
 import { estimatePoints } from "../services/modelPricing";
-import { deductUserPoints, refundUserPoints, getCustomBlock } from "../db";
-import { parseVoiceBlockPrompt } from "../services/voiceCompiler";
-import type { EmotionProfile } from "../services/voiceCompiler";
+import { deductUserPoints, refundUserPoints } from "../db";
 import {
   doPostGenComplete,
   unifiedAssetPrefix,
@@ -789,12 +787,10 @@ export const proStudioRouter = router({
           .optional(),
         /** 直接傳入 ElevenLabs 原生 model_id（覆寫 engine 對應） */
         model_id: z.string().optional(),
-        stability: z.number().min(0).max(1).optional(),
-        similarity_boost: z.number().min(0).max(1).optional(),
-        style: z.number().min(0).max(1).optional(),
+        stability: z.number().min(0).max(1).optional().default(0.5),
+        similarity_boost: z.number().min(0).max(1).optional().default(0.75),
+        style: z.number().min(0).max(1).optional().default(0),
         language_code: z.string().optional(),
-        /** AIDV-793: 自訂語音 preset（customBlocks.id），若提供則從 prompt 欄位解析 EmotionProfile 作為語音設定基底。 */
-        customBlockId: z.number().int().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -838,30 +834,6 @@ export const proStudioRouter = router({
             "ElevenLabs TTS 需要 ELEVENLABS_API_KEY。請改用 Qwen TTS / Dia TTS 等本地引擎，或聯絡管理員設定金鑰。",
         });
       }
-
-      // AIDV-793: resolve voice_settings from customBlock preset → explicit input → hardcoded defaults.
-      let blockStability: number | undefined;
-      let blockSimilarityBoost: number | undefined;
-      let blockStyle: number | undefined;
-      if (input.customBlockId != null) {
-        const block = await getCustomBlock(input.customBlockId, ctx.user.id);
-        if (block?.prompt) {
-          const ep: Partial<EmotionProfile> = parseVoiceBlockPrompt(block.prompt);
-          // emphasisLevel → style + stability
-          if (ep.emphasisLevel === "strong") { blockStyle = 0.8; blockStability = 0.3; }
-          else if (ep.emphasisLevel === "moderate") { blockStyle = 0.5; blockStability = 0.45; }
-          else if (ep.emphasisLevel === "reduced") { blockStyle = 0.1; blockStability = 0.6; }
-          else if (ep.emphasisLevel === "none") { blockStyle = 0; blockStability = 0.7; }
-          // volume → similarity_boost
-          if (ep.volume === "loud") blockSimilarityBoost = 0.85;
-          else if (ep.volume === "medium") blockSimilarityBoost = 0.75;
-          else if (ep.volume === "soft") blockSimilarityBoost = 0.65;
-        }
-      }
-      const resolvedStability = input.stability ?? blockStability ?? 0.5;
-      const resolvedSimilarityBoost = input.similarity_boost ?? blockSimilarityBoost ?? 0.75;
-      const resolvedStyle = input.style ?? blockStyle ?? 0;
-
       const charged = await chargeForFalTask(ctx.user.id, route.pricingKey, {
         charCount: input.text.length,
       });
@@ -883,9 +855,9 @@ export const proStudioRouter = router({
           voice_id: input.voice_id,
           model_id: nativeModelId,
           voice_settings: {
-            stability: resolvedStability,
-            similarity_boost: resolvedSimilarityBoost,
-            style: resolvedStyle,
+            stability: input.stability,
+            similarity_boost: input.similarity_boost,
+            style: input.style,
           },
           language_code: input.language_code,
         }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證

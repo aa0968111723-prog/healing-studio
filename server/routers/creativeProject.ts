@@ -348,24 +348,6 @@ export const creativeProjectRouter = router({
       if (!existing || existing.userId !== ctx.user.id) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
-      if (input.directorSessionId != null) {
-        const session = await db.getProjectNote(input.directorSessionId);
-        if (!session || session.userId !== ctx.user.id) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-      }
-      if (input.worldFrameworkId != null) {
-        const fw = await db.getWorldbuildingFramework(input.worldFrameworkId);
-        if (!fw || fw.userId !== ctx.user.id) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-      }
-      if (input.worldStoryboardId != null) {
-        const sb = await db.getWorldStoryboard(input.worldStoryboardId);
-        if (!sb || sb.userId !== ctx.user.id) {
-          throw new TRPCError({ code: "FORBIDDEN" });
-        }
-      }
       await db.updateCreativeProject(input.id, {
         ...(input.directorSessionId !== undefined
           ? { directorSessionId: input.directorSessionId }

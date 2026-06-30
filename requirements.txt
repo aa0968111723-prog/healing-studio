@@ -1,6 +1,0 @@
-# Python dependencies for development tooling and Docker builder stage.
-# The builder stage uses python3 for node-gyp native addon compilation.
-# This file pins minimum versions to address known CVEs.
-
-# CVE-2024-0727: DoS via malformed PKCS12 — requires >= 42.0.2
-cryptography>=42.0.2

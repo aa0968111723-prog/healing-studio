@@ -28,7 +28,6 @@ import { userAiBrain } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { normalizeEngineModelId } from "../../shared/engineModelIds";
 import { applyCameraMotionToPrompt } from "../../shared/cameraMotionPrompt";
-import { logger } from "../_core/logger";
 import {
   estimatePoints,
   getModelPricing,
@@ -553,9 +552,6 @@ export const generateRouter = router({
             message: "讀取角色保險庫失敗，請稍後重試",
           });
         }
-        if (vaultChar && vaultChar.userId != null && vaultChar.userId !== ctx.user.id) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此保險庫項目" });
-        }
         if (!vaultChar?.imageUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -586,9 +582,6 @@ export const generateRouter = router({
             message: "讀取場景保險庫失敗，請稍後重試",
           });
         }
-        if (vaultScene && vaultScene.userId != null && vaultScene.userId !== ctx.user.id) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此保險庫項目" });
-        }
         if (!vaultScene?.imageUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -609,9 +602,6 @@ export const generateRouter = router({
         try {
           const ftModel = await db.getFineTunedModel(input.fineTunedModelId);
           if (ftModel) {
-            if (ftModel.userId != null && ftModel.userId !== ctx.user.id) {
-              throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此模型" });
-            }
             debug(
               `[Model] Injecting fine-tuned model #${ftModel.id}: ${ftModel.name} (status=${ftModel.status})`
             );
@@ -1646,9 +1636,6 @@ export const generateRouter = router({
             message: "讀取角色保險庫失敗，請稍後重試",
           });
         }
-        if (vaultChar && vaultChar.userId != null && vaultChar.userId !== ctx.user.id) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此保險庫項目" });
-        }
         if (!vaultChar?.imageUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -1679,9 +1666,6 @@ export const generateRouter = router({
             message: "讀取場景保險庫失敗，請稍後重試",
           });
         }
-        if (vaultScene && vaultScene.userId != null && vaultScene.userId !== ctx.user.id) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此保險庫項目" });
-        }
         if (!vaultScene?.imageUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -1705,9 +1689,6 @@ export const generateRouter = router({
         try {
           const ftModel = await db.getFineTunedModel(input.fineTunedModelId);
           if (ftModel) {
-            if (ftModel.userId != null && ftModel.userId !== ctx.user.id) {
-              throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此模型" });
-            }
             if (ftModel.status !== "ready") {
               throw new TRPCError({
                 code: "BAD_REQUEST",
@@ -2323,15 +2304,8 @@ export const generateRouter = router({
           void refundJobIfBilled(job.id);
           return { ...job, status: "failed" as const, errorMessage: errMsg };
         }
-      } catch (err) {
-        // fal.ai 暫時不可用（transient）— 保持 processing 讓下次 poll 重試。
-        // AIDV-792: 加 warn log 確保可觀測，不繼續靜默吞掉。
-        logger.warn("checkStudioJob: fal.ai status check failed, keeping processing", {
-          jobId: job.id,
-          requestId,
-          modelId,
-          err: err instanceof Error ? err.message : String(err),
-        });
+      } catch {
+        // fal.ai 暫時不可用，保持 processing 狀態
       }
 
       return job;

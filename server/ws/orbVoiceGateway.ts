@@ -3,11 +3,6 @@ import type WebSocket from "ws";
 import { verifySessionToken } from "../_core/googleAuth";
 import { getAllowedOrigins } from "../services/agentToolExecutor";
 import { randomUUID } from "node:crypto";
-import {
-  transcribeAudioBuffer,
-  generateOrbReply,
-  synthesizeOrbSpeech,
-} from "../services/orbVoiceProcessor";
 
 // Keyed by authenticated identity (payload.sub), not by client-controlled userId.
 const activeSessions = new Map<string, number>();
@@ -44,83 +39,14 @@ export async function handleOrbVoiceConnection(ws: WebSocket, req: IncomingMessa
   activeSessions.set(userKey, current + 1);
   globalConnections += 1;
 
-  const audioChunks: Buffer[] = [];
-  let audioMimeType = "audio/webm";
-  let processing = false;
-
   const timer = setTimeout(() => ws.close(1000, "session-timeout"), maxSessionMs);
-
-  ws.on("message", async (raw: Buffer | ArrayBuffer | Buffer[], isBinary: boolean) => {
-    const chunk: Buffer =
-      Buffer.isBuffer(raw)
-        ? raw
-        : typeof raw === "string"
-          ? Buffer.from(raw, "utf8")
-          : raw instanceof ArrayBuffer
-            ? Buffer.from(raw)
-            : ArrayBuffer.isView(raw)
-              ? Buffer.from((raw as ArrayBufferView).buffer, (raw as ArrayBufferView).byteOffset, (raw as ArrayBufferView).byteLength)
-              : Buffer.concat(raw as Buffer[]);
-
-    if (chunk.length > ORB_MAX_PAYLOAD_BYTES) {
+  ws.on("message", (raw: any) => {
+    const size = typeof raw === "string" ? Buffer.byteLength(raw, "utf8") : raw.byteLength;
+    if (size > ORB_MAX_PAYLOAD_BYTES) {
       ws.send(JSON.stringify({ type: "error", message: "audio-chunk-too-large", orbTraceId }));
       return;
     }
-
-    if (!isBinary) {
-      // Text frame — control message
-      let msg: Record<string, unknown>;
-      try {
-        msg = JSON.parse(chunk.toString("utf8")) as Record<string, unknown>;
-      } catch {
-        return;
-      }
-
-      if (msg.type === "mimeType" && typeof msg.value === "string") {
-        audioMimeType = msg.value;
-        return;
-      }
-
-      if (msg.type === "stop") {
-        if (processing || audioChunks.length === 0) return;
-        processing = true;
-        const audioBuffer = Buffer.concat(audioChunks.splice(0));
-
-        try {
-          // 1. ASR: audio → user text
-          const userText = await transcribeAudioBuffer(audioBuffer, audioMimeType);
-          if (ws.readyState !== 1 /* OPEN */) return;
-          ws.send(JSON.stringify({ type: "userTranscript", text: userText, orbTraceId }));
-
-          // 2. LLM: user text → orb reply
-          const replyText = await generateOrbReply(userText);
-          if (ws.readyState !== 1) return;
-          ws.send(JSON.stringify({ type: "transcript", text: replyText, orbTraceId }));
-
-          // 3. TTS: orb reply → speech
-          const audioData = await synthesizeOrbSpeech(replyText);
-          if (ws.readyState !== 1) return;
-          ws.send(
-            JSON.stringify({
-              type: "audio",
-              data: `data:audio/mpeg;base64,${audioData.toString("base64")}`,
-              orbTraceId,
-            }),
-          );
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : "voice-pipeline-error";
-          if (ws.readyState === 1) {
-            ws.send(JSON.stringify({ type: "error", message: errMsg, orbTraceId }));
-          }
-        } finally {
-          processing = false;
-        }
-      }
-      return;
-    }
-
-    // Binary frame = audio chunk from MediaRecorder
-    audioChunks.push(chunk);
+    ws.send(JSON.stringify({ type: "transcript", text: "(stub) 收到語音資料", orbTraceId }));
   });
 
   ws.on("close", () => {

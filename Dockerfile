@@ -4,9 +4,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Alpine build tools needed for any native addons (mysql2, etc.)
-# py3-pip + cryptography upgrade resolves CVE-2024-0727 in builder image.
-RUN apk add --no-cache python3 py3-pip make g++ \
-    && pip3 install --break-system-packages 'cryptography>=42.0.2'
+RUN apk add --no-cache python3 make g++
 
 # Copy package files first for better layer caching
 COPY package.json package-lock.json ./

@@ -1743,13 +1743,6 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
   const pending = tasks.filter(t => t.status === "pending").length;
   const allDone =
     tasks.length > 0 && completed + failed === tasks.length;
-  // AIDV-527: segment-level progress (each segment may have multiple modality tasks)
-  const uniqueSegmentIds = [...new Set(tasks.map(t => t.segmentId))];
-  const segmentsTotal = uniqueSegmentIds.length;
-  const segmentsDone = uniqueSegmentIds.filter(id =>
-    tasks.filter(t => t.segmentId === id).every(t => t.status === "completed" || t.status === "failed")
-  ).length;
-  const segmentPct = segmentsTotal > 0 ? Math.round((segmentsDone / segmentsTotal) * 100) : 0;
   const completedMediaTasks = FEATURE_EXPORT_CHAIN
     ? tasks.filter(t => t.status === "completed" && t.resultUrl)
     : [];
@@ -1762,9 +1755,6 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
         <Zap className="w-4 h-4 text-amber-500" />
         <span className="text-sm font-semibold">批次生成進度</span>
         <span className="text-2xs text-muted-foreground">
-          {segmentsTotal > 1
-            ? `分鏡 ${segmentsDone}/${segmentsTotal} · `
-            : ""}
           {completed}/{tasks.length} 完成
           {processing > 0 ? ` · ${processing} 進行中` : ""}
           {pending > 0 ? ` · ${pending} 等待中` : ""}
@@ -1804,16 +1794,6 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
             </button>
           )}
         </div>
-        {segmentsTotal > 1 && !allDone && (
-          <div className="px-3 pb-2">
-            <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
-              <div
-                className="h-full rounded-full bg-amber-500 transition-all duration-500"
-                style={{ width: `${segmentPct}%` }}
-              />
-            </div>
-          </div>
-        )}
       </div>
       {!collapsed && (
         <ScrollArea className="max-h-[40vh]">
@@ -3075,7 +3055,6 @@ export default function DirectorAI() {
           voiceText: t.voiceText,
           params: t.params,
           mode: batchGenerationOptions.mode,
-          totalTasks: tasksWithDef.length,
         });
       }
       const deferred = tasksWithDef.length - independent.length;
@@ -3122,7 +3101,6 @@ export default function DirectorAI() {
           voiceText: t.voiceText,
           params: t.params,
           mode: batchGenerationOptions.mode,
-          totalTasks: newTasks.length,
           relation: "variant",
         });
       }
@@ -3258,7 +3236,6 @@ export default function DirectorAI() {
         voiceText: target.voiceText,
         params: target.params,
         mode: batchGenerationOptions.mode,
-        totalTasks: generationTasks.length,
         ...(firstFrameUrl ? { firstFrameUrl } : {}),
       });
     },
@@ -3317,7 +3294,6 @@ export default function DirectorAI() {
         voiceText: task.voiceText,
         params: task.params,
         mode: batchGenerationOptions.mode,
-        totalTasks: generationTasks.length,
         firstFrameUrl,
       });
     }

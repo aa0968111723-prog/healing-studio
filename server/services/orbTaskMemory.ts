@@ -247,25 +247,3 @@ export function summarizeRecentOrbTaskMemoryForPlanner(limit = 10): string {
   }));
   return JSON.stringify({ count: compact.length, recent: compact });
 }
-
-/**
- * AIDV-779: userId-scoped variant — use this in per-user planner contexts to
- * prevent cross-user task memory from leaking into another user's prompt.
- */
-export function summarizeRecentOrbTaskMemoryForUser(userId: number, limit = 10): string {
-  const recent = getRecentOrbTaskMemoryForUser(userId, limit);
-  if (recent.length === 0) return "No recent task memory.";
-  const compact = recent.map(item => ({
-    taskId: item.taskId,
-    planId: item.planId,
-    traceId: item.traceId,
-    intent: item.userIntent.slice(0, 140),
-    outcome: item.outcome,
-    failedReason: item.failedReason?.slice(0, 160),
-    usedEngine: item.usedEngine ?? null,
-    usedMultimodalPlanner: item.usedMultimodalPlanner,
-    actionTypes: item.actionTypes.slice(0, 8),
-    createdAt: item.createdAt,
-  }));
-  return JSON.stringify({ count: compact.length, recent: compact });
-}
