@@ -413,50 +413,68 @@ async function startServer() {
     }
   }
 
-  // ── Run DB migrations eagerly before the server handles any requests ─────
-  // This ensures tables like `login_history` exist even if the login endpoint
-  // is the very first request (which uses DatabaseManager, not getDb()).
-  try {
-    await runMigrations();
-  } catch (err) {
-    // AIDV-61（H6）：fail-closed 開機門。
-    // 預設 OFF（MIGRATION_FAIL_CLOSED!=="true"）：維持現狀 — 只記錄錯誤、繼續啟動
-    //   （fail-open；對現有 prod 零行為改變）。注意 OFF 時 applyMigrations 的 catch
-    //   根本不會 rethrow，這個 catch 平時不會被觸發。
-    // ON（MIGRATION_FAIL_CLOSED==="true"）：migration 真實 apply 失敗會 rethrow 到此，
-    //   印致命 log 後 process.exit(1) 擋啟動（對齊本檔上方 ORB_TOOL_ALLOWED_ORIGINS
-    //   的 fatal 模式），令 /api/health 失敗、Railway 偵測不健康後自動重啟或人工回滾。
-    // demo / 無 DATABASE_URL 不會進到這裡：runMigrations→getDb 回 null，從不拋錯。
-    if (isMigrationFailClosed()) {
+  // ── Deferred boot init (migrations · LearnHub · OrbScheduler) ────────────
+  // These DB-bound steps USED to be awaited BEFORE server.listen(), so the HTTP
+  // server (and /api/health) could not respond until they finished. A slow
+  // migration or a hung dependency therefore blocked the port from ever
+  // accepting connections → Railway's healthcheck got no response → the deploy
+  // FAILED with a healthcheck timeout despite a healthy app (real incident
+  // 2026-06-30; cf. the unbounded ElevenLabs probe fixed in providerHealth.ts).
+  //
+  // Fix: bind the port first (server.listen below), then run this init in the
+  // background. `bootReady` gates /api/health — it returns 503 ("booting")
+  // until init completes, so Railway still won't route real traffic to an
+  // un-migrated DB (preserving the original "no requests before migrations"
+  // guarantee), but the server is now ALWAYS responsive instead of hanging:
+  // the healthcheck just retries until init finishes (bounded by DB work, not
+  // by an unbounded pre-listen await).
+  let bootReady = false;
+  const runDeferredBootInit = async (): Promise<void> => {
+    // Run DB migrations before serving real traffic. Ensures tables like
+    // `login_history` exist even if the login endpoint is the very first
+    // request (which uses DatabaseManager, not getDb()).
+    try {
+      await runMigrations();
+    } catch (err) {
+      // AIDV-61（H6）：fail-closed 開機門。
+      // 預設 OFF（MIGRATION_FAIL_CLOSED!=="true"）：只記錄錯誤、繼續啟動（fail-open；
+      //   對現有 prod 零行為改變）。OFF 時 applyMigrations 的 catch 不會 rethrow。
+      // ON（MIGRATION_FAIL_CLOSED==="true"）：migration 真實 apply 失敗會 rethrow 到此，
+      //   印致命 log 後 process.exit(1) 擋啟動，令 Railway 偵測不健康後自動重啟或人工回滾。
+      // demo / 無 DATABASE_URL 不會進到這裡：runMigrations→getDb 回 null，從不拋錯。
+      if (isMigrationFailClosed()) {
+        logger.error(
+          "[FATAL] DB migration failed on startup and MIGRATION_FAIL_CLOSED is enabled — refusing to boot. " +
+            "Roll back to the last healthy Railway deploy and fix the failing migration. " +
+            "See docs/guides/MIGRATION_FAILURE_SOP.md.",
+          { err }
+        );
+        process.exit(1);
+      }
+      logger.error("[Server] DB migration failed on startup — server will continue", { err });
+    }
+    // AIDV-214: Load admin-created learn hub docs persisted in DB.
+    // Runs after migrations so the learn_modules table is guaranteed to exist.
+    try {
+      await initLearnHubFromDb();
+    } catch (err) {
+      logger.error("[Server] LearnHub DB init failed — server will continue with seed docs only", { err });
+    }
+    // Reload persisted orb scheduled jobs from the DB and seed env-defined jobs.
+    try {
+      await startOrbScheduler();
+    } catch (err) {
       logger.error(
-        "[FATAL] DB migration failed on startup and MIGRATION_FAIL_CLOSED is enabled — refusing to boot. " +
-          "Roll back to the last healthy Railway deploy and fix the failing migration. " +
-          "See docs/guides/MIGRATION_FAILURE_SOP.md.",
+        "[Server] OrbScheduler bootstrap failed — server will continue without persisted jobs",
         { err }
       );
-      process.exit(1);
     }
-    logger.error("[Server] DB migration failed on startup — server will continue", { err });
-  }
-  // AIDV-214: Load admin-created learn hub docs persisted in DB.
-  // Runs after migrations so the learn_modules table is guaranteed to exist.
-  try {
-    await initLearnHubFromDb();
-  } catch (err) {
-    logger.error("[Server] LearnHub DB init failed — server will continue with seed docs only", { err });
-  }
-
-  // Reload persisted orb scheduled jobs from the DB and seed env-defined
-  // jobs. Awaited so the scheduler is fully ready before the HTTP server
-  // accepts requests.
-  try {
-    await startOrbScheduler();
-  } catch (err) {
-    logger.error(
-      "[Server] OrbScheduler bootstrap failed — server will continue without persisted jobs",
-      { err }
-    );
-  }
+    // Scheduled maintenance cron jobs start only after migrations, so their
+    // first run never hits a missing table (preserves pre-listen ordering).
+    startScheduledMaintenanceJobs();
+    bootReady = true;
+    logger.info("[Server] Deferred boot init complete — /api/health now reports ready");
+  };
 
   const app = express();
   const server = createServer(app);
@@ -848,8 +866,22 @@ async function startServer() {
     const storageConfigured = detectStorageBackend() !== "none";
 
     // Demo mode（無 DATABASE_URL）：跳過 DB 探測，直接回 200 OK。
+    // demo 無 migrations，故不受 bootReady 門限制。
     if (!process.env.DATABASE_URL) {
       return res.json({ ok: true, status: "ok", ts: Date.now(), storage: storageConfigured });
+    }
+
+    // Boot gate：deferred init（migrations · LearnHub · OrbScheduler）完成前回 503，
+    // 讓 Railway 在 DB 尚未 migrate 完成前不要把真實流量導進來。server 此時已在
+    // listen，故這是「快速 503」而非掛起——healthcheck 會持續重試到 init 完成
+    // （耗時受 DB 工作量限制，不再受無上限的 pre-listen await 拖住）。
+    if (!bootReady) {
+      return res.status(503).json({
+        ok: false,
+        status: "booting",
+        ts: Date.now(),
+        storage: storageConfigured,
+      });
     }
 
     // 探測 1：DB ping（3 秒超時，避免長時間阻塞 health 回應）
@@ -997,8 +1029,14 @@ async function startServer() {
       logger.warn("[Storage] 無法偵測儲存後端", { err: e });
     }
 
-    // Initialize scheduled maintenance jobs after server is ready
-    startScheduledMaintenanceJobs();
+    // Port is bound and /api/health is already answering (503 "booting"). Now
+    // kick off the heavy DB init in the background; it flips bootReady → true
+    // (and starts maintenance jobs) when done, at which point health returns
+    // 200 and Railway routes traffic. Never awaited here so a slow/hung step
+    // can never block the listening socket.
+    void runDeferredBootInit().catch(err => {
+      logger.error("[Server] Deferred boot init crashed unexpectedly", { err });
+    });
   });
 
   // Use noServer mode + manual upgrade dispatch so Vite HMR (which opens its
