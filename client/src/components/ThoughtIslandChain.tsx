@@ -80,26 +80,27 @@ function computeRelativeDurations(nodes: ThoughtNode[]): Map<string, number> {
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
+// AIDV-800: use design-kit semantic tokens instead of hardcoded hex/rgba.
 const STATUS_COLORS: Record<string, string> = {
-  queued: "#6b7280",
-  processing: "#f59e0b",
-  completed: "#10b981",
-  passed: "#10b981",
-  error: "#ef4444",
+  queued: "var(--muted-foreground)",
+  processing: "var(--warn)",
+  completed: "var(--ok)",
+  passed: "var(--ok)",
+  error: "var(--bad)",
 };
 
 const STATUS_GLOW: Record<string, string> = {
-  queued: "rgba(107, 114, 128, 0.15)",
-  processing: "rgba(245, 158, 11, 0.25)",
-  completed: "rgba(16, 185, 129, 0.2)",
-  passed: "rgba(16, 185, 129, 0.2)",
-  error: "rgba(239, 68, 68, 0.25)",
+  queued: "var(--info-tint)",
+  processing: "var(--warn-tint)",
+  completed: "var(--ok-tint)",
+  passed: "var(--ok-tint)",
+  error: "var(--bad-tint)",
 };
 
 // L12:未知 status(例:server 加新狀態但 client 沒同步)時 fallback 成
 // 中性灰,而不是 undefined → "undefined" stroke 讓 d3 path 整條無色。
-const FALLBACK_COLOR = "#6b7280";
-const FALLBACK_GLOW = "rgba(107, 114, 128, 0.15)";
+const FALLBACK_COLOR = "var(--muted-foreground)";
+const FALLBACK_GLOW = "var(--info-tint)";
 function colorForStatus(status: string): string {
   return STATUS_COLORS[status] ?? FALLBACK_COLOR;
 }
@@ -235,7 +236,7 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
       g.append("path")
         .attr("d", pathData)
         .attr("fill", "none")
-        .attr("stroke", colorForStatus(nodes[i].status))
+        .style("stroke", colorForStatus(nodes[i].status))
         .attr("stroke-width", 3)
         .attr("stroke-opacity", 0.15)
         .attr("filter", "url(#node-glow)");
@@ -245,7 +246,7 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
         .append("path")
         .attr("d", pathData)
         .attr("fill", "none")
-        .attr("stroke", colorForStatus(nodes[i].status))
+        .style("stroke", colorForStatus(nodes[i].status))
         .attr("stroke-width", 1.5)
         .attr("stroke-opacity", 0.5)
         .attr("stroke-dasharray", function () {
@@ -283,7 +284,7 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
         .append("circle")
         .attr("r", 0)
         .attr("fill", "none")
-        .attr("stroke", color)
+        .style("stroke", color)
         .attr("stroke-width", isSelected ? 2 : 1)
         .attr("stroke-opacity", isSelected ? 0.6 : 0.2)
         .attr("filter", "url(#node-glow)")
@@ -297,8 +298,8 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
       nodeGroup
         .append("circle")
         .attr("r", 0)
-        .attr("fill", glowColor)
-        .attr("stroke", color)
+        .style("fill", glowColor)
+        .style("stroke", color)
         .attr("stroke-width", isSelected ? 2 : 1)
         .attr("stroke-opacity", 0.6)
         .transition()
@@ -313,7 +314,7 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
           .append("circle")
           .attr("r", 20)
           .attr("fill", "none")
-          .attr("stroke", color)
+          .style("stroke", color)
           .attr("stroke-width", 2)
           .attr("stroke-opacity", 0.6);
 
@@ -357,7 +358,7 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
         .attr("y", 36)
         .attr("text-anchor", "middle")
         .attr("font-size", "11px")
-        .attr("fill", color)
+        .style("fill", color)
         .attr("font-weight", "500")
         .attr("opacity", 0)
         .text(node.label)
