@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useProjectSpine } from "@/spine/ProjectSpineProvider";
 import type { ScriptBreakdown } from "@/adapters/types";
+import { shortErrorMsg } from "@/lib/upload";
 
 const SAMPLE = `雪山道上，狂風大作。密勒日巴獨自盤坐於岩石，閉目入定。
 
@@ -51,10 +52,10 @@ export function GuidedJourney({ open, onClose }: { open: boolean; onClose: () =>
       if (runSeq.current !== token) return; // 已取消或重跑
       setBd(b);
       setStep("review");
-    } catch {
+    } catch (err) {
       if (runSeq.current !== token) return;
       toast.error("腳本拆解失敗，請稍後再試", {
-        description: "伺服器暫時無法處理，請稍後重試，或先按「填入範例腳本」測試流程。",
+        description: shortErrorMsg(err) || "伺服器暫時無法處理，請稍後重試，或先按「填入範例腳本」測試流程。",
         duration: 7000,
       });
       setStep("input");
