@@ -46,8 +46,10 @@ import {
   FileCode,
   CircleDot,
   Puzzle,
+  Plus,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import { Textarea } from "@/components/ui/textarea";
 import { formatTwd } from "@shared/currency";
 import { isLeaderOrAdmin } from "@shared/const";
 import { motion } from "framer-motion";
@@ -2210,21 +2212,83 @@ function SkillRegistryTab() {
     refetchOnWindowFocus: false,
   });
 
+  const [showInstall, setShowInstall] = useState(false);
+  const [manifestJson, setManifestJson] = useState("");
+  const [installTrust, setInstallTrust] = useState<"community" | "reviewed">("community");
+  const [installSource, setInstallSource] = useState("");
+
+  const installM = trpc.skillRegistry.installSkill.useMutation({
+    onSuccess: () => {
+      void skillsQ.refetch();
+      toast.success("技能已安裝");
+      setShowInstall(false);
+      setManifestJson("");
+      setInstallSource("");
+    },
+    onError: (e) => toast.error("安裝失敗", { description: e.message }),
+  });
+  const updateTrustM = trpc.skillRegistry.updateSkillTrust.useMutation({
+    onSuccess: () => void skillsQ.refetch(),
+    onError: (e) => toast.error("信任等級更新失敗", { description: e.message }),
+  });
+  const setStatusM = trpc.skillRegistry.setSkillStatus.useMutation({
+    onSuccess: () => void skillsQ.refetch(),
+    onError: (e) => toast.error("狀態切換失敗", { description: e.message }),
+  });
+
   return (
     <GlassCard>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold flex items-center gap-2">
           <Puzzle className="w-4 h-4" /> 技能登錄表
         </h3>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => skillsQ.refetch()}
-          disabled={skillsQ.isFetching}
-        >
-          <RefreshCw className={`w-3 h-3 ${skillsQ.isFetching ? "animate-spin" : ""}`} />
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowInstall(v => !v)}>
+            <Plus className="w-3 h-3 mr-1" /> 安裝技能
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => void skillsQ.refetch()} disabled={skillsQ.isFetching}>
+            <RefreshCw className={`w-3 h-3 ${skillsQ.isFetching ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
       </div>
+
+      {showInstall && (
+        <div className="mb-4 rounded-lg border border-border/40 bg-muted/20 p-3 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">貼上 skill.json Manifest（JSON 格式）</p>
+          <Textarea
+            value={manifestJson}
+            onChange={(e) => setManifestJson(e.target.value)}
+            placeholder='{"id":"my.skill","version":"1.0.0","name":"My Skill","kind":"declarative","trust":"community","cost":{"attributeTo":"workflow"}}'
+            className="min-h-[80px] font-mono text-[11px] resize-none"
+          />
+          <div className="flex gap-2 items-center flex-wrap">
+            <Select value={installTrust} onValueChange={(v: "community" | "reviewed") => setInstallTrust(v)}>
+              <SelectTrigger className="h-7 text-xs w-[130px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="community">community</SelectItem>
+                <SelectItem value="reviewed">reviewed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              value={installSource}
+              onChange={(e) => setInstallSource(e.target.value)}
+              placeholder="來源 URL（選填）"
+              className="h-7 text-xs flex-1 min-w-[160px]"
+            />
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              disabled={!manifestJson.trim() || installM.isPending}
+              onClick={() => installM.mutate({ manifestJson, trust: installTrust, source: installSource || undefined })}
+            >
+              {installM.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+              確認安裝
+            </Button>
+          </div>
+        </div>
+      )}
 
       {skillsQ.isLoading ? (
         <ZenSkeleton lines={4} />
@@ -2242,7 +2306,8 @@ function SkillRegistryTab() {
                 <th className="text-left py-2 pr-3 font-medium">版本</th>
                 <th className="text-left py-2 pr-3 font-medium">信任等級</th>
                 <th className="text-left py-2 pr-3 font-medium">狀態</th>
-                <th className="text-left py-2 font-medium">需重審</th>
+                <th className="text-left py-2 pr-3 font-medium">需重審</th>
+                <th className="text-left py-2 font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -2252,9 +2317,28 @@ function SkillRegistryTab() {
                   <td className="py-2 pr-3">{s.name}</td>
                   <td className="py-2 pr-3 font-mono">{s.version}</td>
                   <td className="py-2 pr-3">
-                    <Badge className={`text-[10px] border ${TRUST_BADGE[s.trust] ?? ""}`} variant="outline">
-                      {s.trust}
-                    </Badge>
+                    {s.trust === "official" ? (
+                      <Badge className={`text-[10px] border ${TRUST_BADGE[s.trust] ?? ""}`} variant="outline">
+                        {s.trust}
+                      </Badge>
+                    ) : (
+                      <Select
+                        value={s.trust}
+                        onValueChange={(v: "official" | "reviewed" | "community") =>
+                          updateTrustM.mutate({ skillId: s.skillId, trust: v })
+                        }
+                        disabled={updateTrustM.isPending}
+                      >
+                        <SelectTrigger className={`h-6 text-[10px] border px-1.5 py-0 w-[90px] ${TRUST_BADGE[s.trust] ?? ""}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="official">official</SelectItem>
+                          <SelectItem value="reviewed">reviewed</SelectItem>
+                          <SelectItem value="community">community</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </td>
                   <td className="py-2 pr-3">
                     {s.status === "active" ? (
@@ -2263,12 +2347,26 @@ function SkillRegistryTab() {
                       <XCircle className="w-3.5 h-3.5 text-destructive" />
                     )}
                   </td>
-                  <td className="py-2">
+                  <td className="py-2 pr-3">
                     {s.needsReaudit ? (
                       <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </td>
+                  <td className="py-2">
+                    <Button
+                      size="sm"
+                      variant={s.status === "active" ? "outline" : "secondary"}
+                      className="h-6 text-[10px] px-1.5"
+                      disabled={setStatusM.isPending}
+                      onClick={() => setStatusM.mutate({
+                        skillId: s.skillId,
+                        status: s.status === "active" ? "disabled" : "active",
+                      })}
+                    >
+                      {s.status === "active" ? "停用" : "啟用"}
+                    </Button>
                   </td>
                 </tr>
               ))}
