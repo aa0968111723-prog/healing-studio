@@ -552,6 +552,9 @@ export const generateRouter = router({
             message: "讀取角色保險庫失敗，請稍後重試",
           });
         }
+        if (vaultChar && vaultChar.userId != null && vaultChar.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此保險庫項目" });
+        }
         if (!vaultChar?.imageUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -582,6 +585,9 @@ export const generateRouter = router({
             message: "讀取場景保險庫失敗，請稍後重試",
           });
         }
+        if (vaultScene && vaultScene.userId != null && vaultScene.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此保險庫項目" });
+        }
         if (!vaultScene?.imageUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -602,6 +608,9 @@ export const generateRouter = router({
         try {
           const ftModel = await db.getFineTunedModel(input.fineTunedModelId);
           if (ftModel) {
+            if (ftModel.userId != null && ftModel.userId !== ctx.user.id) {
+              throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此模型" });
+            }
             debug(
               `[Model] Injecting fine-tuned model #${ftModel.id}: ${ftModel.name} (status=${ftModel.status})`
             );
@@ -1636,6 +1645,9 @@ export const generateRouter = router({
             message: "讀取角色保險庫失敗，請稍後重試",
           });
         }
+        if (vaultChar && vaultChar.userId != null && vaultChar.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此保險庫項目" });
+        }
         if (!vaultChar?.imageUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -1666,6 +1678,9 @@ export const generateRouter = router({
             message: "讀取場景保險庫失敗，請稍後重試",
           });
         }
+        if (vaultScene && vaultScene.userId != null && vaultScene.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此保險庫項目" });
+        }
         if (!vaultScene?.imageUrl) {
           throw new TRPCError({
             code: "BAD_REQUEST",
@@ -1689,6 +1704,9 @@ export const generateRouter = router({
         try {
           const ftModel = await db.getFineTunedModel(input.fineTunedModelId);
           if (ftModel) {
+            if (ftModel.userId != null && ftModel.userId !== ctx.user.id) {
+              throw new TRPCError({ code: "FORBIDDEN", message: "無權使用此模型" });
+            }
             if (ftModel.status !== "ready") {
               throw new TRPCError({
                 code: "BAD_REQUEST",
