@@ -1,5 +1,10 @@
 import { TRPCError } from "@trpc/server";
 import { awaitFalQueueResult, type FalAwaitResult } from "./falQueueAwaiter";
+import {
+  runFalWithRecovery,
+  DEFAULT_FAL_RECOVERY_POLICY,
+  type FalRecoveryPolicy,
+} from "./falRecoveryPolicy";
 import { checkAndConsumeQuota } from "./orbQuota";
 import { injectModelPrompt } from "../../shared/modelPromptTemplates";
 import { moderateOrbContent } from "../../shared/orb-content-moderation";
@@ -1121,33 +1126,46 @@ async function dispatchStudioTool(
         // ControlNet field
         if (typeof args.controlnet_conditioning_scale === "number")
           input.controlnet_conditioning_scale = args.controlnet_conditioning_scale;
-        const imageDispatchParams = {
-          modelId,
-          category,
-          input,
-          route: "orb-tool/studio.generateImage",
-          modality: "image" as const,
-          userId: opts.userId,
-        };
-        const r = await dispatchFalQueueTask(imageDispatchParams);
-        const awaited = await awaitFalForOrb(
-          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args,
-          {
-            userId: opts.userId,
-            prompt: typeof args.prompt === "string" ? args.prompt : undefined,
-            retryDispatch: async () => {
-              const nr = await dispatchFalQueueTask(imageDispatchParams);
-              return { request_id: nr.request_id, modelId: nr.modelId, degraded: nr.degraded ?? false };
-            },
-          }
+        // ADP-2: wrap dispatch+await with three-tier recovery.
+        const originalModelId = modelId;
+        const awaited = await runFalWithRecovery(
+          async (currentModelId, currentPrompt) => {
+            const retryInput: Record<string, unknown> = { ...input };
+            if (currentPrompt !== undefined && currentPrompt !== (input.prompt as string | undefined)) {
+              // Content retry: re-inject with updated prompt.
+              const injection = injectModelPrompt(currentPrompt, currentModelId, {
+                userNegativePrompt:
+                  typeof args.negative_prompt === "string" ? args.negative_prompt : undefined,
+              });
+              retryInput.prompt = injection.prompt;
+              if (typeof args.negative_prompt !== "string" && injection.defaultNegativePrompt) {
+                retryInput.negative_prompt = injection.defaultNegativePrompt;
+              }
+            }
+            const r = await dispatchFalQueueTask({
+              modelId: currentModelId,
+              category,
+              input: retryInput,
+              route: "orb-tool/studio.generateImage",
+              modality: "image",
+              userId: opts.userId,
+            });
+            const aw = await awaitFalForOrb(
+              { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+              args,
+              { userId: opts.userId, prompt: currentPrompt }
+            );
+            return { ...aw, _originalModel: r.originalModel };
+          },
+          originalModelId,
+          typeof args.prompt === "string" ? args.prompt : undefined,
         );
         return {
           name: call.name,
           ok: awaited.status !== "failed",
           data: {
             ...awaited,
-            originalModel: r.originalModel,
+            originalModel: (awaited as typeof awaited & { _originalModel?: string })._originalModel ?? originalModelId,
             engine: "fal",
           },
           usedTool: call.name,
@@ -1306,33 +1324,44 @@ async function dispatchStudioTool(
         if (typeof args.fps === "number") input.fps = args.fps;
         if (typeof args.width === "number") input.width = args.width;
         if (typeof args.height === "number") input.height = args.height;
-        const videoDispatchParams = {
-          modelId,
-          category,
-          input,
-          route: "orb-tool/studio.generateVideo",
-          modality: "video" as const,
-          userId: opts.userId,
-        };
-        const r = await dispatchFalQueueTask(videoDispatchParams);
-        const awaited = await awaitFalForOrb(
-          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args,
-          {
-            userId: opts.userId,
-            prompt: typeof args.prompt === "string" ? args.prompt : undefined,
-            retryDispatch: async () => {
-              const nr = await dispatchFalQueueTask(videoDispatchParams);
-              return { request_id: nr.request_id, modelId: nr.modelId, degraded: nr.degraded ?? false };
-            },
-          }
+        // ADP-2: wrap dispatch+await with three-tier recovery.
+        const originalVideoModelId = modelId;
+        const awaitedVideo = await runFalWithRecovery(
+          async (currentModelId, currentPrompt) => {
+            const retryInput: Record<string, unknown> = { ...input };
+            if (currentPrompt !== undefined && currentPrompt !== (input.prompt as string | undefined)) {
+              const injection = injectModelPrompt(currentPrompt, currentModelId, {
+                userNegativePrompt:
+                  typeof args.negative_prompt === "string" ? args.negative_prompt : undefined,
+              });
+              retryInput.prompt = injection.prompt;
+              if (typeof args.negative_prompt !== "string" && injection.defaultNegativePrompt) {
+                retryInput.negative_prompt = injection.defaultNegativePrompt;
+              }
+            }
+            const r = await dispatchFalQueueTask({
+              modelId: currentModelId,
+              category,
+              input: retryInput,
+              route: "orb-tool/studio.generateVideo",
+              modality: "video",
+              userId: opts.userId,
+            });
+            return awaitFalForOrb(
+              { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+              args,
+              { userId: opts.userId, prompt: currentPrompt }
+            );
+          },
+          originalVideoModelId,
+          typeof args.prompt === "string" ? args.prompt : undefined,
         );
         return {
           name: call.name,
-          ok: awaited.status !== "failed",
-          data: { ...awaited, engine: "fal" },
+          ok: awaitedVideo.status !== "failed",
+          data: { ...awaitedVideo, engine: "fal" },
           usedTool: call.name,
-          ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
+          ...(awaitedVideo.status === "failed" && awaitedVideo.error ? { error: awaitedVideo.error } : {}),
         };
       }
 
