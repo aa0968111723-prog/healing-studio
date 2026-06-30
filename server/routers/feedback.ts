@@ -26,7 +26,7 @@ export const feedbackRouter = router({
         featureArea: z.string().max(120).optional(),
         pageContext: z.object({
           route: z.string().optional(),
-          url: z.string().optional(),
+          url: z.string().url().max(2048).optional(),
           shell: z.string().optional(),
           viewport: z.string().optional(),
           appVersion: z.string().optional(),
