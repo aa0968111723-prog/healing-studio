@@ -140,6 +140,7 @@ import {
   markProviderRecovered,
 } from "../services/providerHealth";
 import { estimateOrbTaskCost, checkRetryChainCost } from "../services/orbCostGuard";
+import { enforceMonthlyBudgetGate } from "../services/orbBudgetGuard";
 import type { UsageEventLike } from "../services/costAnalytics";
 import { checkAndConsumeQuota, getOrbQuotaSnapshot } from "../services/orbQuota";
 import {
@@ -558,6 +559,10 @@ export const aiRouter = router({
           message: "Too many chat requests. Please wait 1 minute before sending more messages.",
         });
       }
+
+      // AIDV-124: 月度 AI 預算硬性閘門（旗標 ENABLE_ORB_BUDGET_GUARD，預設 OFF）。
+      // 超限時丟 TOO_MANY_REQUESTS，在 per-task 成本估價之前就擋住。
+      await enforceMonthlyBudgetGate();
 
       // 進度時間軸的第一站。需要在精靈挑選 / 網路研究之前就發,否則時間
       // 軸看起來會像「網路研究做完才開始收訊」— 從使用者角度看是亂序。

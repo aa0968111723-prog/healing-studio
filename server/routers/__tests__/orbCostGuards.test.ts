@@ -191,3 +191,103 @@ describe("H3: orbSchedulerRouter 必須有 per-user job 上限", () => {
     expect(capCheckBlock).not.toBeNull();
   });
 });
+
+// ─── AIDV-124: orbBudgetGuard decideBudget 單元測試 ──────────────────────────
+
+import { decideBudget } from "../../services/orbBudgetGuard";
+
+describe("AIDV-124: decideBudget 純決策函式", () => {
+  it("花費 < 預算 → allowed=true", () => {
+    const r = decideBudget(100, 500);
+    expect(r.allowed).toBe(true);
+    expect(r.remainingUsd).toBeCloseTo(400);
+    expect(r.reason).toBeUndefined();
+  });
+
+  it("花費 = 預算 → allowed=false（耗盡）", () => {
+    const r = decideBudget(500, 500);
+    expect(r.allowed).toBe(false);
+    expect(r.remainingUsd).toBeCloseTo(0);
+    expect(r.reason).toBeDefined();
+  });
+
+  it("花費 > 預算 → allowed=false（爆超）", () => {
+    const r = decideBudget(600, 500);
+    expect(r.allowed).toBe(false);
+    expect(r.remainingUsd).toBeCloseTo(-100);
+  });
+
+  it("花費 = 0 → allowed=true", () => {
+    const r = decideBudget(0, 500);
+    expect(r.allowed).toBe(true);
+    expect(r.remainingUsd).toBeCloseTo(500);
+  });
+
+  it("monthlyBudgetUsd = 0 → 不設限（allowed=true）", () => {
+    const r = decideBudget(9999, 0);
+    expect(r.allowed).toBe(true);
+    expect(r.remainingUsd).toBe(Infinity);
+  });
+
+  it("monthlyBudgetUsd < 0 → 不設限（allowed=true）", () => {
+    const r = decideBudget(1, -1);
+    expect(r.allowed).toBe(true);
+    expect(r.remainingUsd).toBe(Infinity);
+  });
+
+  it("回傳值含正確的 currentMonthSpendUsd 和 monthlyBudgetUsd", () => {
+    const r = decideBudget(123.45, 300);
+    expect(r.currentMonthSpendUsd).toBeCloseTo(123.45);
+    expect(r.monthlyBudgetUsd).toBeCloseTo(300);
+  });
+
+  it("超限時 reason 字串含花費金額", () => {
+    const r = decideBudget(501, 500);
+    expect(r.reason).toMatch(/501/);
+    expect(r.reason).toMatch(/500/);
+  });
+});
+
+// ─── AIDV-124: 接線 invariant（source-text scan）────────────────────────────
+
+describe("AIDV-124: enforceMonthlyBudgetGate 接線 invariant", () => {
+  const directorSrc = readFileSync(
+    path.join(repoRoot, "server/routers/director.ts"),
+    "utf8"
+  );
+
+  it("orbBudgetGuard 匯出 decideBudget、checkMonthlyBudget、enforceMonthlyBudgetGate", () => {
+    const guardSrc = readFileSync(
+      path.join(repoRoot, "server/services/orbBudgetGuard.ts"),
+      "utf8"
+    );
+    expect(guardSrc).toMatch(/export\s+function\s+decideBudget/);
+    expect(guardSrc).toMatch(/export\s+async\s+function\s+checkMonthlyBudget/);
+    expect(guardSrc).toMatch(/export\s+async\s+function\s+enforceMonthlyBudgetGate/);
+  });
+
+  it("ai.ts import enforceMonthlyBudgetGate", () => {
+    expect(routersSrc).toMatch(/enforceMonthlyBudgetGate/);
+  });
+
+  it("ai.chat 呼叫 enforceMonthlyBudgetGate()", () => {
+    expect(routersSrc).toMatch(/await\s+enforceMonthlyBudgetGate\s*\(\s*\)/);
+  });
+
+  it("director.ts import enforceMonthlyBudgetGate", () => {
+    expect(directorSrc).toMatch(/enforceMonthlyBudgetGate/);
+  });
+
+  it("director.chat 呼叫 enforceMonthlyBudgetGate()", () => {
+    expect(directorSrc).toMatch(/await\s+enforceMonthlyBudgetGate\s*\(\s*\)/);
+  });
+
+  it("enforceMonthlyBudgetGate 旗標預設 OFF（?? 'false' fallback 或 env default）", () => {
+    const guardSrc = readFileSync(
+      path.join(repoRoot, "server/services/orbBudgetGuard.ts"),
+      "utf8"
+    );
+    // 旗標 fallback 必須是 "false"（?? "false"），確保預設 OFF。
+    expect(guardSrc).toMatch(/\?\?\s*["']false["']/);
+  });
+});
