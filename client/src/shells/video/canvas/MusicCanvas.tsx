@@ -164,7 +164,7 @@ export function MusicCanvas() {
           </AidvKit>
         ) : (
           <div className="flex items-center gap-2 rounded-xl border bg-card/60 p-3 text-xs">
-            <CircleCheck className="size-4 text-emerald-500" />
+            <CircleCheck aria-hidden="true" className="size-4 text-emerald-500" />
             <span className="flex-1">
               已送出佇列 · <span className="font-mono text-[10px] text-muted-foreground">{submitted.requestId.slice(0, 18)}…</span>
               <span className="ml-1 text-muted-foreground">已扣 {submitted.credits} pts · 完成後在資產庫</span>

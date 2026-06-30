@@ -666,7 +666,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                 >
                   <img
                     src={resultUrl}
-                    alt="Your first creation"
+                    alt="您的第一個創作"
                     className="w-full"
                     loading="lazy"
                   />

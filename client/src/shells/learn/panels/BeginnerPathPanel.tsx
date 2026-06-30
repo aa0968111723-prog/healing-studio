@@ -186,6 +186,8 @@ export function BeginnerPathPanel() {
                     </Button>
                     {doc && (
                       <button
+                        type="button"
+                        aria-label={`查看文件：${doc.title}`}
                         onClick={() => navigate("/learn?sub=hub")}
                         className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
                       >
