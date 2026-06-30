@@ -1121,6 +1121,13 @@ ${profileSnippet}`;
             setShowOnboarding(false);
             navigate("/agent");
           }}
+          onBranchComplete={(path) => {
+            // AIDV-836: navigate straight to the chosen shell in a single push,
+            // without the intermediate navigate("/agent") that polluted history
+            // (Back button got trapped on /agent instead of returning home).
+            setShowOnboarding(false);
+            navigate(path);
+          }}
           onSkip={() => {
             setShowOnboarding(false);
             navigate("/agent");

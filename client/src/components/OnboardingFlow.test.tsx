@@ -69,6 +69,15 @@ vi.mock("@/lib/trpc", () => ({
 
 import OnboardingFlow from "./OnboardingFlow";
 
+// 此 jsdom 設定未提供 localStorage 全域；handleBranchNavigate/handleComplete 會
+// 呼叫 localStorage.setItem，故補一個 stub 讓分支導航測試不致丟錯。
+vi.stubGlobal("localStorage", {
+  getItem: vi.fn(() => null),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+});
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -112,5 +121,41 @@ describe("OnboardingFlow result guard (AIDV-637)", () => {
     const img = screen.getByAltText("Your first creation") as HTMLImageElement;
     expect(img.getAttribute("src")).toContain("https://cdn.example/i.png");
     expect(toastMock.error).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * AIDV-836: 分支 chip 導航不應污染瀏覽器 history。
+ * 有 onBranchComplete → 單次導航（只呼叫 onBranchComplete(path)，不呼叫 onComplete）；
+ * 沒傳 → 退回舊雙導航行為（呼叫 onComplete）。
+ */
+describe("OnboardingFlow branch navigation history (AIDV-836)", () => {
+  const MUSIC_CHIP = /配上一段音樂/;
+
+  it("有 onBranchComplete → 點分支 chip 只呼叫 onBranchComplete(path)、不呼叫 onComplete", () => {
+    const onComplete = vi.fn();
+    const onBranchComplete = vi.fn();
+    render(
+      <OnboardingFlow
+        onComplete={onComplete}
+        onSkip={vi.fn()}
+        onBranchComplete={onBranchComplete}
+      />,
+    );
+    act(() => captured.onSuccess!({ resultUrl: "https://cdn.example/i.png" }));
+    const chip = screen.getByRole("button", { name: MUSIC_CHIP });
+    act(() => chip.click());
+    expect(onBranchComplete).toHaveBeenCalledTimes(1);
+    expect(onBranchComplete).toHaveBeenCalledWith("/pro-studio");
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("未傳 onBranchComplete → 退回舊行為，呼叫 onComplete", () => {
+    const onComplete = vi.fn();
+    render(<OnboardingFlow onComplete={onComplete} onSkip={vi.fn()} />);
+    act(() => captured.onSuccess!({ resultUrl: "https://cdn.example/i.png" }));
+    const chip = screen.getByRole("button", { name: MUSIC_CHIP });
+    act(() => chip.click());
+    expect(onComplete).toHaveBeenCalledTimes(1);
   });
 });

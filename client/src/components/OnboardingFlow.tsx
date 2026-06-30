@@ -85,9 +85,15 @@ export function isUsableResultUrl(url: unknown): url is string {
 type Props = {
   onComplete: () => void;
   onSkip: () => void;
+  /**
+   * AIDV-836: 分支 chip 導航改「單次導航」避免 history 污染。
+   * 不傳時退回舊行為（先 onComplete()（含 navigate("/agent")）再 setLocation，
+   * 會把 /agent 多推進 history，使用者按 Back 卡在 /agent 而非首頁）。
+   */
+  onBranchComplete?: (path: string) => void;
 };
 
-export default function OnboardingFlow({ onComplete, onSkip }: Props) {
+export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }: Props) {
   const { setAIState, personality } = useAIState();
   const [, setLocation] = useLocation();
   const [step, setStep] = useState<OnboardingStep>("greeting");
@@ -286,12 +292,18 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
     onComplete();
   }, [onComplete]);
 
-  // Navigate to a shell and mark onboarding complete first
+  // Navigate to a shell and mark onboarding complete first.
+  // AIDV-836: prefer a single navigation (onBranchComplete) to avoid pushing an
+  // extra /agent entry into history (which traps the Back button on /agent).
   const handleBranchNavigate = useCallback((path: string) => {
     localStorage.setItem("ai-director-onboarded", "true");
-    onComplete();
-    setLocation(path);
-  }, [onComplete, setLocation]);
+    if (onBranchComplete) {
+      onBranchComplete(path);
+    } else {
+      onComplete();
+      setLocation(path);
+    }
+  }, [onComplete, onBranchComplete, setLocation]);
 
   // Handle chip click: replace input with chip text
   const handleChipClick = useCallback((chip: string) => {
