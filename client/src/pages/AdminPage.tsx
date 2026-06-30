@@ -1525,14 +1525,32 @@ export default function AdminPage() {
                           {fb.description}
                         </p>
                       )}
-                      <div className="flex items-center gap-1.5 mt-2">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted/30 font-medium">
                           {fb.category}
                         </span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted/30 font-medium">
                           {fb.priority}
                         </span>
+                        {fb.featureArea && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
+                            {fb.featureArea}
+                          </span>
+                        )}
                       </div>
+                      {fb.landmark && (
+                        <p className="mt-1 font-mono text-[10px] text-muted-foreground truncate" title={fb.landmark.selector ?? ""}>
+                          📍 {fb.landmark.label ?? fb.landmark.selector}
+                        </p>
+                      )}
+                      {fb.screenshotKey && (
+                        <img
+                          src={`/api/upload/view/${fb.screenshotKey}`}
+                          alt="截圖"
+                          className="mt-1.5 max-h-20 rounded-md border object-cover"
+                          loading="lazy"
+                        />
+                      )}
                     </div>
                     <Select
                       value={fb.status}
