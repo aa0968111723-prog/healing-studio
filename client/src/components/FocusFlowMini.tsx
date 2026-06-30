@@ -61,12 +61,8 @@ function MiniPomodoro() {
         <span
           className="text-xs font-medium px-2 py-0.5 rounded-full"
           style={{
-            background:
-              pomodoroPhase === "work"
-                ? "rgba(239,68,68,0.1)"
-                : "rgba(34,197,94,0.1)",
-            color:
-              pomodoroPhase === "work" ? "rgb(239,68,68)" : "rgb(34,197,94)",
+            background: pomodoroPhase === "work" ? "var(--bad-tint)" : "var(--ok-tint)",
+            color: pomodoroPhase === "work" ? "var(--bad)" : "var(--ok)",
           }}
         >
           {pomodoroPhase === "work" ? "🍅 專注" : "☕ 休息"}
