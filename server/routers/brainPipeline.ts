@@ -1497,6 +1497,16 @@ const CRON_JOBS: CronJobMeta[] = [
     downstream: ["ext:gotrue-auth", "ext:slack-alerts"],
     envKey: "ALERT_SLACK_WEBHOOK",
   },
+  {
+    id: "cron:agent-dlq-poller",
+    label: "Agent DLQ 監控心跳（每 5 分鐘）",
+    schedule: "*/5 * * * *",
+    description:
+      "輪詢 agent_dlq 表中 resolvedAt IS NULL 的條目，按 routingAction 統計 retried/escalated/decisions 數量；escalated > 0 時輸出 warn 提示人工介入（AIDV-877）",
+    files: ["server/jobs/agentDlqPoller.ts"],
+    downstream: ["db:main"],
+    envKey: "ENABLE_AGENT_DLQ",
+  },
 ];
 
 /**
