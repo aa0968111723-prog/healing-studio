@@ -177,6 +177,50 @@ export const DEFAULT_GENERATION_ENGINES: Record<
   voiceEngine: { engine: "fal-ai/elevenlabs/tts/turbo-v2.5", params: null },
 };
 
+// ── AIDV-856: 成本分層預設（economy 為伺服端預設，設 balanced 回現狀） ──────────
+// economy: gemini-2.5-pro 主導、flash 次要、flux/schnell 快稿圖，省約 90% 成本
+// balanced: 原有 claude-opus / flux-pro/v1.1（設 PREFER_CHEAP_MODELS=balanced 還原）
+const ECONOMY_REASONING_BRAINS: Record<
+  ReasoningBrainSlot,
+  { model: string; temperature: number; topP: number }
+> = {
+  director:     { model: "google/gemini-2.5-pro",   temperature: 0.4, topP: 0.9  },
+  analyst:      { model: "google/gemini-2.5-flash",  temperature: 0.3, topP: 0.8  },
+  storyteller:  { model: "google/gemini-2.5-flash",  temperature: 0.9, topP: 0.95 },
+  technician:   { model: "google/gemini-2.5-flash",  temperature: 0.2, topP: 0.7  },
+  curator:      { model: "google/gemini-2.5-flash",  temperature: 0.8, topP: 0.9  },
+};
+
+const ECONOMY_GENERATION_ENGINES: Record<
+  GenerationEngineSlot,
+  { engine: string; params: Record<string, unknown> | null }
+> = {
+  imageEngine:  { engine: "fal-ai/flux/schnell",                params: null },
+  videoEngine:  { engine: "fal-ai/wan-t2v",                     params: null },
+  audioEngine:  { engine: "fal-ai/ace-step",                    params: null },
+  voiceEngine:  { engine: "fal-ai/elevenlabs/tts/turbo-v2.5",   params: null },
+};
+
+/** 依 PREFER_CHEAP_MODELS 旗標返回當前分層的推理大腦預設值。 */
+export function getActiveDefaultBrains(): Record<
+  ReasoningBrainSlot,
+  { model: string; temperature: number; topP: number }
+> {
+  return (process.env.PREFER_CHEAP_MODELS ?? "economy") === "balanced"
+    ? DEFAULT_REASONING_BRAINS
+    : ECONOMY_REASONING_BRAINS;
+}
+
+/** 依 PREFER_CHEAP_MODELS 旗標返回當前分層的生成引擎預設值。 */
+export function getActiveDefaultEngines(): Record<
+  GenerationEngineSlot,
+  { engine: string; params: Record<string, unknown> | null }
+> {
+  return (process.env.PREFER_CHEAP_MODELS ?? "economy") === "balanced"
+    ? DEFAULT_GENERATION_ENGINES
+    : ECONOMY_GENERATION_ENGINES;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Health Ping System (健康狀態區驗)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -476,11 +520,11 @@ function findFallback(
     }
   }
 
-  // 所有候選都不健康 — 退回硬編碼預設
+  // 所有候選都不健康 — 退回硬編碼預設（依 PREFER_CHEAP_MODELS 分層）
   const hardDefault =
     slotType === "reasoning"
-      ? DEFAULT_REASONING_BRAINS[slot as ReasoningBrainSlot]?.model
-      : DEFAULT_GENERATION_ENGINES[slot as GenerationEngineSlot]?.engine;
+      ? getActiveDefaultBrains()[slot as ReasoningBrainSlot]?.model
+      : getActiveDefaultEngines()[slot as GenerationEngineSlot]?.engine;
 
   if (hardDefault && hardDefault !== currentModel) {
     return {
@@ -542,8 +586,11 @@ export async function buildBrainContext(userId: number): Promise<BrainContext> {
 
   const reasoning = {} as Record<ReasoningBrainSlot, ReasoningBrainConfig>;
 
+  const activeReasoningBrains = getActiveDefaultBrains();
+  const activeGenerationEngines = getActiveDefaultEngines();
+
   for (const slot of reasoningSlots) {
-    const defaults = DEFAULT_REASONING_BRAINS[slot];
+    const defaults = activeReasoningBrains[slot];
     const modelKey = `${slot}Model` as keyof UserAiBrain;
     const tempKey = `${slot}Temperature` as keyof UserAiBrain;
     const topPKey = `${slot}TopP` as keyof UserAiBrain;
@@ -611,7 +658,7 @@ export async function buildBrainContext(userId: number): Promise<BrainContext> {
   const generation = {} as Record<GenerationEngineSlot, GenerationEngineConfig>;
 
   for (const slot of engineSlots) {
-    const defaults = DEFAULT_GENERATION_ENGINES[slot];
+    const defaults = activeGenerationEngines[slot];
     const engineKey = slot as keyof UserAiBrain;
     const paramsKey = `${slot}Params` as keyof UserAiBrain;
     const enabledKey = `${slot}Enabled` as keyof UserAiBrain;
