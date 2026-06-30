@@ -17,7 +17,26 @@ import {
   PROJECT_STATUS_LABELS,
   PROJECT_TYPE_LABELS,
 } from "@/types/projects";
-import { ArrowLeft, Home } from "lucide-react";
+import { ArrowLeft, ArrowRight, Home } from "lucide-react";
+
+/**
+ * 創作黃金路徑（世界觀→分鏡→生成）的工作室入口。對齊 CreationHub 的
+ * VideoProjectCard 映射：世界觀→/worldbuilding、分鏡→/animation、
+ * 腳本/生成→/director。AIDV-961：本頁原為唯讀狀態頁，沒有任何「進入創作
+ * 工作區」的按鈕，導致「繼續創作 →」CTA 落到死路；以下依綁定狀態算出
+ * 下一個該去的工作室，補上可點主按鈕。
+ */
+function nextWorkspaceFor(binding: {
+  worldFramework?: string;
+  storyboard?: string;
+  directorSession?: string;
+} | undefined): { href: string; label: string } {
+  const hasWorld = Boolean(binding?.worldFramework && binding.worldFramework.trim());
+  const hasStoryboard = Boolean(binding?.storyboard && binding.storyboard.trim());
+  if (!hasWorld) return { href: "/worldbuilding", label: "前往建立世界觀" };
+  if (!hasStoryboard) return { href: "/animation", label: "前往建立分鏡" };
+  return { href: "/director", label: "進入導演工作室生成" };
+}
 
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>();
@@ -64,6 +83,8 @@ export default function ProjectDetailPage() {
       </div>
     );
   }
+
+  const nextWorkspace = nextWorkspaceFor(project.binding);
 
   return (
     <div className="page-shell page-shell-default space-y-6">
@@ -151,9 +172,28 @@ export default function ProjectDetailPage() {
         title="下一步建議"
         description={project.nextAction}
         primaryAction={
-          <Button variant="outline" asChild>
-            <Link href="/projects">回到專案列表</Link>
+          <Button asChild data-testid="project-detail-continue">
+            <Link href={nextWorkspace.href}>
+              {nextWorkspace.label}
+              <ArrowRight className="ml-1 size-4" aria-hidden />
+            </Link>
           </Button>
+        }
+        secondaryActions={
+          <>
+            <Button asChild variant="outline" size="sm" data-testid="project-detail-open-worldview">
+              <Link href="/worldbuilding">世界觀</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" data-testid="project-detail-open-storyboard">
+              <Link href="/animation">分鏡</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm" data-testid="project-detail-open-director">
+              <Link href="/director">導演工作室</Link>
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/projects">回到專案列表</Link>
+            </Button>
+          </>
         }
       />
     </div>
