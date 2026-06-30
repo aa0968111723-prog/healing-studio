@@ -87,7 +87,7 @@ import { useLocation, useSearch } from "wouter";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
-import { parsePollStatus } from "@/lib/falResultParser";
+import { asRecord, parsePollStatus } from "@/lib/falResultParser";
 import { PromptVaultAdoption } from "@/components/promptVault";
 import { ENABLE_PROMPT_VAULT } from "@/config/promptVaultFlags";
 
@@ -702,8 +702,7 @@ function AsyncVideoPoller({
   onUpdate: (r: VideoResult) => void;
   label?: string;
 }) {
-  const modelId =
-    (result.raw as Record<string, unknown> | undefined)?.raw_model_id as string ?? "";
+  const modelId = (asRecord(result.raw)?.raw_model_id as string | undefined) ?? "";
   const [dismissed, setDismissed] = useState(false);
 
   const onUpdateRef = useRef(onUpdate);
@@ -746,7 +745,7 @@ function AsyncVideoPoller({
   }
 
   // API 錯誤或任務失敗
-  if (isError || (result.raw as Record<string, unknown>)?.failed) {
+  if (isError || asRecord(result.raw)?.failed) {
     return (
       <div className="mt-4 p-4 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
         <AlertCircle className="w-4 h-4 flex-shrink-0" />

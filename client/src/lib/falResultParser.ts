@@ -27,6 +27,17 @@ const FalPollStatusSchema = z
 export type FalJobResult = z.infer<typeof FalJobResultSchema>;
 export type FalPollStatus = z.infer<typeof FalPollStatusSchema>;
 
+/**
+ * Safely cast an unknown value to a plain object map.
+ * Returns null for null, undefined, arrays, and primitives.
+ */
+export function asRecord(val: unknown): Record<string, unknown> | null {
+  if (val !== null && val !== undefined && typeof val === "object" && !Array.isArray(val)) {
+    return val as Record<string, unknown>;
+  }
+  return null;
+}
+
 export function extractResultUrl(
   jobType: string | null | undefined,
   resultData: unknown

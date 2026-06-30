@@ -3812,8 +3812,8 @@ function AvatarVideoTab() {
     {
       enabled: !!jobInfo && !!jobInfo.request_id,
       refetchInterval: query => {
-        const s = (query.state.data as any)?.status;
-        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
+        const s = query.state.data?.status;
+        return s === "COMPLETED" ? false : 3000;
       },
       refetchIntervalInBackground: false,
       retry: 5,
@@ -3827,11 +3827,11 @@ function AvatarVideoTab() {
     longcatMut.isPending ||
     ltxMut.isPending ||
     dubbingMut.isPending;
-  const jobStatus = (statusQuery.data as any)?.status;
+  const jobStatus = statusQuery.data?.status;
   // checkAudioStatus 已 S3 本地化並萃取出 video_url（支援 dubbing / avatar 全部模型）
   const videoResult =
-    (statusQuery.data as any)?.video_url ??
-    (statusQuery.data as any)?.audio_url ??
+    (statusQuery.data?.status === "COMPLETED" ? statusQuery.data.video_url : null) ??
+    (statusQuery.data?.status === "COMPLETED" ? statusQuery.data.audio_url : null) ??
     null;
 
   // 每個模型的必填欄位驗證
@@ -4063,8 +4063,6 @@ function AvatarVideoTab() {
               <div className="flex items-center gap-2">
                 {jobStatus === "COMPLETED" ? (
                   <Badge className="bg-emerald-500 text-white">✓ 完成</Badge>
-                ) : jobStatus === "FAILED" ? (
-                  <Badge variant="destructive">✕ 失敗</Badge>
                 ) : (
                   <>
                     <Loader2 className="w-3 h-3 animate-spin text-primary" />

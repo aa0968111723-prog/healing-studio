@@ -22,6 +22,7 @@ import { usePersonalSettings } from "./PersonalSettingsContext";
 import { ProactiveEventBus } from "@/lib/proactiveEventBus";
 import { getRecentPlatformMention } from "@/lib/spiritWatchers";
 import { describeBgSubmitError } from "./bgSubmitError";
+import { UNIFIED_SSE_ROUTER } from "@/config/featureFlags";
 
 // 總總（chief-orchestrator）觀察「同時跑的精靈數」用：每種 studioType 對應
 // 哪位精靈正在工作。值是該精靈的暱稱（顯示用），key 對齊 StudioJobType。
@@ -400,7 +401,10 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     };
 
     const sources: EventSource[] = activeJobIds.map(jobId => {
-      const es = new EventSource(`/api/generation-events/${jobId}`);
+      const url = UNIFIED_SSE_ROUTER
+        ? `/api/sse?jobId=${jobId}`
+        : `/api/generation-events/${jobId}`;
+      const es = new EventSource(url);
       es.onopen = () => {
         clearDisconnectTimer();
         setSseConnected(true);
@@ -409,11 +413,12 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         clearDisconnectTimer();
         setSseConnected(true);
         try {
-          const event = JSON.parse(ev.data) as {
-            type: string;
-            message?: string;
-            preview_url?: string;
-          };
+          const raw = JSON.parse(ev.data) as Record<string, unknown>;
+          // UnifiedSseEvent envelope: { bus_id, sequence_no, timestamp, payload }
+          // Legacy format: { type, ... } directly
+          const event = (raw.bus_id === "generation" && raw.payload != null
+            ? (raw.payload as { type: string; message?: string; preview_url?: string })
+            : raw) as { type: string; message?: string; preview_url?: string };
           if (event.type === "complete" || event.type === "error") {
             // AIDV-431：cache preview_url immediately before DB refetch completes
             if (event.type === "complete" && event.preview_url) {

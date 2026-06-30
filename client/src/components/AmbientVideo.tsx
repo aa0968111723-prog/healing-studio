@@ -51,6 +51,13 @@ function AmbientVideoInner({
     const video = videoRef.current;
     if (!video || !src) return;
 
+    // WCAG 2.2.2: respect prefers-reduced-motion — pause on first frame/poster
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReduced) {
+      setIsReady(true);
+      return undefined;
+    }
+
     let hls: Hls | null = null;
 
     // Case 1: Browser natively supports HLS (Safari, iOS)

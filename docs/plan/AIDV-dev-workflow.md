@@ -136,6 +136,49 @@ python3 .claude/skills/ui-ux-pro-max/scripts/search.py "<產品型 產業 關鍵
 
 ---
 
+## 3a. 驗證門失敗路由樹（AIDV-346）
+
+驗證門（`tsc`／`vitest`）失敗時，系統依失敗類型自動路由，並持久化至 `agent_dlq` 表。
+
+### 路由決策樹
+
+```
+驗證門失敗
+├── TS 型別錯誤 (error TS\d+)       → failureType=lint   → action=retry  （自動重試，最多 maxRetries 次）
+├── Vitest FAIL                     → failureType=test   → action=decision（立即送人工審查）
+├── build 錯誤 (SyntaxError / Cannot find module / failed to build)
+│                                   → failureType=build  → action=retry  （自動重試，最多 maxRetries 次）
+└── 其他                            → failureType=unknown → action=decision（保守處置，送人工審查）
+
+重試計數 >= maxRetries (預設 3)
+└── 任何 retryable 類型             → action 升級為 escalate（推播通知 Bruce）
+```
+
+### 元件清單
+
+| 元件 | 路徑 | 職責 |
+|---|---|---|
+| `classifyValidationFailure` | `server/_core/validationGateRouter.ts` | tsc + vitest 輸出 → failureType |
+| `routeValidationFailure` | 同上 | failureType + 重試計數 → RoutingAction |
+| `insertDlqEntry` | `server/services/agentDlq.ts` | 持久化 ValidationState 至 DB |
+| `resolveDlqEntry` | 同上 | 標記 DLQ 條目已解決（人工或自動） |
+| `pollDlq` | 同上 | 查詢未解決條目計數（監控用） |
+| `agent_dlq` 表 | `drizzle/0098_agent_dlq.sql` | MySQL 持久層（三鐵則守門） |
+
+### 使用範例（代理端呼叫）
+
+```typescript
+import { classifyValidationFailure, routeValidationFailure } from "../_core/validationGateRouter";
+import { insertDlqEntry } from "../services/agentDlq";
+
+const failureType = classifyValidationFailure(tscOutput, vitestOutput);
+const state = routeValidationFailure(issueKey, userId, failureType);
+const { id, action } = await insertDlqEntry(state, failureReason, agentId);
+// action: "retry" → 重跑；"decision" → 通知 Bruce；"escalate" → PushNotification
+```
+
+---
+
 ## 4. 狀態與標籤詞彙（同 master-plan 鐵律 4）
 - 狀態（看板四欄 ↔ 九階對照，見 Jira Epic **AIDV-102**）：`Backlog`（階0–1）→ `Selected for Development`（就緒：設計門過、下一棒）→ `進行中`（階2–3、6）→ `完成`（階8）。Blocked 以 label 表示，板上無欄。
 - 標籤：`decision`(待拍板)／`decision-resolved`／`needs-key`(缺金鑰)／`caution`(避雷)／`待議`／`integration`／`wave-i`／`workflow`／`workflow-pilot`／`ui-ux`／`aidisc-*`。

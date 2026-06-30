@@ -54,7 +54,6 @@ import { worldbuildingRouter } from "./routers/worldbuilding";
 import { worldbuildingGenerationRouter } from "./services/worldbuildingGeneration";
 import { worldStoryboardRouter } from "./routers/worldStoryboard";
 import { creativeProjectRouter } from "./routers/creativeProject";
-import { accountRouter } from "./routers/account";
 import { commanderRouter } from "./subsystems/commander/commanderRouter";
 import {
   contextPacketRouter,
@@ -381,11 +380,6 @@ export const appRouter = router({
   // 把 Director session + Worldbuilding framework + World Storyboard 三者
   // 綁定成一個有意義的創作單位，供全站光球與各 Studio 頁面共享世界觀上下文。
   creativeProject: creativeProjectRouter,
-
-  // ─── Account（H9 個資出口：刪帳號/資料匯出）─────────────────────────────────
-  // deleteAccount = 軟刪除 + PII 清除（可逆 90 天）。
-  // exportData = GDPR 可攜性資料匯出 JSON。
-  account: accountRouter,
 
   // ─── Commander（任務總指揮入口） ──────────────────────────────────────────
   // M1-B：記錄使用者創作意圖（createIntent → pending orchestration run）。
