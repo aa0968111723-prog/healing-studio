@@ -26,6 +26,9 @@ vi.mock("@/lib/trpc", () => ({
     apiUsage: {
       textLlmStatus: { useQuery: () => ({ data: undefined }) },
     },
+    brain: {
+      providerSystemStatus: { useQuery: () => ({ data: undefined }) },
+    },
   },
 }));
 
