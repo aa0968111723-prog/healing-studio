@@ -7,3 +7,8 @@
 # x-agent-secret: <AGENT_SECRET> header — unauthenticated invocations are
 # rejected before the function code even runs.
 verify_jwt = true
+
+[functions.tts-liveness-probe]
+# AIDV-833 / AIDV-831 Finding 1: JWT required — internal monitoring probe only.
+# Callers must supply Authorization: Bearer <service_role_key>.
+verify_jwt = true

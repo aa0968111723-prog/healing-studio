@@ -1132,6 +1132,10 @@ ${profileSnippet}`;
             setShowOnboarding(false);
             navigate("/agent");
           }}
+          onBranchComplete={(path) => {
+            setShowOnboarding(false);
+            navigate(path);
+          }}
         />
       </Suspense>
     );

@@ -42,6 +42,9 @@ export const METHODOLOGY_DOCS: MethodologyDoc[] = [
   { id: "cost-ladder", title: "成本階梯與 Context Packet", category: "生成技術", difficulty: "高級", minutes: 14, summary: "Deterministic→Cache→RAG→便宜 LLM→Sonar→高級 LLM→媒體生成；長文只進 RAG。" },
   { id: "six-agents", title: "六代理層分工", category: "入門指南", difficulty: "入門", minutes: 9, summary: "導演 / 總指揮 / Context Packet / 研究 / 感知 / 財財，各司其職。" },
   { id: "lora-lock", title: "LoRA 角色定版與四鎖", category: "模型說明", difficulty: "高級", minutes: 11, summary: "角色 LoRA 訓練 + 鎖臉/髮/裝/配件，跨鏡保持一致。" },
+  { id: "scenario-ecommerce-image", title: "電商賣家 × 圖：3 步把商品照變主圖", category: "入門指南", difficulty: "入門", minutes: 8, summary: "上手路徑：傳商品照→去背→換情境背景→多張主圖。常見卡關：不知去背/重繪背景；多張圖商品不一致；不知怎麼描述「白底主圖」。推薦功能：ImageStudio 去背＋圖生圖、一致性保險庫（Vault）、資產庫批次匯出。" },
+  { id: "scenario-creator-video", title: "自媒體 × 影：從一張圖到 15 秒短影音", category: "入門指南", difficulty: "入門", minutes: 10, summary: "上手路徑：縮圖或一句腳本→圖生影→短影音→配字幕／音樂。常見卡關：影片在背景跑但不知道；模型選擇困難；不知先 480p 試。推薦功能：VideoStudio（Kling v2.1、先 480p）、背景任務中心、導演 AI。" },
+  { id: "scenario-educator-voice", title: "教育者 × 音：3 分鐘做出課程旁白", category: "入門指南", difficulty: "入門", minutes: 6, summary: "上手路徑：課程講稿→TTS 旁白（中文）→選配聲音克隆固定音色→配輕音樂。常見卡關：不知平台能做語音；怕聲音克隆很複雜；不知 Qwen TTS 中文最佳。推薦功能：ProStudio 語音合成（Qwen TTS）、音樂生成（純音樂模式）。" },
 ];
 
 /** learn 文件分類（對映盤點 §3-11：80 篇 6 分類）。難度三級供篩選。 */
@@ -56,3 +59,38 @@ export const LEARN_CATEGORIES = [
 ] as const;
 
 export const LEARN_DIFFICULTIES = ["入門", "進階", "高級"] as const;
+
+export interface LearnStep { step: number; title: string; learn: string; cta: string }
+
+export const LEARN_BY_DOING_STEPS: LearnStep[] = [
+  {
+    step: 1,
+    title: "看懂提示詞",
+    learn: "你會學到提示詞的四個核心元素：主體、風格、光線、品質——缺少任一個，生成就容易跑偏。",
+    cta: "開啟提示詞庫的「電商商品白底圖」，試著找出這四個元素在哪裡。",
+  },
+  {
+    step: 2,
+    title: "生第一張圖",
+    learn: "你會學到直接複製現成提示詞就能得到高品質結果，不需要從零寫起。",
+    cta: "前往圖片創作室，貼上白底主圖提示詞，按下生成，看看第一張成果。",
+  },
+  {
+    step: 3,
+    title: "微調出你要的",
+    learn: "你會學到改一個詞如何大幅改變結果——這是提示詞工程最核心的思維。",
+    cta: "把剛才的提示詞中「white background」改成你想要的場景，重新生成比較看看。",
+  },
+  {
+    step: 4,
+    title: "讓圖片動起來",
+    learn: "你會學到只需一句動作描述，靜態圖就能變成短影音。",
+    cta: "把生好的圖送到影片工作室，選 Kling v2.1，寫一句「鏡頭緩緩推近」，生成 4 秒影片。",
+  },
+  {
+    step: 5,
+    title: "配上聲音",
+    learn: "你會學到用文字直接生成旁白或背景音樂，讓作品更有溫度。",
+    cta: "去 ProStudio，選 Qwen TTS，輸入你剛才的商品介紹一句話，聽聽中文合成效果。",
+  },
+];

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -82,6 +82,8 @@ export function isUsableResultUrl(url: unknown): url is string {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
+const SKELETON_WIDTHS = [88, 104, 96, 112] as const;
+
 type Props = {
   onComplete: () => void;
   onSkip: () => void;
@@ -108,6 +110,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
   const chipDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track the input value that triggered the current chip request
   const lastChipQueryRef = useRef<string>("");
+  const shouldReduceMotion = useReducedMotion();
   // AIDV-812: track consecutive generation failures for diagnostic hints
   const [failCount, setFailCount] = useState(0);
   const [exampleOpen, setExampleOpen] = useState(false);
@@ -187,7 +190,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
   const generateMutation = trpc.generate.multimodal.useMutation({
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
-      setThoughtChain((data as any).thoughtChain || []);
+      setThoughtChain(data.thoughtChain ?? []);
       setAIState("idle");
       // 生成未產出作品（resultUrl 空/純空白）→ 不進慶祝態，回 input 步驟重試（AIDV-637）
       if (!isUsableResultUrl(data.resultUrl)) {
@@ -463,13 +466,13 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                         Array.from({ length: 4 }).map((_, i) => (
                           <motion.div
                             key={`skeleton-${i}`}
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.8 }}
+                            initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.8 }}
+                            animate={shouldReduceMotion ? {} : { opacity: 1, scale: 1 }}
+                            exit={shouldReduceMotion ? {} : { opacity: 0, scale: 0.8 }}
                             transition={{ delay: i * 0.05 }}
                             className="h-8 rounded-full animate-pulse"
                             style={{
-                              width: `${80 + Math.random() * 40}px`,
+                              width: `${SKELETON_WIDTHS[i % SKELETON_WIDTHS.length]}px`,
                               background: "rgba(255,255,255,0.4)",
                               border: "1px solid rgba(255,255,255,0.3)",
                             }}
@@ -722,9 +725,13 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                           } else {
                             setResultUrl(null);
                             setStep("input");
+                            setUserInput("");
+                            setChoiceChips(STARTER_CHIPS);
+                            setChipsSource("static");
+                            lastChipQueryRef.current = "";
                           }
                         }}
-                        className="rounded-full px-4 py-2 text-sm bg-white/60 hover:bg-white/80 border border-white/50 shadow-sm transition-all cursor-pointer text-foreground/80 hover:text-foreground"
+                        className="rounded-full px-4 py-2 text-sm bg-white/60 hover:bg-white/80 border border-white/50 shadow-sm motion-safe:transition-all cursor-pointer text-foreground/80 hover:text-foreground"
                       >
                         {label}
                       </button>

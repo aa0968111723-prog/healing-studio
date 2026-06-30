@@ -228,7 +228,7 @@ const RELATION_LABEL: Record<string, string> = {
 function AssetLineageCard() {
   const q = trpc.assets.recentLineage.useQuery(undefined, { staleTime: 60_000, retry: 1 });
 
-  if (q.isLoading) return null;
+  if (q.isLoading) return <PanelLoading count={3} className="h-8 rounded-lg" label="載入血統…" />;
   if (q.isError) {
     return (
       <Card className="glass-card-static">
@@ -264,7 +264,7 @@ function AssetLineageCard() {
                   {RELATION_LABEL[row.relation] ?? row.relation}
                 </Badge>
               </div>
-              <div className="text-muted-foreground/70 truncate">
+              <div className="text-muted-foreground truncate">
                 ← {row.promptTitle || row.promptContent?.slice(0, 60) || "（無標題）"}
               </div>
               {row.sourceStudio && (

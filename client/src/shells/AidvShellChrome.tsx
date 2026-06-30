@@ -65,8 +65,10 @@ export function AidvShellChrome() {
       !localStorage.getItem('orb-onboarding-skipped')
     ) {
       setOnboardingOpen(true);
+    } else if (ENABLE_ORB_ONBOARDING && prefsQ.isError) {
+      setOnboardingOpen(true);
     }
-  }, [prefsQ.data, prefsQ.isLoading]);
+  }, [prefsQ.data, prefsQ.isLoading, prefsQ.isError]);
 
   // U-4 第二/三片：接真實資料（皆在旗標之下、僅 chrome ON 時查詢）。
   const world = useCreativeProject();

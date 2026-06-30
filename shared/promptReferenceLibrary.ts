@@ -1932,6 +1932,259 @@ AI 常見問題：
     tags: ["負面", "Negative", "片段"],
     language: "en",
   },
+  // ═══════════════════════════════════════════════════════════════
+  // 🎯 新手情境上手：提示前後對照（AIDV-813）
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─ 情境 A：電商賣家 × 圖 ─
+  {
+    id: "onboard-ec-whitebg",
+    modality: "image",
+    title: "【前後對照】電商白底主圖",
+    summary: "加上光線與品質描述後，白底圖從模糊不一到電商專業級。",
+    prompt: `弱提示：商品圖
+
+→ 強提示：
+professional product photography of [your product], pure white seamless background, soft top diffused light with gentle fill from left, no harsh shadows, centered composition, ultra-sharp focus on product, 8K commercial catalog quality
+
+▷ 為什麼更好：「白背景」不等於「無縫白底＋柔光」，加入光線設定讓模型輸出電商標準，而不是隨意生個亮色背景。`,
+    modelHint: "fal-ai/flux-pro",
+    difficulty: "beginner",
+    tags: ["電商", "白底", "新手", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "電商賣家×圖 上手路徑", href: "/learn?docId=scenario-ecommerce-image" },
+    ],
+  },
+  {
+    id: "onboard-ec-context",
+    modality: "image",
+    title: "【前後對照】商品情境圖",
+    summary: "從「咖啡背景」到有光線、質感、景深的情境攝影，品牌感立刻提升。",
+    prompt: `弱提示：咖啡杯放在咖啡廳背景
+
+→ 強提示：
+ceramic coffee mug sitting on aged oak café table, morning window light streaming from left, steam rising naturally, soft bokeh of warm-toned café interior behind, shallow depth of field, commercial lifestyle photography style, 8K
+
+▷ 為什麼更好：「咖啡廳背景」沒說光線方向和材質，模型容易產出光影不一致的情境圖；加入光線來源後品牌感一致。`,
+    modelHint: "fal-ai/flux-pro / fal-ai/imagen4",
+    difficulty: "beginner",
+    tags: ["電商", "情境圖", "商品攝影", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "電商商品行銷素材包", href: "/learn?docId=workflow-product-marketing" },
+    ],
+  },
+  {
+    id: "onboard-ec-banner",
+    modality: "image-edit",
+    title: "【前後對照】促銷橫幅留白設計",
+    summary: "指定留白位置和比例，橫幅才能讓設計師疊上標題文字實際使用。",
+    prompt: `弱提示：幫我做一個促銷圖
+
+→ 強提示：
+Keep the product (商品去背圖) intact on the right 40% of canvas. Left 60% is a warm coral-to-cream gradient background with clear empty space at top-left for promotional headline text. Add a subtle badge shape at bottom-left for discount callout. No AI-generated text. Commercial web banner, 16:9 ratio.
+
+▷ 為什麼更好：「促銷圖」讓模型自由排版，無法疊字；明確說「留空給標題」和比例後，設計師才能直接使用。`,
+    modelHint: "fal-ai/flux-kontext / fal-ai/gpt-image-1.5",
+    difficulty: "beginner",
+    tags: ["電商", "橫幅", "Banner", "前後對照"],
+    language: "mixed",
+  },
+  {
+    id: "onboard-ec-vault",
+    modality: "workflow",
+    title: "【新手流程】電商多圖一致性：Vault 保險庫",
+    summary: "把商品定版圖存入 Vault 再生圖，解決「多張圖商品長得不一樣」的問題。",
+    prompt: `商品一致性工作流（3 步驟）：
+
+1️⃣ 先用白底提示詞生成一張最滿意的商品「定版圖」。
+2️⃣ 在圖片下方點「存入保險庫」，type 選 product，加品牌標籤（如 my-coffee-mug）。
+3️⃣ 之後每次生圖，點「從保險庫引用」選你的商品圖，模型會以它為參考保持外觀一致。
+
+▷ 卡關點：跳過步驟 2 直接重寫提示詞，每次生出的商品細節會略有不同；一致性保險庫是解法。`,
+    difficulty: "beginner",
+    tags: ["電商", "Vault", "一致性", "工作流"],
+    language: "zh",
+    references: [
+      { label: "一致性保險庫", href: "/vault" },
+      { label: "電商賣家×圖 上手路徑", href: "/learn?docId=scenario-ecommerce-image" },
+    ],
+  },
+
+  // ─ 情境 B：自媒體創作者 × 影 ─
+  {
+    id: "onboard-vid-i2v-action",
+    modality: "video",
+    title: "【前後對照】圖生影動作描述",
+    summary: "動作描述越具體，I2V 動態越可控；模糊描述讓模型隨機亂動。",
+    prompt: `弱提示：讓這張圖動起來
+
+→ 強提示：
+The camera slowly pushes in (dolly forward) toward the subject at a steady pace over 4 seconds. Subject remains stationary. Maintain the existing lighting and color palette. No cuts, smooth motion, 24fps cinematic.
+
+▷ 為什麼更好：「讓它動起來」讓模型自由發揮，常出現不自然抖動；明確鏡頭運動類型（推鏡）讓結果穩定可控。`,
+    modelHint: "fal-ai/kling-2.1-i2v / fal-ai/wan-2.1-i2v",
+    difficulty: "beginner",
+    tags: ["I2V", "圖生影", "動作描述", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "自媒體×影 上手路徑", href: "/learn?docId=scenario-creator-video" },
+    ],
+  },
+  {
+    id: "onboard-vid-480p-first",
+    modality: "video",
+    title: "【新手技巧】先跑 480p 省點數省時間",
+    summary: "先低解析度確認動態方向，滿意再升 720p，省下 3–5 倍成本。",
+    prompt: `影片生成省成本策略：
+
+❌ 常見新手錯誤：直接選 720p 或 1080p，等很久且點數花多。
+
+✅ 正確流程：
+1. 先選 480p、5 秒，生成速度快 2–3 倍，點數省約 60%。
+2. 確認動態方向、構圖、鏡頭運動都對了。
+3. 滿意後，同一組提示詞重新選 720p 跑正式版。
+
+▷ 提示：480p 和 720p 用同樣提示詞輸出動態幾乎一致，只差解析度。先試再升，最省時省錢。`,
+    difficulty: "beginner",
+    tags: ["影片", "省點數", "480p", "新手技巧"],
+    language: "zh",
+    references: [
+      { label: "自媒體×影 上手路徑", href: "/learn?docId=scenario-creator-video" },
+    ],
+  },
+  {
+    id: "onboard-vid-model-picker",
+    modality: "workflow",
+    title: "【決策小抄】影片模型怎麼選",
+    summary: "3 個問題在 30 秒內選對影片模型，不再糾結。",
+    prompt: `影片模型選型小抄：
+
+Q1. 是中文場景或動畫風格嗎？
+→ 是：優先選 Kling v2.1（中文場景最佳）
+→ 否：看 Q2
+
+Q2. 需要真實物理感（水、火、布料）嗎？
+→ 是：Veo 3 或 Wan 2.1 720p
+→ 否：看 Q3
+
+Q3. 預算優先還是品質優先？
+→ 預算優先：Wan 2.1 480p（最快最省）
+→ 品質優先：Kling v2.1 或 Pixverse 4.5
+
+▷ 默認推薦：自媒體短影音 → Kling v2.1，先 480p 試，滿意再升 720p。`,
+    difficulty: "beginner",
+    tags: ["影片", "模型選型", "決策", "Kling"],
+    language: "zh",
+    references: [
+      { label: "自媒體×影 上手路徑", href: "/learn?docId=scenario-creator-video" },
+    ],
+  },
+  {
+    id: "onboard-vid-director-short",
+    modality: "agent",
+    title: "【前後對照】請導演 AI 規劃短影音",
+    summary: "給導演 AI 足夠的調性與目標，才能得到可執行的分鏡規劃而不是空洞建議。",
+    prompt: `弱提示：幫我做一支影片
+
+→ 強提示：
+我要做一支 15 秒自媒體短影音，主題是「台北咖啡店早晨」，風格溫暖文青，目標是 IG Reels，觀眾是 25–35 歲白領。請規劃 3 個分鏡，每鏡寫：視覺提示詞、推薦模型、建議秒數。
+
+▷ 為什麼更好：「幫我做一支影片」讓 AI 亂猜主題和風格；給出平台（IG Reels）、調性（溫暖文青）、受眾，導演 AI 才能輸出可執行的分鏡。`,
+    difficulty: "beginner",
+    tags: ["導演AI", "短影音", "IG Reels", "前後對照"],
+    language: "zh",
+    references: [
+      { label: "自媒體×影 上手路徑", href: "/learn?docId=scenario-creator-video" },
+      { label: "導演 AI 完整指南", href: "/learn?docId=deep-director" },
+    ],
+  },
+
+  // ─ 情境 C：教育者 × 音/語音 ─
+  {
+    id: "onboard-voice-lecture-zh",
+    modality: "voice",
+    title: "【前後對照】課程旁白語氣",
+    summary: "加入節奏停頓和引導句，TTS 旁白從機械念稿變有溫度的課程聲音。",
+    prompt: `弱提示：人工智慧是一種讓電腦模仿人類智慧的技術。
+
+→ 強提示：
+歡迎來到這堂課。<break time="0.5s"/> 今天，我們要一起認識人工智慧——它不是遙遠的科幻，<break time="0.3s"/> 而是你手機裡每天都在使用的技術。<break time="0.4s"/> 讓我們從最簡單的問題開始：AI 到底怎麼「學習」？
+
+▷ 為什麼更好：加入自然停頓（SSML break）和引導句，讓聽者有時間跟上，語氣從說明書變成有溫度的老師。`,
+    modelHint: "fal-ai/qwen-tts",
+    difficulty: "beginner",
+    tags: ["TTS", "課程", "旁白", "前後對照"],
+    language: "zh",
+    references: [
+      { label: "教育者×音 上手路徑", href: "/learn?docId=scenario-educator-voice" },
+    ],
+  },
+  {
+    id: "onboard-voice-qwen-guide",
+    modality: "voice",
+    title: "【決策對照表】中文配音引擎怎麼挑",
+    summary: "Qwen TTS vs ElevenLabs vs Dia TTS 三引擎快速比較，中文首選 Qwen。",
+    prompt: `中文配音引擎選型對照：
+
+| 情境            | 推薦引擎        | 原因                              |
+|-----------------|-----------------|-----------------------------------|
+| 中文課程旁白    | Qwen TTS        | 中文聲調最自然、支援 SSML 停頓   |
+| 英文或多語系    | ElevenLabs      | 英文情緒表現最佳                 |
+| 角色扮演/對白   | Dia TTS         | 雙人對話、情緒轉換               |
+| 聲音克隆固定音色| Qwen Clone      | 中文音色克隆穩定性最佳           |
+
+▷ 新手默認：中文課程/旁白一律選 Qwen TTS，無需額外設定，自然度最接近真人。`,
+    difficulty: "beginner",
+    tags: ["TTS", "引擎選型", "Qwen", "中文"],
+    language: "zh",
+    references: [
+      { label: "教育者×音 上手路徑", href: "/learn?docId=scenario-educator-voice" },
+    ],
+  },
+  {
+    id: "onboard-voice-bgm-pure",
+    modality: "audio",
+    title: "【前後對照】課程純背景音樂",
+    summary: "指定 no vocals 和 designed for voiceover，背景音才不會搶旁白的戲。",
+    prompt: `弱提示：給我一段輕鬆音樂
+
+→ 強提示：
+calm educational background music, no vocals, no lyrics, soft acoustic guitar and light piano, gentle flowing melody at 72 BPM, warm and focused mood, designed to sit under voiceover, subtle dynamics, loopable 60 seconds
+
+▷ 為什麼更好：「輕鬆音樂」可能生出帶人聲的流行歌；加 "no vocals" 和 "designed to sit under voiceover" 才能得到不搶旁白的背景音。`,
+    modelHint: "fal-ai/sonauto",
+    difficulty: "beginner",
+    tags: ["背景音樂", "純音樂", "課程", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "教育者×音 上手路徑", href: "/learn?docId=scenario-educator-voice" },
+    ],
+  },
+  {
+    id: "onboard-voice-clone-easy",
+    modality: "voice",
+    title: "【新手流程】聲音克隆其實很簡單",
+    summary: "3 步用自己的聲音做固定音色旁白，30 秒手機錄音就夠，不需錄音棚。",
+    prompt: `聲音克隆 3 步流程：
+
+1️⃣ 準備 30–60 秒的乾淨錄音：用手機在安靜環境自然說話，不需要錄音棚設備。
+
+2️⃣ 上傳到 ProStudio → 語音合成 → 「聲音克隆」→ 上傳訓練音頻，等待約 2–5 分鐘完成訓練。
+
+3️⃣ 之後任何 TTS 旁白都可以選「我的音色」，整個課程系列保持同一個聲音。
+
+▷ 卡關點：以為需要很多錄音或專業設備，其實 30 秒手機錄音就夠；固定音色讓整個課程聽起來更一致專業。`,
+    difficulty: "beginner",
+    tags: ["聲音克隆", "Voice Clone", "課程", "新手流程"],
+    language: "zh",
+    references: [
+      { label: "聲音克隆訓練稿", href: "/learn?docId=voice-clone-script" },
+      { label: "教育者×音 上手路徑", href: "/learn?docId=scenario-educator-voice" },
+    ],
+  },
+
   {
     id: "modifier-composition",
     modality: "image",
