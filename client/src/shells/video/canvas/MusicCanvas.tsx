@@ -81,11 +81,13 @@ export function MusicCanvas() {
     <div className="flex h-full flex-col gap-3 overflow-y-auto">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Music className="size-3.5 text-primary" /> 配樂 · proStudio.textToMusic → fal.ai
-        {!providerStatusQ.isLoading && providerStatusQ.data && (
-          falDown
-            ? <span className="ml-auto flex items-center gap-1 text-[10px] text-destructive"><WifiOff className="size-3" /> fal 離線</span>
-            : <span className="ml-auto flex items-center gap-1 text-[10px] text-green-600"><CheckCircle2 className="size-3" /> fal 正常</span>
-        )}
+        <span role="status" aria-live="polite" className="ml-auto flex items-center gap-1 text-[10px]">
+          {!providerStatusQ.isLoading && providerStatusQ.data && (
+            falDown
+              ? <><WifiOff className="size-3 text-destructive" aria-hidden="true" /><span className="text-destructive">fal 離線</span></>
+              : <><CheckCircle2 className="size-3 text-green-600" aria-hidden="true" /><span className="text-green-600">fal 正常</span></>
+          )}
+        </span>
       </div>
 
       {falDown && (

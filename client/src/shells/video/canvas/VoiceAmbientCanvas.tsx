@@ -97,14 +97,15 @@ export function VoiceAmbientCanvas() {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {meta.ambient ? <Waves className="size-3.5 text-primary" /> : <Mic className="size-3.5 text-primary" />}
         配音 / 環境音 · proStudio → fal.ai
-        {providerStatusQ.isError && (
-          <span className="ml-auto flex items-center gap-1 text-[10px] text-destructive"><AlertCircle className="size-3" /> 狀態查詢失敗</span>
-        )}
-        {!providerStatusQ.isLoading && !providerStatusQ.isError && providerStatusQ.data && (
-          falDown
-            ? <span className="ml-auto flex items-center gap-1 text-[10px] text-destructive"><WifiOff className="size-3" /> fal 離線</span>
-            : <span className="ml-auto flex items-center gap-1 text-[10px] text-green-600"><CheckCircle2 className="size-3" /> fal 正常</span>
-        )}
+        <span role="status" aria-live="polite" className="ml-auto flex items-center gap-1 text-[10px]">
+          {providerStatusQ.isError ? (
+            <><AlertCircle className="size-3 text-destructive" aria-hidden="true" /><span className="text-destructive">狀態查詢失敗</span></>
+          ) : !providerStatusQ.isLoading && providerStatusQ.data && (
+            falDown
+              ? <><WifiOff className="size-3 text-destructive" aria-hidden="true" /><span className="text-destructive">fal 離線</span></>
+              : <><CheckCircle2 className="size-3 text-green-600" aria-hidden="true" /><span className="text-green-600">fal 正常</span></>
+          )}
+        </span>
       </div>
 
       {falDown && (
