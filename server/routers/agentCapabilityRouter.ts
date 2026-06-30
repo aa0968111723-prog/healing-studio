@@ -17,7 +17,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { logger } from "../_core/logger";
 import { getDb } from "../db";
-import { agentDynamicRegistry } from "../../drizzle/schema";
+import { agentDynamicRegistry, videoProjects } from "../../drizzle/schema";
 import { agentEventBus } from "../services/agentEventBus";
 
 const capabilitySchema = z.array(z.string().min(1).max(64)).min(1).max(32);
@@ -188,7 +188,18 @@ export const agentCapabilityRouter = router({
       });
 
       // AIDV-467 Issue 6: broadcast agent assignment to per-project SSE channel
+      // AIDV-820: verify caller owns the project before broadcasting to its channel
       if (input.videoProjectId) {
+        const projectRow = await db
+          .select({ userId: videoProjects.userId })
+          .from(videoProjects)
+          .where(eq(videoProjects.id, input.videoProjectId))
+          .limit(1);
+
+        if (!projectRow.length || projectRow[0]!.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "無此影片專案的存取權" });
+        }
+
         try {
           agentEventBus.emitForProject({
             type: "agent_task_status",

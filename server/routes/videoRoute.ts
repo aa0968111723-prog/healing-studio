@@ -25,6 +25,7 @@ import {
   getVideoProject,
   getVideoProjectsByUserPaged,
   updateVideoProject,
+  getUserSubscription,
 } from "../db";
 import { VIDEO_OUTPUT_SPEC_DEFAULT } from "../../drizzle/schema";
 import { sanitizePlainText } from "../utils/sanitize";
@@ -33,6 +34,15 @@ import { recordAuditEvent } from "../services/audit/auditLog";
 type AuthedReq = Request & { user?: { id: number; role?: string } };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function isPaidFor4K(userId: number): Promise<boolean> {
+  const plan = await getUserSubscription(userId);
+  return (
+    !!plan &&
+    (plan.status === "active" || plan.status === "trialing") &&
+    plan.planId.toLowerCase() !== "free"
+  );
+}
 
 function ok(res: Response, body: unknown, status = 200) {
   res.status(status).json(body);
@@ -142,6 +152,13 @@ videoRouter.post("/api/video", async (req: AuthedReq, res: Response) => {
 
   const { title, aspectRatio, creativeProjectId, outputSpec, deadlineAt, priorityClass } =
     parsed.data;
+
+  if (outputSpec?.resolution === "4K") {
+    if (!(await isPaidFor4K(userId))) {
+      return void fail(res, 403, "4K 解析度需付費方案", "FORBIDDEN");
+    }
+  }
+
   const meta = agentMeta(req);
 
   const id = await createVideoProject({
@@ -216,6 +233,13 @@ videoRouter.put("/api/video/:id", async (req: AuthedReq, res: Response) => {
   }
 
   const { expectedVersion, ...fields } = parsed.data;
+
+  if (fields.outputSpec?.resolution === "4K") {
+    if (!(await isPaidFor4K(userId))) {
+      return void fail(res, 403, "4K 解析度需付費方案", "FORBIDDEN");
+    }
+  }
+
   const patch: Record<string, unknown> = {};
   if (fields.title !== undefined) patch.title = fields.title;
   if (fields.aspectRatio !== undefined) patch.aspectRatio = fields.aspectRatio;
