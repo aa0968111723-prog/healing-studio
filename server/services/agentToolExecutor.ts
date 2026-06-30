@@ -1242,25 +1242,34 @@ async function dispatchStudioTool(
           !hasAnyImage && typeof args.prompt === "string"
             ? "text-to-3d"
             : "image-to-3d";
-        const r = await dispatchFalQueueTask({
-          modelId,
-          category,
-          input,
-          route: "orb-tool/studio.generate3D",
-          modality: "image",
-          userId: opts.userId,
-        });
-        const awaited = await awaitFalForOrb(
-          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args,
-          { userId: opts.userId, prompt: typeof args.prompt === "string" ? args.prompt : undefined }
+        // ADP-2: wrap dispatch+await with three-tier recovery.
+        const originalModelId = modelId;
+        const awaited = await runFalWithRecovery(
+          async (currentModelId, currentPrompt) => {
+            const retryInput: Record<string, unknown> = { ...input };
+            if (currentPrompt !== undefined) retryInput.prompt = currentPrompt;
+            const r = await dispatchFalQueueTask({
+              modelId: currentModelId,
+              category,
+              input: retryInput,
+              route: "orb-tool/studio.generate3D",
+              modality: "image",
+              userId: opts.userId,
+            });
+            return awaitFalForOrb(
+              { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+              args,
+              { userId: opts.userId, prompt: currentPrompt }
+            );
+          },
+          originalModelId,
+          typeof args.prompt === "string" ? args.prompt : undefined,
         );
         return {
           name: call.name,
           ok: awaited.status !== "failed",
           data: {
             ...awaited,
-            originalModel: r.originalModel,
             engine: "fal",
           },
           usedTool: call.name,
@@ -1570,26 +1579,28 @@ async function dispatchStudioTool(
           // 未知音樂引擎：保守傳 prompt + duration，由 dispatcher 的 fallback chain 處理。
           if (typeof args.duration === "number") input.duration = args.duration;
         }
-        const audioDispatchParams = {
-          modelId,
-          category: "text-to-audio" as const,
-          input,
-          route: "orb-tool/studio.generateAudio",
-          modality: "audio" as const,
-          userId: opts.userId,
-        };
-        const r = await dispatchFalQueueTask(audioDispatchParams);
-        const awaited = await awaitFalForOrb(
-          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args,
-          {
-            userId: opts.userId,
-            prompt: typeof args.prompt === "string" ? args.prompt : undefined,
-            retryDispatch: async () => {
-              const nr = await dispatchFalQueueTask(audioDispatchParams);
-              return { request_id: nr.request_id, modelId: nr.modelId, degraded: nr.degraded ?? false };
-            },
-          }
+        // ADP-2: wrap dispatch+await with three-tier recovery.
+        const originalModelId = modelId;
+        const awaited = await runFalWithRecovery(
+          async (currentModelId, currentPrompt) => {
+            const retryInput: Record<string, unknown> = { ...input };
+            if (currentPrompt !== undefined) retryInput.prompt = currentPrompt;
+            const r = await dispatchFalQueueTask({
+              modelId: currentModelId,
+              category: "text-to-audio" as const,
+              input: retryInput,
+              route: "orb-tool/studio.generateAudio",
+              modality: "audio" as const,
+              userId: opts.userId,
+            });
+            return awaitFalForOrb(
+              { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+              args,
+              { userId: opts.userId, prompt: currentPrompt }
+            );
+          },
+          originalModelId,
+          typeof args.prompt === "string" ? args.prompt : undefined,
         );
         return {
           name: call.name,
@@ -1660,34 +1671,39 @@ async function dispatchStudioTool(
           finalIsElevenLabs && process.env.ELEVENLABS_API_KEY
             ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY }
             : undefined;
-        const sfxDispatchParams = {
-          modelId,
-          category: "text-to-audio" as const,
-          input: sfxInput,
-          route: "orb-tool/studio.generateSfx",
-          modality: "audio" as const,
-          userId: opts.userId,
-          ...(elevenLabsHeaders ? { extraHeaders: elevenLabsHeaders } : {}),
-        };
-        const r = await dispatchFalQueueTask(sfxDispatchParams);
-        const awaited = await awaitFalForOrb(
-          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
-          args,
-          {
-            userId: opts.userId,
-            prompt: typeof args.prompt === "string" ? args.prompt : undefined,
-            retryDispatch: async () => {
-              const nr = await dispatchFalQueueTask(sfxDispatchParams);
-              return { request_id: nr.request_id, modelId: nr.modelId, degraded: nr.degraded ?? false };
-            },
-          }
+        // ADP-2: wrap dispatch+await with three-tier recovery.
+        const originalSfxModelId = modelId;
+        const awaitedSfx = await runFalWithRecovery(
+          async (currentModelId, currentPrompt) => {
+            const retryInput: Record<string, unknown> = { ...sfxInput };
+            if (currentPrompt !== undefined) {
+              if (finalIsElevenLabs) retryInput.text = currentPrompt;
+              else retryInput.prompt = currentPrompt;
+            }
+            const r = await dispatchFalQueueTask({
+              modelId: currentModelId,
+              category: "text-to-audio" as const,
+              input: retryInput,
+              route: "orb-tool/studio.generateSfx",
+              modality: "audio" as const,
+              userId: opts.userId,
+              ...(elevenLabsHeaders ? { extraHeaders: elevenLabsHeaders } : {}),
+            });
+            return awaitFalForOrb(
+              { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+              args,
+              { userId: opts.userId, prompt: currentPrompt }
+            );
+          },
+          originalSfxModelId,
+          typeof args.prompt === "string" ? args.prompt : undefined,
         );
         return {
           name: call.name,
-          ok: awaited.status !== "failed",
-          data: { ...awaited, engine: "fal", kind: "sfx" },
+          ok: awaitedSfx.status !== "failed",
+          data: { ...awaitedSfx, engine: "fal", kind: "sfx" },
           usedTool: call.name,
-          ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
+          ...(awaitedSfx.status === "failed" && awaitedSfx.error ? { error: awaitedSfx.error } : {}),
         };
       }
 
