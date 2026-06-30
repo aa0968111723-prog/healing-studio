@@ -163,6 +163,14 @@ export const FEATURE_EXPORT_CHAIN: boolean =
  */
 export const ENABLE_ORB_ONBOARDING: boolean = readFlag("VITE_ENABLE_ORB_ONBOARDING", false);
 
+/**
+ * 首次創作流「下一步」分支 chip（AIDV-810）。
+ * 首圖完成後顯示多模態引導 chip：配音/動畫/導演/再生一張。
+ * 預設 ON；關閉退路：VITE_FEATURE_ONBOARDING_BRANCH=0 或 ?onboardingbranch=0。
+ */
+export const FEATURE_ONBOARDING_BRANCH: boolean =
+  readRuntimeOverride("onboardingbranch") ?? readFlag("VITE_FEATURE_ONBOARDING_BRANCH", true);
+
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
   ENABLE_4SHELL,
@@ -172,6 +180,7 @@ export const FEATURE_FLAGS = {
   ORB_SMILEY_ONLY,
   FEATURE_EXPORT_CHAIN,
   ENABLE_ORB_ONBOARDING,
+  FEATURE_ONBOARDING_BRANCH,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
