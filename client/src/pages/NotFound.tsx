@@ -23,12 +23,12 @@ export default function NotFound() {
 
           <h1 className="hs-h1 text-foreground mb-2">404</h1>
 
-          <h2 className="hs-h2 text-foreground/90 mb-4">Page Not Found</h2>
+          <h2 className="hs-h2 text-foreground/90 mb-4">找不到頁面</h2>
 
           <p className="hs-p text-foreground/90 mb-8">
-            Sorry, the page you are looking for doesn't exist.
+            抱歉，你要找的頁面不存在，
             <br />
-            It may have been moved or deleted.
+            可能已被移動或刪除。
           </p>
 
           <div
@@ -40,7 +40,7 @@ export default function NotFound() {
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-healing shadow-md hover:shadow-lg"
             >
               <Home className="w-4 h-4 mr-2" />
-              Go Home
+              回首頁
             </Button>
           </div>
         </CardContent>
