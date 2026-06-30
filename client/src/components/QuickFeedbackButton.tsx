@@ -145,6 +145,7 @@ export function QuickFeedbackButton() {
       {/* 浮動按鈕（面板收起時顯示） */}
       {!open && (
         <button
+          type="button"
           onClick={openPanel}
           className="fixed bottom-24 right-4 z-[99996] flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           aria-label="快速回饋"
@@ -165,6 +166,7 @@ export function QuickFeedbackButton() {
           <div className="flex items-center justify-between border-b px-4 py-3">
             <span className="text-sm font-medium">快速回饋</span>
             <button
+              type="button"
               onClick={closePanel}
               className="text-muted-foreground hover:text-foreground"
               aria-label="關閉"
@@ -184,6 +186,7 @@ export function QuickFeedbackButton() {
               <div className="flex flex-wrap gap-1.5">
                 {CATEGORY_CHIPS.map(c => (
                   <button
+                    type="button"
                     key={c.id}
                     onClick={() => setCategory(c.id)}
                     className={[
@@ -227,6 +230,7 @@ export function QuickFeedbackButton() {
                   <MapPin className="size-3 shrink-0 text-primary" />
                   <span className="min-w-0 flex-1 truncate font-mono">{landmark.label.slice(0, 50)}</span>
                   <button
+                    type="button"
                     onClick={() => setLandmark(null)}
                     className="text-muted-foreground hover:text-foreground"
                     aria-label="移除位置標記"
