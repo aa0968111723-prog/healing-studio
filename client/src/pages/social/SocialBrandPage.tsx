@@ -46,9 +46,9 @@ export default function SocialBrandPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold">品牌 / 風格庫</h1>
-          <p className="text-sm text-muted-foreground">品牌＝角色鎖定的孿生（鎖品牌而非角色）·零新表（block_combos + consistency_vault）</p>
+          <p className="text-sm text-muted-foreground">品牌身份管套用（色彩 / 字體 / logo）</p>
         </div>
-        <Badge variant="outline">{active?.activeProject?.name ?? "脊椎共用專案"}</Badge>
+        <Badge variant="outline">{active?.activeProject?.name ?? "跨頁共用"}</Badge>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_minmax(280px,360px)]">
@@ -104,7 +104,7 @@ export default function SocialBrandPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-                <Palette className="h-3.5 w-3.5" /> 風格庫（block_combos · 管「怎麼生」）
+                <Palette className="h-3.5 w-3.5" /> 風格版型庫
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-1.5">

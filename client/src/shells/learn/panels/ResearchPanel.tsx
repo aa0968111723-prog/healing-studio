@@ -65,11 +65,11 @@ export function ResearchPanel() {
         <div>
           <h3 className="text-base font-semibold">研究代理 · Sonar + Brave</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            grounded · 帶引用（Perplexity 過渡/備援）
+            即時聯網引用
           </p>
         </div>
         <Badge variant={mode === "trpc" ? "default" : "secondary"}>
-          {mode === "trpc" ? "real · orbProxy.unifiedSearch" : "mock（預設）"}
+          {mode === "trpc" ? "即時查詢" : "示範資料"}
         </Badge>
       </div>
 
@@ -101,7 +101,7 @@ export function ResearchPanel() {
         <EmptyState
           icon={<Globe className="h-7 w-7" />}
           title="輸入問題開始研究"
-          desc="回傳會附上引用來源並扣積分（成本階梯：Sonar 屬中段）。可在 /settings 注入「研究上游故障」看錯誤/重試。"
+          desc="回傳附上引用來源並扣積分。"
         />
       )}
       {state === "loading" && (

@@ -533,7 +533,7 @@ function PageInfoPanel({ fullscreen }: { fullscreen: boolean }) {
 
       {!page && !snapshot && (
         <p className="text-[11px] text-white/50 text-center py-4">
-          這個頁面還沒登錄到 appRegistry / PageAgent，沒有可顯示的本頁資料 ✨
+          本頁尚無可顯示的頁面資料 ✨
         </p>
       )}
     </div>
