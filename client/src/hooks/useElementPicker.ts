@@ -30,6 +30,7 @@ export function useElementPicker(
 
     // Hover highlight overlay
     const hl = document.createElement("div");
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     hl.style.cssText = [
       "position:fixed",
       "pointer-events:none",
@@ -37,8 +38,8 @@ export function useElementPicker(
       "background:hsl(var(--primary, 221 83% 53%) / 0.08)",
       "border-radius:4px",
       "z-index:99998",
-      "transition:left 60ms,top 60ms,width 60ms,height 60ms",
-    ].join(";");
+      prefersReduced ? "" : "transition:left 60ms,top 60ms,width 60ms,height 60ms",
+    ].filter(Boolean).join(";");
     document.body.appendChild(hl);
     hlRef.current = hl;
     document.body.style.cursor = "crosshair";
