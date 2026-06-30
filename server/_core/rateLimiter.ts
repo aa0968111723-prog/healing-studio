@@ -257,6 +257,32 @@ export function tryConsumeChatToken(userId: number): boolean {
   return true;
 }
 
+// ─── Per-User Feedback Rate Limiter (in-process, tRPC-layer) ─────────────────
+//
+// feedback.create runs behind protectedProcedure so ctx.user is available.
+// Limit is intentionally generous (10/hour) — stops automated spam while not
+// blocking legitimate bursts during a product review session.
+// AIDV-880.
+
+const _feedbackRateLimitStore = new Map<number, { count: number; resetAt: number }>();
+
+export const FEEDBACK_RATE_LIMIT_MAX = 10;              // submissions per window
+export const FEEDBACK_RATE_LIMIT_WINDOW_MS = 60 * 60_000; // 1 hour
+
+export function tryConsumeFeedbackToken(userId: number): boolean {
+  if (process.env.NODE_ENV === "test") return true;
+  if (process.env.ENABLE_RATE_LIMIT === "false") return true;
+  const now = Date.now();
+  const entry = _feedbackRateLimitStore.get(userId);
+  if (!entry || now >= entry.resetAt) {
+    _feedbackRateLimitStore.set(userId, { count: 1, resetAt: now + FEEDBACK_RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= FEEDBACK_RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
 // ─── Singleton Exports ─────────────────────────────────────────────────────
 
 export const rateLimiters = {

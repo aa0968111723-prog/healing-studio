@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, adminProcedure, protectedProcedure } from "../_core/trpc";
+import { tryConsumeFeedbackToken } from "../_core/rateLimiter";
 import * as db from "../db";
 
 // ─── Feedback ─────────────────────────────────────────────────────────────────
@@ -44,6 +46,13 @@ export const feedbackRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // AIDV-880: per-user rate limit (10/hour) — guards against notification spam
+      if (!tryConsumeFeedbackToken(ctx.user.id)) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: "回饋提交過於頻繁，請稍後再試（每小時最多 10 次）。",
+        });
+      }
       const id = await db.createFeedbackReport({
         userId: ctx.user.id,
         ...input,
