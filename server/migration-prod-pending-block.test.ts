@@ -102,6 +102,8 @@ const PENDING_BLOCK = [
   "0102_agent_dlq",
   // AIDV-864 PR①：user_feedback_reports 情境回饋欄位擴充（information_schema 守門）。
   "0103_feedback_context",
+  // AIDV-903：feedback feature_area / screenshot_key 索引補建（information_schema.statistics 守門）。
+  "0104_feedback_indexes",
 ];
 
 function readSql(tag: string): string {
