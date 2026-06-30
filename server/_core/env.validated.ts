@@ -579,6 +579,8 @@ const multimodalSchema = z.object({
   ENABLE_ORB_WEB_RESEARCH: z.string().optional().default("true"),
   ENABLE_GLOBAL_AGENT_CAPABILITY_REGISTRY: z.string().optional().default("true"),
   ENABLE_GLOBAL_AGENT_TOOL_REGISTRY: z.string().optional().default("true"),
+  /** AIDV-877: agent_dlq 監控心跳。預設 ON；設為 "false"/"0" 停止 pollDlq 排程（DB 不可用時自動 no-op）。 */
+  ENABLE_AGENT_DLQ: z.string().optional().default("true"),
 
   /**
    * AIDV-121 資料層 RBAC enforcement 旗標。預設 "false"（OFF）＝零行為變化：

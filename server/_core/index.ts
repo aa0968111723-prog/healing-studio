@@ -118,6 +118,10 @@ import {
   initGoTrueHealthMonitorCron,
   stopGoTrueHealthMonitorCron,
 } from "../jobs/goTrueHealthMonitor";
+import {
+  initAgentDlqPollerCron,
+  stopAgentDlqPollerCron,
+} from "../jobs/agentDlqPoller";
 import { agentStatusRouter } from "../routes/agentStatusRoute";
 import { handoffTraceRouter } from "../routes/handoffTraceRoute";
 import { v1Router } from "../routes/v1";
@@ -276,6 +280,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "goTrueHealthMonitor",
     start: initGoTrueHealthMonitorCron,
     stop: stopGoTrueHealthMonitorCron,
+  },
+  {
+    name: "agentDlqPoller",
+    start: initAgentDlqPollerCron,
+    stop: stopAgentDlqPollerCron,
   },
 ];
 
