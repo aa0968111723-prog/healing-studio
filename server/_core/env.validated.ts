@@ -564,6 +564,8 @@ const multimodalSchema = z.object({
   /** AIDV-204: LLM engine fallback chain — when OFF, single-engine mode (no auto-retry to next provider). Default ON. */
   ENABLE_LLM_FALLBACK: z.string().optional().default("true"),
   ENABLE_ORB_COST_GUARD: z.string().optional().default("true"),
+  /** AIDV-896: Block orbTask.retry when the rolling retry-chain cost for the user exceeds the threshold. Default ON. */
+  ENABLE_RETRY_CHAIN_COST_GUARD: z.string().optional().default("true"),
   ENABLE_ORB_QUOTA_GUARD: z.string().optional().default("false"),
   ENABLE_ORB_IDEMPOTENCY_GUARD: z.string().optional().default("false"),
   /**
