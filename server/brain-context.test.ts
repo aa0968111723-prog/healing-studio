@@ -50,6 +50,8 @@ import {
   BrainAuditLogger,
   DEFAULT_REASONING_BRAINS,
   DEFAULT_GENERATION_ENGINES,
+  getActiveDefaultBrains,
+  getActiveDefaultEngines,
   type BrainContext,
   type ReasoningBrainSlot,
   type GenerationEngineSlot,
@@ -80,14 +82,16 @@ describe("Brain Context Middleware", () => {
         "technician",
         "curator",
       ];
+      const activeReasoningDefaults = getActiveDefaultBrains();
+      const activeEngineDefaults = getActiveDefaultEngines();
       for (const slot of brainSlots) {
         const config = brain.getBrain(slot);
         expect(config.slot).toBe(slot);
-        expect(config.model).toBe(DEFAULT_REASONING_BRAINS[slot].model);
+        expect(config.model).toBe(activeReasoningDefaults[slot].model);
         expect(config.temperature).toBe(
-          DEFAULT_REASONING_BRAINS[slot].temperature
+          activeReasoningDefaults[slot].temperature
         );
-        expect(config.topP).toBe(DEFAULT_REASONING_BRAINS[slot].topP);
+        expect(config.topP).toBe(activeReasoningDefaults[slot].topP);
         expect(config.enabled).toBe(true);
         expect(config.systemPrompt).toBeNull();
       }
@@ -102,7 +106,7 @@ describe("Brain Context Middleware", () => {
       for (const slot of engineSlots) {
         const config = brain.getEngine(slot);
         expect(config.slot).toBe(slot);
-        expect(config.engine).toBe(DEFAULT_GENERATION_ENGINES[slot].engine);
+        expect(config.engine).toBe(activeEngineDefaults[slot].engine);
         expect(config.enabled).toBe(true);
       }
     });
@@ -130,14 +134,12 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(123);
 
       expect(brain.hasCustomConfig).toBe(false);
-      // 全站光球代理採「混合搭配」：director 使用 Claude Opus 4.7（原生
-      // function calling、無 web 雜訊）；analyst 才用 Perplexity Sonar
-      // Reasoning Pro（取其原生 web grounding）。
-      expect(brain.getBrain("director").model).toBe("anthropic/claude-opus-4.7");
-      expect(brain.getBrain("analyst").model).toBe(
-        "perplexity/sonar-pro"
-      );
-      expect(brain.getEngine("imageEngine").engine).toBe("fal-ai/flux-pro/v1.1");
+      // economy 分層（PREFER_CHEAP_MODELS=economy 預設）
+      const activeB = getActiveDefaultBrains();
+      const activeE = getActiveDefaultEngines();
+      expect(brain.getBrain("director").model).toBe(activeB.director.model);
+      expect(brain.getBrain("analyst").model).toBe(activeB.analyst.model);
+      expect(brain.getEngine("imageEngine").engine).toBe(activeE.imageEngine.engine);
 
       warnSpy.mockRestore();
     });
@@ -434,17 +436,17 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(999);
       const director = brain.getBrain("director");
       expect(director.slot).toBe("director");
-      // 全站光球代理採「混合搭配」：director 使用 Claude Opus 4.7（原生
-      // function calling、無 web 雜訊）；analyst 才用 Perplexity Sonar
-      // Reasoning Pro（取其原生 web grounding）。
-      expect(director.model).toBe("anthropic/claude-opus-4.7");
+      // economy 分層（PREFER_CHEAP_MODELS=economy 預設）：director 使用 gemini-2.5-pro
+      // 省成本；設 PREFER_CHEAP_MODELS=balanced 回現狀 claude-opus-4.7。
+      expect(director.model).toBe(getActiveDefaultBrains().director.model);
     });
 
     it("getEngine should return correct slot config", async () => {
       const brain = await buildBrainContext(999);
       const imgEngine = brain.getEngine("imageEngine");
       expect(imgEngine.slot).toBe("imageEngine");
-      expect(imgEngine.engine).toBe("fal-ai/flux-pro/v1.1");
+      // economy 分層預設：flux/schnell（省成本）；balanced = flux-pro/v1.1。
+      expect(imgEngine.engine).toBe(getActiveDefaultEngines().imageEngine.engine);
     });
 
     it("getHealthyBrains should filter disabled brains", async () => {

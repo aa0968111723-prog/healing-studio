@@ -204,14 +204,15 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
   it("falls through to brain-config engine slot when modelId is omitted (all 4 generate tools)", async () => {
     // 統一驗證四個 studio.* 工具：呼叫端沒指定 modelId 時，必須讀大腦組態的
     // 對應 engine slot，而不是 hardcoded 的舊預設。沒有 DB 的測試環境會
-    // 退回 DEFAULT_GENERATION_ENGINES，所以這裡斷言 URL 命中那些預設值。
-    const { DEFAULT_GENERATION_ENGINES } = await import(
+    // 退回 active tier 預設（economy/balanced 依 PREFER_CHEAP_MODELS 旗標）。
+    const { getActiveDefaultEngines } = await import(
       "./middleware/brainContext"
     );
+    const activeEngines = getActiveDefaultEngines();
     const expected: Array<{
       tool: string;
       args: Record<string, unknown>;
-      slot: keyof typeof DEFAULT_GENERATION_ENGINES;
+      slot: keyof ReturnType<typeof getActiveDefaultEngines>;
     }> = [
       { tool: "studio.generateImage", args: { prompt: "x" }, slot: "imageEngine" },
       // 影片只有 t2v 走 brain；i2v / v2v 各有結構性預設。這裡測 t2v。
@@ -246,8 +247,8 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
       });
 
       expect(out[0].ok, `${tool} should succeed`).toBe(true);
-      // queue.fal.run/<modelId> — modelId 必須等於 brain 預設 engine
-      const expectedEngine = DEFAULT_GENERATION_ENGINES[slot].engine;
+      // queue.fal.run/<modelId> — modelId 必須等於 active tier 預設 engine
+      const expectedEngine = activeEngines[slot].engine;
       expect(
         submitUrls[0],
         `${tool} should dispatch to brain ${slot}=${expectedEngine}`
@@ -280,6 +281,8 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
           name: "studio.generateImage",
           args: {
             prompt: "stylize as oil painting",
+            // 明指有 promptSuffix 的模型，確保不依賴 economy 分層的預設（schnell 無後綴）
+            modelId: "fal-ai/flux-pro/v1.1",
             image_url: "https://fal.media/source.png",
             strength: 0.7,
             seed: 42,

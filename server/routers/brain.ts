@@ -53,6 +53,8 @@ import {
   getHealthSnapshot,
   DEFAULT_REASONING_BRAINS,
   DEFAULT_GENERATION_ENGINES,
+  getActiveDefaultBrains,
+  getActiveDefaultEngines,
   type ReasoningBrainSlot,
   type GenerationEngineSlot,
 } from "../middleware/brainContext";
@@ -222,9 +224,12 @@ export const brainRouter = router({
       "voiceEngine",
     ];
 
+    const activeReasoningDefaults = getActiveDefaultBrains();
+    const activeEngineDefaults = getActiveDefaultEngines();
+
     const reasoning: Record<string, unknown> = {};
     for (const slot of reasoningSlots) {
-      const defaults = DEFAULT_REASONING_BRAINS[slot];
+      const defaults = activeReasoningDefaults[slot];
       const model = row
         ? String((row as any)[`${slot}Model`] ?? defaults.model)
         : defaults.model;
@@ -246,7 +251,7 @@ export const brainRouter = router({
 
     const generation: Record<string, unknown> = {};
     for (const slot of engineSlots) {
-      const defaults = DEFAULT_GENERATION_ENGINES[slot];
+      const defaults = activeEngineDefaults[slot];
       const engine = normalizeEngineModelId(
         row ? String((row as any)[slot] ?? defaults.engine) : defaults.engine
       );
