@@ -2499,6 +2499,15 @@ export async function getCustomBlock(id: number, userId: number) {
   return rows[0] ?? null;
 }
 
+/**
+ * Alias of {@link getCustomBlock}. Kept so existing callers that import the
+ * `getCustomBlockById` name (e.g. server/services/agentToolExecutor.ts) keep
+ * resolving after AIDV-793 standardised the canonical name to `getCustomBlock`.
+ * Both share identical signature/behaviour: (id, userId) with userId-scoped
+ * ownership filtering (IDOR prevention).
+ */
+export const getCustomBlockById = getCustomBlock;
+
 export async function deleteCustomBlock(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;

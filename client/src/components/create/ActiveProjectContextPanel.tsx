@@ -272,7 +272,7 @@ function ProjectSummaryBody({
             ))}
             {summary.recentAssetsScope === "user" ? (
               <span className="w-full text-[11px] text-muted-foreground">
-                目前顯示你最近的素材；依專案篩選將於資產庫里程碑（M2-A）接上。
+                目前顯示你最近的素材；依專案篩選功能即將推出。
               </span>
             ) : null}
           </span>
