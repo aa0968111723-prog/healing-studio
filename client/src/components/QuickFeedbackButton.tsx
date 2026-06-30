@@ -97,26 +97,29 @@ export function QuickFeedbackButton() {
     let screenshotKey: string | undefined;
     try { screenshotKey = await captureViewportScreenshot(); } catch { /* skip */ }
 
-    await create.mutateAsync({
-      title: text.slice(0, 200),
-      description: text,
-      category,
-      priority: "medium",
-      featureArea: featureArea || undefined,
-      pageContext: {
-        route:    location,
-        url:      typeof window !== "undefined" ? window.location.href : undefined,
-        viewport: typeof window !== "undefined" ? `${window.innerWidth}x${window.innerHeight}` : undefined,
-      },
-      landmark: landmark
-        ? { selector: landmark.selector, label: landmark.label, rect: landmark.rect, textSnippet: landmark.textSnippet }
-        : undefined,
-      screenshotKey,
-    });
-
-    setSubmitted(true);
-    toast.success("感謝您的回饋！");
-    setTimeout(() => { setOpen(false); resetForm(); }, 2000);
+    try {
+      await create.mutateAsync({
+        title: text.slice(0, 200),
+        description: text,
+        category,
+        priority: "medium",
+        featureArea: featureArea || undefined,
+        pageContext: {
+          route:    location,
+          url:      typeof window !== "undefined" ? window.location.href : undefined,
+          viewport: typeof window !== "undefined" ? `${window.innerWidth}x${window.innerHeight}` : undefined,
+        },
+        landmark: landmark
+          ? { selector: landmark.selector, label: landmark.label, rect: landmark.rect, textSnippet: landmark.textSnippet }
+          : undefined,
+        screenshotKey,
+      });
+      setSubmitted(true);
+      toast.success("感謝您的回饋！");
+      setTimeout(() => { setOpen(false); resetForm(); }, 2000);
+    } catch {
+      toast.error("送出失敗，請稍後再試");
+    }
   };
 
   const resetForm = () => {
