@@ -6,6 +6,7 @@
  * clearValidation: reset on successful validation pass
  */
 
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
@@ -35,9 +36,12 @@ export const agentWorkflowRouter = router({
         vitestOutput: z.string().max(65_536),
         maxRetries: z.number().int().min(1).max(10).optional(),
         agentId: z.string().min(1).max(64).optional(),
+        correlationId: z.string().uuid().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // AIDV-926: generate correlation ID at dispatch entry for cross-gate tracing
+      const correlationId = input.correlationId ?? randomUUID();
       const failureType = classifyValidationFailure(input.tscOutput, input.vitestOutput);
       const state = routeValidationFailure(
         input.issueKey,
@@ -54,8 +58,8 @@ export const agentWorkflowRouter = router({
       await insertDlqEntry(state, failureReason, input.agentId, {
         tscOutput: input.tscOutput.slice(0, 500),
         vitestOutput: input.vitestOutput.slice(0, 500),
-      }).catch(() => { /* DLQ write is best-effort */ });
-      return state;
+      }, correlationId).catch(() => { /* DLQ write is best-effort */ });
+      return { ...state, correlationId };
     }),
 
   /** Read current retry state without mutating it. */
