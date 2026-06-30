@@ -2038,25 +2038,34 @@ export const proStudioRouter = router({
       // 不寫的話 Suno 完成後使用者在「我的資產」永遠看不到產出。
       const sunoModelId = pricingKey; // "suno-v3.5" / "suno-v4"
       const sunoLabel = input.title?.trim() || `Suno ${input.modelVersion} 音樂`;
-      const insertId = await createBackgroundJob({
-        userId: ctx.user.id,
-        jobType: "audio",
-        status: "processing",
-        progressMessage: `Suno ${input.modelVersion} 生成中…`,
-        resultJson: {
-          estimate,
-          studioType: "audio",
-          modelId: sunoModelId,
-          prompt: input.prompt,
-          label: sunoLabel,
-          sourceStudio: "music-studio",
-          modelVersion: input.modelVersion,
-          // 寫入實扣點數,讓 webhookSuno 在失敗路徑（無 audio URL / 回呼錯誤）
-          // 能透過 refundJobIfBilled 退回,並由 runPostGenForJob 寫入
-          // generation_history.costCredits（取代寫死 1）。
-          costPoints: charged,
-        } as any,
-      });
+      let insertId: number;
+      try {
+        insertId = await createBackgroundJob({
+          userId: ctx.user.id,
+          jobType: "audio",
+          status: "processing",
+          progressMessage: `Suno ${input.modelVersion} 生成中…`,
+          resultJson: {
+            estimate,
+            studioType: "audio",
+            modelId: sunoModelId,
+            prompt: input.prompt,
+            label: sunoLabel,
+            sourceStudio: "music-studio",
+            modelVersion: input.modelVersion,
+            // 寫入實扣點數,讓 webhookSuno 在失敗路徑（無 audio URL / 回呼錯誤）
+            // 能透過 refundJobIfBilled 退回,並由 runPostGenForJob 寫入
+            // generation_history.costCredits（取代寫死 1）。
+            costPoints: charged,
+          } as any,
+        });
+      } catch (jobErr) {
+        // AIDV-620: 上方已扣點，但 createBackgroundJob 失敗 → 沒有 jobId，
+        // 下方 try-catch（suno.generateMusic 失敗時的 refundUserPoints）永遠
+        // 不會執行到。立即退款；尚無 jobId 故與下方退款路徑互斥、不會雙退。
+        await refundUserPoints(ctx.user.id, charged);
+        throw jobErr;
+      }
       // createBackgroundJob now returns the raw insertId (number) — older
       // code here typed `job` as an object with `.id` and the typeof-object
       // check meant `jobId` was always null. That left callBackUrl
