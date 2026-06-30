@@ -3231,12 +3231,19 @@ export const aiRouter = router({
           reason: z.string().max(240).optional(),
         })
       )
-      .mutation(({ input }) => {
+      .mutation(({ input, ctx }) => {
         const executorEnabled = isFlagEnabled(
           process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
           true
         );
         if (!executorEnabled) return null;
+        // AIDV-885: ownership check (mirrors sibling completeStep/failStep) —
+        // only the task owner may update step status; blocks IDOR write to
+        // another user's agent task. A null userId = unowned/system task → ok.
+        const task = getOrbAgentTask(input.taskId);
+        if (task?.userId != null && task.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
         if (input.status === "completed") {
           return completeOrbAgentStep(input.taskId, input.stepId);
         }
