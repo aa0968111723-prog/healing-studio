@@ -30,6 +30,7 @@ export function useElementPicker(
 
     // Hover highlight overlay
     const hl = document.createElement("div");
+    hl.setAttribute("aria-hidden", "true");
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     hl.style.cssText = [
       "position:fixed",
