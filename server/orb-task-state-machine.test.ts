@@ -6,6 +6,8 @@ import {
   createOrbAgentTaskFromPlanner,
   failOrbAgentStep,
   getOrbAgentTaskEvents,
+  pauseOrbAgentTask,
+  resumeOrbAgentTask,
   retryOrbAgentTask,
 } from "./services/orbTaskStateMachine";
 import { parseAndGatePlan } from "../shared/agent-plan-adapter";
@@ -80,6 +82,39 @@ describe("orb task state machine", () => {
     const events = getOrbAgentTaskEvents(task!.taskId).map(e => e.type);
     expect(events).toContain("step.failed");
     expect(events).toContain("task.recovering");
+  });
+
+  it("AIDV-890: paused task can be resumed and re-enters executing", () => {
+    const task = createOrbAgentTaskFromPlanner(buildTaskedPlan());
+    approveOrbAgentTask(task!.taskId);
+    const paused = pauseOrbAgentTask(task!.taskId);
+    expect(paused?.status).toBe("paused");
+
+    const resumed = resumeOrbAgentTask(task!.taskId);
+    expect(resumed?.status).toBe("executing");
+
+    const events = getOrbAgentTaskEvents(task!.taskId).map(e => e.type);
+    expect(events).toContain("task.paused");
+    expect(events).toContain("task.resumed");
+  });
+
+  it("AIDV-890: retryOrbAgentTask does not consume budget on paused task", () => {
+    const task = createOrbAgentTaskFromPlanner(buildTaskedPlan());
+    approveOrbAgentTask(task!.taskId);
+    const budgetBefore = task!.retryBudget;
+    pauseOrbAgentTask(task!.taskId);
+
+    const result = retryOrbAgentTask(task!.taskId, { enableRecovery: true });
+    expect(result.task?.status).toBe("paused");
+    expect(result.task?.retryBudget).toBe(budgetBefore);
+    expect(result.recoveryPlan).toBeNull();
+  });
+
+  it("AIDV-890: resumeOrbAgentTask is a no-op on non-paused tasks", () => {
+    const task = createOrbAgentTaskFromPlanner(buildTaskedPlan());
+    approveOrbAgentTask(task!.taskId);
+    const result = resumeOrbAgentTask(task!.taskId);
+    expect(result?.status).toBe("executing");
   });
 
   it("completed and failed tasks are written into task memory summary", () => {

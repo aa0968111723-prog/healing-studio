@@ -157,6 +157,8 @@ import {
   getOrbAgentTask,
   getOrbAgentTaskEvents,
   listRecentOrbAgentTasks,
+  pauseOrbAgentTask,
+  resumeOrbAgentTask,
   retryOrbAgentTask,
 } from "./services/orbTaskStateMachine";
 import {

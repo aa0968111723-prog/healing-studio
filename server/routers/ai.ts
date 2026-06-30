@@ -65,6 +65,8 @@ import {
   getOrbAgentTask,
   getOrbAgentTaskEvents,
   listRecentOrbAgentTasks,
+  pauseOrbAgentTask,
+  resumeOrbAgentTask,
   retryOrbAgentTask,
 } from "../services/orbTaskStateMachine";
 import {
@@ -3136,6 +3138,45 @@ export const aiRouter = router({
           userRole: ctx.user.role,
         });
         return result;
+      }),
+
+    pause: brainProcedure
+      .input(z.object({ taskId: z.string().min(1), reason: z.string().max(240).optional() }))
+      .mutation(({ input, ctx }) => {
+        const executorEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
+          true
+        );
+        if (!executorEnabled) return null;
+        const existingTask = getOrbAgentTask(input.taskId);
+        if (existingTask?.userId != null && existingTask.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+        return pauseOrbAgentTask(input.taskId, input.reason ?? "paused by user");
+      }),
+
+    resume: brainProcedure
+      .input(z.object({ taskId: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const executorEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
+          true
+        );
+        if (!executorEnabled) return null;
+        const existingTask = getOrbAgentTask(input.taskId);
+        if (existingTask?.userId != null && existingTask.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+        const task = resumeOrbAgentTask(input.taskId);
+        if (task?.status === "executing" || task?.status === "approved") {
+          orbTaskRepository.approve(input.taskId, ctx.user.id, true);
+          void driveOrbTaskInBackground({
+            taskId: input.taskId,
+            userId: ctx.user.id,
+            userRole: ctx.user.role,
+          });
+        }
+        return task;
       }),
 
     events: brainProcedure
