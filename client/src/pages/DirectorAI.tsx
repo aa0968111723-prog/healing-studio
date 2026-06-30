@@ -1806,13 +1806,17 @@ const GenerationProgressPanel = memo(function GenerationProgressPanel({
           )}
         </div>
       </div>
-      {segmentsTotal > 1 && !allDone && (
+      {segmentsTotal > 0 && !allDone && (
         <div className="px-3 py-1.5 border-b border-border/40">
           <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className={`h-full rounded-full bg-amber-500${reduceMotion ? "" : " transition-all duration-500"}`}
-              style={{ width: `${segmentPct}%` }}
-            />
+            {segmentsTotal > 1 ? (
+              <div
+                className={`h-full rounded-full bg-amber-500${reduceMotion ? "" : " transition-all duration-500"}`}
+                style={{ width: `${segmentPct}%` }}
+              />
+            ) : (
+              <div className={`h-full w-full rounded-full bg-amber-500/70${reduceMotion ? "" : " animate-pulse"}`} />
+            )}
           </div>
         </div>
       )}
