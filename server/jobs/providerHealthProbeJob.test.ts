@@ -151,6 +151,107 @@ describe("AIDV-574: providerSystemStatus judgment convergence (unit-level logic)
   });
 });
 
+describe("AIDV-886: classifyProbeStatus — auth failures mark provider unhealthy", () => {
+  let mod: typeof import("./providerHealthProbeJob.js");
+
+  beforeEach(async () => {
+    vi.resetModules();
+    mod = await import("./providerHealthProbeJob.js");
+  });
+
+  afterEach(() => {
+    mod.stopProviderHealthProbeCron();
+    vi.clearAllMocks();
+  });
+
+  // ── 2xx → healthy ──────────────────────────────────────────────
+  it.each([200, 201, 204, 299])("%i (2xx) → ok, regardless of requiresKey", (status) => {
+    expect(mod.classifyProbeStatus(status, true)).toEqual({ ok: true });
+    expect(mod.classifyProbeStatus(status, false)).toEqual({ ok: true });
+  });
+
+  // ── 401/403 with key → unhealthy (the core fix) ────────────────
+  it.each([401, 403])("%i WITH key (requiresKey=true) → unhealthy with credential error", (status) => {
+    const r = mod.classifyProbeStatus(status, true);
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain(`HTTP ${status}`);
+    expect(r.error).toMatch(/key invalid or expired/i);
+  });
+
+  // ── 401/403 WITHOUT key → reachable (gemini regression guard) ──
+  it.each([401, 403])("%i WITHOUT key (requiresKey=false, e.g. gemini) → ok, no false alert", (status) => {
+    expect(mod.classifyProbeStatus(status, false)).toEqual({ ok: true });
+  });
+
+  // ── 429 rate-limit → reachable (key valid, just throttled) ─────
+  it("429 (rate-limit) → ok even with key — key is valid, not an auth failure", () => {
+    expect(mod.classifyProbeStatus(429, true)).toEqual({ ok: true });
+    expect(mod.classifyProbeStatus(429, false)).toEqual({ ok: true });
+  });
+
+  // ── other 4xx (endpoint quirks) → reachable ────────────────────
+  it.each([400, 404, 405, 422])("%i (non-auth 4xx) → ok — endpoint quirk, not a key problem", (status) => {
+    expect(mod.classifyProbeStatus(status, true)).toEqual({ ok: true });
+  });
+
+  // ── 5xx → unhealthy ────────────────────────────────────────────
+  it.each([500, 502, 503, 504])("%i (5xx) → unhealthy, with or without key", (status) => {
+    expect(mod.classifyProbeStatus(status, true).ok).toBe(false);
+    expect(mod.classifyProbeStatus(status, false).ok).toBe(false);
+  });
+
+  it("5xx returns no synthesized credential error (preserves existing alert text)", () => {
+    expect(mod.classifyProbeStatus(503, true)).toEqual({ ok: false });
+  });
+
+  // ── 3xx redirect edge → treated as reachable ───────────────────
+  it("302 (redirect) → ok (reachable)", () => {
+    expect(mod.classifyProbeStatus(302, true)).toEqual({ ok: true });
+  });
+});
+
+describe("AIDV-886: probe cycle integration — expired key surfaces as unhealthy", () => {
+  let mod: typeof import("./providerHealthProbeJob.js");
+
+  beforeEach(async () => {
+    vi.resetModules();
+    mod = await import("./providerHealthProbeJob.js");
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    mod.stopProviderHealthProbeCron();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("401 from a keyed provider (anthropic) records ok=false; keyless gemini stays ok", async () => {
+    // Every probed provider returns 401. In the test env mock, fal+anthropic carry
+    // keys (requiresKey=true) → unhealthy; gemini is keyless (requiresKey=false) → ok.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 401, ok: false }));
+    await mod._runProbeCycleForTest();
+
+    const status = mod.getProviderProbeStatus();
+    const anthropic = status.find((s) => s.providerId === "anthropic");
+    const gemini = status.find((s) => s.providerId === "gemini");
+
+    expect(anthropic).toBeDefined();
+    expect(anthropic!.ok).toBe(false); // ← was silently `true` before the fix
+    expect(anthropic!.statusCode).toBe(401);
+
+    // Regression guard: keyless gemini's 401/403 must stay healthy
+    expect(gemini).toBeDefined();
+    expect(gemini!.ok).toBe(true);
+  });
+
+  it("200 keeps keyed providers healthy (no behavior change on success path)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status: 200, ok: true }));
+    await mod._runProbeCycleForTest();
+    const anthropic = mod.getProviderProbeStatus().find((s) => s.providerId === "anthropic");
+    expect(anthropic!.ok).toBe(true);
+  });
+});
+
 describe("AIDV-707: health-store bridging (probe → providerRouter)", () => {
   let mod: typeof import("./providerHealthProbeJob.js");
   let setProviderHealthFn: ReturnType<typeof vi.fn>;

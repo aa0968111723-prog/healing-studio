@@ -143,6 +143,43 @@ export function getProviderProbeStatus(): ProbeResult[] {
 
 // ─── Probe ───────────────────────────────────────────────────────────────────
 
+/**
+ * Maps a probe HTTP status to provider health (AIDV-886).
+ *
+ * Previously `res.status < 500` treated 401/403 as "healthy" (reachable), so an
+ * expired ANTHROPIC_API_KEY / OPENAI_API_KEY silently kept the provider green
+ * until a real generation request failed (masked the AIDV-871 prod incident).
+ *
+ * Rules:
+ *  - 2xx → healthy.
+ *  - 401/403 **only when we actually authenticate** (`requiresKey`) → unhealthy:
+ *    we sent a key and the provider rejected it → key invalid/expired.
+ *  - 5xx → unhealthy (provider server error).
+ *  - everything else (429 rate-limit = key valid; 400/404/405 endpoint quirks;
+ *    and 401/403 for *keyless* probes like gemini, whose `/v1beta/models` returns
+ *    403 with no key in the request) → reachable, key not rejected → ok.
+ *
+ * The `requiresKey` guard is load-bearing: gemini probes with no Authorization
+ * header, so its expected 403 must NOT be read as an auth failure (would
+ * otherwise fire a false alert every 10-minute cycle).
+ *
+ * Exported for exhaustive unit testing.
+ */
+export function classifyProbeStatus(
+  status: number,
+  requiresKey: boolean
+): { ok: boolean; error?: string } {
+  if (status >= 200 && status < 300) return { ok: true };
+  if (requiresKey && (status === 401 || status === 403)) {
+    return {
+      ok: false,
+      error: `HTTP ${status} — provider rejected credentials (API key invalid or expired)`,
+    };
+  }
+  if (status >= 500) return { ok: false };
+  return { ok: true };
+}
+
 async function probeProvider(
   providerId: string,
   config: ProbeConfig
@@ -155,10 +192,8 @@ async function probeProvider(
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     });
     const latencyMs = Date.now() - start;
-    // 4xx means the service is reachable; treat as ok for reachability
-    // 401/403 means bad key; 429 means quota/rate-limit — all "reachable"
-    const ok = res.status < 500;
-    return { ok, statusCode: res.status, latencyMs };
+    const { ok, error } = classifyProbeStatus(res.status, config.requiresKey);
+    return { ok, statusCode: res.status, latencyMs, error };
   } catch (err) {
     return {
       ok: false,
