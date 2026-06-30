@@ -112,7 +112,14 @@ export function OrbOnboardingDialog({ open, onOpenChange, onCompleted }: OrbOnbo
         </DialogHeader>
 
         <div className="space-y-3 py-2">
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <div
+            role="progressbar"
+            aria-valuenow={step + 1}
+            aria-valuemin={1}
+            aria-valuemax={totalSteps}
+            aria-label={`問卷進度 ${step + 1} / ${totalSteps}`}
+            className="flex items-center gap-1 text-xs text-muted-foreground"
+          >
             {ORB_ONBOARDING_QUESTIONS.map((_, i) => (
               <span
                 key={i}
