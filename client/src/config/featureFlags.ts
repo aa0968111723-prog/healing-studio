@@ -171,6 +171,14 @@ export const ENABLE_ORB_ONBOARDING: boolean = readFlag("VITE_ENABLE_ORB_ONBOARDI
 export const FEATURE_ONBOARDING_BRANCH: boolean =
   readRuntimeOverride("onboardingbranch") ?? readFlag("VITE_FEATURE_ONBOARDING_BRANCH", true);
 
+/**
+ * /learn 新手 0→1 路徑分頁（AIDV-811）。
+ * 在 /learn 新增「🚀 新手路徑」分頁為預設落點，含 5 步做中學路徑卡（localStorage 追蹤進度）。
+ * 預設 ON；關閉退路：VITE_FEATURE_LEARN_BEGINNER_PATH=0 或 ?learnbeginnerpath=0。
+ */
+export const FEATURE_LEARN_BEGINNER_PATH: boolean =
+  readRuntimeOverride("learnbeginnerpath") ?? readFlag("VITE_FEATURE_LEARN_BEGINNER_PATH", true);
+
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
   ENABLE_4SHELL,
@@ -181,6 +189,7 @@ export const FEATURE_FLAGS = {
   FEATURE_EXPORT_CHAIN,
   ENABLE_ORB_ONBOARDING,
   FEATURE_ONBOARDING_BRANCH,
+  FEATURE_LEARN_BEGINNER_PATH,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;

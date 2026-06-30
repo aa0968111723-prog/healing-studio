@@ -10,8 +10,11 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { Globe, Cpu } from "lucide-react";
 
-const flags = vi.hoisted(() => ({ chrome: false }));
-vi.mock("@/config/featureFlags", () => ({ get ENABLE_AIDV_CHROME() { return flags.chrome; } }));
+const flags = vi.hoisted(() => ({ chrome: false, beginnerPath: false }));
+vi.mock("@/config/featureFlags", () => ({
+  get ENABLE_AIDV_CHROME() { return flags.chrome; },
+  get FEATURE_LEARN_BEGINNER_PATH() { return flags.beginnerPath; },
+}));
 
 import { Tabs } from "@/components/ui/tabs";
 import { TabStrip } from "./LearnHome";

@@ -7,12 +7,12 @@
 // ============================================================================
 import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
-import { Globe, Cpu, BookOpen, Coins, KeyRound, Newspaper } from "lucide-react";
+import { Globe, Cpu, BookOpen, Coins, KeyRound, Newspaper, Rocket } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 // U-7（AIDV-97）逐殼採用 · /learn：旗標 ON 時分頁條改用 design-kit 亮色暖光 SubTabs；
 //（與 chrome 同一個 ENABLE_AIDV_CHROME 開關）；OFF（預設）＝既有 TabsList＝線上零變化。
 // 內容切換仍由 radix Tabs 的 value/TabsContent 負責；?sub= 深連結邏輯不動。
-import { ENABLE_AIDV_CHROME } from "@/config/featureFlags";
+import { ENABLE_AIDV_CHROME, FEATURE_LEARN_BEGINNER_PATH } from "@/config/featureFlags";
 import { AidvKit, SubTabs as DkSubTabs } from "@/components/design-kit";
 import { ResearchPanel } from "./panels/ResearchPanel";
 import { AIModelHubPanel } from "./panels/AIModelHubPanel";
@@ -20,8 +20,9 @@ import { LearnDocsPanel } from "./panels/LearnDocsPanel";
 import { CreditsUsagePanel } from "./panels/CreditsUsagePanel";
 import { ApiKeysPanel } from "./panels/ApiKeysPanel";
 import { NewsPanel } from "./panels/NewsPanel";
+import { BeginnerPathPanel } from "./panels/BeginnerPathPanel";
 
-const TABS = [
+const BASE_TABS = [
   { key: "research", label: "研究代理", icon: Globe },
   { key: "models", label: "模型情報", icon: Cpu },
   { key: "hub", label: "學習中心", icon: BookOpen },
@@ -30,7 +31,13 @@ const TABS = [
   { key: "news", label: "新聞", icon: Newspaper },
 ] as const;
 
-type TabKey = (typeof TABS)[number]["key"];
+const BEGINNER_TAB = { key: "start", label: "🚀 新手路徑", icon: Rocket } as const;
+
+const TABS = FEATURE_LEARN_BEGINNER_PATH
+  ? ([BEGINNER_TAB, ...BASE_TABS] as const)
+  : (BASE_TABS as unknown as typeof BASE_TABS);
+
+type TabKey = typeof TABS[number]["key"];
 
 function readSub(search: string, fallback: TabKey): TabKey {
   const sp = new URLSearchParams(search);
@@ -39,7 +46,7 @@ function readSub(search: string, fallback: TabKey): TabKey {
 }
 
 /** initial：canonical 子路徑（如 /learn/ai-models）指定的預設分頁；URL ?sub= 優先。 */
-export function LearnHome({ initial = "research" }: { initial?: TabKey }) {
+export function LearnHome({ initial = FEATURE_LEARN_BEGINNER_PATH ? "start" : "research" }: { initial?: TabKey }) {
   const search = useSearch();
   const [sub, setSub] = useState<TabKey>(() => readSub(search, initial));
 
@@ -65,6 +72,9 @@ export function LearnHome({ initial = "research" }: { initial?: TabKey }) {
       <Tabs value={sub} onValueChange={onChange} className="w-full">
         <TabStrip tabs={TABS} active={sub} onSelect={onChange} />
 
+        {FEATURE_LEARN_BEGINNER_PATH && (
+          <TabsContent value="start" className="mt-4"><BeginnerPathPanel /></TabsContent>
+        )}
         <TabsContent value="research" className="mt-4"><ResearchPanel /></TabsContent>
         <TabsContent value="models" className="mt-4"><AIModelHubPanel /></TabsContent>
         <TabsContent value="hub" className="mt-4"><LearnDocsPanel /></TabsContent>
