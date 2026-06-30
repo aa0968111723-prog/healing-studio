@@ -9,7 +9,7 @@
 //   失敗全額退）。提交後進 background_jobs 非同步佇列，完成後在資產庫。
 // ============================================================================
 import { useState } from "react";
-import { Mic, Waves, Loader2, Coins, CircleCheck } from "lucide-react";
+import { Mic, Waves, Loader2, Coins, CircleCheck, WifiOff, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,19 @@ export function VoiceAmbientCanvas() {
   const meta = ENGINES.find((e) => e.id === engine)!;
 
   const busy = qwen.isPending || eleven.isPending || sfx.isPending;
+
+  // AIDV-860: fal.ai provider health — stale 60s, non-blocking
+  const providerStatusQ = trpc.brain.providerSystemStatus.useQuery(undefined, {
+    staleTime: 60_000,
+    refetchInterval: 90_000,
+    refetchOnWindowFocus: false,
+  });
+  const falDown =
+    !providerStatusQ.isLoading &&
+    !!providerStatusQ.data &&
+    providerStatusQ.data.affectedProviders.includes("fal");
+  // ElevenLabs routes directly (not fal.ai), so only qwenTTS + soundEffects are blocked when fal is down.
+  const currentEngineDown = falDown && engine !== "elevenLabsTTS";
 
   const doEstimate = async () => {
     if (!text.trim()) return;
@@ -84,25 +97,48 @@ export function VoiceAmbientCanvas() {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {meta.ambient ? <Waves className="size-3.5 text-primary" /> : <Mic className="size-3.5 text-primary" />}
         配音 / 環境音 · proStudio → fal.ai
+        {!providerStatusQ.isLoading && providerStatusQ.data && (
+          falDown
+            ? <span className="ml-auto flex items-center gap-1 text-[10px] text-destructive"><WifiOff className="size-3" /> fal 離線</span>
+            : <span className="ml-auto flex items-center gap-1 text-[10px] text-green-600"><CheckCircle2 className="size-3" /> fal 正常</span>
+        )}
       </div>
 
+      {falDown && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive" role="alert">
+          <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+          <span>配音引擎目前無法使用（fal.ai 服務中斷），包含 <strong>Qwen TTS</strong> 與<strong>環境音</strong>。ElevenLabs 金鑰可用時可嘗試直連。</span>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-1.5">
-        {ENGINES.map((e) => (
-          <Button
-            key={e.id}
-            size="sm"
-            variant={engine === e.id ? "default" : "outline"}
-            className="h-7 text-xs"
-            onClick={() => { setEngine(e.id); setEstimate(null); setSubmitted(null); }}
-          >
-            {e.label}
-          </Button>
-        ))}
+        {ENGINES.map((e) => {
+          const isFalBased = e.id !== "elevenLabsTTS";
+          const isDown = falDown && isFalBased;
+          return (
+            <Button
+              key={e.id}
+              size="sm"
+              variant={engine === e.id ? "default" : "outline"}
+              className="h-7 text-xs"
+              onClick={() => { setEngine(e.id); setEstimate(null); setSubmitted(null); }}
+            >
+              {falDown && (
+                <span
+                  className={`inline-block size-1.5 rounded-full shrink-0 mr-1 ${isDown ? "bg-destructive" : "bg-amber-400"}`}
+                  aria-hidden
+                />
+              )}
+              {e.label}
+            </Button>
+          );
+        })}
       </div>
 
       {meta.needsKey && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
-          ElevenLabs 需 <span className="font-mono">ELEVENLABS_API_KEY</span>（後端設定）；未設定會回 PRECONDITION_FAILED。無金鑰請改用 Qwen TTS。
+          ElevenLabs 需 <span className="font-mono">ELEVENLABS_API_KEY</span>（後端設定）；未設定會回 PRECONDITION_FAILED。
+          {falDown ? " Qwen TTS / 環境音目前不可用（fal.ai 中斷），有金鑰時 ElevenLabs 仍可嘗試。" : " 無金鑰請改用 Qwen TTS。"}
         </div>
       )}
 
@@ -119,7 +155,7 @@ export function VoiceAmbientCanvas() {
           <Coins className="size-4" /> 估算成本
         </Button>
         {estimate !== null && <Badge variant="secondary" className="text-[10px]">約 {estimate} pts</Badge>}
-        <Button size="sm" className="ml-auto" onClick={() => void doSubmit()} disabled={busy || !text.trim()}>
+        <Button size="sm" className="ml-auto" onClick={() => void doSubmit()} disabled={busy || !text.trim() || currentEngineDown}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : null} 確認生成
         </Button>
       </div>
