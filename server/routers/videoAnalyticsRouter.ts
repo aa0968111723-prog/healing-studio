@@ -43,13 +43,24 @@ export const videoAnalyticsRouter = router({
       if (!db) return { ok: false };
 
       const project = await db
-        .select({ id: videoProjects.id })
+        .select({ id: videoProjects.id, userId: videoProjects.userId })
         .from(videoProjects)
         .where(eq(videoProjects.id, input.videoProjectId))
         .limit(1);
 
       if (project.length === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "影片專案不存在" });
+      }
+
+      // AIDV-862: ownership check — only the video's owner may write analytics
+      // events for it (mirrors getSummary in this file). Closes the IDOR where
+      // any logged-in user could inject fake play/complete/seek events for
+      // another owner's videoProjectId and pollute their analytics dashboard.
+      if (project[0]!.userId !== ctx.user.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "無權限對此影片寫入分析事件",
+        });
       }
 
       await db.insert(videoAnalytics).values({
