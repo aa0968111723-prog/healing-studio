@@ -164,11 +164,14 @@ export const DEFAULT_GENERATION_ENGINES: Record<
   { engine: string; params: Record<string, unknown> | null }
 > = {
   imageEngine: { engine: "fal-ai/flux-pro/v1.1", params: null },
-  // wan-t2v is the verified-working default. Kling t2v variants were
-  // previously the default but they're broken upstream at fal as of
-  // 2026-05 (gateway short-circuits, no actual inference). The dispatcher
-  // also auto-degrades disabled models so users with the old default in
-  // their saved brain config still get a working result.
+  // wan-t2v is the verified-working default. Kling's *standard* t2v variant
+  // was previously the default but it's broken upstream at fal as of
+  // 2026-05 (gateway short-circuits, no actual inference) — see
+  // falModels.ts's `disabled: true` entry for it. The *pro* t2v variant is
+  // unaffected and is the catalog's designated replacement (used below for
+  // the premium tier). The dispatcher also auto-degrades disabled models so
+  // users with the old default in their saved brain config still get a
+  // working result.
   videoEngine: {
     engine: "fal-ai/wan-t2v",
     params: null,
@@ -201,14 +204,66 @@ const ECONOMY_GENERATION_ENGINES: Record<
   voiceEngine:  { engine: "fal-ai/elevenlabs/tts/turbo-v2.5",   params: null },
 };
 
+// premium：推理大腦同 balanced（AIDV-856 規格表「同 balanced」）；生成引擎只升級
+// videoEngine→Kling Pro t2v 與 voiceEngine→ElevenLabs Multilingual v2（兩者都已是
+// falDispatcher 既有可用模型，純換預設字串、零新整合風險）。imageEngine 同 balanced
+// （flux-pro/v1.1 已是最高階圖像選項）。
+//
+// audioEngine 刻意維持 ace-step（同 balanced），未照規格表設 suno-v4：
+// server/routers/proStudio.ts 的 audioEngineToMusicChoice() 只認得
+// sonauto/stable-audio/musicgen 子字串，任何其餘字串（含 "suno-v4"）都會静默
+// fallback 回 ace-step——若直接填 "suno-v4" 只是讓組態顯示的型號與實際生成模型
+// 不一致（且 Suno 本身走獨立的 generateMusicSuno/webhookSuno 非同步流程，未接
+// MusicModelChoice），等於重現本卡要修的「宣稱 X 實際 Y」靜默降級問題。要真正
+// 支援 premium 音樂走 Suno，需另開卡把 Suno 接成 MusicModelChoice 選項。
+const PREMIUM_REASONING_BRAINS: Record<
+  ReasoningBrainSlot,
+  { model: string; temperature: number; topP: number }
+> = DEFAULT_REASONING_BRAINS;
+
+const PREMIUM_GENERATION_ENGINES: Record<
+  GenerationEngineSlot,
+  { engine: string; params: Record<string, unknown> | null }
+> = {
+  imageEngine:  DEFAULT_GENERATION_ENGINES.imageEngine,
+  videoEngine:  { engine: "fal-ai/kling-video/v2.1/pro/text-to-video", params: null },
+  audioEngine:  DEFAULT_GENERATION_ENGINES.audioEngine,
+  voiceEngine:  { engine: "fal-ai/elevenlabs/tts/multilingual-v2",     params: null },
+};
+
+export type ModelTier = "economy" | "balanced" | "premium";
+
+/** 記錄上一次警告過的未知值，避免 getActiveDefaultBrains/Engines 同一請求各呼叫一次造成重複 warn。 */
+let lastWarnedUnknownTier: string | undefined;
+
+/**
+ * 解析 PREFER_CHEAP_MODELS 為已知分層；未知值（如 "ultra"）安全退回 economy
+ * 並 console.warn，而非靜默誤判（AIDV-938 驗收條件）。同一未知值只警告一次
+ * （直到值改變），避免 brains/engines 兩函式同請求各呼叫一次而重複洗版。
+ */
+function resolveModelTier(raw: string | undefined): ModelTier {
+  const value = raw ?? "economy";
+  if (value === "economy" || value === "balanced" || value === "premium") {
+    return value;
+  }
+  if (value !== lastWarnedUnknownTier) {
+    lastWarnedUnknownTier = value;
+    console.warn(
+      `[BrainContext] Unknown PREFER_CHEAP_MODELS="${value}", falling back to "economy"`
+    );
+  }
+  return "economy";
+}
+
 /** 依 PREFER_CHEAP_MODELS 旗標返回當前分層的推理大腦預設值。 */
 export function getActiveDefaultBrains(): Record<
   ReasoningBrainSlot,
   { model: string; temperature: number; topP: number }
 > {
-  return (process.env.PREFER_CHEAP_MODELS ?? "economy") === "balanced"
-    ? DEFAULT_REASONING_BRAINS
-    : ECONOMY_REASONING_BRAINS;
+  const tier = resolveModelTier(process.env.PREFER_CHEAP_MODELS);
+  if (tier === "balanced") return DEFAULT_REASONING_BRAINS;
+  if (tier === "premium") return PREMIUM_REASONING_BRAINS;
+  return ECONOMY_REASONING_BRAINS;
 }
 
 /** 依 PREFER_CHEAP_MODELS 旗標返回當前分層的生成引擎預設值。 */
@@ -216,9 +271,10 @@ export function getActiveDefaultEngines(): Record<
   GenerationEngineSlot,
   { engine: string; params: Record<string, unknown> | null }
 > {
-  return (process.env.PREFER_CHEAP_MODELS ?? "economy") === "balanced"
-    ? DEFAULT_GENERATION_ENGINES
-    : ECONOMY_GENERATION_ENGINES;
+  const tier = resolveModelTier(process.env.PREFER_CHEAP_MODELS);
+  if (tier === "balanced") return DEFAULT_GENERATION_ENGINES;
+  if (tier === "premium") return PREMIUM_GENERATION_ENGINES;
+  return ECONOMY_GENERATION_ENGINES;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
