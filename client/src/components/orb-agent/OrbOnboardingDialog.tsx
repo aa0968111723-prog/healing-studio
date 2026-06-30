@@ -49,6 +49,8 @@ export function OrbOnboardingDialog({ open, onOpenChange, onCompleted }: OrbOnbo
     onSuccess: () => {
       void utils.agentPreferences.getPreferences.invalidate();
       void utils.agentPreferences.getDistilledProfile.invalidate();
+      localStorage.setItem('ai-director-onboarded', 'true');
+      localStorage.removeItem('orb-onboarding-skipped');
       toast.success("謝謝！光球已記下你的偏好。");
       onCompleted?.(answers);
       onOpenChange(false);
@@ -84,8 +86,7 @@ export function OrbOnboardingDialog({ open, onOpenChange, onCompleted }: OrbOnbo
   };
 
   const handleSkip = () => {
-    // Mark onboarding done so the dialog doesn't reappear, but don't push
-    // any opinionated preferences — the user gets the defaults.
+    localStorage.setItem('orb-onboarding-skipped', 'true');
     updateMutation.mutate({
       onboardingCompletedAt: new Date().toISOString(),
     });
