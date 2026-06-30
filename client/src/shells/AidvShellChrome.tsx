@@ -56,12 +56,19 @@ export function AidvShellChrome() {
     refetchOnWindowFocus: false,
   });
   useEffect(() => {
-    if (ENABLE_ORB_ONBOARDING && prefsQ.data && !prefsQ.data.onboardingCompletedAt) {
+    if (
+      ENABLE_ORB_ONBOARDING &&
+      !prefsQ.isLoading &&
+      prefsQ.data &&
+      !prefsQ.data.onboardingCompletedAt &&
+      !localStorage.getItem('ai-director-onboarded') &&
+      !localStorage.getItem('orb-onboarding-skipped')
+    ) {
       setOnboardingOpen(true);
     } else if (ENABLE_ORB_ONBOARDING && prefsQ.isError) {
       setOnboardingOpen(true);
     }
-  }, [prefsQ.data, prefsQ.isError]);
+  }, [prefsQ.data, prefsQ.isLoading, prefsQ.isError]);
 
   // U-4 第二/三片：接真實資料（皆在旗標之下、僅 chrome ON 時查詢）。
   const world = useCreativeProject();
@@ -226,7 +233,7 @@ export function AidvShellChrome() {
       <OrbOnboardingDialog
         open={onboardingOpen}
         onOpenChange={setOnboardingOpen}
-        onCompleted={() => navigate("/video")}
+        onCompleted={() => { if (location !== "/video") navigate("/video"); }}
       />
     )}
     </ToastProvider>

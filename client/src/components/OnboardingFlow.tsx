@@ -87,6 +87,11 @@ const SKELETON_WIDTHS = [88, 104, 96, 112] as const;
 type Props = {
   onComplete: () => void;
   onSkip: () => void;
+  /**
+   * AIDV-836: 分支 chip 導航改「單次導航」避免 history 污染。
+   * 不傳時退回舊行為（先 onComplete()（含 navigate("/agent")）再 setLocation，
+   * 會把 /agent 多推進 history，使用者按 Back 卡在 /agent 而非首頁）。
+   */
   onBranchComplete?: (path: string) => void;
 };
 
@@ -290,7 +295,9 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
     onComplete();
   }, [onComplete]);
 
-  // Navigate to a shell and mark onboarding complete first
+  // Navigate to a shell and mark onboarding complete first.
+  // AIDV-836: prefer a single navigation (onBranchComplete) to avoid pushing an
+  // extra /agent entry into history (which traps the Back button on /agent).
   const handleBranchNavigate = useCallback((path: string) => {
     localStorage.setItem("ai-director-onboarded", "true");
     if (onBranchComplete) {
@@ -299,7 +306,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
       onComplete();
       setLocation(path);
     }
-  }, [onBranchComplete, onComplete, setLocation]);
+  }, [onComplete, onBranchComplete, setLocation]);
 
   // Handle chip click: replace input with chip text
   const handleChipClick = useCallback((chip: string) => {
@@ -702,7 +709,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                   <p className="text-xs text-muted-foreground mb-3 font-medium tracking-wide uppercase">
                     下一步，你想做什麼？
                   </p>
-                  <div className="flex flex-wrap justify-center gap-2">
+                  <div role="group" aria-label="下一步選項" className="flex flex-wrap justify-center gap-2">
                     {[
                       { label: "🎵 配上一段音樂，作品就活了", path: "/pro-studio" },
                       { label: "🎬 讓這張圖動起來（圖生影）", path: "/video-studio" },

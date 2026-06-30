@@ -17,6 +17,7 @@ import { serveStatic, setupVite } from "./vite";
 import { uploadRouter } from "../uploadRoute";
 import { sseRouter } from "../sseRoute";
 import { agentEventsRouter } from "../agentEventsRoute";
+import { unifiedSseRouter } from "../unifiedSseRoute";
 import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
 import {
   initModelTrainingWorkerCron,
@@ -589,6 +590,10 @@ async function startServer() {
   app.use(sseRouter);
   // SSE for multi-agent collaboration state broadcast (AIDV-331)
   app.use(agentEventsRouter);
+  // AIDV-716: unified /api/sse endpoint (gated — set UNIFIED_SSE_ROUTER=1 to enable)
+  if (process.env.UNIFIED_SSE_ROUTER === "1") {
+    app.use(unifiedSseRouter);
+  }
   // Agent status dashboard + SSE heartbeat + Prometheus metrics (AIDV-334/336)
   app.use(agentStatusRouter);
   // Multi-agent handoff trace (AIDV-318)

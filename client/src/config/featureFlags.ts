@@ -156,6 +156,15 @@ export const FEATURE_EXPORT_CHAIN: boolean =
   readRuntimeOverride("exportchain") ?? readFlag("VITE_FEATURE_EXPORT_CHAIN", true);
 
 /**
+ * 統一 SSE 路由開關（AIDV-716）：ON 時前端改用 /api/sse 統一端點取代三條
+ * 舊 SSE 端點（/api/generation-events/:jobId、/api/model-training-events/:modelId）。
+ * **預設 OFF**，零行為改變；需同時在伺服器端設 UNIFIED_SSE_ROUTER=1 才能生效。
+ *
+ * 關閉退路：取消 VITE_UNIFIED_SSE_ROUTER 或設為 0 → 恢復舊三端點，不需改碼。
+ */
+export const UNIFIED_SSE_ROUTER: boolean = readFlag("VITE_UNIFIED_SSE_ROUTER", false);
+
+/**
  * OrbOnboarding 引導對話框開關（AIDV-823 / AIDV-830）。
  * 首次登入時彈出引導問卷，讓代理了解使用者偏好，完成後導向 /video。
  * 預設 ON（AIDV-830：旗標政策，預設開啟、秒回滾退路）。
@@ -195,6 +204,7 @@ export const FEATURE_FLAGS = {
   ENABLE_AIDV_CHROME,
   ORB_SMILEY_ONLY,
   FEATURE_EXPORT_CHAIN,
+  UNIFIED_SSE_ROUTER,
   ENABLE_ORB_ONBOARDING,
   FEATURE_ONBOARDING_BRANCH,
   FEATURE_LEARN_BEGINNER_PATH,

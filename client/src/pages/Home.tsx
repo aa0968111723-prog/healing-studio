@@ -1121,6 +1121,13 @@ ${profileSnippet}`;
             setShowOnboarding(false);
             navigate("/agent");
           }}
+          onBranchComplete={(path) => {
+            // AIDV-836: navigate straight to the chosen shell in a single push,
+            // without the intermediate navigate("/agent") that polluted history
+            // (Back button got trapped on /agent instead of returning home).
+            setShowOnboarding(false);
+            navigate(path);
+          }}
           onSkip={() => {
             setShowOnboarding(false);
             navigate("/agent");
@@ -1453,28 +1460,29 @@ ${profileSnippet}`;
 
               {/* Capability chips — consistent sizing, a leading glow dot, and
                   a single tidy row signalling the three pillars. */}
-              <div className="mt-6 sm:mt-7 flex flex-wrap justify-center gap-2 sm:gap-2.5">
+              <ul role="list" aria-label="創作功能" className="mt-6 sm:mt-7 flex flex-wrap justify-center gap-2 sm:gap-2.5">
                 {['圖片生成', '影片分鏡', '導演協作'].map((label) => (
-                  <span
-                    key={label}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-3 sm:px-3.5 py-1.5 text-[12px] sm:text-[13px] font-medium transition-colors duration-1000 ${s.textSecondary}`}
-                    style={{
-                      background: s.cardBg,
-                      border: `1px solid ${s.cardBorder}`,
-                    }}
-                  >
+                  <li key={label} className="list-none">
                     <span
-                      aria-hidden
-                      className="w-1 h-1 rounded-full"
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 sm:px-3.5 py-1.5 text-[12px] sm:text-[13px] font-medium transition-colors duration-1000 ${s.textSecondary}`}
                       style={{
-                        background: s.glowColor,
-                        boxShadow: `0 0 6px ${s.glowColor}`,
+                        background: s.cardBg,
+                        border: `1px solid ${s.cardBorder}`,
                       }}
-                    />
-                    {label}
-                  </span>
+                    >
+                      <span
+                        aria-hidden
+                        className="w-1 h-1 rounded-full"
+                        style={{
+                          background: s.glowColor,
+                          boxShadow: `0 0 6px ${s.glowColor}`,
+                        }}
+                      />
+                      {label}
+                    </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </motion.div>
 
             {/* OARS Contextual Greeting — replaces static title */}

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { UNIFIED_SSE_ROUTER } from "@/config/featureFlags";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -389,12 +390,18 @@ export default function LoraTrainer({
       return; // 已完成 / 失敗的模型不需要 SSE
     }
 
-    const es = new EventSource(
-      `/api/model-training-events/${selectedModelId}`
-    );
+    const url = UNIFIED_SSE_ROUTER
+      ? `/api/sse?modelId=${selectedModelId}`
+      : `/api/model-training-events/${selectedModelId}`;
+    const es = new EventSource(url);
     es.onmessage = ev => {
       try {
-        const event = JSON.parse(ev.data) as { type: string };
+        const raw = JSON.parse(ev.data) as Record<string, unknown>;
+        // UnifiedSseEvent envelope: { bus_id, sequence_no, timestamp, payload }
+        // Legacy format: { type } directly
+        const event = (raw.bus_id === "generation" && raw.payload != null
+          ? (raw.payload as { type: string })
+          : raw) as { type: string };
         if (event.type === "complete" || event.type === "error") {
           void detailQuery.refetch();
           void historyQuery.refetch();

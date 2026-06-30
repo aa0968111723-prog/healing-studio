@@ -26,6 +26,7 @@ export interface ValidationState {
 interface RetryEntry {
   count: number;
   lastFailureType: ValidationFailureType;
+  createdAt: number;
   updatedAt: number;
 }
 
@@ -37,6 +38,15 @@ function evictStaleRetryEntries(): void {
   for (const [key, entry] of retryMap) {
     if (entry.updatedAt < cutoff) retryMap.delete(key);
   }
+}
+
+const RETRY_ENTRY_TTL_MS = 24 * 60 * 60 * 1000;
+
+function evictStaleEntries(now: number): void {
+  const cutoff = now - RETRY_ENTRY_TTL_MS;
+  retryMap.forEach((entry, key) => {
+    if (entry.createdAt < cutoff) retryMap.delete(key);
+  });
 }
 
 /** Exported only for tests — clears all state between tests. */
@@ -82,8 +92,9 @@ export function routeValidationFailure(
 ): ValidationState {
   evictStaleRetryEntries();
   const mapKey = `${userId}:${issueKey}`;
-  const existing = retryMap.get(mapKey);
   const now = Date.now();
+  evictStaleEntries(now);
+  const existing = retryMap.get(mapKey);
 
   // non-retryable types skip the counter and go straight to decision
   if (failureType === "test" || failureType === "unknown") {
@@ -96,13 +107,13 @@ export function routeValidationFailure(
       maxRetries,
       updatedAt: now,
     };
-    retryMap.set(mapKey, { count: existing?.count ?? 0, lastFailureType: failureType, updatedAt: now });
+    retryMap.set(mapKey, { count: existing?.count ?? 0, lastFailureType: failureType, createdAt: existing?.createdAt ?? now, updatedAt: now });
     return state;
   }
 
   // retryable types: lint, build
   const retryCount = (existing?.count ?? 0) + 1;
-  retryMap.set(mapKey, { count: retryCount, lastFailureType: failureType, updatedAt: now });
+  retryMap.set(mapKey, { count: retryCount, lastFailureType: failureType, createdAt: existing?.createdAt ?? now, updatedAt: now });
 
   const action: RoutingAction = retryCount >= maxRetries ? "escalate" : "retry";
   return {
