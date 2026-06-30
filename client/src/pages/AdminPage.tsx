@@ -2342,14 +2342,14 @@ function SkillRegistryTab() {
                   </td>
                   <td className="py-2 pr-3">
                     {s.status === "active" ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                      <CheckCircle2 aria-label="已啟用" className="w-3.5 h-3.5 text-green-500" />
                     ) : (
-                      <XCircle className="w-3.5 h-3.5 text-destructive" />
+                      <XCircle aria-label="已停用" className="w-3.5 h-3.5 text-destructive" />
                     )}
                   </td>
                   <td className="py-2 pr-3">
                     {s.needsReaudit ? (
-                      <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+                      <AlertTriangle aria-label="需重審" className="w-3.5 h-3.5 text-yellow-500" />
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
