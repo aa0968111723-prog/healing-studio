@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "./VisualSoul";
@@ -7,6 +8,7 @@ import ThoughtIslandChain, { type ThoughtNode } from "./ThoughtIslandChain";
 import { Button } from "./ui/button";
 import { ArrowRight, Sparkles, SkipForward, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { FEATURE_ONBOARDING_BRANCH } from "@/config/featureFlags";
 
 // ─── Typewriter Hook ────────────────────────────────────────────────────────
 
@@ -71,6 +73,7 @@ type Props = {
 
 export default function OnboardingFlow({ onComplete, onSkip }: Props) {
   const { setAIState, personality } = useAIState();
+  const [, setLocation] = useLocation();
   const [step, setStep] = useState<OnboardingStep>("greeting");
   const [greetingIndex, setGreetingIndex] = useState(0);
   const [userInput, setUserInput] = useState("");
@@ -261,6 +264,13 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
     localStorage.setItem("ai-director-onboarded", "true");
     onComplete();
   }, [onComplete]);
+
+  // Navigate to a shell and mark onboarding complete first
+  const handleBranchNavigate = useCallback((path: string) => {
+    localStorage.setItem("ai-director-onboarded", "true");
+    onComplete();
+    setLocation(path);
+  }, [onComplete, setLocation]);
 
   // Handle chip click: replace input with chip text
   const handleChipClick = useCallback((chip: string) => {
@@ -584,6 +594,38 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                   進入完整工作室
                 </Button>
               </div>
+
+              {/* AIDV-810: next-step branch chips — only shown after a successful first image */}
+              {resultUrl && FEATURE_ONBOARDING_BRANCH && (
+                <div className="mt-8">
+                  <p className="text-xs text-muted-foreground mb-3 font-medium tracking-wide uppercase">
+                    下一步，你想做什麼？
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {[
+                      { label: "🎵 配上一段音樂，作品就活了", path: "/pro-studio" },
+                      { label: "🎬 讓這張圖動起來（圖生影）", path: "/video-studio" },
+                      { label: "🎭 做整支短片？交給導演 AI", path: "/director" },
+                      { label: "🖼️ 再生一張，換個風格試試", path: null },
+                    ].map(({ label, path }) => (
+                      <button
+                        key={label}
+                        onClick={() => {
+                          if (path) {
+                            handleBranchNavigate(path);
+                          } else {
+                            setResultUrl(null);
+                            setStep("input");
+                          }
+                        }}
+                        className="rounded-full px-4 py-2 text-sm bg-white/60 hover:bg-white/80 border border-white/50 shadow-sm transition-all cursor-pointer text-foreground/80 hover:text-foreground"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
