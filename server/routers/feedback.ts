@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, adminProcedure, protectedProcedure } from "../_core/trpc";
 import { tryConsumeFeedbackToken } from "../_core/rateLimiter";
+import { isKeyOwnedByUser } from "../signedUpload";
 import * as db from "../db";
 
 // ─── Feedback ─────────────────────────────────────────────────────────────────
@@ -53,8 +54,12 @@ export const feedbackRouter = router({
           message: "回饋提交過於頻繁，請稍後再試（每小時最多 10 次）。",
         });
       }
-      // AIDV-931: screenshotKey must be owned by the submitting user
-      if (input.screenshotKey && !input.screenshotKey.startsWith(`screenshots/${ctx.user.id}/`)) {
+      // AIDV-931 / AIDV-881: screenshotKey must be owned by the submitting user.
+      // Reuse the canonical presign/finalize guard so the namespace stays in lock-step
+      // with how keys are actually minted (`uploads/<userId>/...`, see signedUpload.ts).
+      // The previous hard-coded `screenshots/<id>/` prefix matched no real key, so it
+      // both failed to add security *and* FORBID-rejected every legitimate screenshot.
+      if (input.screenshotKey && !isKeyOwnedByUser(input.screenshotKey, ctx.user.id)) {
         throw new TRPCError({ code: "FORBIDDEN", message: "screenshotKey 不屬於目前用戶。" });
       }
       const id = await db.createFeedbackReport({
