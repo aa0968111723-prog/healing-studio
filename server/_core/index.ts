@@ -1021,13 +1021,15 @@ async function startServer() {
   // 2026-06-30: NODE_ENV was unset → fell into the scan path → app bound 3000 ≠
   // Railway's $PORT → 14/14 healthcheck attempts "service unavailable" → every
   // deploy FAILED. Only scan when PORT is unset (genuine local dev).
-  const preferredPort = parseInt(process.env.PORT || "3000");
+  // In production, Railway ALWAYS sets $PORT. Use it directly.
+  // In dev, use $PORT if set, otherwise scan for available port.
+  const portEnv = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const port =
     process.env.NODE_ENV === "production"
-      ? preferredPort
-      : await findAvailablePort(preferredPort);
+      ? portEnv
+      : await findAvailablePort(portEnv);
 
-  if (process.env.NODE_ENV !== "production" && port !== preferredPort) {
+  if (process.env.NODE_ENV !== "production" && port !== portEnv) {
     logger.warn("Preferred port unavailable, switched port", {
       preferredPort,
       selectedPort: port,
