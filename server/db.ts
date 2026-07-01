@@ -5484,13 +5484,48 @@ export function escapeLikePattern(raw: string): string {
 
 export interface VideoProjectsPage {
   items: VideoProject[];
-  /** 下一頁游標（最後一筆 id）；無更多資料時為 null。 */
-  nextCursor: number | null;
+  /**
+   * AIDV-576：下一頁 opaque 游標，編碼本頁最後一筆的複合鍵 `(updatedAt, id)`。
+   * 無更多資料時為 null。前端原樣回傳即可（不需理解內容）。
+   */
+  nextCursor: string | null;
+}
+
+/** AIDV-576：複合游標解析結果 `(updatedAt, id)`。 */
+export interface VideoProjectCursor {
+  updatedAtMs: number;
+  id: number;
+}
+
+/**
+ * AIDV-576：把一筆專案編碼成 opaque 游標字串 `${updatedAtMs}_${id}`。
+ * 列表以 keyset `(updatedAt DESC, id DESC)` 分頁，故游標需同時帶 updatedAt 與 id
+ * （只帶 id 會在「最近編輯優先」排序下無法形成穩定邊界）。
+ */
+export function encodeVideoProjectCursor(p: Pick<VideoProject, "updatedAt" | "id">): string {
+  return `${new Date(p.updatedAt).getTime()}_${p.id}`;
+}
+
+/**
+ * AIDV-576：解析 opaque 游標字串；格式不符（非 `<ms>_<id>`、含 NaN/非正 id）一律回 null
+ * ＝視為「從第一頁開始」，不丟錯（保守，與 cursor 缺省同語意）。
+ */
+export function decodeVideoProjectCursor(
+  raw: string | null | undefined,
+): VideoProjectCursor | null {
+  if (!raw) return null;
+  const m = /^(\d+)_(\d+)$/.exec(raw);
+  if (!m) return null;
+  const updatedAtMs = Number(m[1]);
+  const id = Number(m[2]);
+  if (!Number.isSafeInteger(updatedAtMs) || !Number.isSafeInteger(id) || id <= 0) return null;
+  return { updatedAtMs, id };
 }
 
 /**
  * AIDV-307：純函式 — 從「多取一筆」的查詢結果切出本頁與 nextCursor。
  * 抽出便於單元測試邊界（剛好 limit 筆 / 多一筆 / 空）。
+ * AIDV-576：nextCursor 改編碼複合鍵 `(updatedAt, id)`（見 encodeVideoProjectCursor）。
  */
 export function sliceVideoProjectsPage(
   rows: VideoProject[],
@@ -5498,28 +5533,40 @@ export function sliceVideoProjectsPage(
 ): VideoProjectsPage {
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
-  const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+  const nextCursor = hasMore ? encodeVideoProjectCursor(items[items.length - 1]!) : null;
   return { items, nextCursor };
 }
 
 /**
  * AIDV-307：游標分頁版的使用者影片專案列表。
- * - 以 `id` 遞減排序（id 為 autoincrement，等同建立順序「最新在前」且穩定唯一，適合做游標）。
- * - `cursor` 帶上一頁最後一筆 id，回傳 `id < cursor` 的下一批，避免 offset 漂移。
+ * AIDV-576：排序還原為「最近編輯優先」`(updatedAt DESC, id DESC)`，修復 AIDV-307 把排序
+ *   靜默改成 `id DESC`（建立順序）造成「今天剛編輯的舊專案沉到後頁、生命週期卡預設選錯」的回歸。
+ * - 以複合 keyset 游標維持分頁穩定：`(updatedAt, id) < (cursor.updatedAt, cursor.id)`，
+ *   `id` 為唯一 tiebreaker，避免同秒 updatedAt 造成跳漏/重複。
+ * - `cursor` 為 opaque 字串（見 encode/decodeVideoProjectCursor）；缺省或格式不符＝第一頁。
  * - `search` 對 title 做字面包含（萬用字元已跳脫）。
  * - 多取一筆判斷是否還有下一頁，回傳 nextCursor。
  */
 export async function getVideoProjectsByUserPaged(opts: {
   userId: number;
   limit: number;
-  cursor?: number | null;
+  cursor?: string | null;
   search?: string | null;
 }): Promise<VideoProjectsPage> {
   const db = await getDb();
   if (!db) return { items: [], nextCursor: null };
 
   const conditions: SQL[] = [eq(videoProjects.userId, opts.userId)];
-  if (opts.cursor != null) conditions.push(lt(videoProjects.id, opts.cursor));
+  const cur = decodeVideoProjectCursor(opts.cursor);
+  if (cur) {
+    const cursorDate = new Date(cur.updatedAtMs);
+    conditions.push(
+      or(
+        lt(videoProjects.updatedAt, cursorDate),
+        and(eq(videoProjects.updatedAt, cursorDate), lt(videoProjects.id, cur.id)),
+      )!,
+    );
+  }
   const trimmed = opts.search?.trim();
   if (trimmed) {
     conditions.push(like(videoProjects.title, `%${escapeLikePattern(trimmed)}%`));
@@ -5529,7 +5576,7 @@ export async function getVideoProjectsByUserPaged(opts: {
     .select()
     .from(videoProjects)
     .where(and(...conditions))
-    .orderBy(desc(videoProjects.id))
+    .orderBy(desc(videoProjects.updatedAt), desc(videoProjects.id))
     .limit(opts.limit + 1);
 
   return sliceVideoProjectsPage(rows, opts.limit);

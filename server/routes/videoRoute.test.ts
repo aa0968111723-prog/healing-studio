@@ -147,15 +147,15 @@ describe("GET /api/video", () => {
     });
   });
 
-  it("passes cursor and limit from query", async () => {
+  it("passes cursor and limit from query (AIDV-576 cursor 為 opaque 字串，不再 coerce 成數字)", async () => {
     const { listHandler } = await getRouteHandlers();
-    const req = mockReq(42, { query: { cursor: "5", limit: "10", search: "test" } });
+    const req = mockReq(42, { query: { cursor: "1700000000000_5", limit: "10", search: "test" } });
     const res = mockRes();
     await listHandler(req, res);
     expect(mockGetVideoProjectsByUserPaged).toHaveBeenCalledWith({
       userId: 42,
       limit: 10,
-      cursor: 5,
+      cursor: "1700000000000_5",
       search: "test",
     });
   });

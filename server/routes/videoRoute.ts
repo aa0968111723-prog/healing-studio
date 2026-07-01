@@ -105,7 +105,8 @@ videoRouter.get("/api/video", async (req: AuthedReq, res: Response) => {
 
   const parsed = z
     .object({
-      cursor: z.coerce.number().int().positive().optional(),
+      // AIDV-576：游標為 opaque 字串（編碼複合鍵 updatedAt+id），原樣回傳 nextCursor。
+      cursor: z.string().min(1).max(64).optional(),
       limit: z.coerce.number().int().min(1).max(50).default(20),
       search: z.string().trim().max(255).optional(),
     })

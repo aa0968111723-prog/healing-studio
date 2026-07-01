@@ -169,29 +169,29 @@ describe("AIDV-307 videoProject.list — 游標分頁", () => {
     });
   });
 
-  it("傳入 cursor/limit/search → 原樣下傳 DB 層", async () => {
+  it("傳入 cursor/limit/search → 原樣下傳 DB 層（AIDV-576 cursor 為 opaque 字串）", async () => {
     (db.getVideoProjectsByUserPaged as any).mockResolvedValue({ items: [], nextCursor: null });
 
     const caller = videoProjectRouter.createCaller(ctx);
-    await caller.list({ cursor: 100, limit: 5, search: "品牌" });
+    await caller.list({ cursor: "1700000000000_100", limit: 5, search: "品牌" });
     expect(db.getVideoProjectsByUserPaged).toHaveBeenCalledWith({
       userId: 7,
       limit: 5,
-      cursor: 100,
+      cursor: "1700000000000_100",
       search: "品牌",
     });
   });
 
-  it("回傳 nextCursor 供前端載入下一頁", async () => {
+  it("回傳 nextCursor（複合游標字串）供前端載入下一頁", async () => {
     (db.getVideoProjectsByUserPaged as any).mockResolvedValue({
       items: [baseProject, { ...baseProject, id: 40 }],
-      nextCursor: 40,
+      nextCursor: "1700000000000_40",
     });
 
     const caller = videoProjectRouter.createCaller(ctx);
     const res = await caller.list({ limit: 2 });
     expect(res.items).toHaveLength(2);
-    expect(res.nextCursor).toBe(40);
+    expect(res.nextCursor).toBe("1700000000000_40");
   });
 
   it("limit 超過 50 → Zod 驗證失敗（BAD_REQUEST）", async () => {
@@ -200,9 +200,10 @@ describe("AIDV-307 videoProject.list — 游標分頁", () => {
     expect(db.getVideoProjectsByUserPaged).not.toHaveBeenCalled();
   });
 
-  it("cursor 非正整數 → Zod 驗證失敗（BAD_REQUEST）", async () => {
+  it("cursor 空字串 → Zod 驗證失敗（BAD_REQUEST）", async () => {
     const caller = videoProjectRouter.createCaller(ctx);
-    await expect(caller.list({ cursor: -1 })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.list({ cursor: "" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(db.getVideoProjectsByUserPaged).not.toHaveBeenCalled();
   });
 });
 
