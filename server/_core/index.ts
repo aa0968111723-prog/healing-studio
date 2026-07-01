@@ -1023,11 +1023,15 @@ async function startServer() {
   // deploy FAILED. Only scan when PORT is unset (genuine local dev).
   // In production, Railway ALWAYS sets $PORT. Use it directly.
   // In dev, use $PORT if set, otherwise scan for available port.
+  console.log("[PORT DEBUG] process.env.PORT:", process.env.PORT);
+  console.log("[PORT DEBUG] process.env.NODE_ENV:", process.env.NODE_ENV);
   const portEnv = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  console.log("[PORT DEBUG] portEnv:", portEnv);
   const port =
     process.env.NODE_ENV === "production"
       ? portEnv
       : await findAvailablePort(portEnv);
+  console.log("[PORT DEBUG] final port:", port);
 
   if (process.env.NODE_ENV !== "production" && port !== portEnv) {
     logger.warn("Preferred port unavailable, switched port", {
