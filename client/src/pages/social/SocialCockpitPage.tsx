@@ -31,6 +31,7 @@ import { TemplatePicker } from "@/components/social/TemplatePicker";
 import { SocialNewsList } from "@/components/social/SocialNewsList";
 import { BrandLockBadge } from "@/components/social/BrandLockBadge";
 import type { NewsItem } from "@/spine/types";
+import { SOCIAL_COPY_GENERATION_ERROR_MESSAGE, logSocialCopyGenerationError } from "@/social/socialErrors";
 
 /** Flow TV 放映入口：懶載入 promptLibrary.list，open 時才發請求。旗標 OFF 時不掛載。 */
 function SocialFlowTvMount() {
@@ -99,8 +100,9 @@ export default function SocialCockpitPage() {
       });
       setCopy(reply.text);
       toast.success("文案草稿已出", { description: `${reply.agent} · 依品牌 voice 約束` });
-    } catch {
-      toast.error("文案生成失敗", { description: "可切 COMMANDER_ADAPTER=mock 或稍後重試" });
+    } catch (error) {
+      logSocialCopyGenerationError(error);
+      toast.error("文案生成失敗", { description: SOCIAL_COPY_GENERATION_ERROR_MESSAGE });
     } finally {
       setDrafting(false);
     }
