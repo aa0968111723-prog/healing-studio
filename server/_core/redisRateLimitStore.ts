@@ -74,7 +74,7 @@ export class RedisRateLimitStore implements Store {
         key,
         err: err instanceof Error ? err.message : String(err),
       });
-      return { totalHits: 0, resetTime: undefined };
+      return { totalHits: 1, resetTime: undefined };
     }
   }
 
