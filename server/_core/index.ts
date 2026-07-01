@@ -1013,28 +1013,12 @@ async function startServer() {
   app.use(errorTrackingExpressErrorHandler());
   app.use(globalErrorHandler);
 
-  // Bind the PORT the platform assigns. Railway (and any PaaS) injects PORT and
-  // routes ALL proxy + healthcheck traffic to that exact port. If PORT is set we
-  // MUST bind it directly — scanning via findAvailablePort() can land on a
-  // DIFFERENT port when the assigned one transiently probes busy, so the proxy
-  // gets connection-refused and every healthcheck fails. Real prod incident
-  // 2026-06-30: NODE_ENV was unset → fell into the scan path → app bound 3000 ≠
-  // Railway's $PORT → 14/14 healthcheck attempts "service unavailable" → every
-  // deploy FAILED. Only scan when PORT is unset (genuine local dev).
-  // In production, Railway ALWAYS sets $PORT. Use it directly.
-  // In dev, use $PORT if set, otherwise scan for available port.
-  const portEnv = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-  const port =
-    process.env.NODE_ENV === "production"
-      ? portEnv
-      : await findAvailablePort(portEnv);
-
-  if (process.env.NODE_ENV !== "production" && port !== portEnv) {
-    logger.warn("Preferred port unavailable, switched port", {
-      preferredPort,
-      selectedPort: port,
-    });
-  }
+  // Always use Railway's injected $PORT when set. Only scan for an available
+  // port in genuine local dev where PORT is absent. Never gate on NODE_ENV —
+  // a dashboard variable override or missing value must not change port binding.
+  const port = process.env.PORT
+    ? parseInt(process.env.PORT)
+    : await findAvailablePort(3000);
 
   server.listen(port, "0.0.0.0", () => {
     logger.info("Server started", { port, host: "0.0.0.0" });
