@@ -119,7 +119,7 @@ async function postHogCapture(event: Record<string, unknown>): Promise<void> {
  * 不再「出錯就放行」。付費上游的保險絲斷了就該斷電，而不是直通。
  * `degraded: true` 表示是檢查機制本身故障（回 503），與真的超限（429）區分。
  */
-async function checkRateLimit(
+export async function checkRateLimit(
   provider: ProviderKey,
   userId?: number
 ): Promise<{ allowed: boolean; reason?: string; degraded?: boolean }> {
@@ -151,6 +151,7 @@ async function checkRateLimit(
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
     for (const rule of rules) {
       if (rule.ruleType === "per_user" && userId) {
@@ -190,6 +191,30 @@ async function checkRateLimit(
             return {
               allowed: false,
               reason: `Daily cost limit exceeded ($${rule.dailyCostLimitUsd}/day)`,
+            };
+          }
+        }
+
+        // AIDV-286（G-2 成本與額度政策）：月度上限。欄位 monthlyCostLimitUsd
+        // 早於本卡就存在於 schema，但此前從未被任何查詢使用過——設定了也不會
+        // 真的擋人，等同死欄位。這裡補上查詢與擋門，讓「每使用者組別 AI 代理
+        // ＋生成額度，嚴限 US$20–40」這條已定盤的政策真的可執行。
+        // 與 dailyCostLimitUsd 同一查詢形狀，只把窗口從「今天」換成「當月 1 號」。
+        if (rule.monthlyCostLimitUsd) {
+          const [result] = await db
+            .select({ total: sql<number>`COALESCE(SUM(${aiUsageEvents.costUsd}), 0)` })
+            .from(aiUsageEvents)
+            .where(
+              and(
+                eq(aiUsageEvents.userId, userId),
+                gte(aiUsageEvents.createdAt, monthStart)
+              )
+            );
+
+          if (Number(result?.total ?? 0) >= Number(rule.monthlyCostLimitUsd)) {
+            return {
+              allowed: false,
+              reason: `Monthly cost limit exceeded ($${rule.monthlyCostLimitUsd}/month)`,
             };
           }
         }
