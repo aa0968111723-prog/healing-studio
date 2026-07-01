@@ -129,4 +129,42 @@ describe("ProjectDetailPage (/projects/:id)", () => {
     renderDetailAt("/projects/missing-id");
     expect(screen.getByText("找不到這個專案")).toBeTruthy();
   });
+
+  // AIDV-961：/projects/:id 原為唯讀死路，補上「進入創作工作區」黃金路徑入口。
+  it("offers a forward 進入創作工作區 CTA plus all three studio quick-links", () => {
+    const zen = MOCK_PROJECTS.find(p => p.id === "proj-zen-short")!;
+    renderDetailAt(`/projects/${zen.id}`);
+    // 主 CTA 必須存在且連到創作工作室（不再是只會帶離的導覽連結）。
+    const cta = screen.getByTestId("project-detail-continue");
+    expect(cta).toBeTruthy();
+    expect(cta.getAttribute("href")).toBe("/director"); // 全綁定 → 生成階段
+    // 三個工作室快捷入口都在。
+    expect(
+      screen.getByTestId("project-detail-open-worldview").getAttribute("href"),
+    ).toBe("/worldbuilding");
+    expect(
+      screen.getByTestId("project-detail-open-storyboard").getAttribute("href"),
+    ).toBe("/animation");
+    expect(
+      screen.getByTestId("project-detail-open-director").getAttribute("href"),
+    ).toBe("/director");
+  });
+
+  it("routes the CTA to 世界觀 when nothing is bound yet", () => {
+    // proj-club-poster 無 binding → 黃金路徑第一步＝建立世界觀。
+    const club = MOCK_PROJECTS.find(p => p.id === "proj-club-poster")!;
+    renderDetailAt(`/projects/${club.id}`);
+    const cta = screen.getByTestId("project-detail-continue");
+    expect(cta.getAttribute("href")).toBe("/worldbuilding");
+    expect(cta.textContent).toContain("世界觀");
+  });
+
+  it("routes the CTA to 世界觀 first even when only the director session is bound", () => {
+    // proj-voice-test 只綁了 directorSession（無世界觀/分鏡）→ 仍應先補世界觀。
+    const voice = MOCK_PROJECTS.find(p => p.id === "proj-voice-test")!;
+    renderDetailAt(`/projects/${voice.id}`);
+    expect(
+      screen.getByTestId("project-detail-continue").getAttribute("href"),
+    ).toBe("/worldbuilding");
+  });
 });

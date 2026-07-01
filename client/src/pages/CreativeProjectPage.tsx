@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useWorldContext } from "@/contexts/WorldContextContext";
@@ -96,6 +97,36 @@ export default function CreativeProjectPage() {
     : projects.length === 0
     ? "下一步：建立第一個創作專案。"
     : "下一步：選擇目前專案作為全站上下文。";
+  // AIDV-961：把「下一步」文字配上可點按鈕，讓被引導處即可執行。世界觀／
+  // 分鏡工作室入口對齊 CreationHub 映射（世界觀→/worldbuilding、分鏡→
+  // /animation、生成→/director）；無既有世界觀可綁時直接帶去建立。
+  const nextStepAction: { label: string; href: string } | { label: string; onClick: () => void } | null =
+    activeProject
+      ? activeProject.worldFrameworkId === null
+        ? { label: "建立世界觀", href: "/worldbuilding" }
+        : activeProject.worldStoryboardId === null
+        ? { label: "建立分鏡", href: "/animation" }
+        : { label: "前往生成 / 導演工作室", href: "/director" }
+      : projects.length === 0
+      ? { label: "建立第一個創作專案", onClick: () => setCreateOpen(true) }
+      : null;
+  const nextStepButton = nextStepAction
+    ? "href" in nextStepAction
+      ? (
+        <Button asChild size="sm" data-testid="creative-next-step-action">
+          <Link href={nextStepAction.href}>{nextStepAction.label}</Link>
+        </Button>
+      )
+      : (
+        <Button
+          size="sm"
+          data-testid="creative-next-step-action"
+          onClick={nextStepAction.onClick}
+        >
+          {nextStepAction.label}
+        </Button>
+      )
+    : null;
 
   const createMutation = trpc.creativeProject.create.useMutation({
     onSuccess: ({ id }) => {
@@ -147,7 +178,11 @@ export default function CreativeProjectPage() {
     <div className="page-shell space-y-6">
       <PageHeader title="創作專案" subtitle="把世界觀、腳本、分鏡、素材與生成紀錄綁在同一個專案下。" primaryAction={{ label: "建立專案", onClick: () => setCreateOpen(true) }} />
 
-      <NextStepPanel title="專案主控台下一步" description={nextStepText} />
+      <NextStepPanel
+        title="專案主控台下一步"
+        description={nextStepText}
+        primaryAction={nextStepButton ?? undefined}
+      />
 
       {tableMissing && (
         <div className="rounded-xl border-2 border-amber-300/70 bg-amber-50/70 dark:bg-amber-950/30 p-4 space-y-2">
