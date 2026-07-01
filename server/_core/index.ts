@@ -1016,9 +1016,12 @@ async function startServer() {
   // Always use Railway's injected $PORT when set. Only scan for an available
   // port in genuine local dev where PORT is absent. Never gate on NODE_ENV —
   // a dashboard variable override or missing value must not change port binding.
+  console.log("[PORT DEBUG] process.env.PORT:", process.env.PORT);
+  console.log("[PORT DEBUG] process.env.NODE_ENV:", process.env.NODE_ENV);
   const port = process.env.PORT
     ? parseInt(process.env.PORT)
     : await findAvailablePort(3000);
+  console.log("[PORT DEBUG] final port:", port);
 
   server.listen(port, "0.0.0.0", () => {
     logger.info("Server started", { port, host: "0.0.0.0" });
