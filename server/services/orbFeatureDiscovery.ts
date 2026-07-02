@@ -526,6 +526,7 @@ export class OrbFeatureDiscovery {
    * Record user interaction with recommendation
    */
   async recordRecommendationInteraction(
+    userId: number,
     recommendationId: string,
     interactionType: "clicked" | "used" | "dismissed",
     feedbackRating?: number
@@ -549,10 +550,17 @@ export class OrbFeatureDiscovery {
         new Date()
       );
 
+      // 所有權範圍：id 是會回傳給 client 往返的字串，UPDATE 必須以 userId 限定，
+      // 防止跨用戶寫入他人的推薦互動列。
       await db
         .update(orbFeatureRecommendations)
         .set(update)
-        .where(eq(orbFeatureRecommendations.id, id));
+        .where(
+          and(
+            eq(orbFeatureRecommendations.id, id),
+            eq(orbFeatureRecommendations.userId, userId)
+          )
+        );
 
       logger.info("orb_recommendation_interaction", {
         recommendationId,

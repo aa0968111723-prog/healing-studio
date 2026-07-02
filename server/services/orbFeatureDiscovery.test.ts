@@ -243,7 +243,7 @@ describe("orbFeatureDiscovery.recordRecommendationInteraction", () => {
   it("有效 id 會以映射後的欄位寫回 DB", async () => {
     const onUpdate = vi.fn();
     h.db = makeDb({ onUpdate });
-    await orbFeatureDiscovery.recordRecommendationInteraction("123", "clicked");
+    await orbFeatureDiscovery.recordRecommendationInteraction(7, "123", "clicked");
     expect(onUpdate).toHaveBeenCalledTimes(1);
     const [setArg] = onUpdate.mock.calls[0];
     expect(setArg).toHaveProperty("clickedAt");
@@ -252,14 +252,14 @@ describe("orbFeatureDiscovery.recordRecommendationInteraction", () => {
   it("非數字 id 不觸發任何 DB 寫入", async () => {
     const onUpdate = vi.fn();
     h.db = makeDb({ onUpdate });
-    await orbFeatureDiscovery.recordRecommendationInteraction("abc", "used");
+    await orbFeatureDiscovery.recordRecommendationInteraction(7, "abc", "used");
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
   it("id <= 0 不觸發 DB 寫入", async () => {
     const onUpdate = vi.fn();
     h.db = makeDb({ onUpdate });
-    await orbFeatureDiscovery.recordRecommendationInteraction("0", "dismissed");
+    await orbFeatureDiscovery.recordRecommendationInteraction(7, "0", "dismissed");
     expect(onUpdate).not.toHaveBeenCalled();
   });
 });
