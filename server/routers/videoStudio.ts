@@ -23,7 +23,7 @@
 import crypto from "crypto";
 import { z } from "zod";
 import { safeExternalUrl, safeExternalUrlOptional } from "../utils/validateSafeUrl";
-import { generationProcedure, videoGenerationProcedure, publicProcedure, router } from "../_core/trpc";
+import { generationProcedure, videoGenerationProcedure, protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { serverEnv } from "../_core/env.validated";
 import { TRPCError } from "@trpc/server";
 import { FAL_QUEUE_BASE } from "../_core/providerFacade";
@@ -53,10 +53,22 @@ import {
 import {
   DEFAULT_DRAFT_MODEL_ID,
   DEFAULT_REFINE_MODEL_ID,
+  isRefineModel,
   isTakeApprovedForRefine,
   REFINE_UNAPPROVED_MESSAGE,
   type TakeApprovalStatus,
 } from "../../shared/videoDraftRefinePipeline";
+import {
+  APPROVE_DRAFT_TOKEN_INVALID_MESSAGE,
+  isRecentRefineSubmit,
+  issueTakeApprovalToken,
+  markRefineSubmit,
+  mintDraftTake,
+  REFINE_APPROVAL_TOKEN_INVALID_MESSAGE,
+  REFINE_DUPLICATE_SUBMIT_MESSAGE,
+  verifyDraftTakeToken,
+  verifyTakeApprovalToken,
+} from "../services/videoTakeApproval";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式；base URL 來自 providerFacade）───
 
@@ -75,8 +87,15 @@ function getFalKey(): string {
 async function falQueueSubmit(
   modelId: string,
   input: Record<string, unknown>,
-  jobId?: number
-): Promise<{ request_id: string }> {
+  jobId?: number,
+  opts?: { allowFallback?: boolean }
+): Promise<{
+  request_id: string;
+  /** 實際送出的 modelId（dispatcher 可能因降級而換模） */
+  model_id: string;
+  degraded: boolean;
+  original_model?: string;
+}> {
   // 若設定了 VITE_SITE_URL，一律帶 webhook 回呼。
   //  - 有 jobId（理論上沒走過這條,VideoStudio 入口先送 fal 才建 backgroundJob）→
   //    直接帶 ?jobId=<id> 走最快路徑。
@@ -112,8 +131,16 @@ async function falQueueSubmit(
       webhookUrl,
       route: "trpc.videoStudio.*",
       modality: "video",
+      ...(opts?.allowFallback === false ? { allowFallback: false } : {}),
     });
-    return { request_id: result.request_id };
+    // AIDV-16：透傳 dispatcher 的實際換模資訊，呼叫端才能修正輪詢路徑
+    // （raw_model_id）並對「不可換模」的 tier（精修層）強制守門。
+    return {
+      request_id: result.request_id,
+      model_id: result.modelId ?? modelId,
+      degraded: !!result.degraded,
+      ...(result.originalModel ? { original_model: result.originalModel } : {}),
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new TRPCError({
@@ -217,11 +244,29 @@ async function falQueueResult(
 async function falQueueRun(
   modelId: string,
   input: Record<string, unknown>,
-  _waitSec = 300 // 參數已废棄，不在後端等待（防止 504）
+  _waitSec = 300, // 參數已废棄，不在後端等待（防止 504）
+  opts?: { allowFallback?: boolean }
 ): Promise<unknown> {
-  const { request_id } = await falQueueSubmit(modelId, input);
-  // 立即回傳 request_id，前端每 3 秒輪詢 checkVideoStatus
-  return { request_id, raw_model_id: modelId, is_async_polling: true };
+  const submitted = await falQueueSubmit(modelId, input, undefined, opts);
+  // 立即回傳 request_id，前端每 3 秒輪詢 checkVideoStatus。
+  // AIDV-16：raw_model_id 一律回「實際送出」的 modelId —— dispatcher 降級換模
+  // 時，若仍回原請求 id，前端會用錯誤的 queue 路徑輪詢實際掛在替代模型佇列
+  // 的 request_id（404 → 吊到 30 分鐘超時）。未降級時值不變（等價行為）。
+  return {
+    request_id: submitted.request_id,
+    raw_model_id: submitted.model_id,
+    is_async_polling: true,
+    ...(submitted.degraded
+      ? {
+          degraded: true as const,
+          model_requested: modelId,
+          model_used: submitted.model_id,
+          ...(submitted.original_model
+            ? { original_model: submitted.original_model }
+            : {}),
+        }
+      : {}),
+  };
 }
 
 // ─── 提取影片 URL 的通用助手 ─────────────────────────────────────────────────
@@ -894,6 +939,10 @@ export const videoStudioRouter = router({
    * 「快速草稿」入口：便宜快速，讓創作者在 shot 畫布上一次出多個 take 比對。
    * 與 klingTextToVideo 同樣走 videoGenerationProcedure（沿用既有扣點路徑，
    * 不新增任何計費邏輯）。真正的高品質重跑在 veo31RefineSegment。
+   *
+   * 回應攜帶 server 鑄造的 take（takeId＋draft_token）：takeId 由伺服器產生、
+   * draft_token 以伺服器密鑰綁 userId 簽發，是後續 approveDraftTake →
+   * veo31RefineSegment 鏈的起點（見 services/videoTakeApproval.ts）。
    */
   seedanceTextToVideo: videoGenerationProcedure
     .input(
@@ -922,12 +971,53 @@ export const videoStudioRouter = router({
         ctx.user.id
       );
       const result = (await falQueueRun(modelId, finalPayload, 180)) as any;
+      // server 鑄造 take 身分（takeId＋綁 userId 的 draft_token），
+      // 誠實客戶端據此走 approveDraftTake → veo31RefineSegment 的可驗證鏈。
+      const { takeId, draftToken } = mintDraftTake(ctx.user.id);
       return {
         video_url: extractVideoUrl(result),
         request_id: result?.request_id ?? null,
         tier: "draft" as const,
+        take: {
+          take_id: takeId,
+          status: "draft" as const,
+          draft_token: draftToken,
+        },
         raw: result,
         ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
+      };
+    }),
+
+  /**
+   * 核准草稿 take（核准動作，不生成、不扣點）。
+   *
+   * 驗 draft_token（證明該 takeId 確為本伺服器為此使用者鑄造）後，簽發帶
+   * 時效的 approval_token。veo31RefineSegment 只認這個 token —— 客戶端自報
+   * status:"approved" 但拿不出有效 token 一律 422，守門因此在 server 端可強制。
+   */
+  approveDraftTake: protectedProcedure
+    .input(
+      z.object({
+        takeId: z.string().min(1).max(200),
+        draftToken: z.string().min(10).max(300),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!verifyDraftTakeToken(input.takeId, ctx.user.id, input.draftToken)) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: APPROVE_DRAFT_TOKEN_INVALID_MESSAGE,
+        });
+      }
+      const { approvalToken, expiresAt } = issueTakeApprovalToken(
+        input.takeId,
+        ctx.user.id
+      );
+      return {
+        take_id: input.takeId,
+        status: "approved" as const,
+        approval_token: approvalToken,
+        expires_at: expiresAt,
       };
     }),
 
@@ -935,22 +1025,36 @@ export const videoStudioRouter = router({
    * Veo 3.1 精修（精修層）
    * fal-ai/veo3.1
    *
-   * 只接受「已核准的草稿 take」。未核准 take 一律回 422（UNPROCESSABLE_CONTENT），
-   * 且守門在任何 fal 派發 / 扣點之前 —— 未核准就不會送單、不會扣任何點數
-   * （與 4K 付門同模式：拒絕先於 dispatch，零重複扣費）。
+   * 只接受「已核准的草稿 take」。守門在任何 fal 派發 / 扣點之前 —— 未核准
+   * 就不會送單、不會扣任何點數（與 4K 付門同模式：拒絕先於 dispatch）。
    *
-   * 核准狀態的真正持久化（videoSession / take 表）列為 follow-up；此處以顯式
-   * approvedTake 契約作為守門的最小可強制核心，符合誠實縮範圍原則。
+   * 守門是 server 端可強制的（非客戶端自報）：除了 approvedTake.status
+   * 契約檢查外，必須附上 approveDraftTake 簽發的 approval_token（HMAC 綁
+   * takeId＋userId＋時效，見 services/videoTakeApproval.ts）。缺失、偽造、
+   * 過期、跨使用者的 token 一律 422 —— 直連 tRPC 傳 status:"approved"
+   * 無法繞過。60 秒冪等窗防同一 take 連點雙扣。
+   *
+   * 精修層「寧缺勿替」：以 allowFallback=false 派發，dispatcher 的任何降級
+   * 換模路徑（preflight 失敗、5xx/429 fallback chain）都直接失敗而非靜默
+   * 以非精修模型偷跑；送單後再驗實際 modelId 屬精修層（雙保險）。
+   *
+   * take 的 DB 持久化（video_takes 表）＋shot 畫布核准 UI 仍為 follow-up。
    */
   veo31RefineSegment: videoGenerationProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(3000),
-        /** 要送精修的草稿 take（必須為已核准狀態）。 */
+        /** 要送精修的草稿 take（必須為已核准狀態＋有效核准憑證）。 */
         approvedTake: z.object({
           takeId: z.string().min(1).max(200),
           status: z.enum(["draft", "approved", "rejected"]),
           sourceVideoUrl: safeExternalUrlOptional,
+          /**
+           * approveDraftTake 簽發的核准憑證。zod 層 optional 是為了讓
+           * 「缺 token」走語意正確的 422（而非 BAD_REQUEST）；handler 內
+           * 缺失/無效一律拒絕，並非可省略的守門。
+           */
+          approvalToken: z.string().max(512).optional(),
         }),
         negativePrompt: z.string().max(1000).optional(),
         aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
@@ -975,6 +1079,29 @@ export const videoStudioRouter = router({
         });
       }
 
+      // server 可強制核心：客戶端自報 status:"approved" 不夠，必須持有
+      // 本伺服器簽發、綁定（takeId, userId）且未過期的核准憑證。
+      if (
+        !verifyTakeApprovalToken(
+          input.approvedTake.takeId,
+          ctx.user.id,
+          input.approvedTake.approvalToken
+        )
+      ) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: REFINE_APPROVAL_TOKEN_INVALID_MESSAGE,
+        });
+      }
+
+      // 60s 冪等窗：同一（user, take）連點不重複送單、不重複扣點。
+      if (isRecentRefineSubmit(ctx.user.id, input.approvedTake.takeId)) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: REFINE_DUPLICATE_SUBMIT_MESSAGE,
+        });
+      }
+
       const modelId = DEFAULT_REFINE_MODEL_ID;
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -992,7 +1119,25 @@ export const videoStudioRouter = router({
         input.outputSpec,
         ctx.user.id
       );
-      const result = (await falQueueRun(modelId, finalPayload, 600)) as any;
+      // 寧缺勿替：不允許 dispatcher 降級換模（preflight 失敗 / 5xx fallback
+      // chain 一律直接失敗），精修絕不靜默以便宜模型出貨。
+      const result = (await falQueueRun(modelId, finalPayload, 600, {
+        allowFallback: false,
+      })) as any;
+      // 雙保險：實際送出的模型必須仍屬精修層，否則視為守門被踩破。
+      if (
+        result?.degraded ||
+        (typeof result?.raw_model_id === "string" &&
+          !isRefineModel(result.raw_model_id))
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            `精修層模型 ${modelId} 被替換為 ${result?.raw_model_id ?? "未知模型"}，` +
+            "已中止精修（精修寧缺勿替，不以非精修模型出貨）。請稍後重試。",
+        });
+      }
+      markRefineSubmit(ctx.user.id, input.approvedTake.takeId);
       return {
         video_url: extractVideoUrl(result),
         request_id: result?.request_id ?? null,

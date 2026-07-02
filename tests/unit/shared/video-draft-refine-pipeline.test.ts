@@ -91,3 +91,11 @@ describe("AIDV-16 draft ≤ refine × 1/5 預算不變式", () => {
     expect(isDraftWithinRefineBudget(6, 90, 0)).toBe(false);
   });
 });
+
+describe("AIDV-16 tier 集合單一 SSOT（videoModelCatalog 只 re-export，不得漂移）", () => {
+  it("videoModelCatalog 的 DRAFT/REFINE_TIER_ROUTER_IDS 與 pipeline SSOT 逐元素相等", async () => {
+    const catalog = await import("../../../shared/videoModelCatalog");
+    expect([...catalog.DRAFT_TIER_ROUTER_IDS]).toEqual([...DRAFT_TIER_MODEL_IDS]);
+    expect([...catalog.REFINE_TIER_ROUTER_IDS]).toEqual([...REFINE_TIER_MODEL_IDS]);
+  });
+});

@@ -15,6 +15,9 @@
  *     見 server/services/__tests__/draftRefinePricing.test.ts）。
  *  2. 未核准的 take 送 refine 一律拒 422（由 videoStudio router 守門，
  *     見 server/routers/__tests__/videoStudioDraftRefine.router.test.ts）。
+ *     核准狀態在 server 端可強制：除了本檔的契約檢查外，router 還要求
+ *     server/services/videoTakeApproval.ts 簽發的 HMAC 核准憑證
+ *     （綁 takeId＋userId＋時效），客戶端自報 status:"approved" 無法繞過。
  *
  * 這份檔案只放「純資料 + 純函式」，不 import 任何 server 模組，UI 與 server
  * 兩邊都能引用同一份 tier 定義，避免草稿/精修模型 id 在兩處漂移。

@@ -35,18 +35,14 @@ export const T2V_ROUTER_IDS = [
 ] as const;
 
 /**
- * AIDV-16：雙層「草稿 → 精修」管線的 tier 分組（與
- * shared/videoDraftRefinePipeline.ts 對齊）。UI 的「快速草稿 / 高品質」
- * 切換與 server 精修守門都以這兩個集合為準。
+ * AIDV-16：雙層「草稿 → 精修」管線的 tier 分組。SSOT 是
+ * shared/videoDraftRefinePipeline.ts（server 精修守門實際 import 之處）；
+ * 這裡只 re-export 同一份常數供 catalog 使用端引用，避免第二份手抄清單漂移。
  */
-export const DRAFT_TIER_ROUTER_IDS = [
-  "fal-ai/bytedance/seedance/v1/lite/text-to-video",
-  "fal-ai/wan-t2v",
-] as const;
-
-export const REFINE_TIER_ROUTER_IDS = [
-  "fal-ai/veo3.1",
-] as const;
+export {
+  DRAFT_TIER_MODEL_IDS as DRAFT_TIER_ROUTER_IDS,
+  REFINE_TIER_MODEL_IDS as REFINE_TIER_ROUTER_IDS,
+} from "./videoDraftRefinePipeline";
 
 export const I2V_ROUTER_IDS = [
   "fal-ai/kling-video/v2.1/standard/image-to-video",
