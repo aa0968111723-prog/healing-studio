@@ -62,6 +62,7 @@ describe("AIDV-963: probeProvider SSRF guard", () => {
   afterEach(() => {
     mod?.stopProviderHealthProbeCron();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
@@ -129,6 +130,46 @@ describe("AIDV-963: probeProvider SSRF guard", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "https://queue.fal.run/fal-ai/flux/requests",
       expect.anything()
+    );
+  });
+
+  // ── ③ NODE_ENV 旗標兩側釘住（mutation gate）───────────────────────────────
+  // guard 第二參數是 `process.env.NODE_ENV !== "production"`（呼叫時讀取）。
+  // 這兩個測試在「同一個 URL」上於兩種模式得到相反判定，任何人把旗標硬編成
+  // true / false（或 ssrfGuard 改預設值）都至少會弄紅其中一個。
+  it("production 模式：http://localhost 動態 URL 被擋（prod 保持嚴格、零 egress）", async () => {
+    mod = await loadModuleWithSupabaseUrl("http://localhost:54321");
+    vi.stubEnv("NODE_ENV", "production");
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(mod._runProbeCycleForTest()).resolves.toBeUndefined();
+
+    const supabase = mod.getProviderProbeStatus().find((s) => s.providerId === "supabase_auth");
+    expect(supabase).toBeDefined();
+    expect(supabase!.ok).toBe(false);
+    expect(supabase!.error).toMatch(/ssrf-blocked/);
+    // 被擋的 URL 完全沒有 egress
+    const probedUrls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(probedUrls.some((u) => u.includes("localhost:54321"))).toBe(false);
+  });
+
+  it("development 模式：http://localhost 動態 URL 放行（本地 supabase 不受影響）", async () => {
+    mod = await loadModuleWithSupabaseUrl("http://localhost:54321");
+    vi.stubEnv("NODE_ENV", "development");
+    const fetchMock = vi.fn().mockResolvedValue({ status: 200, ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mod._runProbeCycleForTest();
+
+    const supabase = mod.getProviderProbeStatus().find((s) => s.providerId === "supabase_auth");
+    expect(supabase).toBeDefined();
+    expect(supabase!.ok).toBe(true);
+    expect(supabase!.statusCode).toBe(200);
+    expect(supabase!.error).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:54321/auth/v1/health",
+      expect.objectContaining({ method: "GET" })
     );
   });
 
