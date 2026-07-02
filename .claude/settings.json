@@ -10,5 +10,21 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git fetch:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(npm run check:*)",
+      "Bash(npm test:*)",
+      "Bash(ls:*)",
+      "Bash(node scripts/check-deps.mjs:*)"
+    ]
   }
 }
