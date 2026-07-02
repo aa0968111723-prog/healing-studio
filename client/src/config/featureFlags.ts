@@ -197,6 +197,17 @@ export const FEATURE_PROMPT_DIAGNOSTIC: boolean =
   readRuntimeOverride("promptdiagnostic") ?? readFlag("VITE_FEATURE_PROMPT_DIAGNOSTIC", true);
 
 /**
+ * 新手路徑分角色 fork（AIDV-965）。
+ * /learn 新手路徑頂部加 persona 意圖選擇器（電商賣家/教育者/接案者/品牌方/通用），
+ * 每 persona 一組步驟骨架；onboarding「下一步」chips 依同一 persona
+ * （localStorage `learn:beginner-path:persona`）重排、完成畫面文案客製。
+ * 【HARD】未選 persona 或本旗標 OFF → 與現行 100% 一致（零回歸）。
+ * 預設 ON；關閉退路：VITE_FEATURE_BEGINNER_PATH_PERSONAS=0 或 ?beginnerpersonas=0。
+ */
+export const FEATURE_BEGINNER_PATH_PERSONAS: boolean =
+  readRuntimeOverride("beginnerpersonas") ?? readFlag("VITE_FEATURE_BEGINNER_PATH_PERSONAS", true);
+
+/**
  * AIDV-864 PR②：快速情境回饋浮動按鈕（右下角常駐）。
  * 預設 ON；關閉退路：VITE_ENABLE_QUICK_FEEDBACK=0 或 ?quickfeedback=0。
  */
@@ -216,6 +227,7 @@ export const FEATURE_FLAGS = {
   FEATURE_ONBOARDING_BRANCH,
   FEATURE_LEARN_BEGINNER_PATH,
   FEATURE_PROMPT_DIAGNOSTIC,
+  FEATURE_BEGINNER_PATH_PERSONAS,
   ENABLE_QUICK_FEEDBACK,
 } as const;
 

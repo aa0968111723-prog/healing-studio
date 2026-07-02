@@ -6,7 +6,7 @@
  * - 生成 onSuccess 帶有效 resultUrl → 顯示慶祝標題與作品圖
  */
 import type { ReactNode } from "react";
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, render, screen, act } from "@testing-library/react";
 
 const captured = vi.hoisted(() => ({ onSuccess: null as null | ((d: unknown) => void) }));
@@ -39,6 +39,8 @@ vi.mock("framer-motion", async () => {
     motion,
     AnimatePresence: ({ children }: { children?: ReactNode }) =>
       react.createElement(react.Fragment, null, children),
+    // OnboardingFlow 用到 useReducedMotion；mock 缺此匯出會整檔紅（AIDV-965 順手修）。
+    useReducedMotion: () => false,
   };
 });
 
@@ -71,16 +73,23 @@ import OnboardingFlow from "./OnboardingFlow";
 
 // 此 jsdom 設定未提供 localStorage 全域；handleBranchNavigate/handleComplete 會
 // 呼叫 localStorage.setItem，故補一個 stub 讓分支導航測試不致丟錯。
-vi.stubGlobal("localStorage", {
+// stub 在 beforeEach 設置、afterEach 還原（vi.unstubAllGlobals）——
+// module scope stub 會在 vitest fork worker 跨檔重用時洩漏到其他測試檔
+// （getItem 恆回 null 會蓋掉別檔的 Map 版 stub），造成間歇性 flake。
+const localStorageStub = {
   getItem: vi.fn(() => null),
   setItem: vi.fn(),
   removeItem: vi.fn(),
   clear: vi.fn(),
-});
+};
 
+beforeEach(() => {
+  vi.stubGlobal("localStorage", localStorageStub);
+});
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   captured.onSuccess = null;
 });
 
@@ -118,7 +127,7 @@ describe("OnboardingFlow result guard (AIDV-637)", () => {
     const onSuccess = renderFlow();
     act(() => onSuccess({ resultUrl: "https://cdn.example/i.png" }));
     expect(screen.getByText(CELEBRATE)).toBeTruthy();
-    const img = screen.getByAltText("Your first creation") as HTMLImageElement;
+    const img = screen.getByAltText("您的第一個創作") as HTMLImageElement;
     expect(img.getAttribute("src")).toContain("https://cdn.example/i.png");
     expect(toastMock.error).not.toHaveBeenCalled();
   });
