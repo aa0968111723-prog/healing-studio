@@ -245,6 +245,9 @@ export const compositionSuggestionRequestSchema = z.object({
   elements: z.array(compositionElementSchema).max(50),
   backgroundSceneId: z.string().max(64).optional(),
   focusGoal: z.enum(["balance", "depth", "drama", "harmony", "dynamic"]).optional(),
+  /** 畫布尺寸（optional、加性欄位）— 讓 AI 能以相對位置判讀構圖（AIDV-847） */
+  canvasWidth: z.number().int().positive().max(8192).optional(),
+  canvasHeight: z.number().int().positive().max(8192).optional(),
 });
 
 export type CompositionSuggestionRequest = z.infer<typeof compositionSuggestionRequestSchema>;

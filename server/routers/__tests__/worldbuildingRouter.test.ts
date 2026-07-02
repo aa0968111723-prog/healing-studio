@@ -5,13 +5,46 @@
  * 驗收 8 個端點在 DB mock 下正確運作。
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+// invokeLLM 必須在 import 受測模組前被 mock（vi.mock factory 會被 hoist）。
+vi.mock("../../_core/llm", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../_core/llm")>();
+  return {
+    ...actual,
+    invokeLLM: vi.fn(),
+  };
+});
+
+import { invokeLLM } from "../../_core/llm";
+
+const mockedInvokeLLM = vi.mocked(invokeLLM);
+
+function llmJsonReply(payload: unknown) {
+  return {
+    id: "test",
+    created: Date.now(),
+    choices: [
+      { message: { content: JSON.stringify(payload), role: "assistant" } },
+    ],
+  } as unknown as Awaited<ReturnType<typeof invokeLLM>>;
+}
 
 // ─── db mock ─────────────────────────────────────────────────────────────────
 
 vi.mock("../../db", () => ({
   getWorldbuildingFrameworksByUser: vi.fn(async () => []),
-  getWorldbuildingFramework: vi.fn(async () => null),
+  // getCompositionSuggestions（AIDV-847）需要世界存在且屬於 caller (userId=99)
+  getWorldbuildingFramework: vi.fn(async () => ({
+    id: 1,
+    userId: 99,
+    name: "測試世界",
+    description: "測試用世界觀",
+    genre: "療癒",
+    era: "現代",
+    charactersJson: [],
+    scenesJson: [],
+  })),
   createWorldbuildingFramework: vi.fn(async () => 1),
   updateWorldbuildingFramework: vi.fn(async () => {}),
   deleteWorldbuildingFramework: vi.fn(async () => {}),
@@ -114,6 +147,10 @@ const validCompositionSuggestionInput = {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe("worldbuilding router — 時間軸 / 構圖 8 端點（DB 已實作）", () => {
+  beforeEach(() => {
+    mockedInvokeLLM.mockReset();
+  });
+
   it("listTimelineFrames → 不拋，回傳陣列", async () => {
     const c = caller();
     const result = await c.listTimelineFrames({ storyboardId: 1 });
@@ -156,10 +193,39 @@ describe("worldbuilding router — 時間軸 / 構圖 8 端點（DB 已實作）
     expect(result).toBe(1);
   });
 
-  it("getCompositionSuggestions → 不拋，回傳建議陣列", async () => {
+  it("getCompositionSuggestions → 呼叫 LLM 並回傳建議陣列（AIDV-847 真實生成）", async () => {
+    mockedInvokeLLM.mockResolvedValueOnce(
+      llmJsonReply({
+        suggestions: [
+          { type: "balance", title: "左移主角", content: "主角偏右，建議左移 200px 以平衡畫面。" },
+        ],
+      })
+    );
+
     const c = caller();
     const result = await c.getCompositionSuggestions(validCompositionSuggestionInput);
-    expect(Array.isArray(result)).toBe(true);
-    expect(result.length).toBeGreaterThan(0);
+    expect(mockedInvokeLLM).toHaveBeenCalledTimes(1);
+    expect(mockedInvokeLLM.mock.calls[0][0].runName).toBe(
+      "worldbuilding-composition-suggestions"
+    );
+    expect(result).toEqual([
+      { type: "balance", title: "左移主角", content: "主角偏右，建議左移 200px 以平衡畫面。" },
+    ]);
+  });
+
+  it("getCompositionSuggestions → LLM 失敗時降級回空陣列（不拋錯）", async () => {
+    mockedInvokeLLM.mockRejectedValueOnce(new Error("LLM unavailable"));
+
+    const c = caller();
+    const result = await c.getCompositionSuggestions(validCompositionSuggestionInput);
+    expect(result).toEqual([]);
+  });
+
+  it("getCompositionSuggestions → 非擁有者拋 NOT_FOUND 且不呼叫 LLM", async () => {
+    const c = caller(12345); // 不是 world 擁有者（mock world.userId=99）
+    await expect(
+      c.getCompositionSuggestions(validCompositionSuggestionInput)
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(mockedInvokeLLM).not.toHaveBeenCalled();
   });
 });
