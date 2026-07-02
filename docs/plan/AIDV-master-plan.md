@@ -71,7 +71,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 | Story | 狀態 | PR／連結 | 驗收 | 依賴 |
 |---|---|---|---|---|
 | Project SSOT：MOCK→真 creative_projects | ✅ Done（06-12 合併 `feat/4-shell-restructure`） | [#863](https://github.com/aa0968111723-prog/healing-studio/pull/863) | tsc/測試綠；ENABLE_PROJECT_SSOT 旗標；active id 歸 WorldContext | #862 |
-| prompt_assets junction 表（已採 junction） | ✅ Done（06-12 合併 main，migration 0075） | [#864](https://github.com/aa0968111723-prog/healing-studio/pull/864) | migration 冪等可回滾；旗標 ENABLE_PROMPT_ASSET_LINKS 預設 OFF | — |
+| prompt_assets junction 表（已採 junction） | ✅ Done（06-12 合併 main，migration 0075） | [#864](https://github.com/aa0968111723-prog/healing-studio/pull/864) | migration 冪等可回滾；旗標 ENABLE_PROMPT_ASSET_LINKS 自 AIDV-897 起預設 ON（保留旗標可緊急關閉） | — |
 | **合流 `feat/4-shell-restructure` → main**（聚合 #862+#863） | ✅ Done（06-12，AIDV-7） | [#866](https://github.com/aa0968111723-prog/healing-studio/pull/866) | main 含導演台+SSOT；旗標 OFF 線上零變化 | — |
 | W1-3 promptVault adapter 接縫（AIDV-36） | ✅ Done（06-12 合併 main） | [#867](https://github.com/aa0968111723-prog/healing-studio/pull/867) | promptLibrary.*＋junction 雙向查詢 | #864 |
 | W1-7 工程衛生（AIDV-40） | ✅ Done（06-13 合併 main） | [#868](https://github.com/aa0968111723-prog/healing-studio/pull/868) | scan 一鍵化；eval tsx；notes.create 蟲修 | — |
