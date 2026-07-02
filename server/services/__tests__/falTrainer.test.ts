@@ -55,6 +55,7 @@ import {
   runFalTrainingJob,
   extractFalLoraOutputUrl,
   checkAndSyncFalTraining,
+  __resetFalSyncGatesForTest,
   type FalTrainingJobInput,
 } from "../falTrainer";
 import { FAL_QUEUE_BASE } from "../../_core/providerFacade";
@@ -63,6 +64,7 @@ const ORIGINAL_FAL_KEY = process.env.FAL_API_KEY;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  __resetFalSyncGatesForTest();
   process.env.FAL_API_KEY = "test-fal-key";
   mockStoragePut.mockResolvedValue({
     url: "https://pub-x.r2.dev/lora-datasets/1/zip.zip",
@@ -272,6 +274,47 @@ describe("runFalTrainingJob（queue.submit + 真實 request_id 持久化）", ()
       status: "failed",
     });
   });
+
+  it("completed 但無輸出 URL → 模型與 job 標 failed（絕不寫 ready）", async () => {
+    mockQueueSubmit.mockResolvedValue({ request_id: "req-no-url" });
+    mockAwaitFalQueueResult.mockResolvedValue({
+      status: "completed",
+      request_id: "req-no-url",
+      modelId: baseInput.falModelId,
+      raw: { some_unknown_field: true },
+    });
+
+    await runFalTrainingJob(baseInput);
+
+    // 絕不標 ready
+    const readyCall = mockUpdateFineTunedModel.mock.calls.find(
+      ([, data]) => (data as Record<string, unknown>).status === "ready"
+    );
+    expect(readyCall).toBeUndefined();
+    // 模型標 failed 且 configJson 帶除錯資訊
+    const failedCall = mockUpdateFineTunedModel.mock.calls.find(
+      ([, data]) => (data as Record<string, unknown>).status === "failed"
+    );
+    expect(failedCall).toBeTruthy();
+    expect(failedCall![0]).toBe(5);
+    expect(
+      (failedCall![1] as { configJson: Record<string, unknown> }).configJson
+    ).toMatchObject({
+      falRequestId: "req-no-url",
+      rawOutputKeys: ["some_unknown_field"],
+    });
+    // job 標 failed 並帶明確錯誤訊息
+    const failedJob = mockUpdateBackgroundJob.mock.calls.find(
+      ([, data]) => (data as Record<string, unknown>).status === "failed"
+    );
+    expect(failedJob).toBeTruthy();
+    expect(String(failedJob![1].errorMessage)).toContain("無法解析 LoRA 權重");
+    // 絕不把 job 標 completed
+    const completedJob = mockUpdateBackgroundJob.mock.calls.find(
+      ([, data]) => (data as Record<string, unknown>).status === "completed"
+    );
+    expect(completedJob).toBeUndefined();
+  });
 });
 
 // ─── checkAndSyncFalTraining（輪詢回寫）────────────────────────────────────
@@ -450,5 +493,122 @@ describe("checkAndSyncFalTraining", () => {
       { fetchFn }
     );
     expect(result).toMatchObject({ queueStatus: "IN_QUEUE", synced: false });
+  });
+
+  it("COMPLETED 但無 outputUrl → 模型/job 標 failed、絕不寫 ready", async () => {
+    mockFindActiveJob.mockResolvedValue({
+      id: 79,
+      status: "processing",
+      resultJson: { modelId: 5, engine: "fal" },
+    });
+    const fetchFn = makeFetchSeq([
+      { ok: true, json: { status: "COMPLETED" } },
+      { ok: true, json: { unexpected_shape: 1 } },
+    ]);
+
+    const result = await checkAndSyncFalTraining(trainingFalModel, {
+      fetchFn,
+    });
+
+    expect(result).toMatchObject({
+      requestId: "req-9",
+      queueStatus: "COMPLETED",
+      synced: true,
+      modelStatus: "failed",
+      outputUrl: null,
+    });
+    // 絕不寫 ready
+    const readyCall = mockUpdateFineTunedModel.mock.calls.find(
+      ([, data]) => (data as Record<string, unknown>).status === "ready"
+    );
+    expect(readyCall).toBeUndefined();
+    // 模型 failed + rawOutputKeys 除錯資訊
+    const failedCall = mockUpdateFineTunedModel.mock.calls.find(
+      ([, data]) => (data as Record<string, unknown>).status === "failed"
+    );
+    expect(failedCall).toBeTruthy();
+    expect(failedCall![0]).toBe(5);
+    expect(
+      (failedCall![1] as { configJson: Record<string, unknown> }).configJson
+    ).toMatchObject({ rawOutputKeys: ["unexpected_shape"] });
+    // backgroundJob 標 failed 並帶錯誤訊息
+    expect(mockUpdateBackgroundJob).toHaveBeenCalledWith(
+      79,
+      expect.objectContaining({
+        status: "failed",
+        errorMessage: expect.stringContaining("無法解析 LoRA 權重"),
+      })
+    );
+  });
+});
+
+// ─── checkAndSyncFalTraining 節流＋並發去重（AIDV-45）──────────────────────
+
+describe("checkAndSyncFalTraining 節流守門", () => {
+  it("15 秒內第二次呼叫不觸發 fetchFn、直接回傳快取結果", async () => {
+    const fetchFn = makeFetchSeq([
+      { ok: true, json: { status: "IN_PROGRESS" } },
+      { ok: true, json: { status: "COMPLETED" } }, // 不該被打到
+    ]);
+
+    const first = await checkAndSyncFalTraining(trainingFalModel, { fetchFn });
+    expect(first).toMatchObject({ queueStatus: "IN_PROGRESS", synced: false });
+    expect(vi.mocked(fetchFn)).toHaveBeenCalledTimes(1);
+
+    const second = await checkAndSyncFalTraining(trainingFalModel, { fetchFn });
+    expect(second).toMatchObject({ queueStatus: "IN_PROGRESS", synced: false });
+    // 節流：不再打 fal
+    expect(vi.mocked(fetchFn)).toHaveBeenCalledTimes(1);
+    expect(mockUpdateFineTunedModel).not.toHaveBeenCalled();
+  });
+
+  it("並發呼叫共用同一個 in-flight Promise（status 端點只打一次）", async () => {
+    let resolveStatus: (v: unknown) => void = () => {};
+    const fetchFn = vi.fn().mockReturnValue(
+      new Promise(resolve => {
+        resolveStatus = resolve;
+      })
+    ) as unknown as typeof fetch;
+
+    const p1 = checkAndSyncFalTraining(trainingFalModel, { fetchFn });
+    const p2 = checkAndSyncFalTraining(trainingFalModel, { fetchFn });
+    // 讓第二個呼叫走到 gate 判斷
+    await new Promise(r => setTimeout(r, 0));
+
+    resolveStatus({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "IN_PROGRESS" }),
+    });
+
+    const [r1, r2] = await Promise.all([p1, p2]);
+    expect(r1).toMatchObject({ queueStatus: "IN_PROGRESS", synced: false });
+    expect(r2).toEqual(r1);
+    expect(vi.mocked(fetchFn)).toHaveBeenCalledTimes(1);
+  });
+
+  it("節流視窗過後再次呼叫會重新打 fal（gate 會過期）", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchFn = makeFetchSeq([
+        { ok: true, json: { status: "IN_QUEUE" } },
+        { ok: true, json: { status: "IN_PROGRESS" } },
+      ]);
+
+      const first = await checkAndSyncFalTraining(trainingFalModel, {
+        fetchFn,
+      });
+      expect(first).toMatchObject({ queueStatus: "IN_QUEUE" });
+
+      vi.advanceTimersByTime(16_000);
+
+      const second = await checkAndSyncFalTraining(trainingFalModel, {
+        fetchFn,
+      });
+      expect(second).toMatchObject({ queueStatus: "IN_PROGRESS" });
+      expect(vi.mocked(fetchFn)).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

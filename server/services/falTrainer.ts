@@ -479,13 +479,19 @@ export async function runFalTrainingJob(
       });
       log("info", `模型 ${modelId} Fal.ai 訓練完成！輸出：${outputUrl}`);
     } else {
-      // No output URL found — treat as completed but warn
+      // COMPLETED 但萃取不到 LoRA 權重 URL — 絕不可標 ready：ready 是終態
+      // （之後 checkAndSyncFalTraining / syncReplicateStatus 都不再理它），
+      // trainedLoraUrl 為 null 的 ready 模型「看似就緒卻永遠不可引用、
+      // 不可重訓」。改標 failed，讓 UI 的重新訓練入口（status==="failed"
+      // 才顯示）可用；raw 輸出 keys 留在 configJson 供除錯。
+      const noUrlMsg =
+        "fal 訓練完成但無法解析 LoRA 權重輸出檔，請重新訓練";
       log(
-        "warn",
-        `模型 ${modelId} Fal.ai 訓練完成但未找到輸出 URL。結果：${JSON.stringify(result).slice(0, 500)}`
+        "error",
+        `模型 ${modelId} ${noUrlMsg}。結果：${JSON.stringify(result).slice(0, 500)}`
       );
       await updateFineTunedModel(modelId, {
-        status: "ready",
+        status: "failed",
         configJson: {
           falModelId,
           falRequestId: requestId,
@@ -495,12 +501,13 @@ export async function runFalTrainingJob(
           isStyle,
           zipUrl,
           completedAt: Date.now(),
+          rawOutputKeys: Object.keys(result),
         },
       });
       await updateBackgroundJob(jobId, {
-        status: "completed",
-        progress: 100,
-        progressMessage: "訓練完成（輸出待確認）",
+        status: "failed",
+        errorMessage: noUrlMsg,
+        progressMessage: "訓練失敗（無輸出權重）",
         resultJson: {
           modelId,
           modelName,
@@ -547,6 +554,31 @@ export interface FalTrainingSyncResult {
   error?: string;
 }
 
+// ── 節流＋並發去重（per-model）────────────────────────────────────────────
+// trainingDetail 是 15 秒輪詢的 query、syncReplicateStatus 是使用者手動觸發、
+// worker 每 5 分鐘掃一次 — 多分頁 / window-focus refetch / 多裝置同看同一
+// 模型時，這些入口會線性放大對 fal 的出站呼叫與 DB 回寫。以 module-level
+// gate 保證：同一模型 15 秒內最多打一次 fal；並發呼叫共用同一個 in-flight
+// Promise（去重，也避免兩個 COMPLETED 同步重複回寫）。
+
+const FAL_SYNC_MIN_INTERVAL_MS = 15_000;
+
+interface FalSyncGate {
+  /** 上次完成同步的時間（ms epoch）。 */
+  at: number;
+  /** 上次同步的結果（節流窗內直接回傳這個快取）。 */
+  last: FalTrainingSyncResult | null;
+  /** 進行中的同步 Promise（並發呼叫共用）。 */
+  inflight?: Promise<FalTrainingSyncResult | null>;
+}
+
+const falSyncGates = new Map<number, FalSyncGate>();
+
+/** 測試用：清空節流狀態（module-level Map 會跨測試殘留）。 */
+export function __resetFalSyncGatesForTest(): void {
+  falSyncGates.clear();
+}
+
 /**
  * 對「還在 training / pending」的 fal LoRA 模型做一次 fal queue 狀態查詢，
  * 若已到終態就把結果回寫 fine_tuned_models（status / trainedLoraUrl / fileUrl /
@@ -559,6 +591,7 @@ export interface FalTrainingSyncResult {
  *
  * 回傳 null＝此模型不適用（非 fal 引擎、已是終態、無真實 request_id、
  * 或 FAL_API_KEY 未設定）。絕不 throw；查詢失敗以 queueStatus 表達。
+ * 同一模型 15 秒內重複呼叫會回傳快取結果、不再打 fal。
  */
 export async function checkAndSyncFalTraining(
   model: FalTrainingSyncModel,
@@ -583,6 +616,54 @@ export async function checkAndSyncFalTraining(
     (typeof config.falModelId === "string" && config.falModelId) ||
     "fal-ai/flux-lora-fast-training";
   const fetchFn = opts.fetchFn ?? fetch;
+
+  // ── 節流守門 ──
+  const existingGate = falSyncGates.get(model.id);
+  if (existingGate?.inflight) return existingGate.inflight;
+  if (
+    existingGate &&
+    Date.now() - existingGate.at < FAL_SYNC_MIN_INTERVAL_MS
+  ) {
+    return existingGate.last;
+  }
+
+  const gate: FalSyncGate = {
+    at: Date.now(),
+    last: existingGate?.last ?? null,
+  };
+  const inflight = syncFalTrainingOnce(model.id, rawId, falModelId, apiKey, fetchFn)
+    .catch(
+      (err): FalTrainingSyncResult => ({
+        // syncFalTrainingOnce 各分支都自行 catch，這裡是防禦性兜底，
+        // 維持「絕不 throw」契約。
+        requestId: rawId,
+        queueStatus: "UNREACHABLE",
+        synced: false,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    )
+    .then(result => {
+      gate.at = Date.now();
+      gate.last = result;
+      gate.inflight = undefined;
+      // 已同步到終態 → 模型之後的呼叫會在 status 守門直接回 null，
+      // gate 條目不再需要，順手清掉避免 Map 無限增長。
+      if (result?.synced) falSyncGates.delete(model.id);
+      return result;
+    });
+  gate.inflight = inflight;
+  falSyncGates.set(model.id, gate);
+  return inflight;
+}
+
+/** 單次 fal queue 查詢＋終態回寫（不含節流；由 checkAndSyncFalTraining 包裝）。 */
+async function syncFalTrainingOnce(
+  modelId: number,
+  rawId: string,
+  falModelId: string,
+  apiKey: string,
+  fetchFn: typeof fetch
+): Promise<FalTrainingSyncResult> {
   const headers = { Authorization: `Key ${apiKey}` };
   const statusUrl = `${FAL_QUEUE_BASE}/${falModelId}/requests/${rawId}/status`;
   const resultUrl = `${FAL_QUEUE_BASE}/${falModelId}/requests/${rawId}`;
@@ -623,22 +704,59 @@ export async function checkAndSyncFalTraining(
       }
       const raw = (await res.json()) as unknown;
       const outputUrl = extractFalLoraOutputUrl(raw);
-      await updateFineTunedModel(model.id, {
+
+      if (!outputUrl) {
+        // COMPLETED 但萃取不到權重 URL — 與 runFalTrainingJob 同步改標
+        // failed（ready 是終態且不可逆，null trainedLoraUrl 的 ready 模型
+        // 永遠不可引用也不可重訓）。raw 輸出 keys 記進 configJson 供除錯。
+        const noUrlMsg =
+          "fal 訓練完成但無法解析 LoRA 權重輸出檔，請重新訓練";
+        await updateFineTunedModel(modelId, {
+          status: "failed",
+          configJson: {
+            falRequestId: rawId,
+            completedAt: Date.now(),
+            rawOutputKeys:
+              raw && typeof raw === "object"
+                ? Object.keys(raw as Record<string, unknown>)
+                : [typeof raw],
+          },
+        });
+        await finalizeTrainingJob(modelId, {
+          status: "failed",
+          progressMessage: "訓練失敗（無輸出權重）",
+          errorMessage: noUrlMsg,
+          extraResult: { falRequestId: rawId, rawOutput: raw },
+        });
+        log(
+          "warn",
+          `模型 ${modelId} fal COMPLETED 但無輸出 URL — 標記 failed（requestId=${rawId}）`
+        );
+        return {
+          requestId: rawId,
+          queueStatus,
+          synced: true,
+          modelStatus: "failed",
+          outputUrl: null,
+          error: noUrlMsg,
+        };
+      }
+
+      await updateFineTunedModel(modelId, {
         status: "ready",
-        ...(outputUrl ? { trainedLoraUrl: outputUrl, fileUrl: outputUrl } : {}),
+        trainedLoraUrl: outputUrl,
+        fileUrl: outputUrl,
         configJson: { falRequestId: rawId, completedAt: Date.now() },
       });
-      await finalizeTrainingJob(model.id, {
+      await finalizeTrainingJob(modelId, {
         status: "completed",
         progress: 100,
-        progressMessage: outputUrl
-          ? "訓練完成！模型已就緒。"
-          : "訓練完成（輸出待確認）",
-        extraResult: { falRequestId: rawId, outputUrl: outputUrl ?? undefined },
+        progressMessage: "訓練完成！模型已就緒。",
+        extraResult: { falRequestId: rawId, outputUrl },
       });
       log(
         "info",
-        `模型 ${model.id} 由輪詢回寫同步完成（requestId=${rawId}, output=${outputUrl ?? "無"}）`
+        `模型 ${modelId} 由輪詢回寫同步完成（requestId=${rawId}, output=${outputUrl}）`
       );
       return {
         requestId: rawId,
@@ -659,15 +777,15 @@ export async function checkAndSyncFalTraining(
 
   if (queueStatus === "FAILED" || queueStatus === "CANCELLED") {
     const errMsg = queueError || `fal job ${queueStatus}`;
-    await updateFineTunedModel(model.id, { status: "failed" }).catch(() => {});
-    await finalizeTrainingJob(model.id, {
+    await updateFineTunedModel(modelId, { status: "failed" }).catch(() => {});
+    await finalizeTrainingJob(modelId, {
       status: "failed",
       progressMessage: "訓練失敗",
       errorMessage: errMsg,
     });
     log(
       "warn",
-      `模型 ${model.id} 由輪詢回寫同步為失敗（requestId=${rawId}）：${errMsg}`
+      `模型 ${modelId} 由輪詢回寫同步為失敗（requestId=${rawId}）：${errMsg}`
     );
     return {
       requestId: rawId,
