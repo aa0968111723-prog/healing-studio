@@ -539,7 +539,7 @@ describe("Brain Context Middleware", () => {
       expect(getActiveDefaultBrains()).toEqual(DEFAULT_REASONING_BRAINS);
     });
 
-    it("premium tier upgrades videoEngine to Kling Pro t2v and voiceEngine to ElevenLabs Multilingual v2", () => {
+    it("premium tier upgrades videoEngine to Kling Pro t2v, voiceEngine to ElevenLabs Multilingual v2, and audioEngine to Suno V4 (AIDV-956)", () => {
       process.env.PREFER_CHEAP_MODELS = "premium";
       const engines = getActiveDefaultEngines();
       expect(engines.videoEngine.engine).toBe(
@@ -548,12 +548,12 @@ describe("Brain Context Middleware", () => {
       expect(engines.voiceEngine.engine).toBe(
         "fal-ai/elevenlabs/tts/multilingual-v2"
       );
-      // imageEngine/audioEngine 同 balanced（理由見 brainContext.ts 註解）
+      // AIDV-956：audioEngine 依 AIDV-856 規格表升級 suno-v4（Suno 已接成
+      // MusicModelChoice 選項，非「宣稱 X 實際 Y」）
+      expect(engines.audioEngine.engine).toBe("suno-v4");
+      // imageEngine 同 balanced（flux-pro/v1.1 已是最高階圖像選項）
       expect(engines.imageEngine.engine).toBe(
         DEFAULT_GENERATION_ENGINES.imageEngine.engine
-      );
-      expect(engines.audioEngine.engine).toBe(
-        DEFAULT_GENERATION_ENGINES.audioEngine.engine
       );
     });
 

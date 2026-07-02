@@ -204,18 +204,29 @@ const ECONOMY_GENERATION_ENGINES: Record<
   voiceEngine:  { engine: "fal-ai/elevenlabs/tts/turbo-v2.5",   params: null },
 };
 
-// premium：推理大腦同 balanced（AIDV-856 規格表「同 balanced」）；生成引擎只升級
-// videoEngine→Kling Pro t2v 與 voiceEngine→ElevenLabs Multilingual v2（兩者都已是
-// falDispatcher 既有可用模型，純換預設字串、零新整合風險）。imageEngine 同 balanced
+// premium：推理大腦同 balanced（AIDV-856 規格表「同 balanced」）；生成引擎升級
+// videoEngine→Kling Pro t2v、voiceEngine→ElevenLabs Multilingual v2、
+// audioEngine→Suno V4（AIDV-856 規格表；AIDV-956 接通）。imageEngine 同 balanced
 // （flux-pro/v1.1 已是最高階圖像選項）。
 //
-// audioEngine 刻意維持 ace-step（同 balanced），未照規格表設 suno-v4：
-// server/routers/proStudio.ts 的 audioEngineToMusicChoice() 只認得
-// sonauto/stable-audio/musicgen 子字串，任何其餘字串（含 "suno-v4"）都會静默
-// fallback 回 ace-step——若直接填 "suno-v4" 只是讓組態顯示的型號與實際生成模型
-// 不一致（且 Suno 本身走獨立的 generateMusicSuno/webhookSuno 非同步流程，未接
-// MusicModelChoice），等於重現本卡要修的「宣稱 X 實際 Y」靜默降級問題。要真正
-// 支援 premium 音樂走 Suno，需另開卡把 Suno 接成 MusicModelChoice 選項。
+// audioEngine="suno-v4"（AIDV-956）— 各消費端的行為（均已驗證，無「宣稱 X 實際 Y」）：
+//   - proStudio.textToMusic / compiledTextToMusic：resolveMusicModelChoice()
+//     認得 suno-v4/suno-v3.5/suno → 走 submitSunoMusicJob 的 Suno 非同步＋
+//     webhook 流程（checkAudioStatus 橋接輪詢）；SUNO_API_KEY 缺失時
+//     失敗安全降級 ace-step 並 console.warn。
+//   - proStudio.soundEffects / director SFX / orb studio.generateSfx：suno 非
+//     SFX-capable，照既有規則退回 stable-audio（音效本就不該用 Suno）。
+//   - orb studio.generateAudio（agentToolExecutor）：brain 解析先於 Suno 判斷，
+//     suno-v4 走既有 Suno 分支（backgroundJob + webhookSuno）；缺金鑰降級
+//     fal-ai/ace-step。
+//   - 音樂精靈（musicSpecialistTools.generateMusic → generationJobDispatcher）：
+//     缺 SUNO_API_KEY 自動降級 ACE-Step；有金鑰時 "suno-v4" 依
+//     SPIRIT_TOOL_FAL_ALIAS 既有文件化別名派到 fal-ai/sonauto（同步派工鏈
+//     不支援 Suno 回呼模型的既有明示降級，非本卡靜默缺口）。
+//   - generate.ts / director.ts 主管線：讀 userAiBrain 行的 falTextToAudioEngine
+//     欄位（resolveFalEnginesFromRow），不吃本分層預設；即便使用者自行把
+//     audioEngine 設成 suno-v4，dispatchFalQueueTask 也會依 fallback chain
+//     明示降級（degraded 旗標）而非硬失敗。
 const PREMIUM_REASONING_BRAINS: Record<
   ReasoningBrainSlot,
   { model: string; temperature: number; topP: number }
@@ -227,7 +238,9 @@ const PREMIUM_GENERATION_ENGINES: Record<
 > = {
   imageEngine:  DEFAULT_GENERATION_ENGINES.imageEngine,
   videoEngine:  { engine: "fal-ai/kling-video/v2.1/pro/text-to-video", params: null },
-  audioEngine:  DEFAULT_GENERATION_ENGINES.audioEngine,
+  // AIDV-856 規格表 premium audioEngine=suno-v4；AIDV-956 已把 Suno 接成
+  // MusicModelChoice 選項（見上方註解與 server/routers/proStudio.ts）。
+  audioEngine:  { engine: "suno-v4", params: null },
   voiceEngine:  { engine: "fal-ai/elevenlabs/tts/multilingual-v2",     params: null },
 };
 

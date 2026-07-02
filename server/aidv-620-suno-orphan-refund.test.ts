@@ -27,10 +27,13 @@ const PRO_STUDIO = resolve(process.cwd(), "server/routers/proStudio.ts");
 describe("AIDV-620: generateMusicSuno createBackgroundJob 失敗→孤兒點數退款守衛", () => {
   it("chargeForFalTask 後的 createBackgroundJob 必須包在 try 內，失敗即 refundUserPoints 再 throw", () => {
     const src = readFileSync(PRO_STUDIO, "utf8");
-    const start = src.indexOf("generateMusicSuno: audioGenerationProcedure");
-    const end = src.indexOf("checkMusicSunoStatus: brainProcedure", start);
-    expect(start, "找不到 generateMusicSuno procedure").toBeGreaterThanOrEqual(0);
-    expect(end, "找不到 checkMusicSunoStatus 邊界").toBeGreaterThan(start);
+    // AIDV-956：Suno 提交流程自 generateMusicSuno 抽出為共用 helper
+    // submitSunoMusicJob（textToMusic / compiledTextToMusic 的 Suno 分支同用），
+    // AIDV-620 守衛程式碼隨之搬家 — 檢查區域改鎖定該 helper，守衛語義不變。
+    const start = src.indexOf("async function submitSunoMusicJob");
+    const end = src.indexOf("checkSunoAudioStatusBridge", start);
+    expect(start, "找不到 submitSunoMusicJob helper").toBeGreaterThanOrEqual(0);
+    expect(end, "找不到 checkSunoAudioStatusBridge 邊界").toBeGreaterThan(start);
     const region = src.slice(start, end);
 
     const idxCharge = region.indexOf("chargeForFalTask(ctx.user.id");

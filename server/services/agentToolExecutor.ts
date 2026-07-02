@@ -1422,17 +1422,45 @@ async function dispatchStudioTool(
 
       case "studio.generateAudio": {
         const requestedModel = (args.modelId as string) || "";
-        // Suno 路徑：modelId 起頭為 "suno" 走 SunoClient
-        if (requestedModel.toLowerCase().startsWith("suno")) {
+        // AIDV-956：先解析大腦 audioEngine，再判斷 Suno — premium 分層預設
+        // audioEngine=suno-v4 時，未顯式指定 modelId 的光球/助手音樂請求也要
+        // 真的走 Suno（原本 brain 解析在 Suno 判斷之後，"suno-v4" 會掉進 fal
+        // 路徑被 fallback chain 靜默換成別的模型＝「宣稱 X 實際 Y」）。
+        // DEF-15：未指定 modelId 時採用使用者大腦組態（含降級後的 fallback
+        // engine），而非硬編碼 ace-step。
+        let modelId = requestedModel;
+        if (!modelId) {
+          try {
+            const { buildBrainContext } = await import("../middleware/brainContext");
+            const brain = await buildBrainContext(opts.userId);
+            modelId = brain.generation.audioEngine.engine || "fal-ai/ace-step";
+          } catch {
+            modelId = "fal-ai/ace-step";
+          }
+        }
+        // Suno 可用性前置檢查：顯式指定 Suno 但缺金鑰 → 誠實報錯（維持既有
+        // 行為）；大腦組態指向 Suno 但缺金鑰 → 失敗安全降級 fal ace-step。
+        if (modelId.toLowerCase().startsWith("suno")) {
           const { getOrchestrator } = await import("./modelClients");
           const { suno } = getOrchestrator();
           if (!suno.isAvailable) {
-            return {
-              name: call.name,
-              ok: false,
-              error: "SUNO_API_KEY 未設定",
-            };
+            if (requestedModel) {
+              return {
+                name: call.name,
+                ok: false,
+                error: "SUNO_API_KEY 未設定",
+              };
+            }
+            console.warn(
+              "[orb-tool/studio.generateAudio] 大腦 audioEngine 指向 Suno 但 SUNO_API_KEY 未設定，降級 fal-ai/ace-step"
+            );
+            modelId = "fal-ai/ace-step";
           }
+        }
+        // Suno 路徑：modelId（顯式或大腦解析後）起頭為 "suno" 走 SunoClient
+        if (modelId.toLowerCase().startsWith("suno")) {
+          const { getOrchestrator } = await import("./modelClients");
+          const { suno } = getOrchestrator();
           // F2 修復:orb 走 Suno 原本完全繞過 backgroundJobs / 資產庫 —
           // webhookSuno 用 jobId 反查時找不到、runPostGenForJob 永遠不
           // 跑,使用者在「我的資產」永遠找不到。鏡像 proStudio:1960 的
@@ -1445,10 +1473,10 @@ async function dispatchStudioTool(
               userId: opts.userId,
               jobType: "audio",
               status: "processing",
-              progressMessage: `Suno ${requestedModel} 生成中…`,
+              progressMessage: `Suno ${modelId} 生成中…`,
               resultJson: {
                 studioType: "audio",
-                modelId: requestedModel,
+                modelId,
                 prompt: sunoPrompt,
                 sourceStudio: "orb",
               } as never,
@@ -1475,10 +1503,18 @@ async function dispatchStudioTool(
               callBackUrl = `${siteUrl}/api/webhook/suno?jobId=${orbSunoJobId}`;
             }
           }
+          // AIDV-956：依 modelId 推導 Suno 版本（suno-v3.5 → v3.5；suno-v4 /
+          // 泛稱 suno → v4），讓 premium 分層 suno-v4 真的打 V4 而非預設 v3.5。
+          const sunoVersion: "v3.5" | "v4" =
+            modelId.toLowerCase().includes("3.5") ||
+            modelId.toLowerCase().includes("3_5")
+              ? "v3.5"
+              : "v4";
           const sunoResult = await suno.generateMusic({
             prompt: sunoPrompt,
             instrumental: (args.instrumental as boolean) ?? false,
             lyrics: args.lyrics as string | undefined,
+            modelVersion: sunoVersion,
             ...(callBackUrl ? { callBackUrl } : {}),
           } as never);
           // 把 sunoTaskId merge 回 resultJson 供 webhook 反查
@@ -1514,20 +1550,9 @@ async function dispatchStudioTool(
           };
         }
 
-        // fal.ai 路徑（預設）
-        // DEF-15：接通大腦 audioEngine — 光球代理/助手未指定 modelId 時，
-        // 採用使用者大腦組態（含降級後的 fallback engine），而非硬編碼 ace-step。
+        // fal.ai 路徑（預設）— modelId 已於上方完成「顯式 → 大腦組態 →
+        // ace-step」解析（DEF-15 / AIDV-956）。
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        let modelId = requestedModel;
-        if (!modelId) {
-          try {
-            const { buildBrainContext } = await import("../middleware/brainContext");
-            const brain = await buildBrainContext(opts.userId);
-            modelId = brain.generation.audioEngine.engine || "fal-ai/ace-step";
-          } catch {
-            modelId = "fal-ai/ace-step";
-          }
-        }
         // DEF-So1 / DEF-M1 / DEF-M2：四個音樂引擎的欄位形狀互不相容，
         // 統一在此依 canonical modelId 構建正確的 fal 輸入：
         //   - Sonauto v2  → prompt + lyrics_prompt + tags[] + output_format + num_songs（無時長）

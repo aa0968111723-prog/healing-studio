@@ -34,7 +34,9 @@ describe("site-wide points billing audit", () => {
 
     // chargeForFalTask helper 必須存在且接到 deductUserPoints + estimatePoints
     expect(source).toContain('import { estimatePoints } from "../services/modelPricing"');
-    expect(source).toContain('import { deductUserPoints, refundUserPoints } from "../db"');
+    // AIDV-956 附帶修復（pre-existing 失敗）：import 行後來加入 getCustomBlock，
+    // 舊斷言鎖整行字面值而非「有匯入這兩個函式」的守衛意圖 — 改用前綴匹配。
+    expect(source).toContain("import { deductUserPoints, refundUserPoints");
     expect(source).toContain("async function chargeForFalTask");
     expect(source).toContain("await deductUserPoints(userId, estimate.totalPoints)");
 

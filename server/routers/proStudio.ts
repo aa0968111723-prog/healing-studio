@@ -309,18 +309,30 @@ async function falQueueRun(
 
 // ─── 音樂 & 音效模型清單 ──────────────────────────────────────────────────────
 
-type MusicModelChoice = "sonauto" | "ace-step" | "stable-audio" | "musicgen";
+type MusicModelChoice =
+  | "sonauto"
+  | "ace-step"
+  | "stable-audio"
+  | "musicgen"
+  | "suno";
 
 /**
  * 把大腦組態的 audioEngine 字串映射到 textToMusic 的 model enum。
  * 使用者可在「大腦組態」自訂 audioEngine（如 fal-ai/sonauto / fal-ai/stable-audio），
  * textToMusic 沒收到 input.model 時就以此為預設，讓 brain config 真正生效。
+ *
+ * AIDV-956：認得 suno-v4 / suno-v3.5 / suno → 回傳 "suno"（走 Suno 非同步
+ * ＋webhook 流程），不再把 Suno 靜默 fallback 成 ace-step（「宣稱 X 實際 Y」）。
+ * 注意順序：sonauto 不含 "suno" 子字串，兩者不互撞。
+ *
+ * export 供單元測試（server/aidv-956-suno-audio-engine.test.ts）驗證映射。
  */
-function audioEngineToMusicChoice(engine: string): MusicModelChoice {
+export function audioEngineToMusicChoice(engine: string): MusicModelChoice {
   const e = engine.toLowerCase();
   if (e.includes("sonauto")) return "sonauto";
   if (e.includes("stable-audio")) return "stable-audio";
   if (e.includes("musicgen")) return "musicgen";
+  if (e.includes("suno")) return "suno";
   return "ace-step";
 }
 
@@ -343,7 +355,15 @@ function voiceEngineToElevenLabsEngine(engine: string): ElevenLabsEngineChoice {
   return "turbo-v2.5";
 }
 
-/** 可用的音樂生成模型 */
+/**
+ * 可用的音樂生成模型（前端模型選單）。
+ *
+ * AIDV-956 註記：Suno 刻意不列入此選單 —— 前端已有獨立的 Suno 工作室 UI
+ * （generateMusicSuno / checkMusicSunoStatus），且 e2e 契約
+ * （tests/e2e/orb-pro-studio-25-spirits.spec.ts）鎖定音樂分頁為這 4 個 fal 模型。
+ * Suno 走 textToMusic 的途徑是：大腦組態 audioEngine=suno-v4（premium 分層預設）
+ * 或 API 呼叫端顯式傳 model="suno"。
+ */
 const MUSIC_MODELS = [
   // DEF-14 修正：ACE-Step 設為預設（Sonauto v2 目前 fal.ai 不穩定）
   {
@@ -411,13 +431,19 @@ const BACKGROUND_TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 分鐘
 
 // ─── 音樂模型解析（接通大腦組態 audioEngine）────────────────────────────────
 
-type MusicShortId = "sonauto" | "ace-step" | "stable-audio" | "musicgen";
+type MusicShortId = MusicModelChoice;
 
 const FAL_TO_SHORT_MUSIC: Record<string, MusicShortId> = {
   "fal-ai/sonauto": "sonauto",
   "fal-ai/ace-step": "ace-step",
   "fal-ai/stable-audio": "stable-audio",
   "fal-ai/musicgen": "musicgen",
+  // AIDV-956：大腦組態 audioEngine 的 Suno canonical 值（modelRegistry
+  // GENERATION_ENGINE_CATALOG audioEngine options / PREMIUM 分層預設）。
+  // 兩個版本都映射到同一短碼 "suno"；實際 v3.5/v4 由呼叫端依 engine 字串決定。
+  "suno-v4": "suno",
+  "suno-v3.5": "suno",
+  suno: "suno",
 };
 
 /**
@@ -427,8 +453,10 @@ const FAL_TO_SHORT_MUSIC: Record<string, MusicShortId> = {
  *   1. input.model（使用者顯式選擇）
  *   2. brain.generation.audioEngine.engine（大腦組態，可被使用者在大腦頁設定）
  *   3. "ace-step"（最終安全預設）
+ *
+ * export 供單元測試（server/aidv-956-suno-audio-engine.test.ts）驗證映射。
  */
-function resolveMusicModelChoice(
+export function resolveMusicModelChoice(
   inputModel: MusicShortId | undefined,
   brainEngine: string | undefined
 ): MusicShortId {
@@ -437,6 +465,18 @@ function resolveMusicModelChoice(
     return FAL_TO_SHORT_MUSIC[brainEngine];
   }
   return "ace-step";
+}
+
+/**
+ * AIDV-956：由大腦 audioEngine 字串推導 Suno 模型版本。
+ * "suno-v3.5"（或含 3_5 拼法）→ "v3.5"；其餘（含 premium 預設 "suno-v4"、
+ * 泛稱 "suno"、顯式 input.model="suno"）→ "v4"（高品質，對齊 AIDV-856 規格表）。
+ */
+export function sunoModelVersionFromEngine(
+  engine: string | undefined
+): "v3.5" | "v4" {
+  const e = (engine ?? "").toLowerCase();
+  return e.includes("3.5") || e.includes("3_5") ? "v3.5" : "v4";
 }
 
 // ─── 音效模型解析 ────────────────────────────────────────────────────────
@@ -484,6 +524,295 @@ function resolveSfxModelChoice(
   return "stable-audio";
 }
 
+// ─── Suno 共用提交流程（AIDV-956）────────────────────────────────────────────
+
+interface SunoSubmitInput {
+  prompt: string;
+  style?: string;
+  title?: string;
+  instrumental: boolean;
+  customMode: boolean;
+  lyrics?: string;
+  /** Suno 模型版本：v3.5（穩定）/ v4（高品質） */
+  modelVersion: "v3.5" | "v4";
+}
+
+/**
+ * submitSunoMusicJob — Suno 音樂生成的共用提交流程：
+ * 扣點 → 建 backgroundJob → 簽 webhook token 組 callBackUrl →
+ * 呼叫 Suno API → 回寫 sunoTaskId；任一步失敗依既有退款守衛退點。
+ *
+ * AIDV-956：自 generateMusicSuno 抽出（行為與原內聯版完全一致），讓
+ * textToMusic / compiledTextToMusic 在大腦 audioEngine 選到 Suno
+ * （premium 分層預設 suno-v4）時走同一條非同步＋webhook 流程，而非
+ * 靜默降級 ace-step。對應守衛測試：
+ *   - server/aidv-620-suno-orphan-refund.test.ts（createBackgroundJob 失敗退款）
+ *   - server/services/refundStatus.test.ts（claim-then-refund 順序）
+ */
+async function submitSunoMusicJob(
+  ctx: { user: { id: number } },
+  input: SunoSubmitInput,
+  opts: { sourceStudio?: string } = {}
+): Promise<{
+  taskId: string;
+  jobId: number | null;
+  charged: number;
+  pricingKey: "suno-v3.5" | "suno-v4";
+}> {
+  const { getOrchestrator } = await import("../services/modelClients");
+  const { suno } = getOrchestrator();
+  if (!suno.isAvailable) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "SUNO_API_KEY 未設定，請在 Railway → Environment Variables 中新增",
+    });
+  }
+
+  const { createBackgroundJob } = await import("../db");
+
+  // 依模型版本走對應 catalog 條目（v3.5: 6 pts, v4: 10 pts 起跳）
+  const pricingKey = input.modelVersion === "v4" ? ("suno-v4" as const) : ("suno-v3.5" as const);
+  const estimate = estimatePoints(pricingKey, { durationSec: 60 });
+  const charged = await chargeForFalTask(ctx.user.id, pricingKey, { durationSec: 60 });
+
+  // 先建 backgroundJob 取得 jobId，才能組出帶 jobId 的 callBackUrl
+  // resultJson 必須帶上 studioType / modelId / prompt / sourceStudio —
+  // runPostGenForJob 從這裡讀回識別資訊寫入提示詞庫 / 資產庫 / 生成歷史。
+  // 不寫的話 Suno 完成後使用者在「我的資產」永遠看不到產出。
+  const sunoModelId = pricingKey; // "suno-v3.5" / "suno-v4"
+  const sunoLabel = input.title?.trim() || `Suno ${input.modelVersion} 音樂`;
+  let insertId: number;
+  try {
+    insertId = await createBackgroundJob({
+      userId: ctx.user.id,
+      jobType: "audio",
+      status: "processing",
+      progressMessage: `Suno ${input.modelVersion} 生成中…`,
+      resultJson: {
+        estimate,
+        studioType: "audio",
+        modelId: sunoModelId,
+        prompt: input.prompt,
+        label: sunoLabel,
+        sourceStudio: opts.sourceStudio ?? "music-studio",
+        modelVersion: input.modelVersion,
+        // 寫入實扣點數,讓 webhookSuno 在失敗路徑（無 audio URL / 回呼錯誤）
+        // 能透過 refundJobIfBilled 退回,並由 runPostGenForJob 寫入
+        // generation_history.costCredits（取代寫死 1）。
+        costPoints: charged,
+      } as any,
+    });
+  } catch (jobErr) {
+    // AIDV-620: 上方已扣點，但 createBackgroundJob 失敗 → 沒有 jobId，
+    // 下方 try-catch（suno.generateMusic 失敗時的 refundUserPoints）永遠
+    // 不會執行到。立即退款；尚無 jobId 故與下方退款路徑互斥、不會雙退。
+    await refundUserPoints(ctx.user.id, charged);
+    throw jobErr;
+  }
+  // createBackgroundJob now returns the raw insertId (number) — older
+  // code here typed `job` as an object with `.id` and the typeof-object
+  // check meant `jobId` was always null. That left callBackUrl
+  // undefined, and Suno's apibox.erweima.ai gateway rejects every
+  // generate call with `400 "Please enter callBackUrl."` when it's
+  // missing — i.e. the entire Suno flow was broken in production.
+  const jobId =
+    typeof insertId === "number" && insertId > 0 ? insertId : null;
+
+  const siteUrl = process.env.VITE_SITE_URL?.trim();
+  const sunoWebhookToken = jobId ? signWebhookToken("suno", jobId) : null;
+  const callBackUrl =
+    siteUrl && jobId
+      ? `${siteUrl}/api/webhook/suno?jobId=${jobId}${
+          sunoWebhookToken ? `&token=${sunoWebhookToken}` : ""
+        }`
+      : undefined;
+
+  try {
+    const { taskId } = await suno.generateMusic({ ...input, callBackUrl });
+
+    // 把 sunoTaskId 補回 backgroundJob.resultJson，供 webhook / 輪詢反查。
+    // 必須先 fetch 既有 meta 再 merge，否則會覆寫 studioType / modelId /
+    // prompt / sourceStudio，導致下游 runPostGenForJob 找不到識別資訊。
+    if (jobId) {
+      const { updateBackgroundJob, getBackgroundJob } = await import("../db");
+      const existing = await getBackgroundJob(jobId);
+      const existingMeta =
+        (existing?.resultJson ?? {}) as Record<string, unknown>;
+      await updateBackgroundJob(jobId, {
+        resultJson: {
+          ...existingMeta,
+          sunoTaskId: taskId,
+          userId: ctx.user.id,
+        } as any,
+      });
+    }
+
+    return { taskId, jobId, charged, pricingKey };
+  } catch (err) {
+    // AIDV-650: 有 jobId 時走 claim-then-refund（與 refundJobIfBilled 同款
+    // CAS 順序）——先以 atomicClaimJobRefund 寫入 refunded/refundedPoints
+    // 冪等旗標，搶到鎖才退點。理由：
+    //   1. 此 job 已寫 costPoints，之後會被 staleJobChecker/輪詢標 failed；
+    //      若只退點不寫旗標，退款狀態徽章會把「已退點」誤報成「未退點」。
+    //   2. 旗標即退款鎖，防與 webhookSuno / stale 路徑的 refundJobIfBilled 雙退。
+    // 無 jobId（insertId 異常）時無旗標可寫、也無其他退款路徑 → 直接退點。
+    if (jobId) {
+      const { atomicClaimJobRefund } = await import("../db");
+      const claimed = await atomicClaimJobRefund(jobId, charged);
+      if (claimed) await refundUserPoints(ctx.user.id, charged);
+    } else {
+      await refundUserPoints(ctx.user.id, charged);
+    }
+    throw err;
+  }
+}
+
+/**
+ * checkSunoAudioStatusBridge — 讓 checkAudioStatus 的既有輪詢契約
+ * （requestId + model → { status, audio_url, … }）也能查 Suno 非同步任務，
+ * 前端（AsyncAudioPoller / OrbCreationStage / MusicCanvas 等）零改動。
+ *
+ * textToMusic / compiledTextToMusic 的 Suno 分支回傳
+ * request_id = `suno:<jobId>:<taskId>`；此處解析後直接輪詢 Suno（不走 fal queue）。
+ *   - 完成：本地化 audio URL、回寫 backgroundJob、觸發 runPostGenForJob
+ *     （與 webhookSuno 冪等互補 — 先到者寫入、後到者短路）。
+ *   - 失敗：標記 failed 並經 refundJobIfBilled（claim-based）退點，
+ *     與 webhook 失敗路徑互斥、不會雙退。
+ *   - 進行中：回 IN_PROGRESS，前端續輪詢。
+ */
+async function checkSunoAudioStatusBridge(
+  userId: number,
+  requestId: string
+): Promise<
+  | {
+      status: "COMPLETED";
+      audio_url: string | null;
+      video_url: null;
+      text: null;
+      raw: unknown;
+    }
+  | { status: "IN_PROGRESS" }
+> {
+  const parsed = /^suno:(\d+):(.+)$/.exec(requestId);
+  const jobId = parsed ? parseInt(parsed[1], 10) : 0;
+  const taskId = parsed ? parsed[2] : requestId;
+
+  const { getBackgroundJob, updateBackgroundJob } = await import("../db");
+
+  // 越權防護＋webhook 先完成時的短路：job 已終態就直接回結果，不再打 Suno。
+  let jobMeta: Record<string, unknown> | null = null;
+  if (jobId > 0) {
+    const job = await getBackgroundJob(jobId);
+    if (job && job.userId !== userId) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "任務不存在" });
+    }
+    if (job?.status === "completed") {
+      const meta = (job.resultJson ?? {}) as Record<string, unknown>;
+      const audioUrl = (meta.audioUrl ?? meta.resultUrl) as string | undefined;
+      return {
+        status: "COMPLETED" as const,
+        audio_url: audioUrl ?? null,
+        video_url: null,
+        text: null,
+        raw: meta,
+      };
+    }
+    if (job?.status === "failed") {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: `任務失敗 [suno]: ${job.errorMessage ?? "未知錯誤"}`,
+      });
+    }
+    jobMeta = job ? ((job.resultJson ?? {}) as Record<string, unknown>) : null;
+  }
+
+  const { getOrchestrator } = await import("../services/modelClients");
+  const { suno } = getOrchestrator();
+  if (!suno.isAvailable) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "SUNO_API_KEY 未設定",
+    });
+  }
+
+  const status = await suno.getTaskStatus(taskId);
+  // 與 checkMusicSunoStatus 相同的完成判定（apibox.erweima.ai 大寫 enum）。
+  const isCompleted =
+    status.status === "completed" ||
+    status.status === "SUCCESS" ||
+    status.status === "FIRST_SUCCESS";
+  const firstUsableClip = status.clips?.find(
+    c => typeof c.audioUrl === "string" && c.audioUrl.length > 0
+  );
+  if (isCompleted && firstUsableClip) {
+    // 統一前綴：generated/studio/<userId>/suno/<taskId>。
+    const localized = (await localizeResultUrls(
+      { audioUrl: firstUsableClip.audioUrl, clips: status.clips },
+      unifiedAssetPrefix({ userId, source: "suno", modelId: taskId })
+    )) as { audioUrl: string; clips: typeof status.clips };
+
+    if (jobId > 0) {
+      await updateBackgroundJob(jobId, {
+        status: "completed",
+        progress: 100,
+        resultJson: {
+          ...(jobMeta ?? {}),
+          ...localized,
+          studioType: "audio",
+          sourceStudio: "pro",
+          modelId: "suno",
+          resultUrl: localized.audioUrl,
+          mediaType: "audio",
+        } as any,
+      });
+      // 資產庫 / 歷史 / 提示詞庫 / 監控室。冪等 — webhook 已跑過則短路。
+      const { runPostGenForJob } = await import("../services/postGenActions.js");
+      void runPostGenForJob(jobId);
+    }
+
+    return {
+      status: "COMPLETED" as const,
+      audio_url: localized.audioUrl,
+      video_url: null,
+      text: null,
+      raw: localized,
+    };
+  }
+
+  const isFailed =
+    status.status === "CREATE_TASK_FAILED" ||
+    status.status === "GENERATE_AUDIO_FAILED" ||
+    status.status === "SENSITIVE_WORD_ERROR" ||
+    status.status === "failed";
+  if (isFailed) {
+    if (jobId > 0) {
+      await updateBackgroundJob(jobId, {
+        status: "failed",
+        progress: 0,
+        progressMessage: "Suno 生成失敗",
+        errorMessage: `Suno 任務失敗（${status.status}）`,
+      });
+      // claim-based 冪等退款 — 與 webhookSuno 失敗路徑互斥、不會雙退。
+      const { refundJobIfBilled } = await import("../services/postGenActions.js");
+      void refundJobIfBilled(jobId);
+    }
+    recordErrorTrace({
+      userId,
+      modality: "audio",
+      engine: "suno",
+      prompt: `[Suno 非同步任務失敗] taskId=${taskId}`,
+      errorMessage: status.status,
+      errorCode: "SUNO_TASK_FAILED",
+    });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: `任務失敗 [suno]: ${status.status}`,
+    });
+  }
+
+  return { status: "IN_PROGRESS" as const };
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const proStudioRouter = router({
@@ -507,6 +836,9 @@ export const proStudioRouter = router({
    *  2. fal-ai/ace-step           — 高品質音樂，支援 prompt + duration
    *  3. fal-ai/stable-audio       — 音效/音樂皆可，支援 duration + negative_prompt
    *  4. fal-ai/musicgen           — Meta MusicGen，支援 prompt + duration
+   *  5. suno（AIDV-956）          — 大腦 audioEngine=suno-v4/suno-v3.5（premium
+   *     分層預設）或顯式 model="suno" 時，走 Suno API 非同步＋webhook 流程；
+   *     回傳 request_id="suno:<jobId>:<taskId>"，checkAudioStatus 自動橋接輪詢。
    *
    * 當主模型失敗時前端可切換至其他備選模型重試。
    */
@@ -522,17 +854,82 @@ export const proStudioRouter = router({
         // DEF-S1：Stable Audio 支援 negative_prompt（其他音樂模型會忽略）
         negativePrompt: z.string().max(500).optional(),
         referenceAudioUrl: z.string().url().max(2000).optional(),
+        // AIDV-956：加入 "suno"（走 Suno 非同步＋webhook 流程，回傳
+        // request_id="suno:<jobId>:<taskId>"，前端沿用 checkAudioStatus 輪詢）
         model: z
-          .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
+          .enum(["sonauto", "ace-step", "stable-audio", "musicgen", "suno"])
           .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       // DEF-15：接通大腦 audioEngine — 未指定 model 時依大腦組態選擇引擎
-      const modelChoice = resolveMusicModelChoice(
+      let modelChoice = resolveMusicModelChoice(
         input.model,
         ctx.brain.generation.audioEngine.engine
       );
+
+      // ── Suno（AIDV-956：premium 分層 audioEngine=suno-v4 接通）────────
+      // 走既有 generateMusicSuno 的非同步＋webhook 流程（submitSunoMusicJob），
+      // 不再把 Suno 靜默降級成 ace-step。呼叫端契約不變：回傳
+      // { request_id, model, is_async_polling } — checkAudioStatus 的 Suno
+      // 橋接分支據 request_id 前綴 "suno:" 輪詢 Suno，前端零改動。
+      if (modelChoice === "suno") {
+        const { getOrchestrator } = await import("../services/modelClients");
+        const { suno } = getOrchestrator();
+        if (!suno.isAvailable) {
+          if (input.model === "suno") {
+            // 使用者顯式選 Suno → 誠實報錯（同 generateMusicSuno）
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message:
+                "SUNO_API_KEY 未設定，請在 Railway → Environment Variables 中新增",
+            });
+          }
+          // 大腦組態指向 Suno 但金鑰缺失 → 失敗安全降級 ace-step（記錄警告，
+          // 不讓所有未指定 model 的音樂請求硬失敗）。
+          console.warn(
+            "[ProStudio] 大腦 audioEngine 指向 Suno 但 SUNO_API_KEY 未設定，textToMusic 降級 ace-step"
+          );
+          modelChoice = "ace-step";
+        } else {
+          // Suno 的 prompt 為必填 — 用 prompt + tags 組合描述
+          const sunoParts: string[] = [];
+          if (input.prompt) sunoParts.push(input.prompt);
+          if (input.tags) sunoParts.push(input.tags);
+          const sunoPrompt = sunoParts.join(", ");
+          if (!sunoPrompt) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "請至少提供音樂描述（prompt）或風格標籤（tags）",
+            });
+          }
+          const modelVersion = sunoModelVersionFromEngine(
+            ctx.brain.generation.audioEngine.engine
+          );
+          const hasLyrics = !!input.lyrics && !input.instrumental;
+          const { taskId, jobId, charged, pricingKey } =
+            await submitSunoMusicJob(
+              ctx,
+              {
+                prompt: sunoPrompt,
+                style: input.tags || undefined,
+                instrumental: input.instrumental ?? false,
+                customMode: hasLyrics,
+                lyrics: hasLyrics ? input.lyrics : undefined,
+                modelVersion,
+              },
+              { sourceStudio: "pro" }
+            );
+          return {
+            request_id: `suno:${jobId ?? 0}:${taskId}`,
+            model: pricingKey,
+            is_async_polling: true,
+            suno_task_id: taskId,
+            job_id: jobId,
+            estimated_credits: charged,
+          };
+        }
+      }
 
       // ── Sonauto v2（預設）─────────────────────────────────────
       if (modelChoice === "sonauto") {
@@ -1696,6 +2093,16 @@ export const proStudioRouter = router({
         }
       }
 
+      // ── AIDV-956：Suno 任務走 Suno 輪詢橋接（不走 fal queue）──────────
+      // textToMusic / compiledTextToMusic 的 Suno 分支回傳
+      // request_id="suno:<jobId>:<taskId>"、model="suno-v4"/"suno-v3.5"。
+      if (
+        input.requestId.startsWith("suno:") ||
+        input.model.toLowerCase().startsWith("suno")
+      ) {
+        return checkSunoAudioStatusBridge(ctx.user.id, input.requestId);
+      }
+
       const status = (await falQueueStatus(
         input.requestId,
         input.model
@@ -1839,8 +2246,9 @@ export const proStudioRouter = router({
         bpmOverride: z.number().min(40).max(300).optional(),
         // DEF-S1：Stable Audio 支援 negative_prompt（其他音樂模型會忽略）
         negativePrompt: z.string().max(500).optional(),
+        // AIDV-956：加入 "suno"（同 textToMusic — 走 Suno 非同步＋webhook 流程）
         model: z
-          .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
+          .enum(["sonauto", "ace-step", "stable-audio", "musicgen", "suno"])
           .optional(),
       })
     )
@@ -1858,14 +2266,64 @@ export const proStudioRouter = router({
       };
       const compiled = compiler.compile(compilerInput);
 
-      // ── 2. 依選定模型送出 fal.ai 任務 ────────────────────────────
+      // ── 2. 依選定模型送出任務 ────────────────────────────────────
       // DEF-15：接通大腦 audioEngine — 未指定 model 時依大腦組態選擇引擎
-      const modelChoice = resolveMusicModelChoice(
+      let modelChoice = resolveMusicModelChoice(
         input.model,
         ctx.brain.generation.audioEngine.engine
       );
       const durationSec =
         input.targetDurationSec ?? compiled.estimatedDurationSec ?? 30;
+
+      // ── Suno（AIDV-956）— 與 textToMusic 同一條非同步＋webhook 流程 ──
+      if (modelChoice === "suno") {
+        const { getOrchestrator } = await import("../services/modelClients");
+        const { suno } = getOrchestrator();
+        if (!suno.isAvailable) {
+          if (input.model === "suno") {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message:
+                "SUNO_API_KEY 未設定，請在 Railway → Environment Variables 中新增",
+            });
+          }
+          // 大腦組態指向 Suno 但金鑰缺失 → 失敗安全降級 ace-step
+          console.warn(
+            "[ProStudio] 大腦 audioEngine 指向 Suno 但 SUNO_API_KEY 未設定，compiledTextToMusic 降級 ace-step"
+          );
+          modelChoice = "ace-step";
+        } else {
+          const modelVersion = sunoModelVersionFromEngine(
+            ctx.brain.generation.audioEngine.engine
+          );
+          const hasLyrics = !!input.lyrics && !input.instrumental;
+          const { taskId, jobId, charged, pricingKey } =
+            await submitSunoMusicJob(
+              ctx,
+              {
+                prompt: compiled.prompt,
+                style: compiled.styleTag || undefined,
+                instrumental: input.instrumental ?? false,
+                customMode: hasLyrics,
+                lyrics: hasLyrics ? input.lyrics : undefined,
+                modelVersion,
+              },
+              { sourceStudio: "pro" }
+            );
+          return {
+            request_id: `suno:${jobId ?? 0}:${taskId}`,
+            model: pricingKey,
+            is_async_polling: true,
+            compiledPrompt: compiled.prompt,
+            styleTag: compiled.styleTag,
+            estimatedDurationSec: compiled.estimatedDurationSec,
+            compilationLog: compiled.compilationLog,
+            suno_task_id: taskId,
+            job_id: jobId,
+            estimated_credits: charged,
+          };
+        }
+      }
 
       if (modelChoice === "sonauto") {
         const falModelId = "fal-ai/sonauto";
@@ -1997,7 +2455,8 @@ export const proStudioRouter = router({
    * generateMusicSuno — 透過 Suno API 生成音樂（async）
    *
    * 與 textToMusic / compiledTextToMusic 的差異：
-   *  - textToMusic 走 fal.ai（ace-step / sonauto / stable-audio / musicgen）
+   *  - textToMusic 預設走 fal.ai（ace-step / sonauto / stable-audio / musicgen）；
+   *    AIDV-956 起大腦 audioEngine 選 Suno 時同樣經 submitSunoMusicJob 走 Suno
    *  - generateMusicSuno 直接呼叫 Suno API，可使用 customMode 指定歌詞 + 風格
    *
    * 完成後使用 checkMusicSunoStatus 輪詢結果。
@@ -2016,112 +2475,15 @@ export const proStudioRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const { getOrchestrator } = await import("../services/modelClients");
-      const { suno } = getOrchestrator();
-      if (!suno.isAvailable) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "SUNO_API_KEY 未設定，請在 Railway → Environment Variables 中新增",
-        });
-      }
-
-      const { createBackgroundJob } = await import("../db");
-
-      // 依模型版本走對應 catalog 條目（v3.5: 6 pts, v4: 10 pts 起跳）
-      const pricingKey = input.modelVersion === "v4" ? "suno-v4" : "suno-v3.5";
-      const estimate = estimatePoints(pricingKey, { durationSec: 60 });
-      const charged = await chargeForFalTask(ctx.user.id, pricingKey, { durationSec: 60 });
-
-      // 先建 backgroundJob 取得 jobId，才能組出帶 jobId 的 callBackUrl
-      // resultJson 必須帶上 studioType / modelId / prompt / sourceStudio —
-      // runPostGenForJob 從這裡讀回識別資訊寫入提示詞庫 / 資產庫 / 生成歷史。
-      // 不寫的話 Suno 完成後使用者在「我的資產」永遠看不到產出。
-      const sunoModelId = pricingKey; // "suno-v3.5" / "suno-v4"
-      const sunoLabel = input.title?.trim() || `Suno ${input.modelVersion} 音樂`;
-      let insertId: number;
-      try {
-        insertId = await createBackgroundJob({
-          userId: ctx.user.id,
-          jobType: "audio",
-          status: "processing",
-          progressMessage: `Suno ${input.modelVersion} 生成中…`,
-          resultJson: {
-            estimate,
-            studioType: "audio",
-            modelId: sunoModelId,
-            prompt: input.prompt,
-            label: sunoLabel,
-            sourceStudio: "music-studio",
-            modelVersion: input.modelVersion,
-            // 寫入實扣點數,讓 webhookSuno 在失敗路徑（無 audio URL / 回呼錯誤）
-            // 能透過 refundJobIfBilled 退回,並由 runPostGenForJob 寫入
-            // generation_history.costCredits（取代寫死 1）。
-            costPoints: charged,
-          } as any,
-        });
-      } catch (jobErr) {
-        // AIDV-620: 上方已扣點，但 createBackgroundJob 失敗 → 沒有 jobId，
-        // 下方 try-catch（suno.generateMusic 失敗時的 refundUserPoints）永遠
-        // 不會執行到。立即退款；尚無 jobId 故與下方退款路徑互斥、不會雙退。
-        await refundUserPoints(ctx.user.id, charged);
-        throw jobErr;
-      }
-      // createBackgroundJob now returns the raw insertId (number) — older
-      // code here typed `job` as an object with `.id` and the typeof-object
-      // check meant `jobId` was always null. That left callBackUrl
-      // undefined, and Suno's apibox.erweima.ai gateway rejects every
-      // generate call with `400 "Please enter callBackUrl."` when it's
-      // missing — i.e. the entire Suno flow was broken in production.
-      const jobId =
-        typeof insertId === "number" && insertId > 0 ? insertId : null;
-
-      const siteUrl = process.env.VITE_SITE_URL?.trim();
-      const sunoWebhookToken = jobId ? signWebhookToken("suno", jobId) : null;
-      const callBackUrl =
-        siteUrl && jobId
-          ? `${siteUrl}/api/webhook/suno?jobId=${jobId}${
-              sunoWebhookToken ? `&token=${sunoWebhookToken}` : ""
-            }`
-          : undefined;
-
-      try {
-        const { taskId } = await suno.generateMusic({ ...input, callBackUrl });
-
-        // 把 sunoTaskId 補回 backgroundJob.resultJson，供 webhook / 輪詢反查。
-        // 必須先 fetch 既有 meta 再 merge，否則會覆寫 studioType / modelId /
-        // prompt / sourceStudio，導致下游 runPostGenForJob 找不到識別資訊。
-        if (jobId) {
-          const { updateBackgroundJob, getBackgroundJob } = await import("../db");
-          const existing = await getBackgroundJob(jobId);
-          const existingMeta =
-            (existing?.resultJson ?? {}) as Record<string, unknown>;
-          await updateBackgroundJob(jobId, {
-            resultJson: {
-              ...existingMeta,
-              sunoTaskId: taskId,
-              userId: ctx.user.id,
-            } as any,
-          });
-        }
-
-        return { taskId, jobId, modelVersion: input.modelVersion, estimated_credits: charged };
-      } catch (err) {
-        // AIDV-650: 有 jobId 時走 claim-then-refund（與 refundJobIfBilled 同款
-        // CAS 順序）——先以 atomicClaimJobRefund 寫入 refunded/refundedPoints
-        // 冪等旗標，搶到鎖才退點。理由：
-        //   1. 此 job 已寫 costPoints，之後會被 staleJobChecker/輪詢標 failed；
-        //      若只退點不寫旗標，退款狀態徽章會把「已退點」誤報成「未退點」。
-        //   2. 旗標即退款鎖，防與 webhookSuno / stale 路徑的 refundJobIfBilled 雙退。
-        // 無 jobId（insertId 異常）時無旗標可寫、也無其他退款路徑 → 直接退點。
-        if (jobId) {
-          const { atomicClaimJobRefund } = await import("../db");
-          const claimed = await atomicClaimJobRefund(jobId, charged);
-          if (claimed) await refundUserPoints(ctx.user.id, charged);
-        } else {
-          await refundUserPoints(ctx.user.id, charged);
-        }
-        throw err;
-      }
+      // AIDV-956：提交流程抽出至 submitSunoMusicJob（共用給 textToMusic /
+      // compiledTextToMusic 的 Suno 分支），行為與原內聯版完全一致。
+      const { taskId, jobId, charged } = await submitSunoMusicJob(ctx, input);
+      return {
+        taskId,
+        jobId,
+        modelVersion: input.modelVersion,
+        estimated_credits: charged,
+      };
     }),
 
   /**
