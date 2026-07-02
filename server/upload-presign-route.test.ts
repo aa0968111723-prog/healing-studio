@@ -247,6 +247,33 @@ describe("POST /api/upload/finalize — auth + scope + Head 驗證", () => {
     server.close();
   });
 
+  it.each([
+    // AIDV-270: 瀏覽器/OS 常見別名——mp3 用 ID3 標頭、wav 別名用 RIFF/WAVE 標頭嗅探。
+    ["audio/mp3", Buffer.from("ID3\x03\x00\x00\x00\x00\x00\x21", "latin1")],
+    ["audio/x-wav", Buffer.concat([Buffer.from("RIFF", "latin1"), Buffer.from([0x24, 0, 0, 0]), Buffer.from("WAVEfmt ", "latin1")])],
+    ["audio/wave", Buffer.concat([Buffer.from("RIFF", "latin1"), Buffer.from([0x24, 0, 0, 0]), Buffer.from("WAVEfmt ", "latin1")])],
+  ] as const)("AIDV-270: audio 別名 %s finalize 通過（allowlist + 嗅探不誤殺）", async (alias, headBytes) => {
+    authenticateRequestMock.mockResolvedValue({ id: 1 });
+    verifyUploadedObjectMock.mockResolvedValue({
+      exists: true,
+      sizeBytes: 2048,
+      contentType: alias,
+    });
+    fetchObjectHeadBytesMock.mockResolvedValue(headBytes);
+    buildPublicUrlMock.mockReturnValue("https://pub.r2.dev/uploads/1/x.audio");
+    const { server, baseUrl } = await startTestServer();
+    const res = await post(baseUrl, "/api/upload/finalize", {
+      fileKey: "uploads/1/x.audio",
+      mimeType: alias,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.mimeType).toBe(alias);
+    // audio 一律 storage-only，不得回 inline-ok。
+    expect(body.inlineRecommendation).toBe("use-storage-url-required");
+    server.close();
+  });
+
   it("實際物件超過上限 → 413（用 HeadObject 回的真實大小把關）", async () => {
     authenticateRequestMock.mockResolvedValue({ id: 1 });
     verifyUploadedObjectMock.mockResolvedValue({

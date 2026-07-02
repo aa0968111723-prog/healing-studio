@@ -106,6 +106,8 @@ const PENDING_BLOCK = [
   "0104_feedback_indexes",
   // AIDV-926：agent_dlq 加 correlation_id 欄位 + 索引，供跨日誌追蹤（information_schema 守門）。
   "0105_agent_dlq_correlation_id",
+  // AIDV-270：video_projects 加 input_assets JSON 欄位（多模態輸入素材，information_schema 守門）。
+  "0106_video_input_assets",
 ];
 
 function readSql(tag: string): string {

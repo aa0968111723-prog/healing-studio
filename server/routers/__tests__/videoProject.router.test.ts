@@ -14,6 +14,8 @@
  *   9. 帶 ctx.requestId 時 traceId 寫入 metadata
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { videoProjectRouter } from "../videoProject";
 
 vi.mock("../../db", () => ({
@@ -90,6 +92,125 @@ describe("videoProjectRouter — 基本 CRUD", () => {
 
     const caller = videoProjectRouter.createCaller(ctx);
     await expect(caller.get({ id: 55 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("AIDV-270 多模態輸入素材 — videoProject.create/update inputAssets", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("create 帶 inputAssets → 下傳 createVideoProject 並回傳於結果", async () => {
+    const inputAssets = [
+      { type: "image", url: "https://cdn.x/style.png", role: "style_reference" },
+      { type: "audio", url: "https://cdn.x/bgm.mp3", role: "background_music" },
+    ];
+    (db.createVideoProject as any).mockResolvedValue(55);
+    (db.getVideoProject as any).mockResolvedValue({ ...baseProject, inputAssets });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    const result = await caller.create({ title: "多模態", inputAssets: inputAssets as any });
+    expect(db.createVideoProject).toHaveBeenCalledWith(
+      expect.objectContaining({ inputAssets })
+    );
+    expect(result.inputAssets).toEqual(inputAssets);
+  });
+
+  it("create 省略 inputAssets → createVideoProject 收到 null，回傳空陣列", async () => {
+    (db.createVideoProject as any).mockResolvedValue(55);
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    const result = await caller.create({ title: "純文字" });
+    expect(db.createVideoProject).toHaveBeenCalledWith(
+      expect.objectContaining({ inputAssets: null })
+    );
+    expect(result.inputAssets).toEqual([]);
+  });
+
+  it("create inputAssets 角色↔模態不一致 → BAD_REQUEST（契約層擋下）", async () => {
+    const caller = videoProjectRouter.createCaller(ctx);
+    await expect(
+      caller.create({
+        title: "壞素材",
+        inputAssets: [{ type: "audio", url: "https://cdn.x/x.mp3", role: "style_reference" }] as any,
+      })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(db.createVideoProject).not.toHaveBeenCalled();
+  });
+
+  it("update inputAssets → patch 帶 inputAssets 下傳", async () => {
+    const inputAssets = [{ type: "image", url: "https://cdn.x/a.jpg", role: "product_shot" }];
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+    (db.updateVideoProject as any).mockResolvedValue({ updated: true });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.update({ id: 55, inputAssets: inputAssets as any });
+    expect(db.updateVideoProject).toHaveBeenCalledWith(
+      55,
+      expect.objectContaining({ inputAssets }),
+      { expectedVersion: undefined }
+    );
+  });
+
+  it("update inputAssets:null → 清空", async () => {
+    (db.getVideoProject as any).mockResolvedValue(baseProject);
+    (db.updateVideoProject as any).mockResolvedValue({ updated: true });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.update({ id: 55, inputAssets: null });
+    expect(db.updateVideoProject).toHaveBeenCalledWith(
+      55,
+      expect.objectContaining({ inputAssets: null }),
+      { expectedVersion: undefined }
+    );
+  });
+});
+
+describe("AIDV-270 多模態輸入素材 — duplicate / restore / list 帶素材", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("duplicateVideoProject（db 層）insert values 帶 inputAssets（source-anchored：本測試 mock 掉整個 db，改以源碼釘住複製欄位清單）", () => {
+    // 此測試檔以 vi.mock 全面替換 ../../db，無法行為驗證 db 層的 insert；
+    // 改用 repo 慣例的源碼靜態抽取（仿 RefundDetailLink.test.tsx）釘住
+    // duplicateVideoProject 的 values 物件確實複製 inputAssets——被移除即紅。
+    const dbSrc = readFileSync(resolve(__dirname, "../../db.ts"), "utf8");
+    const fnStart = dbSrc.indexOf("export async function duplicateVideoProject");
+    expect(fnStart).toBeGreaterThan(-1);
+    const fnBody = dbSrc.slice(fnStart, dbSrc.indexOf("return result[0].insertId", fnStart));
+    expect(fnBody).toContain("inputAssets: source.inputAssets ?? undefined");
+  });
+
+  it("restoreSnapshot → pre-restore 快照含 inputAssets（回溯後素材不遺失）", async () => {
+    const inputAssets = [
+      { type: "image", url: "https://cdn.x/style.png", role: "style_reference" },
+    ];
+    (db.getVideoProject as any).mockResolvedValue({ ...baseProject, inputAssets });
+    (db.getProjectSnapshot as any).mockResolvedValue({ id: 3, projectId: 55, snapshot: {} });
+    (db.createProjectSnapshot as any).mockResolvedValue(undefined);
+    (db.updateVideoProject as any).mockResolvedValue({ updated: true });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    await caller.restoreSnapshot({ projectId: 55, snapshotId: 3 });
+
+    expect(db.createProjectSnapshot).toHaveBeenCalledWith(
+      55,
+      expect.objectContaining({ inputAssets }),
+      "pre-restore"
+    );
+  });
+
+  it("list items 帶正規化 inputAssets（null → []、有值原樣）", async () => {
+    const inputAssets = [
+      { type: "audio", url: "https://cdn.x/bgm.mp3", role: "background_music" },
+    ];
+    (db.getVideoProjectsByUserPaged as any).mockResolvedValue({
+      items: [baseProject, { ...baseProject, id: 56, inputAssets }],
+      nextCursor: null,
+    });
+
+    const caller = videoProjectRouter.createCaller(ctx);
+    const res = await caller.list();
+    expect(res.items[0].inputAssets).toEqual([]);
+    expect(res.items[1].inputAssets).toEqual(inputAssets);
   });
 });
 

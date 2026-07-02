@@ -13,6 +13,10 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import * as db from "../db";
 import { VIDEO_OUTPUT_SPEC_DEFAULT, type VideoOutputSpec } from "../../drizzle/schema";
+import {
+  videoInputAssetsSchema,
+  type VideoInputAsset,
+} from "../../shared/video-input-assets";
 import { sanitizePlainText } from "../utils/sanitize";
 import {
   presignGetDownload,
@@ -40,6 +44,13 @@ function resolveOutputSpec(raw: VideoOutputSpec | null | undefined): VideoOutput
   return raw ?? VIDEO_OUTPUT_SPEC_DEFAULT;
 }
 
+/** AIDV-270: input_assets 讀取正規化（null → 空陣列，回傳形狀對前端穩定）。 */
+function resolveInputAssets(
+  raw: VideoInputAsset[] | null | undefined,
+): VideoInputAsset[] {
+  return raw ?? [];
+}
+
 /** AIDV-788: 4K 需付費方案；免費帳號直接拋 FORBIDDEN。 */
 async function assertPaidFor4K(userId: number): Promise<void> {
   const plan = await db.getUserSubscription(userId);
@@ -60,6 +71,8 @@ export const videoProjectRouter = router({
         outputSpec: outputSpecSchema.optional(),
         deadlineAt: z.string().datetime().optional(),
         priorityClass: priorityClassSchema.default("standard"),
+        // AIDV-270: 多模態輸入素材（image/audio + role）。省略時維持既有純文字生成。
+        inputAssets: videoInputAssetsSchema.optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -73,6 +86,7 @@ export const videoProjectRouter = router({
         outputSpec: input.outputSpec ?? VIDEO_OUTPUT_SPEC_DEFAULT,
         deadlineAt: input.deadlineAt ? new Date(input.deadlineAt) : null,
         priorityClass: input.priorityClass,
+        inputAssets: input.inputAssets ?? null,
       });
       const row = await db.getVideoProject(id);
       if (!row) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
@@ -94,6 +108,7 @@ export const videoProjectRouter = router({
         title: row.title,
         aspectRatio: row.aspectRatio,
         outputSpec: resolveOutputSpec(row.outputSpec),
+        inputAssets: resolveInputAssets(row.inputAssets),
         version: row.version,
         deadlineAt: row.deadlineAt ?? null,
         priorityClass: row.priorityClass,
@@ -117,6 +132,7 @@ export const videoProjectRouter = router({
         title: row.title,
         aspectRatio: row.aspectRatio,
         outputSpec: resolveOutputSpec(row.outputSpec),
+        inputAssets: resolveInputAssets(row.inputAssets),
         version: row.version,
         deadlineAt: row.deadlineAt ?? null,
         priorityClass: row.priorityClass,
@@ -136,6 +152,8 @@ export const videoProjectRouter = router({
         outputSpec: outputSpecSchema.optional(),
         deadlineAt: z.string().datetime().nullable().optional(),
         priorityClass: priorityClassSchema.optional(),
+        // AIDV-270: 多模態輸入素材可更新；傳 [] 或 null 皆清空。
+        inputAssets: videoInputAssetsSchema.nullable().optional(),
         /** AIDV-241 樂觀鎖：攜帶呼叫方讀到的 version，後端做原子 WHERE id=? AND version=?；
          *  version 不符時回傳 CONFLICT(409)；省略時退化為無版本檢查（向下相容）。 */
         expectedVersion: z.number().int().nonnegative().optional(),
@@ -153,6 +171,7 @@ export const videoProjectRouter = router({
       if (input.outputSpec !== undefined) patch.outputSpec = input.outputSpec;
       if (input.deadlineAt !== undefined) patch.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : null;
       if (input.priorityClass !== undefined) patch.priorityClass = input.priorityClass;
+      if (input.inputAssets !== undefined) patch.inputAssets = input.inputAssets ?? null;
       const { updated } = await db.updateVideoProject(
         input.id,
         patch as Parameters<typeof db.updateVideoProject>[1],
@@ -220,6 +239,8 @@ export const videoProjectRouter = router({
           title: r.title,
           aspectRatio: r.aspectRatio,
           outputSpec: resolveOutputSpec(r.outputSpec),
+          // AIDV-270: 與 get/create 回傳形狀一致（null → []），前端列表不用特判。
+          inputAssets: resolveInputAssets(r.inputAssets),
           version: r.version,
           deadlineAt: r.deadlineAt ?? null,
           priorityClass: r.priorityClass,
@@ -310,6 +331,8 @@ export const videoProjectRouter = router({
         outputSpec: project.outputSpec,
         deadlineAt: project.deadlineAt,
         priorityClass: project.priorityClass,
+        // AIDV-270: pre-restore 快照少了素材，回溯後就永久遺失——一併留存。
+        inputAssets: project.inputAssets,
       }, "pre-restore");
 
       const patch = snap.snapshot as Parameters<typeof db.updateVideoProject>[1];
@@ -346,6 +369,8 @@ export const videoProjectRouter = router({
         outputSpec: outputSpecSchema.optional(),
         deadlineAt: z.string().datetime().nullable().optional(),
         priorityClass: priorityClassSchema.optional(),
+        // AIDV-270: 多模態輸入素材可隨存檔更新；傳 [] 或 null 皆清空。
+        inputAssets: videoInputAssetsSchema.nullable().optional(),
         expectedVersion: z.number().int().nonnegative().optional(),
         snapshotData: z.record(z.string(), z.unknown()).optional(),
       })
@@ -363,6 +388,7 @@ export const videoProjectRouter = router({
       if (input.outputSpec !== undefined) patch.outputSpec = input.outputSpec;
       if (input.deadlineAt !== undefined) patch.deadlineAt = input.deadlineAt ? new Date(input.deadlineAt) : null;
       if (input.priorityClass !== undefined) patch.priorityClass = input.priorityClass;
+      if (input.inputAssets !== undefined) patch.inputAssets = input.inputAssets ?? null;
 
       const { updated } = await db.updateVideoProject(
         input.id,

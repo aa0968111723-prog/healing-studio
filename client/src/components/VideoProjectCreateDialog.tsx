@@ -4,6 +4,8 @@
  * 建立時讓使用者選擇畫面比例（16:9 / 9:16 / 1:1）＋輸出解析度（720p / 1080p；
  * 4K 需升級方案）＋幀率（24 / 30 / 60 fps）。
  * backend outputSpec（AIDV-260）已支援全欄位；此 UI 補上前端選擇路徑。
+ * AIDV-270：掛 VideoInputAssetsUploader——輸入素材（image/audio + role）隨
+ * videoProject.create 一起送出；沒有素材時省略欄位（後端行為不變）。
  */
 
 import { useState } from "react";
@@ -25,6 +27,8 @@ import {
   clampOutputSpecToPlan,
   type OutputSpecValue,
 } from "@/components/OutputSpecSelector";
+import { VideoInputAssetsUploader } from "@/components/VideoInputAssetsUploader";
+import type { VideoInputAsset } from "@/lib/videoInputAssets";
 
 type AspectRatio = "16:9" | "9:16" | "1:1";
 
@@ -51,6 +55,8 @@ interface Props {
 export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
   const [outputSpec, setOutputSpec] = useState<OutputSpecValue>(OUTPUT_SPEC_DEFAULT);
+  // AIDV-270：多模態輸入素材（image/audio + role）。空陣列時省略欄位，行為與舊版完全相同。
+  const [inputAssets, setInputAssets] = useState<VideoInputAsset[]>([]);
 
   const entitlement = trpc.videoProject.outputSpecEntitlement.useQuery(undefined, {
     enabled: open,
@@ -70,7 +76,12 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
   function handleConfirm() {
     // 防呆：非付費方案若殘留 4K（理論上 selector 已停用），降回 1080p。共用單一真實來源。
     const safeSpec = clampOutputSpecToPlan(outputSpec, isPaid);
-    createMut.mutate({ aspectRatio, outputSpec: safeSpec });
+    createMut.mutate({
+      aspectRatio,
+      outputSpec: safeSpec,
+      // 沒有素材就不帶欄位（後端 optional，省略時維持既有純文字生成路徑）。
+      ...(inputAssets.length > 0 ? { inputAssets } : {}),
+    });
   }
 
   return (
@@ -121,6 +132,14 @@ export function VideoProjectCreateDialog({ open, onClose, onCreated }: Props) {
             value={outputSpec}
             onChange={setOutputSpec}
             isPaid={isPaid}
+          />
+        </div>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <VideoInputAssetsUploader
+            value={inputAssets}
+            onChange={setInputAssets}
+            disabled={createMut.isPending}
           />
         </div>
 

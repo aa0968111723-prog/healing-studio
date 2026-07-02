@@ -5693,6 +5693,8 @@ export async function duplicateVideoProject(
     aspectRatio: source.aspectRatio,
     outputSpec: source.outputSpec ?? undefined,
     creativeProjectId: source.creativeProjectId ?? undefined,
+    // AIDV-270: A/B 迭代複本要連輸入素材一起帶走，否則複本得重新上傳素材。
+    inputAssets: source.inputAssets ?? undefined,
     version: 0,
   });
   return result[0].insertId;

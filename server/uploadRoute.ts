@@ -22,7 +22,13 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/avif",
   // Audio
   "audio/mpeg",
+  // AIDV-270: 常見瀏覽器/OS 別名——Chrome 對 .mp3 可能報 audio/mp3、
+  // Windows 對 .wav 常報 audio/x-wav / audio/wave。shared/video-input-assets.ts
+  // 的 ALLOWED_AUDIO_MIME_TYPES 同列這些別名，兩邊白名單必須同步。
+  "audio/mp3",
   "audio/wav",
+  "audio/x-wav",
+  "audio/wave",
   "audio/ogg",
   "audio/webm",
   "audio/mp4",
@@ -69,7 +75,11 @@ const MIME_TO_EXT: Record<string, string> = {
   "image/webp": "webp",
   "image/avif": "avif",
   "audio/mpeg": "mp3",
+  // AIDV-270: 別名歸一到正規副檔名（缺映射會落到 .bin，播放器/CDN 判型失準）。
+  "audio/mp3": "mp3",
   "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/wave": "wav",
   "audio/ogg": "ogg",
   "audio/webm": "weba",
   "audio/mp4": "m4a",
@@ -101,6 +111,9 @@ function safeStorageExt(mimeType: string): string {
 // ── Size policy (Issue #178) ───────────────────────────────────────────────
 // Per-kind hard ceilings, aligned with server/services/orbAttachmentGuard.ts
 // so the upload endpoint and the LLM-side guard agree on what "too big" means.
+// AIDV-270: shared/video-input-assets.ts 的 MAX_INPUT_ASSET_BYTES_BY_TYPE
+// 鏡射此處的 image/audio 上限——改這裡必須同步那邊，否則前端契約層放行的
+// 檔案會在上傳端點被 413 打回。
 const PER_KIND_MAX_BYTES = {
   image: 10 * 1024 * 1024, // 10 MB
   audio: 20 * 1024 * 1024, // 20 MB
