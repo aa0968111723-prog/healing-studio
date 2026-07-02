@@ -39,6 +39,8 @@ vi.mock("framer-motion", async () => {
     motion,
     AnimatePresence: ({ children }: { children?: ReactNode }) =>
       react.createElement(react.Fragment, null, children),
+    // OnboardingFlow 用到 useReducedMotion；mock 缺此匯出會整檔紅（AIDV-965 順手修）。
+    useReducedMotion: () => false,
   };
 });
 
@@ -118,7 +120,7 @@ describe("OnboardingFlow result guard (AIDV-637)", () => {
     const onSuccess = renderFlow();
     act(() => onSuccess({ resultUrl: "https://cdn.example/i.png" }));
     expect(screen.getByText(CELEBRATE)).toBeTruthy();
-    const img = screen.getByAltText("Your first creation") as HTMLImageElement;
+    const img = screen.getByAltText("您的第一個創作") as HTMLImageElement;
     expect(img.getAttribute("src")).toContain("https://cdn.example/i.png");
     expect(toastMock.error).not.toHaveBeenCalled();
   });

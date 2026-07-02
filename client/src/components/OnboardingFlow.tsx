@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -8,7 +8,24 @@ import ThoughtIslandChain, { type ThoughtNode } from "./ThoughtIslandChain";
 import { Button } from "./ui/button";
 import { ArrowRight, Sparkles, SkipForward, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
-import { FEATURE_ONBOARDING_BRANCH, FEATURE_PROMPT_DIAGNOSTIC } from "@/config/featureFlags";
+import {
+  FEATURE_ONBOARDING_BRANCH,
+  FEATURE_PROMPT_DIAGNOSTIC,
+  FEATURE_BEGINNER_PATH_PERSONAS,
+} from "@/config/featureFlags";
+// AIDV-965：純函式模組（persona 讀取＋「下一步」chips 重排），無元件依賴。
+import { loadPersona, reorderNextStepChips } from "@/shells/learn/beginnerPathPersonas";
+
+// ─── Next-step branch chips (AIDV-810) ──────────────────────────────────────
+// path=null 的 chip＝「再生一張」（留在 onboarding 內重試，不導航）。
+// AIDV-965：依 /learn persona（localStorage learn:beginner-path:persona）重排；
+// 旗標 OFF 或未選 persona → 維持此原始順序（零回歸）。
+const NEXT_STEP_CHIPS: { label: string; path: string | null }[] = [
+  { label: "🎵 配上一段音樂，作品就活了", path: "/pro-studio" },
+  { label: "🎬 讓這張圖動起來（圖生影）", path: "/video-studio" },
+  { label: "🎭 做整支短片？交給導演 AI", path: "/director" },
+  { label: "🖼️ 再生一張，換個風格試試", path: null },
+];
 
 // ─── Typewriter Hook ────────────────────────────────────────────────────────
 
@@ -114,6 +131,15 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
   // AIDV-812: track consecutive generation failures for diagnostic hints
   const [failCount, setFailCount] = useState(0);
   const [exampleOpen, setExampleOpen] = useState(false);
+  // AIDV-965：依 /learn persona 重排「下一步」chips（掛載時讀一次即可）。
+  // 旗標 OFF 或 loadPersona()===null → 原順序（與現行 100% 一致，零回歸）。
+  const branchChips = useMemo(
+    () =>
+      FEATURE_BEGINNER_PATH_PERSONAS
+        ? reorderNextStepChips(NEXT_STEP_CHIPS, loadPersona())
+        : NEXT_STEP_CHIPS,
+    [],
+  );
 
   // Current greeting message typewriter
   const currentGreeting =
@@ -710,12 +736,7 @@ export default function OnboardingFlow({ onComplete, onSkip, onBranchComplete }:
                     下一步，你想做什麼？
                   </p>
                   <div role="group" aria-label="下一步選項" className="flex flex-wrap justify-center gap-2">
-                    {[
-                      { label: "🎵 配上一段音樂，作品就活了", path: "/pro-studio" },
-                      { label: "🎬 讓這張圖動起來（圖生影）", path: "/video-studio" },
-                      { label: "🎭 做整支短片？交給導演 AI", path: "/director" },
-                      { label: "🖼️ 再生一張，換個風格試試", path: null },
-                    ].map(({ label, path }) => (
+                    {branchChips.map(({ label, path }) => (
                       <button
                         type="button"
                         key={label}
