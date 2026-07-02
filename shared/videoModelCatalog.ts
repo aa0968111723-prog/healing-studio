@@ -27,6 +27,25 @@ export const T2V_ROUTER_IDS = [
   "fal-ai/veo3/pro",
   "fal-ai/ltx-video-13b-distilled",
   "fal-ai/sora",
+  // AIDV-16：雙層生影片管線 —— 草稿層 Seedance Lite（便宜）＋精修層 Veo 3.1（旗艦）。
+  // 兩者都由 videoStudio.ts 的 seedanceTextToVideo / veo31RefineSegment 真的送 fal，
+  // 故列在 router id 集合，並由 videoCatalogConsistency 守住 pricing/falModels 對齊。
+  "fal-ai/bytedance/seedance/v1/lite/text-to-video",
+  "fal-ai/veo3.1",
+] as const;
+
+/**
+ * AIDV-16：雙層「草稿 → 精修」管線的 tier 分組（與
+ * shared/videoDraftRefinePipeline.ts 對齊）。UI 的「快速草稿 / 高品質」
+ * 切換與 server 精修守門都以這兩個集合為準。
+ */
+export const DRAFT_TIER_ROUTER_IDS = [
+  "fal-ai/bytedance/seedance/v1/lite/text-to-video",
+  "fal-ai/wan-t2v",
+] as const;
+
+export const REFINE_TIER_ROUTER_IDS = [
+  "fal-ai/veo3.1",
 ] as const;
 
 export const I2V_ROUTER_IDS = [

@@ -50,6 +50,13 @@ import {
   assertResolutionAllowed,
   type OutputSpecDowngrades,
 } from "../services/videoOutputSpec";
+import {
+  DEFAULT_DRAFT_MODEL_ID,
+  DEFAULT_REFINE_MODEL_ID,
+  isTakeApprovedForRefine,
+  REFINE_UNAPPROVED_MESSAGE,
+  type TakeApprovalStatus,
+} from "../../shared/videoDraftRefinePipeline";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式；base URL 來自 providerFacade）───
 
@@ -874,6 +881,126 @@ export const videoStudioRouter = router({
         },
         resolved
       );
+    }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🎬 AIDV-16 雙層生影片：草稿（Seedance Lite）→ 核准 → 精修（Veo 3.1）
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Seedance Lite Text-to-Video（草稿層）
+   * fal-ai/bytedance/seedance/v1/lite/text-to-video
+   *
+   * 「快速草稿」入口：便宜快速，讓創作者在 shot 畫布上一次出多個 take 比對。
+   * 與 klingTextToVideo 同樣走 videoGenerationProcedure（沿用既有扣點路徑，
+   * 不新增任何計費邏輯）。真正的高品質重跑在 veo31RefineSegment。
+   */
+  seedanceTextToVideo: videoGenerationProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2500),
+        duration: z.enum(["5", "10"]).default("5"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
+        seed: z.number().int().nonnegative().optional(),
+        outputSpec: videoOutputSpecSchema.optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const modelId = DEFAULT_DRAFT_MODEL_ID;
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        duration: input.duration,
+        aspect_ratio: input.aspectRatio,
+      };
+      if (input.seed !== undefined) payload.seed = input.seed;
+
+      assertModelEnabled(modelId);
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
+        modelId,
+        payload,
+        input.outputSpec,
+        ctx.user.id
+      );
+      const result = (await falQueueRun(modelId, finalPayload, 180)) as any;
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        tier: "draft" as const,
+        raw: result,
+        ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
+      };
+    }),
+
+  /**
+   * Veo 3.1 精修（精修層）
+   * fal-ai/veo3.1
+   *
+   * 只接受「已核准的草稿 take」。未核准 take 一律回 422（UNPROCESSABLE_CONTENT），
+   * 且守門在任何 fal 派發 / 扣點之前 —— 未核准就不會送單、不會扣任何點數
+   * （與 4K 付門同模式：拒絕先於 dispatch，零重複扣費）。
+   *
+   * 核准狀態的真正持久化（videoSession / take 表）列為 follow-up；此處以顯式
+   * approvedTake 契約作為守門的最小可強制核心，符合誠實縮範圍原則。
+   */
+  veo31RefineSegment: videoGenerationProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(3000),
+        /** 要送精修的草稿 take（必須為已核准狀態）。 */
+        approvedTake: z.object({
+          takeId: z.string().min(1).max(200),
+          status: z.enum(["draft", "approved", "rejected"]),
+          sourceVideoUrl: safeExternalUrlOptional,
+        }),
+        negativePrompt: z.string().max(1000).optional(),
+        aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
+        generateAudio: z.boolean().default(true),
+        enhancePrompt: z.boolean().default(true),
+        seed: z.number().int().nonnegative().optional(),
+        outputSpec: videoOutputSpecSchema.optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // 守門先於一切：未核准 take → 422，絕不 dispatch、絕不扣點。
+      if (
+        !isTakeApprovedForRefine({
+          takeId: input.approvedTake.takeId,
+          status: input.approvedTake.status as TakeApprovalStatus,
+          sourceVideoUrl: input.approvedTake.sourceVideoUrl,
+        })
+      ) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: REFINE_UNAPPROVED_MESSAGE,
+        });
+      }
+
+      const modelId = DEFAULT_REFINE_MODEL_ID;
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        aspect_ratio: input.aspectRatio,
+        generate_audio: input.generateAudio,
+        enhance_prompt: input.enhancePrompt,
+      };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
+      assertModelEnabled(modelId);
+      const { payload: finalPayload, outputSpecDowngrades } = await applyOutputSpec(
+        modelId,
+        payload,
+        input.outputSpec,
+        ctx.user.id
+      );
+      const result = (await falQueueRun(modelId, finalPayload, 600)) as any;
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        tier: "refine" as const,
+        refined_take_id: input.approvedTake.takeId,
+        raw: result,
+        ...(outputSpecDowngrades ? { output_spec_downgrades: outputSpecDowngrades } : {}),
+      };
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -1753,6 +1753,40 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { videoUrl: true },
       timeoutMs: 600_000,
     },
+    // ── AIDV-16：雙層生影片 —— 草稿層 Seedance Lite（便宜、多 take）──
+    {
+      modelId: "fal-ai/bytedance/seedance/v1/lite/text-to-video",
+      label: "Seedance V1 Lite t2v（草稿）",
+      category: "text-to-video",
+      tier: "fast",
+      description:
+        "ByteDance Seedance V1 Lite 文生影：草稿層便宜快速模型，用於 shot 畫布多 take 比對挑選（5s/10s）",
+      inputSchema: {
+        prompt: true,
+        duration: true,
+        aspectRatio: true,
+        seed: true,
+      },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 180_000,
+    },
+    // ── AIDV-16：雙層生影片 —— 精修層 Veo 3.1（旗艦，僅核准後允許）──
+    {
+      modelId: "fal-ai/veo3.1",
+      label: "Veo 3.1 t2v（精修）",
+      category: "text-to-video",
+      tier: "ultra",
+      description:
+        "Google Veo 3.1（fal.ai 代理）：精修層旗艦模型，原生同步音訊，用於已核准 take 的高品質重跑",
+      inputSchema: {
+        prompt: true,
+        aspectRatio: true,
+        negativePrompt: true,
+        seed: true,
+      },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 600_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════
