@@ -92,6 +92,57 @@ components:
           type: string
       required: [requested, applied]
 
+    # ── Multi-modal input assets (AIDV-270) ─────────────────────────────────
+    InputAsset:
+      type: object
+      description: >
+        A single creator-supplied source asset attached to a video project.
+        The `role` must match the modality of `type`
+        (style_reference / product_shot → image; background_music → audio),
+        otherwise the request is rejected with 400/BAD_REQUEST at the
+        contract layer.
+
+        Supported formats & purposes:
+          - image (PNG, JPG, ≤ 50MB):
+              style_reference — brand visual / mood-board that guides the
+                look; forwarded to Fal.ai image-to-video as `image_url`
+                (highest priority when selecting the i2v seed frame).
+              product_shot    — a specific product image; used as `image_url`
+                when no style_reference is present.
+          - audio (MP3, WAV, ≤ 50MB):
+              background_music — BGM track registered against the project.
+                NOTE: FFmpeg audio mixing into the rendered output is a
+                second-phase follow-up and is NOT performed yet; the asset
+                is stored and returned but not yet muxed into the video.
+
+        Upload assets via the existing signed-URL flow
+        (`POST /api/upload/presign` → PUT to R2 → `POST /api/upload/finalize`)
+        and pass the resulting public URL here.  External URLs are also
+        accepted as long as they are publicly fetchable.
+      properties:
+        type:
+          type: string
+          enum: [image, audio]
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+        role:
+          type: string
+          enum: [style_reference, product_shot, background_music]
+      required: [type, url, role]
+      additionalProperties: false
+
+    InputAssets:
+      type: array
+      description: >
+        Ordered list of input assets (max 8).  Omit to keep the existing
+        text-only generation path unchanged; send `[]` or `null` on update
+        to clear.
+      maxItems: 8
+      items:
+        $ref: "#/components/schemas/InputAsset"
+
     # ── Agent attribution (AIDV-740) ────────────────────────────────────────
 
     AgentAttribution:
@@ -154,6 +205,8 @@ components:
           $ref: "#/components/schemas/AspectRatio"
         outputSpec:
           $ref: "#/components/schemas/OutputSpec"
+        inputAssets:
+          $ref: "#/components/schemas/InputAssets"
         version:
           type: integer
           description: >
@@ -396,6 +449,8 @@ paths:
                   nullable: true
                 priorityClass:
                   $ref: "#/components/schemas/PriorityClass"
+                inputAssets:
+                  $ref: "#/components/schemas/InputAssets"
               additionalProperties: false
       responses:
         "200":
@@ -472,6 +527,11 @@ paths:
                   nullable: true
                 priorityClass:
                   $ref: "#/components/schemas/PriorityClass"
+                inputAssets:
+                  oneOf:
+                    - $ref: "#/components/schemas/InputAssets"
+                    - type: "null"
+                  description: Send [] or null to clear.
                 expectedVersion:
                   type: integer
                   minimum: 0
@@ -699,6 +759,11 @@ paths:
                   nullable: true
                 priorityClass:
                   $ref: "#/components/schemas/PriorityClass"
+                inputAssets:
+                  oneOf:
+                    - $ref: "#/components/schemas/InputAssets"
+                    - type: "null"
+                  description: Send [] or null to clear.
                 expectedVersion:
                   type: integer
                   minimum: 0
