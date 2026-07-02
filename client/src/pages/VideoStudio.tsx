@@ -75,6 +75,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
+import { useGenerationTask } from "@/hooks/useGenerationTask";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
 import {
@@ -902,7 +903,13 @@ function TextToVideoTab() {
     | "veo3pro"
     | "ltx"
     | "sora";
-  const [activeT2VModel, setActiveT2VModel] = useState<T2VModel>("kling");
+  // AIDV-899：模型選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  // raw 為 string|undefined，以初始模型回退並窄化回原 union，行為與原 useState 完全等價。
+  const {
+    selectedModelId: activeT2VModelRaw,
+    setSelectedModelId: setActiveT2VModel,
+  } = useGenerationTask({ initialModelId: "kling" });
+  const activeT2VModel = (activeT2VModelRaw ?? "kling") as T2VModel;
   const runKlingRef = useRef<() => void>(() => {});
   const runWanRef = useRef<() => void>(() => {});
   const runMmRef = useRef<() => void>(() => {});
@@ -1865,7 +1872,12 @@ function ImageToVideoTab() {
     | "runway"
     | "pixverse"
     | "minimax";
-  const [activeI2VModel, setActiveI2VModel] = useState<I2VModel>("kling");
+  // AIDV-899：模型選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  const {
+    selectedModelId: activeI2VModelRaw,
+    setSelectedModelId: setActiveI2VModel,
+  } = useGenerationTask({ initialModelId: "kling" });
+  const activeI2VModel = (activeI2VModelRaw ?? "kling") as I2VModel;
   const runKlingRef = useRef<() => void>(() => {});
   const runKlingProRef = useRef<() => void>(() => {});
   const runWanRef = useRef<() => void>(() => {});
@@ -2665,7 +2677,12 @@ function VideoToVideoTab() {
 
   // ── Agent Bus subscription (v2v) ──
   type V2VModel = "wan" | "kling" | "ltx";
-  const [activeV2VModel, setActiveV2VModel] = useState<V2VModel>("wan");
+  // AIDV-899：模型選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  const {
+    selectedModelId: activeV2VModelRaw,
+    setSelectedModelId: setActiveV2VModel,
+  } = useGenerationTask({ initialModelId: "wan" });
+  const activeV2VModel = (activeV2VModelRaw ?? "wan") as V2VModel;
   const runWanRef = useRef<() => void>(() => {});
   const runKlingRef = useRef<() => void>(() => {});
   const runLtxRef = useRef<() => void>(() => {});
@@ -3078,8 +3095,12 @@ function EnhancementTab() {
   const { setAIState, reportSuccess, reportFailure } = useAIState();
   const bus = useVideoAgentBus();
   type EnhanceModel = "upscale" | "rife" | "topaz";
-  const [activeEnhanceModel, setActiveEnhanceModel] =
-    useState<EnhanceModel>("upscale");
+  // AIDV-899：模型選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  const {
+    selectedModelId: activeEnhanceModelRaw,
+    setSelectedModelId: setActiveEnhanceModel,
+  } = useGenerationTask({ initialModelId: "upscale" });
+  const activeEnhanceModel = (activeEnhanceModelRaw ?? "upscale") as EnhanceModel;
   const [upVideo, setUpVideo] = useState("");
   const [upFactor, setUpFactor] = useState<"2" | "4">("2");
   const [upResult, setUpResult] = useState<VideoResult | null>(null);
@@ -3480,8 +3501,12 @@ function AdvancedControlTab() {
   const notifyEmptyPrompt = useEmptyPromptHelper();
   const injectWorld = useWorldContext().injectIntoPrompt;
   type ControlModel = "cam" | "ad" | "depth" | "vidu";
-  const [activeControlModel, setActiveControlModel] =
-    useState<ControlModel>("cam");
+  // AIDV-899：模型選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  const {
+    selectedModelId: activeControlModelRaw,
+    setSelectedModelId: setActiveControlModel,
+  } = useGenerationTask({ initialModelId: "cam" });
+  const activeControlModel = (activeControlModelRaw ?? "cam") as ControlModel;
   const [camPrompt, setCamPrompt] = useState("");
   const [camImage, setCamImage] = useState("");
   const [camMotion, setCamMotion] = useState("push_in");
