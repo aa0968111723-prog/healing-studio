@@ -18,6 +18,15 @@ import { logger } from "../_core/logger";
 
 export const v1Router = Router();
 
+/**
+ * AIDV-270: REST 回應的 input_assets 正規化（null → []）——與 tRPC 層的
+ * resolveInputAssets 同義，讓 API 消費端不用特判 DB 的 null。
+ */
+function normalizeProject<T extends { inputAssets?: unknown } | null>(project: T) {
+  if (!project) return project;
+  return { ...project, inputAssets: project.inputAssets ?? [] };
+}
+
 // ─── API Key auth ─────────────────────────────────────────────────────────────
 
 interface ApiAuthedRequest extends Request {
@@ -90,7 +99,7 @@ v1Router.post("/api/v1/videos", async (req: ApiAuthedRequest, res: Response) => 
       aspectRatio: parsed.data.aspectRatio,
     });
     const project = await getVideoProject(id);
-    res.status(201).json({ id, project });
+    res.status(201).json({ id, project: normalizeProject(project) });
   } catch (err) {
     logger.error("v1_create_video_error", { err });
     res.status(500).json({ error: "Failed to create video project" });
@@ -122,7 +131,7 @@ v1Router.get("/api/v1/videos/:id", async (req: ApiAuthedRequest, res: Response) 
       res.status(403).json({ error: "Access denied" });
       return;
     }
-    res.json({ project });
+    res.json({ project: normalizeProject(project) });
   } catch (err) {
     logger.error("v1_get_video_error", { err });
     res.status(500).json({ error: "Failed to get video project" });

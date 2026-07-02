@@ -61,6 +61,19 @@ describe("AIDV-64 hardening: ftyp ambiguity fix + safe storage extension", () =>
     expect(detectMimeMismatch("image/avif", avif).reject).toBe(false);
   });
 
+  it("AIDV-270: audio MIME 別名（audio/mp3 / audio/x-wav / audio/wave）在 allowlist 且映到正規副檔名", () => {
+    // 瀏覽器/OS 對 .mp3/.wav 常報這些別名；缺白名單會讓合法上傳 415，
+    // 缺 MIME_TO_EXT 映射則落 .bin。與 shared/video-input-assets.ts 的
+    // ALLOWED_AUDIO_MIME_TYPES 同步。
+    for (const alias of ["audio/mp3", "audio/x-wav", "audio/wave"]) {
+      expect(ALLOWED_MIME_TYPES.has(alias), `${alias} 應在 allowlist`).toBe(true);
+      expect(inferKind(alias)).toBe("audio");
+    }
+    expect(safeStorageExt("audio/mp3")).toBe("mp3");
+    expect(safeStorageExt("audio/x-wav")).toBe("wav");
+    expect(safeStorageExt("audio/wave")).toBe("wav");
+  });
+
   it("safeStorageExt derives a safe ext from the validated mime, never script-capable", () => {
     expect(safeStorageExt("image/png")).toBe("png");
     expect(safeStorageExt("video/quicktime")).toBe("mov");

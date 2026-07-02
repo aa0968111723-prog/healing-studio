@@ -239,6 +239,8 @@ export const videoProjectRouter = router({
           title: r.title,
           aspectRatio: r.aspectRatio,
           outputSpec: resolveOutputSpec(r.outputSpec),
+          // AIDV-270: 與 get/create 回傳形狀一致（null → []），前端列表不用特判。
+          inputAssets: resolveInputAssets(r.inputAssets),
           version: r.version,
           deadlineAt: r.deadlineAt ?? null,
           priorityClass: r.priorityClass,
@@ -329,6 +331,8 @@ export const videoProjectRouter = router({
         outputSpec: project.outputSpec,
         deadlineAt: project.deadlineAt,
         priorityClass: project.priorityClass,
+        // AIDV-270: pre-restore 快照少了素材，回溯後就永久遺失——一併留存。
+        inputAssets: project.inputAssets,
       }, "pre-restore");
 
       const patch = snap.snapshot as Parameters<typeof db.updateVideoProject>[1];

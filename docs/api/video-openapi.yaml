@@ -102,14 +102,19 @@ components:
         otherwise the request is rejected with 400/BAD_REQUEST at the
         contract layer.
 
-        Supported formats & purposes:
-          - image (PNG, JPG, ≤ 50MB):
+        Supported formats & purposes (size limits mirror the upload
+        endpoint's per-kind ceilings — image ≤ 10MB, audio ≤ 20MB):
+          - image (PNG, JPG, ≤ 10MB):
               style_reference — brand visual / mood-board that guides the
-                look; forwarded to Fal.ai image-to-video as `image_url`
-                (highest priority when selecting the i2v seed frame).
-              product_shot    — a specific product image; used as `image_url`
-                when no style_reference is present.
-          - audio (MP3, WAV, ≤ 50MB):
+                look; WILL be forwarded to Fal.ai image-to-video as
+                `image_url` (highest priority when selecting the i2v seed
+                frame). NOTE: the i2v `image_url` injection is a phase-2
+                wiring follow-up and is NOT performed yet; the asset is
+                stored and returned but not yet consumed by generation.
+              product_shot    — a specific product image; WILL be used as
+                `image_url` when no style_reference is present (same
+                phase-2 wiring follow-up as above).
+          - audio (MP3, WAV, ≤ 20MB):
               background_music — BGM track registered against the project.
                 NOTE: FFmpeg audio mixing into the rendered output is a
                 second-phase follow-up and is NOT performed yet; the asset
@@ -117,8 +122,13 @@ components:
 
         Upload assets via the existing signed-URL flow
         (`POST /api/upload/presign` → PUT to R2 → `POST /api/upload/finalize`)
-        and pass the resulting public URL here.  External URLs are also
-        accepted as long as they are publicly fetchable.
+        and pass the resulting public URL here.  The `url` must be HTTPS and
+        must not point at private networks, loopback, link-local/cloud
+        metadata, or CGNAT ranges (rejected with 400 at the contract layer).
+        External HTTPS URLs are also accepted as long as they are publicly
+        fetchable — but note that MIME/size/content validation is only
+        enforced on the upload path; an external URL is validated as a safe
+        URL only, its content is NOT inspected.
       properties:
         type:
           type: string
