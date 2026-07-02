@@ -117,9 +117,13 @@ export const loraTrainerRouter = router({
         predictionId:
           m.replicatePredictionId || (config?.predictionId as string) || null,
         falModelId: (config?.falModelId as string) || null,
+        // AIDV-45 欄位對映：legacy fal 訓練列因 create 漏寫 trainingEngine
+        // 而掛預設 "replicate"；有 configJson.falModelId 即視為 fal。
         trainingEngine:
-          ((m as Record<string, unknown>).trainingEngine as string) ??
-          "replicate",
+          ((m as Record<string, unknown>).trainingEngine as string) === "fal" ||
+          config?.falModelId
+            ? "fal"
+            : "replicate",
         trainedLoraUrl: (m as Record<string, unknown>).trainedLoraUrl as
           | string
           | null,
@@ -317,9 +321,39 @@ export const loraTrainerRouter = router({
   trainingDetail: protectedProcedure
     .input(z.object({ modelId: z.number() }))
     .query(async ({ ctx, input }) => {
-      const model = await db.getFineTunedModel(input.modelId);
+      let model = await db.getFineTunedModel(input.modelId);
       if (!model || model.userId !== ctx.user.id) {
         throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
+      }
+
+      // ── AIDV-45：fal 引擎 → 輪詢回寫 ──────────────────────────────────
+      // 訓練中的 fal 模型每次被查詳情就對 fal queue 查一次狀態；已到終態
+      // 就把結果（status/trainedLoraUrl/completedAt）回寫 fine_tuned_models
+      // 並收尾 backgroundJob。這條讓伺服器重啟後中斷的 in-process 輪詢
+      // 也能靠前端的詳情輪詢自癒，完成「上傳→排隊→完成→可引用」閉環。
+      const rawConfig = model.configJson as Record<string, unknown> | null;
+      const isFalEngine =
+        model.trainingEngine === "fal" || !!rawConfig?.falModelId;
+      let falInfo: import("../services/falTrainer").FalTrainingSyncResult | null =
+        null;
+      if (
+        isFalEngine &&
+        (model.status === "training" || model.status === "pending")
+      ) {
+        try {
+          const { checkAndSyncFalTraining } = await import(
+            "../services/falTrainer"
+          );
+          falInfo = await checkAndSyncFalTraining(model);
+          if (falInfo?.synced) {
+            model = (await db.getFineTunedModel(input.modelId)) ?? model;
+          }
+        } catch (err) {
+          logger.warn("trainingDetail: fal 輪詢回寫失敗", {
+            modelId: input.modelId,
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
 
       const config = model.configJson as Record<string, unknown> | null;
@@ -329,7 +363,9 @@ export const loraTrainerRouter = router({
 
       let replicateInfo: Record<string, unknown> | null = null;
 
-      if (predictionId && process.env.REPLICATE_API_TOKEN) {
+      // fal 模型的 replicatePredictionId 現在存的是 fal request id（AIDV-45
+      // 欄位對映），不能拿去問 Replicate。
+      if (!isFalEngine && predictionId && process.env.REPLICATE_API_TOKEN) {
         try {
           const { getReplicateClient } =
             await import("../services/replicateClient.js");
@@ -384,6 +420,9 @@ export const loraTrainerRouter = router({
         description: model.description,
         status: model.status,
         modelType: model.modelType,
+        trainingEngine: isFalEngine ? ("fal" as const) : ("replicate" as const),
+        falModelId: (config?.falModelId as string) || null,
+        falInfo,
         triggerWord: (config?.triggerWord as string) || "",
         epochs: (config?.epochs as number) ?? 0,
         learningRate: (config?.learningRate as number) ?? 0,

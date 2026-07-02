@@ -340,7 +340,17 @@ export default function LoraTrainer({
   });
   const detailQuery = trpc.loraTrainer.trainingDetail.useQuery(
     { modelId: selectedModelId! },
-    { enabled: !!selectedModelId, retry: false }
+    {
+      enabled: !!selectedModelId,
+      retry: false,
+      // AIDV-45：訓練中每 15 秒輪詢詳情。fal 引擎的 trainingDetail 會在
+      // 伺服器端做「輪詢回寫」（查 fal queue → 終態回寫 DB），所以這條
+      // 輪詢同時就是斷線自癒路徑；到終態即停止。
+      refetchInterval: query => {
+        const s = query.state.data?.status;
+        return s === "training" || s === "pending" ? 15_000 : false;
+      },
+    }
   );
 
   // ── 同意書清單（肖像權 / 照片使用）──
@@ -2955,20 +2965,36 @@ export default function LoraTrainer({
                     </GlassCard>
                   )}
 
-                {/* Replicate Info */}
+                {/* Training Engine Info（Replicate / Fal.ai）*/}
                 <GlassCard>
                   <h3 className="hs-h3 !mb-0 mb-3 flex items-center gap-2">
-                    <Activity className="w-4 h-4" /> Replicate 訓練資訊
+                    <Activity className="w-4 h-4" />{" "}
+                    {detailQuery.data.trainingEngine === "fal"
+                      ? "Fal.ai 訓練資訊"
+                      : "Replicate 訓練資訊"}
                   </h3>
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
-                        Prediction ID
+                        {detailQuery.data.trainingEngine === "fal"
+                          ? "Request ID"
+                          : "Prediction ID"}
                       </span>
                       <code className="font-mono">
                         {detailQuery.data.predictionId || "—"}
                       </code>
                     </div>
+                    {detailQuery.data.trainingEngine === "fal" &&
+                      detailQuery.data.falModelId && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            訓練模型
+                          </span>
+                          <code className="font-mono text-[10px]">
+                            {detailQuery.data.falModelId}
+                          </code>
+                        </div>
+                      )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">提交時間</span>
                       <span>
@@ -3046,6 +3072,28 @@ export default function LoraTrainer({
                         )}
                       </div>
                     )}
+
+                    {/* Fal.ai Live Info（AIDV-45 輪詢回寫）*/}
+                    {detailQuery.data.falInfo && (
+                      <div className="mt-3 pt-3 border-t border-border/30 space-y-2">
+                        <h4 className="text-xs font-medium text-muted-foreground">
+                          Fal.ai 即時狀態
+                        </h4>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Status</span>
+                          <span className="font-medium">
+                            {detailQuery.data.falInfo.synced
+                              ? `${detailQuery.data.falInfo.queueStatus}（已同步）`
+                              : detailQuery.data.falInfo.queueStatus}
+                          </span>
+                        </div>
+                        {detailQuery.data.falInfo.error != null && (
+                          <div className="text-red-500 text-[10px] bg-red-50 dark:bg-red-900/20 rounded-lg p-2">
+                            {String(detailQuery.data.falInfo.error)}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </GlassCard>
 
@@ -3066,7 +3114,9 @@ export default function LoraTrainer({
                       ) : (
                         <RefreshCw className="w-4 h-4" />
                       )}
-                      同步 Replicate 狀態
+                      {detailQuery.data.trainingEngine === "fal"
+                        ? "同步 Fal.ai 狀態"
+                        : "同步 Replicate 狀態"}
                     </Button>
                   )}
                   {detailQuery.data.status === "failed" && (

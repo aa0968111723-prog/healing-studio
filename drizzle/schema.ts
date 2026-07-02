@@ -449,6 +449,8 @@ export const fineTunedModels = mysqlTable(
       isStyle?: boolean;
       submittedAt?: number;
       completedAt?: number;
+      /** AIDV-45：fal COMPLETED 但無輸出 URL 時記錄 raw 輸出 keys 供除錯 */
+      rawOutputKeys?: string[];
       datasetImages?: Array<{
         url: string;
         fileKey: string;

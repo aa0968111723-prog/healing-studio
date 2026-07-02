@@ -2282,6 +2282,33 @@ export async function findProcessingJobByRequestId(requestId: string) {
   return result[0];
 }
 
+/**
+ * AIDV-45 — 依 fineTunedModels.id 反查仍在進行中（queued/processing）的
+ * model_training backgroundJob。用於 fal LoRA 輪詢回寫：伺服器重啟後
+ * in-process 訓練協調器消失，checkAndSyncFalTraining 同步模型終態時，
+ * 把對應的訓練 job 一併收尾，避免佇列面板永遠顯示「訓練中」。
+ *
+ * 注意：MySQL JSON_EXTRACT 回傳 JSON scalar；比照 findProcessingJobByRequestId
+ * 用 JSON_UNQUOTE + 字串比對，避免型別隱式轉換差異。
+ */
+export async function findActiveModelTrainingJobByModelId(modelId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(backgroundJobs)
+    .where(
+      and(
+        eq(backgroundJobs.jobType, "model_training"),
+        inArray(backgroundJobs.status, ["queued", "processing"]),
+        sql`JSON_UNQUOTE(JSON_EXTRACT(${backgroundJobs.resultJson}, '$.modelId')) = ${String(modelId)}`
+      )
+    )
+    .orderBy(desc(backgroundJobs.createdAt))
+    .limit(1);
+  return result[0];
+}
+
 export async function getJobsByUser(userId: number) {
   const db = await getDb();
   if (!db) return [];

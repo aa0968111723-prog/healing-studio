@@ -130,6 +130,43 @@ export const modelsRouter = router({
         return { status: model.status, message: "已是最終狀態" };
       }
 
+      // ── AIDV-45：fal 引擎模型改走 fal queue 輪詢回寫 ──────────────────
+      // fal 模型的 replicatePredictionId 存的是 fal request id，拿去問
+      // Replicate 只會報錯。checkAndSyncFalTraining 會查 fal 狀態，
+      // 終態時直接回寫 fine_tuned_models + 收尾訓練 job。
+      const syncConfig = model.configJson as Record<string, unknown> | null;
+      const isFalEngine =
+        model.trainingEngine === "fal" || !!syncConfig?.falModelId;
+      if (isFalEngine) {
+        const { checkAndSyncFalTraining } = await import(
+          "../services/falTrainer"
+        );
+        const falSync = await checkAndSyncFalTraining(model);
+        if (!falSync) {
+          return {
+            status: model.status,
+            message: "尚無 Fal.ai request ID（或 FAL_API_KEY 未設定）",
+          };
+        }
+        if (falSync.synced && falSync.modelStatus === "ready") {
+          return {
+            status: "ready",
+            loraUrl: falSync.outputUrl ?? null,
+            message: "訓練完成！",
+          };
+        }
+        if (falSync.synced && falSync.modelStatus === "failed") {
+          return {
+            status: "failed",
+            message: `Fal.ai 任務 ${falSync.queueStatus}${falSync.error ? `：${falSync.error}` : ""}`,
+          };
+        }
+        return {
+          status: "training",
+          message: `Fal.ai 狀態：${falSync.queueStatus}`,
+        };
+      }
+
       const predictionId =
         model.replicatePredictionId ||
         ((model.configJson as Record<string, unknown> | null)
@@ -405,11 +442,15 @@ export const modelsRouter = router({
       if (input.falModelId) configJson.falModelId = input.falModelId;
 
       // Create the model record
+      // AIDV-45 欄位對映：trainingEngine 過去漏寫 → fal 引擎訓練的模型在
+      // fine_tuned_models 一律掛預設 "replicate"，訓練歷史顯示與輪詢回寫
+      // 的引擎判定都會判錯。
       const modelId = await db.createFineTunedModel({
         userId: ctx.user.id,
         name: input.name,
         description: input.description,
         modelType: input.modelType,
+        trainingEngine: input.trainingEngine,
         fileUrl: input.datasetImages?.[0]?.url || input.fileUrl,
         fileKey: input.datasetImages?.[0]?.fileKey || input.fileKey,
         configJson,
