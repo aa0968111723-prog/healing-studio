@@ -6,7 +6,8 @@
  * and can be overridden at runtime via the admin API.
  *
  * Supported flags (all default to enabled if the required API keys exist):
- *   RAG_MEMORY          — Pinecone vector memory (requires PINECONE_API_KEY)
+ *   RAG_MEMORY          — RAG vector memory（Supabase pgvector 或 Pinecone 後端）
+ *   RAG_PINECONE        — 強制使用遺留 Pinecone 後端（AIDV-907 後預設 OFF）
  *   RESEARCH_MODE       — Perplexity / Brave deep-research (requires API keys)
  *   ADVANCED_SEARCH     — Multi-provider search aggregation
  *   LLM_CACHE           — In-process LLM response caching
@@ -42,6 +43,7 @@ import { logger } from "./logger";
 
 export type FeatureFlagName =
   | "RAG_MEMORY"
+  | "RAG_PINECONE"
   | "RESEARCH_MODE"
   | "ADVANCED_SEARCH"
   | "LLM_CACHE"
@@ -90,9 +92,26 @@ export class FlagDisabledError extends Error {
 
 const FLAG_DEFINITIONS: Record<FeatureFlagName, FlagDefinition> = {
   RAG_MEMORY: {
-    description: "Pinecone vector memory for personalised AI context",
-    defaultResolver: () => Boolean(serverEnv.PINECONE_API_KEY),
+    description:
+      "RAG vector memory for personalised AI context（AIDV-907：Supabase pgvector 為主、Pinecone 為遺留備援）",
+    // pgvector（沿用既有 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY 接線）
+    // 或遺留 PINECONE_API_KEY 任一可用即預設開啟。
+    defaultResolver: () =>
+      Boolean(
+        serverEnv.PINECONE_API_KEY ||
+          (serverEnv.SUPABASE_URL && serverEnv.SUPABASE_SERVICE_ROLE_KEY)
+      ),
     fallbackHint: "Use plain conversation context without long-term memory.",
+  },
+  RAG_PINECONE: {
+    description:
+      "強制使用遺留 Pinecone 向量後端（AIDV-907 起由 Supabase pgvector 取代，預設 OFF；設 FEATURE_RAG_PINECONE=true 可切回）",
+    // 硬預設 OFF：Pinecone 只剩兩種觸發方式 —
+    //   1) 本旗標明確開啟（runtime override 或 FEATURE_RAG_PINECONE=true）
+    //   2) pgvector 未接線 / 查詢失敗時的遺留降級（見 ragMemory.resolveRagVectorBackend）
+    defaultResolver: () => false,
+    fallbackHint:
+      "RAG vectors use Supabase pgvector; Pinecone is only used as legacy fallback.",
   },
   RESEARCH_MODE: {
     description:
