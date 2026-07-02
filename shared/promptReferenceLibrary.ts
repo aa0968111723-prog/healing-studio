@@ -2185,6 +2185,253 @@ calm educational background music, no vocals, no lyrics, soft acoustic guitar an
     ],
   },
 
+  // ═══════════════════════════════════════════════════════════════
+  // 🎯 核心人格上手：提示前後對照（AIDV-966）
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─ 情境 D：接案者 × 圖影（交付一致性）─
+  {
+    id: "onboard-fl-charsheet",
+    modality: "image",
+    title: "【前後對照】接案角色定版三視圖",
+    summary: "從「畫一個吉祥物」到三視圖＋固定色票的定版圖，之後改稿和 LoRA 訓練都有基準。",
+    prompt: `弱提示：畫一個貓咪吉祥物
+
+→ 強提示：
+character reference sheet of a cheerful orange tabby cat mascot, front view + side view + back view on one sheet, consistent facial features and proportions across all views, fixed flat color palette (orange #F5A623, cream, charcoal), neutral light gray background, clean vector illustration style, no text
+
+▷ 為什麼更好：「畫一個吉祥物」每次生出來都不同隻；三視圖＋固定色票的定版圖，是之後客戶改稿與 LoRA 訓練的唯一基準。`,
+    modelHint: "fal-ai/flux-pro / fal-ai/nano-banana",
+    difficulty: "beginner",
+    tags: ["接案者", "角色定版", "三視圖", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "接案者×圖影 上手路徑", href: "/learn?docId=scenario-freelancer-delivery" },
+      { label: "LoRA 訓練室", href: "/lora-trainer" },
+    ],
+  },
+  {
+    id: "onboard-fl-revision-lock",
+    modality: "image-edit",
+    title: "【前後對照】客戶改稿不跑風格",
+    summary: "明說「角色完全不動、只換背景」＋引用保險庫定版圖，改稿才不會越改越歪。",
+    prompt: `弱提示：把背景換成藍色
+
+→ 強提示：
+Keep the character (保險庫定版圖) completely unchanged — same face, hair, outfit, accessories and pose. Only replace the background with a soft gradient of brand blue (#2D6CDF to #EAF2FF). Maintain the original lighting direction and overall color grading.
+
+▷ 為什麼更好：只說「換背景」時模型常順手把角色也重畫；明確說「角色完全不動」＋引用定版圖，客戶要的一點點才真的只改一點點。`,
+    modelHint: "fal-ai/flux-kontext / fal-ai/gpt-image-1.5",
+    difficulty: "beginner",
+    tags: ["接案者", "改稿", "一致性", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "一致性保險庫", href: "/vault" },
+      { label: "接案者×圖影 上手路徑", href: "/learn?docId=scenario-freelancer-delivery" },
+    ],
+  },
+  {
+    id: "onboard-fl-3drafts",
+    modality: "image",
+    title: "【前後對照】多稿比稿只換構圖",
+    summary: "鎖住角色與色板、只讓構圖變，客戶挑的是構圖，而不是三個不同的角色。",
+    prompt: `弱提示：多生幾張給客戶選
+
+→ 強提示：
+using the same locked character reference for all drafts — draft A: centered symmetrical composition; draft B: rule-of-thirds with subject on right, negative space on left for text; draft C: dynamic diagonal composition from a low angle. Identical character, palette and lighting across all three drafts.
+
+▷ 為什麼更好：「多生幾張」會連角色一起變，比稿變成比角色；鎖角色只換構圖，A/B/C 三稿才是同一個提案的三種排法。`,
+    modelHint: "fal-ai/flux-pro",
+    difficulty: "beginner",
+    tags: ["接案者", "比稿", "構圖", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "接案者×圖影 上手路徑", href: "/learn?docId=scenario-freelancer-delivery" },
+      { label: "圖片創作室", href: "/image-studio" },
+    ],
+  },
+  {
+    id: "onboard-fl-deliver-motion",
+    modality: "video",
+    title: "【前後對照】交付動態展示稿",
+    summary: "指明鏡頭運動＋「五官不得變形」＋引用定版圖，動態交付稿才過得了客戶那關。",
+    prompt: `弱提示：把成品做成影片
+
+→ 強提示：
+The locked mascot character stays fully consistent with the reference image. Camera slowly orbits 30 degrees around the character over 4 seconds, soft studio lighting unchanged, clean background, smooth 24fps, no cuts, no morphing of facial features.
+
+▷ 為什麼更好：「做成影片」常讓角色在動態中變形走樣；寫死鏡頭運動與「五官不得變形」，動態稿和定版圖才是同一個角色。`,
+    modelHint: "fal-ai/kling-2.1-i2v",
+    difficulty: "beginner",
+    tags: ["接案者", "I2V", "交付", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "接案者×圖影 上手路徑", href: "/learn?docId=scenario-freelancer-delivery" },
+      { label: "影片創作室", href: "/video-studio" },
+    ],
+  },
+
+  // ─ 情境 E：內容編輯 × 圖文（批量與版本）─
+  {
+    id: "onboard-ed-tone-rewrite",
+    modality: "agent",
+    title: "【前後對照】定調性再潤稿",
+    summary: "把調性寫成明確規則（聲音、讀者、句長、禁用詞），十篇稿子出來是同一個聲音。",
+    prompt: `弱提示：幫我潤稿
+
+→ 強提示：
+請依以下調性改寫：品牌聲音＝專業但親切的科技編輯；目標讀者＝30–45 歲產品經理；句長 ≤ 25 字；用「你」不用「您」；禁用詞：賦能、抓手、閉環。改寫後附一句話說明你動了哪裡。
+
+▷ 為什麼更好：「潤稿」沒有標準，AI 只能猜你要什麼；把調性寫成規則後，整個專題的每一篇都是同一把尺量出來的。`,
+    difficulty: "beginner",
+    tags: ["內容編輯", "調性", "潤稿", "前後對照"],
+    language: "zh",
+    references: [
+      { label: "內容編輯×圖文 上手路徑", href: "/learn?docId=scenario-editor-batch" },
+      { label: "提示範例庫", href: "/learn?sub=hub" },
+    ],
+  },
+  {
+    id: "onboard-ed-one-to-three",
+    modality: "agent",
+    title: "【前後對照】一稿改三平台",
+    summary: "一次要三版＋鎖同一核心賣點，批量產出還互相對齊，不必逐平台重寫。",
+    prompt: `弱提示：改成 IG 版
+
+→ 強提示：
+把這段文案一次改寫成三個版本：IG 貼文（150 字內、口語、3 個 hashtag、首句要停住滑動）；FB 貼文（300 字內、可講故事、結尾提問）；電子報導言（120 字、資訊密度高、連到全文）。三版共用同一個核心賣點，調性依前述品牌聲音。
+
+▷ 為什麼更好：逐平台各叫一次 AI，賣點和調性會慢慢漂移；一次要三版並鎖住同一個賣點，三個平台講的才是同一件事。`,
+    difficulty: "beginner",
+    tags: ["內容編輯", "多平台", "批量", "前後對照"],
+    language: "zh",
+    references: [
+      { label: "內容編輯×圖文 上手路徑", href: "/learn?docId=scenario-editor-batch" },
+      { label: "創作工作室", href: "/studio" },
+    ],
+  },
+  {
+    id: "onboard-ed-series-style",
+    modality: "image",
+    title: "【前後對照】系列插圖統一風格",
+    summary: "風格段固定、只換 subject 那一句，整個專題的插圖像同一雙手畫的。",
+    prompt: `弱提示：幫這篇文章配一張圖
+
+→ 強提示：
+editorial illustration series (3 of 8), flat vector style, brand palette only (#1B5E5A deep teal, #F2B441 amber, #FAF6EF cream), consistent 2px line weight, same soft top-left lighting, 4:3 ratio with 10% margin grid — subject of this piece: remote team standup meeting
+
+▷ 為什麼更好：逐張自由發揮，八張像八個插畫家畫的；把風格段固定成模板、每張只換「subject」，系列才有系列感。`,
+    modelHint: "fal-ai/flux-pro / fal-ai/imagen4",
+    difficulty: "beginner",
+    tags: ["內容編輯", "系列插圖", "統一風格", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "內容編輯×圖文 上手路徑", href: "/learn?docId=scenario-editor-batch" },
+      { label: "批次分鏡", href: "/animation" },
+    ],
+  },
+  {
+    id: "onboard-ed-ab-review",
+    modality: "agent",
+    title: "【前後對照】版本比對有依據",
+    summary: "給準則和量表，A/B 比對結果才能直接寫進編輯會議紀錄，不是客套話。",
+    prompt: `弱提示：這兩版哪個好？
+
+→ 強提示：
+請用表格比對 A/B 兩版標題：欄位＝點開動機（1–5）、資訊清楚度（1–5）、品牌調性符合度（1–5）、風險（誇大／歧義）。每格附一句理由，最後給出建議版本與一句修改方向。
+
+▷ 為什麼更好：「哪個好」得到的是客套話；給了準則和量表，比對結果有依據、可留痕，版本才收斂而不是越比越多。`,
+    difficulty: "beginner",
+    tags: ["內容編輯", "版本比對", "A/B", "前後對照"],
+    language: "zh",
+    references: [
+      { label: "內容編輯×圖文 上手路徑", href: "/learn?docId=scenario-editor-batch" },
+      { label: "生成歷史", href: "/history" },
+    ],
+  },
+
+  // ─ 情境 F：品牌方 × 圖影（品牌一致）─
+  {
+    id: "onboard-br-vibe-preset",
+    modality: "image",
+    title: "【前後對照】品牌 preset 寫進提示",
+    summary: "把色票、質感、留白比例寫成規範句，這段就是你的品牌 preset，每次生成直接帶上。",
+    prompt: `弱提示：做有品牌感的圖
+
+→ 強提示：
+brand visual in house style: primary color #0E3A5D navy with #E8C547 gold accents, matte paper texture, generous white space (at least 30%), soft diffused daylight, geometric sans-serif mood, minimal composition, no gradients outside brand palette, no stock-photo look
+
+▷ 為什麼更好：「品牌感」三個字模型無從得知你的品牌；把色票、質感、留白寫成規範句並存成 vibe card，每張圖都從同一套規範出發。`,
+    modelHint: "fal-ai/flux-pro",
+    difficulty: "beginner",
+    tags: ["品牌方", "品牌preset", "vibe cards", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "品牌方×圖影 上手路徑", href: "/learn?docId=scenario-brand-consistency" },
+      { label: "vibe card 精靈", href: "/studio" },
+    ],
+  },
+  {
+    id: "onboard-br-keyvisual",
+    modality: "image",
+    title: "【前後對照】主視覺留好 logo 位",
+    summary: "指明留白位置與可裁切性，主視覺生成稿才能直接交給設計師疊字。",
+    prompt: `弱提示：做一張活動主視覺
+
+→ 強提示：
+campaign key visual for a summer product launch, brand palette (#0E3A5D navy, #E8C547 gold, white), hero product on bottom-right third, clean negative space at top-left reserved for logo and slogan overlay, 16:9 ratio, composition still balanced when cropped to 1:1, no AI-generated text
+
+▷ 為什麼更好：沒留 logo 位的主視覺進不了設計流程；指明留白位置＋裁切相容性，生成稿才是可以直接用的素材而不是參考圖。`,
+    modelHint: "fal-ai/flux-pro / fal-ai/imagen4",
+    difficulty: "beginner",
+    tags: ["品牌方", "主視覺", "留白", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "品牌方×圖影 上手路徑", href: "/learn?docId=scenario-brand-consistency" },
+      { label: "圖片創作室", href: "/image-studio" },
+    ],
+  },
+  {
+    id: "onboard-br-derivative-set",
+    modality: "image-edit",
+    title: "【前後對照】衍生成套不走鐘",
+    summary: "說清楚「同一張主視覺重排版、不得加新元素」，整套衍生才是同一個品牌臉。",
+    prompt: `弱提示：幫我多做幾個尺寸
+
+→ 強提示：
+Derive from the approved key visual (風格鎖定引用): keep brand palette, lighting and product rendering identical. Re-compose for 9:16 story (product in lower half, logo space on top), 1:1 feed (centered), and 728x90 banner (product right, headline space left). Do not introduce new elements or colors.
+
+▷ 為什麼更好：「多做幾個尺寸」常被模型當成重新創作；寫死「重排版、不加新元素」，衍生素材才張張合品牌規範。`,
+    modelHint: "fal-ai/flux-kontext / fal-ai/gpt-image-1.5",
+    difficulty: "beginner",
+    tags: ["品牌方", "衍生成套", "風格鎖定", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "一致性保險庫（風格鎖定）", href: "/vault" },
+      { label: "品牌方×圖影 上手路徑", href: "/learn?docId=scenario-brand-consistency" },
+    ],
+  },
+  {
+    id: "onboard-br-motion-rules",
+    modality: "video",
+    title: "【前後對照】品牌動態守規範",
+    summary: "把節奏、調色、結尾 logo 位寫死，品牌動態稿一次過審。",
+    prompt: `弱提示：把主視覺做成品牌影片
+
+→ 強提示：
+Animate the approved key visual: slow 5-second push-in with gentle parallax between product and background, color grading locked to brand palette (#0E3A5D / #E8C547), calm pacing with no flashy transitions, end frame holds for 1 second with clear logo space at top-left, 24fps.
+
+▷ 為什麼更好：不設動態規範，模型會加彩色轉場毀掉品牌調性；節奏、調色、結尾 logo 位都寫死，審核才有依據、一次通過。`,
+    modelHint: "fal-ai/kling-2.1-i2v / fal-ai/veo-3",
+    difficulty: "beginner",
+    tags: ["品牌方", "品牌影片", "審核", "前後對照"],
+    language: "mixed",
+    references: [
+      { label: "品牌方×圖影 上手路徑", href: "/learn?docId=scenario-brand-consistency" },
+      { label: "確認門（導演模式）", href: "/director" },
+    ],
+  },
+
   {
     id: "modifier-composition",
     modality: "image",
