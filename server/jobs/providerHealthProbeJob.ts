@@ -12,6 +12,7 @@ import { getDb } from "../db.js";
 import { orbSystemAlerts } from "../../drizzle/schema.js";
 import { eq, and, isNull } from "drizzle-orm";
 import { setProviderHealth, markProviderRecovered } from "../services/providerHealth.js";
+import { assertSafeExternalUrl } from "../_core/ssrfGuard.js";
 
 // ─── Provider Probe Config ───────────────────────────────────────────────────
 
@@ -186,6 +187,14 @@ async function probeProvider(
 ): Promise<{ ok: boolean; statusCode?: number; latencyMs: number; error?: string }> {
   const start = Date.now();
   try {
+    // AIDV-963: SSRF guard — block loopback/private/link-local/IMDS targets before
+    // egress. Matters for dynamic URLs built from env (e.g. supabase_auth uses
+    // `${SUPABASE_URL}/auth/v1/health`). Deliberately inside the try block: a
+    // blocked URL throws SsrfBlockedError, lands in the catch below, and marks
+    // THIS provider's probe as failed — same path as a fetch error — instead of
+    // crashing the whole probe cycle. Follows the llmRouter/internalMedia
+    // convention of relaxing loopback/http only outside production.
+    assertSafeExternalUrl(config.url, process.env.NODE_ENV !== "production");
     const res = await fetch(config.url, {
       method: config.method,
       headers: config.headers(),
