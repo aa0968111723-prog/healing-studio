@@ -125,6 +125,49 @@ describe("takeR2Snapshot — 無 R2 env → 靜默跳過（不拋錯）", () => 
   });
 });
 
+// ─── takeR2Snapshot — S3Client 生命週期（AIDV-780）─────────────────────────
+
+describe("takeR2Snapshot — S3Client 用畢必 destroy（AIDV-780 資源洩漏修補）", () => {
+  const setR2Env = () => {
+    process.env.S3_ENDPOINT = "https://example.r2.cloudflarestorage.com";
+    process.env.S3_ACCESS_KEY_ID = "test-key";
+    process.env.S3_SECRET_ACCESS_KEY = "test-secret";
+    process.env.S3_BUCKET_NAME = "test-bucket";
+  };
+
+  it("掃描失敗（send 拋錯）→ 仍呼叫 destroy 釋放連線池，且不拋錯", async () => {
+    setR2Env();
+    const { S3Client } = await import("@aws-sdk/client-s3");
+    const sendSpy = vi
+      .spyOn(S3Client.prototype as any, "send")
+      .mockRejectedValue(new Error("network boom"));
+    const destroySpy = vi
+      .spyOn(S3Client.prototype as any, "destroy")
+      .mockImplementation(() => {});
+
+    await expect(takeR2Snapshot()).resolves.toBeUndefined();
+
+    expect(sendSpy).toHaveBeenCalled();
+    expect(destroySpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("掃描成功（單頁、無 DB）→ 完成後也 destroy", async () => {
+    setR2Env();
+    const { S3Client } = await import("@aws-sdk/client-s3");
+    vi.spyOn(S3Client.prototype as any, "send").mockResolvedValue({
+      Contents: [],
+      IsTruncated: false,
+    });
+    const destroySpy = vi
+      .spyOn(S3Client.prototype as any, "destroy")
+      .mockImplementation(() => {});
+
+    await expect(takeR2Snapshot()).resolves.toBeUndefined();
+
+    expect(destroySpy).toHaveBeenCalledTimes(1);
+  });
+});
+
 // ─── takeR2ObjectCatalog — 無 DB → 返回 0 ───────────────────────────────────
 
 describe("takeR2ObjectCatalog — 無 DB → 返回 0（不拋錯）", () => {

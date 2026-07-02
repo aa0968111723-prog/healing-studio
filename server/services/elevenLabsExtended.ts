@@ -386,9 +386,12 @@ export class ElevenLabsExtendedClient {
     }
 
     // Fetch audio files and append
+    // AIDV-780：使用者提供的 URL 需 SSRF 守衛（既有）＋fetch 逾時，避免掛死 worker
     for (let i = 0; i < params.audioUrls.length; i++) {
       assertSafeUrl(params.audioUrls[i]);
-      const audioRes = await fetch(params.audioUrls[i]);
+      const audioRes = await fetch(params.audioUrls[i], {
+        signal: AbortSignal.timeout(30_000),
+      });
       const blob = await audioRes.blob();
       formData.append("files", blob, `sample_${i}.mp3`);
     }
@@ -422,8 +425,11 @@ export class ElevenLabsExtendedClient {
     formData.append("mode", "automatic");
 
     // Fetch video
+    // AIDV-780：SSRF 守衛（既有）＋fetch 逾時；影片較大採 90s（同 internalMedia 慣例）
     assertSafeUrl(params.videoUrl);
-    const videoRes = await fetch(params.videoUrl);
+    const videoRes = await fetch(params.videoUrl, {
+      signal: AbortSignal.timeout(90_000),
+    });
     const videoBlob = await videoRes.blob();
     formData.append("file", videoBlob, "video.mp4");
 
@@ -476,8 +482,11 @@ export class ElevenLabsExtendedClient {
     }
 
     // Fetch audio
+    // AIDV-780：SSRF 守衛（既有）＋fetch 逾時，避免惡意/掛死來源拖垮請求
     assertSafeUrl(params.audioUrl);
-    const audioRes = await fetch(params.audioUrl);
+    const audioRes = await fetch(params.audioUrl, {
+      signal: AbortSignal.timeout(30_000),
+    });
     const audioBlob = await audioRes.blob();
     formData.append("file", audioBlob, "audio.mp3");
 

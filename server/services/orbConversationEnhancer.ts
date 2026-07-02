@@ -318,10 +318,16 @@ export class OrbConversationEnhancer {
    */
   async recordClarificationAnswer(
     clarificationId: string,
-    userAnswer: string
+    userAnswer: string,
+    userId: number
   ): Promise<void> {
     try {
-      await orbClarificationEngine.recordAnswer(clarificationId, userAnswer);
+      // AIDV-780：userId 下傳 engine 做擁有者圈定（IDOR 修補）
+      await orbClarificationEngine.recordAnswer(
+        clarificationId,
+        userAnswer,
+        userId
+      );
 
       logger.info("orb_clarification_answered", {
         clarificationId,

@@ -52,10 +52,13 @@ export async function identifyUserIntent(input: {
 
 /**
  * Record user's answer to a clarification question
+ *
+ * AIDV-780：userId 必填並下傳 engine 做擁有者圈定（IDOR 修補）。
  */
 export async function recordClarificationAnswer(input: {
   clarificationId: string;
   userAnswer: string;
+  userId: number;
 }): Promise<{
   success: boolean;
   resolvedIntent?: string;
@@ -64,7 +67,8 @@ export async function recordClarificationAnswer(input: {
   try {
     const clarification = await orbClarificationEngine.recordAnswer(
       input.clarificationId,
-      input.userAnswer
+      input.userAnswer,
+      input.userId
     );
 
     return {

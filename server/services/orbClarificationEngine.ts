@@ -513,30 +513,43 @@ Return exactly:
 
   /**
    * Record user's answer to clarification question
+   *
+   * AIDV-780（IDOR 修補）：WHERE 以 userId 圈定擁有者，避免任何登入者拿
+   * 他人的 clarificationId 改寫他人紀錄／污染他人答題模式學習。
    */
   async recordAnswer(
     clarificationId: string,
-    userAnswer: string
+    userAnswer: string,
+    userId: number
   ): Promise<ClarificationQuestion> {
     try {
       const db = await getDb();
       if (!db) throw new Error("Database is not configured");
       const clarId = Number(clarificationId);
+      const ownerScope = and(
+        eq(orbClarificationHistory.id, clarId),
+        eq(orbClarificationHistory.userId, userId)
+      );
 
-      // Update the clarification record
+      // Update the clarification record (owner-scoped)
       await db
         .update(orbClarificationHistory)
         .set({
           userAnswer,
           answeredAt: new Date(),
         })
-        .where(eq(orbClarificationHistory.id, clarId));
+        .where(ownerScope);
 
-      // Fetch the updated record
+      // Fetch the updated record (owner-scoped)
       const [updated] = await db
         .select()
         .from(orbClarificationHistory)
-        .where(eq(orbClarificationHistory.id, clarId));
+        .where(ownerScope);
+
+      if (!updated) {
+        // 不存在或非本人 — 統一回同一種錯誤，不洩漏他人紀錄是否存在
+        throw new Error("clarification-not-found-or-not-owned");
+      }
 
       const clarification: ClarificationQuestion = {
         id: String(updated.id),

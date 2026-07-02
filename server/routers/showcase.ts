@@ -673,7 +673,8 @@ export const showcaseRouter = router({
       }
 
       const historyItem = historyItems[0];
-      if (!historyItem.resultUrl) {
+      const resultUrl = historyItem.resultUrl;
+      if (!resultUrl) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "此生成紀錄沒有結果 URL，無法加入精選。",
@@ -684,24 +685,6 @@ export const showcaseRouter = router({
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      const todayCount = await db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(featuredShowcase)
-        .where(
-          and(
-            eq(featuredShowcase.curatorUserId, userId),
-            sql`${featuredShowcase.createdAt} >= ${todayStart}`
-          )
-        );
-
-      const count = Number((todayCount[0] as any)?.count ?? 0);
-      if (count >= 5) {
-        throw new TRPCError({
-          code: "TOO_MANY_REQUESTS",
-          message: "今日提交數量已達上限（每天最多 5 件），請明天再試。",
-        });
-      }
-
       // Determine modality
       const modality = (historyItem.modality ?? "image") as
         | "image"
@@ -709,20 +692,43 @@ export const showcaseRouter = router({
         | "audio"
         | "voice";
 
-      // Insert into featured showcase
-      await db.insert(featuredShowcase).values({
-        generatedItemId: historyItem.id,
-        title: input.title,
-        description: input.description ?? null,
-        imageUrl: historyItem.resultUrl,
-        thumbnailUrl: historyItem.thumbnailUrl ?? historyItem.resultUrl,
-        originalPrompt: historyItem.prompt ?? "",
-        modality,
-        curatorUserId: userId,
-        sortWeight: 0,
-        isActive: true,
-        likeCount: 0,
-        forkCount: 0,
+      // AIDV-780：count＋insert 包進單一交易，count 走 SELECT ... FOR UPDATE
+      // 鎖定行/間隙，修補並發 promote 繞過每日 5 件上限的競態。
+      await db.transaction(async tx => {
+        const todayCount = await tx
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(featuredShowcase)
+          .where(
+            and(
+              eq(featuredShowcase.curatorUserId, userId),
+              sql`${featuredShowcase.createdAt} >= ${todayStart}`
+            )
+          )
+          .for("update");
+
+        const count = Number((todayCount[0] as any)?.count ?? 0);
+        if (count >= 5) {
+          throw new TRPCError({
+            code: "TOO_MANY_REQUESTS",
+            message: "今日提交數量已達上限（每天最多 5 件），請明天再試。",
+          });
+        }
+
+        // Insert into featured showcase (same transaction — count still locked)
+        await tx.insert(featuredShowcase).values({
+          generatedItemId: historyItem.id,
+          title: input.title,
+          description: input.description ?? null,
+          imageUrl: resultUrl,
+          thumbnailUrl: historyItem.thumbnailUrl ?? resultUrl,
+          originalPrompt: historyItem.prompt ?? "",
+          modality,
+          curatorUserId: userId,
+          sortWeight: 0,
+          isActive: true,
+          likeCount: 0,
+          forkCount: 0,
+        });
       });
 
       return { success: true };

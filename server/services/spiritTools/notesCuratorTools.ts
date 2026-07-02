@@ -691,48 +691,54 @@ export async function tagAssets(input: {
     const db = await getDb();
     if (!db) throw new Error("Database is not configured");
 
-    const existing = await db
-      .select({
-        id: digitalAssetLibrary.id,
-        tags: digitalAssetLibrary.tags,
-      })
-      .from(digitalAssetLibrary)
-      .where(
-        and(
-          eq(digitalAssetLibrary.userId, input.userId),
-          inArray(digitalAssetLibrary.id, input.assetIds)
-        )
-      );
-
-    let updated = 0;
-    for (const row of existing) {
-      const current = ((row.tags ?? []) as string[]).filter(Boolean);
-      let next: string[];
-      if (action === "replace") {
-        next = incoming;
-      } else if (action === "remove") {
-        const removeSet = new Set(incoming.map(t => t.toLowerCase()));
-        next = current.filter(t => !removeSet.has(String(t).toLowerCase()));
-      } else {
-        next = dedupeTags([...current, ...incoming]);
-      }
-      // Skip the write when nothing actually changed — saves an UPDATE per
-      // unchanged asset on bulk batches.
-      const same =
-        next.length === current.length &&
-        next.every((t, i) => t === current[i]);
-      if (same) continue;
-      await db
-        .update(digitalAssetLibrary)
-        .set({ tags: next, updatedAt: new Date() })
+    // AIDV-780：read-modify-write 包進交易＋SELECT ... FOR UPDATE 行鎖，
+    // 修補並發 tagAssets 互相覆寫、丟失標籤的競態（同 db.ts 配額鎖慣例）。
+    const updated = await db.transaction(async tx => {
+      const existing = await tx
+        .select({
+          id: digitalAssetLibrary.id,
+          tags: digitalAssetLibrary.tags,
+        })
+        .from(digitalAssetLibrary)
         .where(
           and(
-            eq(digitalAssetLibrary.id, row.id),
-            eq(digitalAssetLibrary.userId, input.userId)
+            eq(digitalAssetLibrary.userId, input.userId),
+            inArray(digitalAssetLibrary.id, input.assetIds)
           )
-        );
-      updated += 1;
-    }
+        )
+        .for("update");
+
+      let changed = 0;
+      for (const row of existing) {
+        const current = ((row.tags ?? []) as string[]).filter(Boolean);
+        let next: string[];
+        if (action === "replace") {
+          next = incoming;
+        } else if (action === "remove") {
+          const removeSet = new Set(incoming.map(t => t.toLowerCase()));
+          next = current.filter(t => !removeSet.has(String(t).toLowerCase()));
+        } else {
+          next = dedupeTags([...current, ...incoming]);
+        }
+        // Skip the write when nothing actually changed — saves an UPDATE per
+        // unchanged asset on bulk batches.
+        const same =
+          next.length === current.length &&
+          next.every((t, i) => t === current[i]);
+        if (same) continue;
+        await tx
+          .update(digitalAssetLibrary)
+          .set({ tags: next, updatedAt: new Date() })
+          .where(
+            and(
+              eq(digitalAssetLibrary.id, row.id),
+              eq(digitalAssetLibrary.userId, input.userId)
+            )
+          );
+        changed += 1;
+      }
+      return changed;
+    });
 
     logger.info("assets_tagged", {
       userId: input.userId,

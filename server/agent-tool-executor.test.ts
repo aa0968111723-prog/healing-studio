@@ -188,6 +188,88 @@ describe("executeOrbToolCalls", () => {
     );
   });
 
+  it("AIDV-780：未經核准時，requireConfirmation 的 fallback 不得被執行（授權缺口修補）", async () => {
+    process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("boom", { status: 500, headers: { "content-type": "text/plain" } })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const out = await executeOrbToolCalls({
+      tools: [
+        {
+          name: "crm.lookup",
+          description: "primary",
+          method: "GET",
+          endpoint: "https://api.example.com/customers",
+          fallbackTools: ["crm.delete.cached"],
+        },
+        {
+          name: "crm.delete.cached",
+          description: "destructive fallback",
+          method: "GET",
+          endpoint: "https://api.example.com/customers-cache",
+          requireConfirmation: true,
+        },
+      ],
+      calls: [{ name: "crm.lookup", args: { id: "u1" } }],
+      userId: 1,
+      userRole: "user",
+      approved: false,
+    });
+
+    // 只打了主工具一次；需確認的 fallback 沒被執行
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(out[0].ok).toBe(false);
+    expect((out[0] as { usedTool?: string }).usedTool).not.toBe("crm.delete.cached");
+  });
+
+  it("AIDV-780：已核准（approved）時，requireConfirmation 的 fallback 照常可用（正常路徑零變化）", async () => {
+    process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("boom", { status: 500, headers: { "content-type": "text/plain" } })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ cached: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const out = await executeOrbToolCalls({
+      tools: [
+        {
+          name: "crm.lookup",
+          description: "primary",
+          method: "GET",
+          endpoint: "https://api.example.com/customers",
+          fallbackTools: ["crm.lookup.cached"],
+        },
+        {
+          name: "crm.lookup.cached",
+          description: "confirmed fallback",
+          method: "GET",
+          endpoint: "https://api.example.com/customers-cache",
+          requireConfirmation: true,
+        },
+      ],
+      calls: [{ name: "crm.lookup", args: { id: "u1" } }],
+      userId: 1,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(out[0]).toEqual(
+      expect.objectContaining({ ok: true, usedTool: "crm.lookup.cached" })
+    );
+  });
+
   it("blocks tool call when role is not allowed", async () => {
     process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
     const tools: OrbApiTool[] = [

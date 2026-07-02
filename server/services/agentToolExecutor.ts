@@ -834,7 +834,10 @@ export async function executeOrbToolCalls(
               candidate &&
               (!candidate.allowedRoles ||
                 candidate.allowedRoles.length === 0 ||
-                candidate.allowedRoles.includes(opts.userRole))
+                candidate.allowedRoles.includes(opts.userRole)) &&
+              // AIDV-780：fallback 也要過 confirmation gate（比照上方主工具
+              // 的 requireConfirmation 檢查），未經核准不得經 fallback 繞過。
+              (!candidate.requireConfirmation || opts.approved)
           );
         if (fallbackTool) {
           assertAllowedEndpoint(fallbackTool.endpoint);
@@ -6810,6 +6813,8 @@ async function dispatchClarificationEngineTool(
         const result = await recordClarificationAnswer({
           clarificationId,
           userAnswer,
+          // AIDV-780：帶入呼叫者 userId 做擁有者圈定（IDOR 修補）
+          userId: opts.userId,
         });
 
         return {

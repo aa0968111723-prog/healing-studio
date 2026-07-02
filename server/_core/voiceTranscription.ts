@@ -26,6 +26,7 @@
  * ```
  */
 import { ENV } from "./env";
+import { assertSafeExternalUrl } from "./ssrfGuard";
 
 export type TranscribeOptions = {
   audioUrl: string; // URL to the audio file (e.g., S3 URL)
@@ -96,10 +97,27 @@ export async function transcribeAudio(
     }
 
     // Step 2: Download audio from URL
+    // AIDV-780：使用者提供的 audioUrl 先過 SSRF 守衛（同 #1286 慣例；dev 允許
+    // localhost/http 以免擋本機儲存），並加 fetch 逾時避免掛死請求。
+    try {
+      assertSafeExternalUrl(
+        options.audioUrl,
+        process.env.NODE_ENV !== "production"
+      );
+    } catch (err) {
+      return {
+        error: "Audio URL is not allowed",
+        code: "INVALID_FORMAT",
+        details: err instanceof Error ? err.message : "unsafe audio url",
+      };
+    }
+
     let audioBuffer: Buffer;
     let mimeType: string;
     try {
-      const response = await fetch(options.audioUrl);
+      const response = await fetch(options.audioUrl, {
+        signal: AbortSignal.timeout(30_000),
+      });
       if (!response.ok) {
         return {
           error: "Failed to download audio file",

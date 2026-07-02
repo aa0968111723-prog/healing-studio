@@ -164,7 +164,6 @@ export async function takeR2Snapshot(): Promise<void> {
   }
 
   console.log("[R2Snapshot] 🔍 開始掃描 R2 bucket:", bucketName);
-  const startTime = Date.now();
 
   // ── 建立 S3Client（指向 Cloudflare R2）────────────────────────────────────
   const s3 = new S3Client({
@@ -172,6 +171,22 @@ export async function takeR2Snapshot(): Promise<void> {
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
   });
+
+  // AIDV-780：cron 每日執行，S3Client 用畢必須 destroy 釋放連線池，
+  // 否則長期累積 socket/handle 洩漏。try/finally 覆蓋所有 early return。
+  try {
+    await takeR2SnapshotWithClient(s3, bucketName);
+  } finally {
+    s3.destroy();
+  }
+}
+
+/** 實際快照邏輯（S3Client 生命週期由 takeR2Snapshot 管理） */
+async function takeR2SnapshotWithClient(
+  s3: S3Client,
+  bucketName: string
+): Promise<void> {
+  const startTime = Date.now();
 
   // ── 分類統計容器 ──────────────────────────────────────────────────────────
   let totalBytes = 0;

@@ -106,8 +106,11 @@ export async function buildZipBuffer(urls: string[]): Promise<Buffer> {
 
     const fileName = `${paddedIndex}${ext}`;
     try {
+      // AIDV-780：SSRF 守衛（既有）＋fetch 逾時；訓練素材含影片採 90s（同 internalMedia 慣例）
       assertSafeUrl(url);
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(90_000),
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
       const arrayBuffer = await response.arrayBuffer();
       zip.file(fileName, arrayBuffer);
