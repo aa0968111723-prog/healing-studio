@@ -1,4 +1,4 @@
--- 0106: creator_usage_events 用量事件記錄表 — AIDV-277（收斂 AIDV-273）
+-- 0107: creator_usage_events 用量事件記錄表 — AIDV-277（收斂 AIDV-273）
 -- 每次影片生成觸發一筆，供 /creator/dashboard 配額透明度與下游 API 配額共用計量。
 -- 擁有權以應用層 WHERE userId 過濾（MySQL 無 Postgres RLS，讀取端以 ctx.user.id 為界）。
 -- 三鐵則：CREATE TABLE IF NOT EXISTS；CREATE INDEX 走 information_schema.statistics 守門；

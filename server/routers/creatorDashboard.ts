@@ -1,9 +1,13 @@
 /**
  * creatorDashboard.ts — AIDV-277 Creator 可見性智能層（唯讀端點）
  *
- * 收斂 AIDV-273（配額透明度）的後端讀取層。兩個唯讀端點：
- *   quotaStatus  — 當月用量 / 配額百分比 / 已花費 / 重置時間 / 80% 預警旗標
- *   estimateCost — 預生成費用估算 + 生成後配額投影（生成流程步驟 0 顯示）
+ * 收斂 AIDV-273（配額透明度）的後端讀取層。唯讀端點：
+ *   quotaStatus — 當月用量 / 配額百分比 / 已花費 / 重置時間 / 80% 預警旗標
+ *
+ * 【預生成估價】不在本 router 另開 estimateCost：既有 generate.estimateCost
+ * （generationType:"video"，以 modelPricing 為源）已是唯一的預生成估價端點，
+ * 「生成流程步驟 0 顯示預估費用」的 UI 接線為 follow-up（接 generate.estimateCost），
+ * 避免兩套不一致的估價端點並存。
  *
  * 純計算全部在 server/lib/quotaConfig.ts（可單元測試、突變即紅）；本檔只負責
  * 「讀 DB → 餵純函式 → 回形狀」。擁有權一律以 ctx.user.id 為界（鏡像
@@ -13,19 +17,16 @@
  *   - videosGenerated：以 video_projects 當月建立數為真實計量（立即有真資料）。
  *   - costUsdSoFar：讀 creator_usage_events 當月 cost_usd 加總（本卡建表 + 唯讀；
  *     「生成成功後寫入一筆」的寫入點為 follow-up，故落地初期為 0）。
- *   - 不碰任何實際扣款；estimateCost 為透明化估算（見 quotaConfig 檔頭鐵則）。
+ *   - 不碰任何實際扣款（見 quotaConfig 檔頭計費鐵則）。
  */
 
-import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { and, eq, gte, count, sum } from "drizzle-orm";
 import { getDb, getUserSubscription } from "../db";
 import { creatorUsageEvents, videoProjects } from "../../drizzle/schema";
 import {
-  resolvePlanTier,
+  resolveSubscriptionTier,
   computeQuotaStatus,
-  estimateGenerationCost,
-  projectQuotaAfter,
   startOfMonthUtc,
   type CreatorPlanTier,
 } from "../lib/quotaConfig";
@@ -58,10 +59,13 @@ async function sumCostThisMonth(userId: number, monthStart: Date): Promise<numbe
   return Number(row?.total ?? 0);
 }
 
-/** 解析使用者的配額層級（查不到訂閱 → free，fail-closed 到最小配額）。 */
+/**
+ * 解析使用者的配額層級。鏡像既有付費守門語意（videoOutputSpec.isPaidPlan）：
+ * 查不到訂閱或 status 非 active/trialing（cancelled / past_due…）→ free。
+ */
 async function resolveTierForUser(userId: number): Promise<CreatorPlanTier> {
   const sub = await getUserSubscription(userId);
-  return resolvePlanTier(sub?.planId ?? null);
+  return resolveSubscriptionTier(sub);
 }
 
 export const creatorDashboardRouter = router({
@@ -97,37 +101,4 @@ export const creatorDashboardRouter = router({
       quotaResetsAt: status.quotaResetsAt,
     };
   }),
-
-  /**
-   * 預生成費用估算（唯讀，透明化）。回傳估算點數 / USD 與生成後配額投影。
-   */
-  estimateCost: protectedProcedure
-    .input(
-      z
-        .object({
-          aspectRatio: z.enum(["16:9", "9:16", "1:1"]).optional(),
-        })
-        .optional()
-    )
-    .query(async ({ ctx, input }) => {
-      const now = new Date();
-      const monthStart = startOfMonthUtc(now);
-      const [tier, videosGenerated] = await Promise.all([
-        resolveTierForUser(ctx.user.id),
-        countVideosThisMonth(ctx.user.id, monthStart),
-      ]);
-
-      const estimate = estimateGenerationCost({ aspectRatio: input?.aspectRatio });
-      const after = projectQuotaAfter({ tier, videosGenerated, credits: estimate.credits });
-
-      return {
-        credits: estimate.credits,
-        costUsdEstimate: estimate.costUsdEstimate,
-        quotaAfter: {
-          // unlimited → Infinity 不可序列化，回 null（前端顯示「∞」）。
-          remaining: Number.isFinite(after.remaining) ? after.remaining : null,
-          willExceed: after.willExceed,
-        },
-      };
-    }),
 });

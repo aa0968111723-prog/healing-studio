@@ -12,6 +12,7 @@ import {
   ESTIMATED_USD_PER_VIDEO,
   CREDITS_PER_VIDEO,
   resolvePlanTier,
+  resolveSubscriptionTier,
   startOfMonthUtc,
   firstDayOfNextMonthUtc,
   computeQuotaStatus,
@@ -50,11 +51,49 @@ describe("resolvePlanTier — 訂閱 planId 正規化", () => {
     expect(resolvePlanTier("Starter")).toBe("starter");
   });
 
-  it("null / 未知字串 fail-closed 到 free", () => {
+  it("premium / ultra（既有 4K 付費守門詞彙）對應付費層級", () => {
+    expect(resolvePlanTier("premium")).toBe("pro");
+    expect(resolvePlanTier("ultra")).toBe("unlimited");
+  });
+
+  it("null / 空字串 / free 對應 free", () => {
     expect(resolvePlanTier(null)).toBe("free");
     expect(resolvePlanTier(undefined)).toBe("free");
-    expect(resolvePlanTier("price_1QxyzStripeId")).toBe("free");
     expect(resolvePlanTier("")).toBe("free");
+    expect(resolvePlanTier("free")).toBe("free");
+  });
+
+  it("未知且非 free 的 planId（如 stripe price id）有意識映射到最低付費層級 starter", () => {
+    expect(resolvePlanTier("price_1QxyzStripeId")).toBe("starter");
+  });
+});
+
+describe("resolveSubscriptionTier — 訂閱列（planId + status）解析（鏡像 isPaidPlan 語意）", () => {
+  it("查不到訂閱 → free（fail-closed）", () => {
+    expect(resolveSubscriptionTier(null)).toBe("free");
+    expect(resolveSubscriptionTier(undefined)).toBe("free");
+  });
+
+  it("cancelled 的 pro → free（不顯示已取消方案的配額）", () => {
+    expect(resolveSubscriptionTier({ planId: "pro", status: "cancelled" })).toBe("free");
+  });
+
+  it("past_due / null status → free", () => {
+    expect(resolveSubscriptionTier({ planId: "premium", status: "past_due" })).toBe("free");
+    expect(resolveSubscriptionTier({ planId: "pro", status: null })).toBe("free");
+  });
+
+  it("active / trialing 依 planId 對應層級", () => {
+    expect(resolveSubscriptionTier({ planId: "pro", status: "active" })).toBe("pro");
+    expect(resolveSubscriptionTier({ planId: "premium", status: "active" })).toBe("pro");
+    expect(resolveSubscriptionTier({ planId: "ultra", status: "trialing" })).toBe("unlimited");
+    expect(resolveSubscriptionTier({ planId: "starter", status: "trialing" })).toBe("starter");
+  });
+
+  it("active 的未知付費 planId → starter（最低付費層級，不誤報配額用盡）", () => {
+    expect(resolveSubscriptionTier({ planId: "price_1QxyzStripeId", status: "active" })).toBe(
+      "starter"
+    );
   });
 });
 

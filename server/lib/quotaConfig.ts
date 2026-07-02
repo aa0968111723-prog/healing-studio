@@ -45,16 +45,36 @@ export const CREDITS_PER_VIDEO = 1;
 /**
  * 把訂閱 planId（varchar，可能是 'free'/'starter'/'pro'/'enterprise' 或未知字串）
  * 正規化成配額層級。
- *   - enterprise / unlimited → unlimited
+ *   - enterprise / unlimited / ultra → unlimited（ultra 為既有 4K 守門錯誤訊息
+ *     載明的付費方案詞彙，見 server/services/videoOutputSpec.ts）
+ *   - premium → pro（同上，premium 為既有付費守門測試 fixture 使用的實際詞彙）
  *   - 明確 starter / pro → 對應層級
- *   - 其餘（含 null、未知 stripe price id）→ free（fail-closed 到最小配額，純顯示、不做強制）
+ *   - null / 空字串 / 'free' → free（fail-closed 到最小配額）
+ *   - 其餘未知且非 free 的 planId（如 stripe price id）→ starter（有意識映射到
+ *     最低付費層級：純顯示、不做強制；比顯示成 free 5 部/月＋不實超限預警安全）
  */
 export function resolvePlanTier(planId: string | null | undefined): CreatorPlanTier {
   const p = (planId ?? "").trim().toLowerCase();
-  if (p === "unlimited" || p === "enterprise") return "unlimited";
-  if (p === "pro") return "pro";
+  if (p === "unlimited" || p === "enterprise" || p === "ultra") return "unlimited";
+  if (p === "pro" || p === "premium") return "pro";
   if (p === "starter") return "starter";
-  return "free";
+  if (p === "" || p === "free") return "free";
+  return "starter";
+}
+
+/**
+ * 由完整訂閱列（planId + status）解析配額層級，鏡像既有付費守門語意
+ * （server/services/videoOutputSpec.ts isPaidPlan / server/routes/videoRoute.ts
+ * isPaidFor4K）：status 非 active/trialing（cancelled / past_due / null…）一律
+ * 視為 free，避免與計費強制層漂移出第二套判定。
+ *   - 查不到訂閱（null/undefined）→ free（fail-closed）
+ */
+export function resolveSubscriptionTier(
+  sub: { planId: string; status: string | null } | null | undefined
+): CreatorPlanTier {
+  if (!sub) return "free";
+  if (sub.status !== "active" && sub.status !== "trialing") return "free";
+  return resolvePlanTier(sub.planId);
 }
 
 /** 指定時刻所在月份的 UTC 月初（含當日 00:00:00.000）。 */
@@ -146,6 +166,11 @@ export interface CostEstimateResult {
  * 預生成費用估算（透明化，非實際扣款）。目前為固定估算：1 點額度 / $0.15。
  * aspectRatio / outputSpec 先保留為輸入介面，供 follow-up 接 Fal.ai 逐規格報價
  * （AIDV-252 派發成本點）時分規格細化，屆時呼叫端不動。
+ *
+ * 【範圍註記】本函式目前為純函式先行、**不對外掛 tRPC 端點**：既有
+ * generate.estimateCost（generationType:"video"，以 modelPricing 為源）已是
+ * 唯一的預生成估價端點，避免兩套不一致的估價來源並存。「生成流程步驟 0
+ * 顯示預估費用」的 UI 接線為 follow-up，屆時應接 generate.estimateCost。
  */
 export function estimateGenerationCost(_args?: {
   aspectRatio?: string;
