@@ -12,6 +12,7 @@ import { getDb } from "../db.js";
 import { orbSystemAlerts } from "../../drizzle/schema.js";
 import { eq, and, isNull } from "drizzle-orm";
 import { setProviderHealth, markProviderRecovered } from "../services/providerHealth.js";
+import { assertSafeExternalUrl } from "../_core/ssrfGuard.js";
 
 // ─── Provider Probe Config ───────────────────────────────────────────────────
 
@@ -186,6 +187,15 @@ async function probeProvider(
 ): Promise<{ ok: boolean; statusCode?: number; latencyMs: number; error?: string }> {
   const start = Date.now();
   try {
+    // AIDV-963: SSRF guard before any egress. Most probe URLs are hardcoded, but
+    // supabase_auth's is env-derived (`${SUPABASE_URL}/auth/v1/health`) — a
+    // misconfigured/poisoned env var must not let the probe reach private/loopback/
+    // IMDS hosts. Throwing inside this try keeps a blocked URL on the exact same
+    // failure path as a network error: this provider's probe is marked failed and
+    // the job continues (never crashes the whole cycle). allowInsecureHosts follows
+    // the existing non-production convention (internalMedia.ts / llmRouter.ts) so
+    // local dev SUPABASE_URL like http://localhost:54321 keeps working.
+    assertSafeExternalUrl(config.url, process.env.NODE_ENV !== "production");
     const res = await fetch(config.url, {
       method: config.method,
       headers: config.headers(),
