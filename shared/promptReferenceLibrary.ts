@@ -2206,7 +2206,7 @@ character reference sheet of a cheerful orange tabby cat mascot, front view + si
     tags: ["接案者", "角色定版", "三視圖", "前後對照"],
     language: "mixed",
     references: [
-      { label: "接案者×圖影 上手路徑", href: "/learn?docId=scenario-freelancer-delivery" },
+      { label: "接案者×圖影 上手路徑", href: "/learn?sub=hub&docId=scenario-freelancer-delivery" },
       { label: "LoRA 訓練室", href: "/lora-trainer" },
     ],
   },
@@ -2227,7 +2227,7 @@ Keep the character (保險庫定版圖) completely unchanged — same face, hair
     language: "mixed",
     references: [
       { label: "一致性保險庫", href: "/vault" },
-      { label: "接案者×圖影 上手路徑", href: "/learn?docId=scenario-freelancer-delivery" },
+      { label: "接案者×圖影 上手路徑", href: "/learn?sub=hub&docId=scenario-freelancer-delivery" },
     ],
   },
   {
@@ -2246,7 +2246,7 @@ using the same locked character reference for all drafts — draft A: centered s
     tags: ["接案者", "比稿", "構圖", "前後對照"],
     language: "mixed",
     references: [
-      { label: "接案者×圖影 上手路徑", href: "/learn?docId=scenario-freelancer-delivery" },
+      { label: "接案者×圖影 上手路徑", href: "/learn?sub=hub&docId=scenario-freelancer-delivery" },
       { label: "圖片創作室", href: "/image-studio" },
     ],
   },
@@ -2266,7 +2266,7 @@ The locked mascot character stays fully consistent with the reference image. Cam
     tags: ["接案者", "I2V", "交付", "前後對照"],
     language: "mixed",
     references: [
-      { label: "接案者×圖影 上手路徑", href: "/learn?docId=scenario-freelancer-delivery" },
+      { label: "接案者×圖影 上手路徑", href: "/learn?sub=hub&docId=scenario-freelancer-delivery" },
       { label: "影片創作室", href: "/video-studio" },
     ],
   },
@@ -2287,8 +2287,8 @@ The locked mascot character stays fully consistent with the reference image. Cam
     tags: ["內容編輯", "調性", "潤稿", "前後對照"],
     language: "zh",
     references: [
-      { label: "內容編輯×圖文 上手路徑", href: "/learn?docId=scenario-editor-batch" },
-      { label: "提示範例庫", href: "/learn?sub=hub" },
+      { label: "內容編輯×圖文 上手路徑", href: "/learn?sub=hub&docId=scenario-editor-batch" },
+      { label: "提示詞庫", href: "/prompt-library" },
     ],
   },
   {
@@ -2306,7 +2306,7 @@ The locked mascot character stays fully consistent with the reference image. Cam
     tags: ["內容編輯", "多平台", "批量", "前後對照"],
     language: "zh",
     references: [
-      { label: "內容編輯×圖文 上手路徑", href: "/learn?docId=scenario-editor-batch" },
+      { label: "內容編輯×圖文 上手路徑", href: "/learn?sub=hub&docId=scenario-editor-batch" },
       { label: "創作工作室", href: "/studio" },
     ],
   },
@@ -2326,7 +2326,7 @@ editorial illustration series (3 of 8), flat vector style, brand palette only (#
     tags: ["內容編輯", "系列插圖", "統一風格", "前後對照"],
     language: "mixed",
     references: [
-      { label: "內容編輯×圖文 上手路徑", href: "/learn?docId=scenario-editor-batch" },
+      { label: "內容編輯×圖文 上手路徑", href: "/learn?sub=hub&docId=scenario-editor-batch" },
       { label: "批次分鏡", href: "/animation" },
     ],
   },
@@ -2345,7 +2345,7 @@ editorial illustration series (3 of 8), flat vector style, brand palette only (#
     tags: ["內容編輯", "版本比對", "A/B", "前後對照"],
     language: "zh",
     references: [
-      { label: "內容編輯×圖文 上手路徑", href: "/learn?docId=scenario-editor-batch" },
+      { label: "內容編輯×圖文 上手路徑", href: "/learn?sub=hub&docId=scenario-editor-batch" },
       { label: "生成歷史", href: "/history" },
     ],
   },
@@ -2367,7 +2367,7 @@ brand visual in house style: primary color #0E3A5D navy with #E8C547 gold accent
     tags: ["品牌方", "品牌preset", "vibe cards", "前後對照"],
     language: "mixed",
     references: [
-      { label: "品牌方×圖影 上手路徑", href: "/learn?docId=scenario-brand-consistency" },
+      { label: "品牌方×圖影 上手路徑", href: "/learn?sub=hub&docId=scenario-brand-consistency" },
       { label: "vibe card 精靈", href: "/studio" },
     ],
   },
@@ -2387,7 +2387,7 @@ campaign key visual for a summer product launch, brand palette (#0E3A5D navy, #E
     tags: ["品牌方", "主視覺", "留白", "前後對照"],
     language: "mixed",
     references: [
-      { label: "品牌方×圖影 上手路徑", href: "/learn?docId=scenario-brand-consistency" },
+      { label: "品牌方×圖影 上手路徑", href: "/learn?sub=hub&docId=scenario-brand-consistency" },
       { label: "圖片創作室", href: "/image-studio" },
     ],
   },
@@ -2399,16 +2399,16 @@ campaign key visual for a summer product launch, brand palette (#0E3A5D navy, #E
     prompt: `弱提示：幫我多做幾個尺寸
 
 → 強提示：
-Derive from the approved key visual (風格鎖定引用): keep brand palette, lighting and product rendering identical. Re-compose for 9:16 story (product in lower half, logo space on top), 1:1 feed (centered), and 728x90 banner (product right, headline space left). Do not introduce new elements or colors.
+Derive from the approved key visual (引用保險庫定稿錨點): keep brand palette, lighting and product rendering identical. Re-compose for 9:16 story (product in lower half, logo space on top), 1:1 feed (centered), and 728x90 banner (product right, headline space left). Do not introduce new elements or colors.
 
 ▷ 為什麼更好：「多做幾個尺寸」常被模型當成重新創作；寫死「重排版、不加新元素」，衍生素材才張張合品牌規範。`,
     modelHint: "fal-ai/flux-kontext / fal-ai/gpt-image-1.5",
     difficulty: "beginner",
-    tags: ["品牌方", "衍生成套", "風格鎖定", "前後對照"],
+    tags: ["品牌方", "衍生成套", "錨點衍生", "前後對照"],
     language: "mixed",
     references: [
-      { label: "一致性保險庫（風格鎖定）", href: "/vault" },
-      { label: "品牌方×圖影 上手路徑", href: "/learn?docId=scenario-brand-consistency" },
+      { label: "一致性保險庫（場景錨點）", href: "/vault" },
+      { label: "品牌方×圖影 上手路徑", href: "/learn?sub=hub&docId=scenario-brand-consistency" },
     ],
   },
   {
@@ -2427,7 +2427,7 @@ Animate the approved key visual: slow 5-second push-in with gentle parallax betw
     tags: ["品牌方", "品牌影片", "審核", "前後對照"],
     language: "mixed",
     references: [
-      { label: "品牌方×圖影 上手路徑", href: "/learn?docId=scenario-brand-consistency" },
+      { label: "品牌方×圖影 上手路徑", href: "/learn?sub=hub&docId=scenario-brand-consistency" },
       { label: "確認門（導演模式）", href: "/director" },
     ],
   },

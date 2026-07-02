@@ -45,9 +45,9 @@ export const METHODOLOGY_DOCS: MethodologyDoc[] = [
   { id: "scenario-ecommerce-image", title: "電商賣家 × 圖：3 步把商品照變主圖", category: "入門指南", difficulty: "入門", minutes: 8, summary: "上手路徑：傳商品照→去背→換情境背景→多張主圖。常見卡關：不知去背/重繪背景；多張圖商品不一致；不知怎麼描述「白底主圖」。推薦功能：ImageStudio 去背＋圖生圖、一致性保險庫（Vault）、資產庫批次匯出。" },
   { id: "scenario-creator-video", title: "自媒體 × 影：從一張圖到 15 秒短影音", category: "入門指南", difficulty: "入門", minutes: 10, summary: "上手路徑：縮圖或一句腳本→圖生影→短影音→配字幕／音樂。常見卡關：影片在背景跑但不知道；模型選擇困難；不知先 480p 試。推薦功能：VideoStudio（Kling v2.1、先 480p）、背景任務中心、導演 AI。" },
   { id: "scenario-educator-voice", title: "教育者 × 音：3 分鐘做出課程旁白", category: "入門指南", difficulty: "入門", minutes: 6, summary: "上手路徑：課程講稿→TTS 旁白（中文）→選配聲音克隆固定音色→配輕音樂。常見卡關：不知平台能做語音；怕聲音克隆很複雜；不知 Qwen TTS 中文最佳。推薦功能：ProStudio 語音合成（Qwen TTS）、音樂生成（純音樂模式）。" },
-  { id: "scenario-freelancer-delivery", title: "接案者 × 圖影：5 步交付客戶不跑稿", category: "入門指南", difficulty: "入門", minutes: 10, summary: "上手路徑：定角色→存保險庫→LoRA 定版→多稿比稿→交付規格。常見卡關：客戶改稿後風格跑掉；多稿之間角色不一致；交付尺寸一張張手裁。推薦功能：一致性保險庫（Vault）、LoRA 四鎖、批量尺寸匯出。" },
-  { id: "scenario-editor-batch", title: "內容編輯 × 圖文：一稿多平台、版本不再亂", category: "入門指南", difficulty: "入門", minutes: 9, summary: "上手路徑：定調性→一稿多平台→系列插圖統風→版本比對→收藏入庫。常見卡關：逐張重寫提示太慢；版本一多就亂、找不到定稿。推薦功能：提示範例庫、靈感積木、批次分鏡。" },
-  { id: "scenario-brand-consistency", title: "品牌方 × 圖影：張張都合品牌規範", category: "入門指南", difficulty: "入門", minutes: 10, summary: "上手路徑：建品牌 preset→主視覺→衍生成套→審核留痕。常見卡關：生成結果不合品牌規範；衍生素材品牌感深淺不一；素材沒審就發出去。推薦功能：風格鎖定、vibe cards、確認門。" },
+  { id: "scenario-freelancer-delivery", title: "接案者 × 圖影：5 步交付客戶不跑稿", category: "入門指南", difficulty: "入門", minutes: 10, summary: "上手路徑：定角色→存保險庫→LoRA 定版→多稿比稿→交付規格。常見卡關：客戶改稿後風格跑掉；多稿之間角色不一致；交付尺寸一張張手裁。推薦功能：一致性保險庫（Vault）、LoRA 四鎖、多尺寸匯出（社群圖像台）。" },
+  { id: "scenario-editor-batch", title: "內容編輯 × 圖文：一稿多平台、版本不再亂", category: "入門指南", difficulty: "入門", minutes: 9, summary: "上手路徑：定調性→一稿多平台→系列插圖統風→版本比對→收藏入庫。常見卡關：逐張重寫提示太慢；版本一多就亂、找不到定稿。推薦功能：提示詞庫、靈感積木、批次分鏡。" },
+  { id: "scenario-brand-consistency", title: "品牌方 × 圖影：張張都合品牌規範", category: "入門指南", difficulty: "入門", minutes: 10, summary: "上手路徑：建品牌 preset→主視覺→衍生成套→審核留痕。常見卡關：生成結果不合品牌規範；衍生素材品牌感深淺不一；素材沒審就發出去。推薦功能：vibe cards、一致性保險庫（場景錨點）、確認門。" },
 ];
 
 /** learn 文件分類（對映盤點 §3-11：80 篇 6 分類）。難度三級供篩選。 */
@@ -160,9 +160,9 @@ export const PERSONA_LEARNING_DOCS: PersonaLearningDoc[] = [
       {
         step: 5,
         title: "交付規格",
-        learn: "你會學到用批量尺寸一次輸出 1:1、9:16、16:9 三種交付版本，不用一張張手裁。",
-        cta: "選定最終稿後，用批量尺寸一次匯出客戶要的所有尺寸。",
-        href: "/image-studio",
+        learn: "你會學到用多尺寸匯出把定稿一次輸出 1:1、9:16、16:9 三種交付版本，不用一張張手裁。",
+        cta: "到社群圖像台，把定稿設為主圖後用多尺寸匯出，一次輸出客戶要的所有尺寸。",
+        href: "/social/studio",
       },
     ],
     rescues: [
@@ -180,9 +180,9 @@ export const PERSONA_LEARNING_DOCS: PersonaLearningDoc[] = [
       },
       {
         stuck: "交付前才發現客戶要五種尺寸，一張張重裁到深夜。",
-        rescue: "用批量尺寸一次輸出所有交付版本，構圖和留白會自動照顧。",
-        featureLabel: "批量尺寸匯出",
-        featureHref: "/image-studio",
+        rescue: "到社群圖像台用多尺寸匯出一次輸出所有交付版本，構圖和留白會自動照顧。",
+        featureLabel: "多尺寸匯出（社群圖像台）",
+        featureHref: "/social/studio",
       },
     ],
     promptRefIds: ["onboard-fl-charsheet", "onboard-fl-revision-lock", "onboard-fl-3drafts", "onboard-fl-deliver-motion"],
@@ -197,8 +197,8 @@ export const PERSONA_LEARNING_DOCS: PersonaLearningDoc[] = [
         step: 1,
         title: "定調性",
         learn: "你會學到先把品牌聲音、目標讀者與禁用詞寫成規則，之後每篇改寫都有同一把尺。",
-        cta: "打開學習中心的提示範例庫，挑一份調性範本改成你們刊物的版本。",
-        href: "/learn?sub=hub",
+        cta: "打開提示詞庫，從公共範本挑一份調性提示，改成你們刊物的版本。",
+        href: "/prompt-library",
       },
       {
         step: 2,
@@ -245,8 +245,8 @@ export const PERSONA_LEARNING_DOCS: PersonaLearningDoc[] = [
       {
         stuck: "每個平台規格都不一樣，改到最後調性都走味了。",
         rescue: "先用調性範本鎖住聲音，再讓 AI 依平台改格式——格式會變，調性不會。",
-        featureLabel: "提示範例庫",
-        featureHref: "/learn?sub=hub",
+        featureLabel: "提示詞庫",
+        featureHref: "/prompt-library",
       },
     ],
     promptRefIds: ["onboard-ed-tone-rewrite", "onboard-ed-one-to-three", "onboard-ed-series-style", "onboard-ed-ab-review"],
@@ -274,8 +274,8 @@ export const PERSONA_LEARNING_DOCS: PersonaLearningDoc[] = [
       {
         step: 3,
         title: "衍生成套",
-        learn: "你會學到用風格鎖定把主視覺衍生成 9:16、1:1、16:9 一整套，張張同一個品牌臉。",
-        cta: "把主視覺存入保險庫並開啟風格鎖定，衍生整套尺寸。",
+        learn: "你會學到把主視覺存成保險庫錨點，衍生 9:16、1:1、16:9 一整套時都引用同一個錨點，張張同一個品牌臉。",
+        cta: "把主視覺存入保險庫（type 選 scene），之後每張衍生都引用這個錨點再生成。",
         href: "/vault",
       },
       {
@@ -302,8 +302,8 @@ export const PERSONA_LEARNING_DOCS: PersonaLearningDoc[] = [
       },
       {
         stuck: "衍生素材一多，每張的品牌感深淺不一。",
-        rescue: "主視覺定稿後開風格鎖定再衍生：鎖住的是品牌臉，變的只有尺寸和構圖。",
-        featureLabel: "風格鎖定（保險庫）",
+        rescue: "主視覺定稿後先存成保險庫錨點再衍生：每張都引用同一個錨點，變的只有尺寸和構圖。",
+        featureLabel: "一致性保險庫（場景錨點）",
         featureHref: "/vault",
       },
       {
