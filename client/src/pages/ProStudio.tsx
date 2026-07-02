@@ -67,6 +67,11 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 import { useGenerationTask } from "@/hooks/useGenerationTask";
+import {
+  useSubmitGeneration,
+  SUBMIT_SUCCESS_TOAST_DEFAULT,
+  SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+} from "@/hooks/useSubmitGeneration";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
 import {
@@ -992,6 +997,9 @@ type MusicModelChoice =
 function MusicTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：主 mutation 的提交骨架收斂到共用 useSubmitGeneration；
+  // Suno 獨立 taskId/jobId 輪詢流程（合成 registerBgTask 載荷）刻意留在原地。
+  const { generationMutationCallbacks } = useSubmitGeneration();
   const [prompt, setPrompt] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [instrumental, setInstrumental] = useState(false);
@@ -1067,23 +1075,22 @@ function MusicTab() {
   const models = [...falModels, ...SUNO_MODELS];
   const isSunoModel = musicModel === "suno-v3.5" || musicModel === "suno-v4";
 
-  const mutation = trpc.proStudio.textToMusic.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data as AudioResult);
-      registerBgTask(data, "audio", "🎵 音樂生成", prompt);
-      const r = data as { audio_url?: string; url?: string };
-      const immediate = r.audio_url ?? r.url;
-      if (immediate) toast.success("🎵 音樂生成完成！");
-      else toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`生成失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
+  const mutation = trpc.proStudio.textToMusic.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data as AudioResult),
+      taskType: "audio",
+      taskLabel: "🎵 音樂生成",
+      taskPrompt: prompt,
+      // fal 路徑可能同步回傳音檔（audio_url/url），此時直接顯示完成文案
+      successToast: data => {
+        const r = data as { audio_url?: string; url?: string };
+        return (r.audio_url ?? r.url)
+          ? "🎵 音樂生成完成！"
+          : SUBMIT_SUCCESS_TOAST_DEFAULT;
+      },
+      errorToast: message => `生成失敗：${message}`,
+    })
+  );
 
   // Suno 走獨立 endpoint：generateMusicSuno → checkMusicSunoStatus
   const sunoMutation = trpc.proStudio.generateMusicSuno.useMutation({
@@ -1506,8 +1513,9 @@ function MusicTab() {
 // ─── 音效生成 Tab ─────────────────────────────────────────────────────────────
 
 function SoundEffectsTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（onMutate/onSuccess/
+  // onError/onSettled → 寫結果、registerBgTask、toast、成功/失敗回報、AI 狀態復位）。
+  const { generationMutationCallbacks } = useSubmitGeneration();
   const [text, setText] = useState("");
   const [duration, setDuration] = useState<number>(10);
   const [useDuration, setUseDuration] = useState(false);
@@ -1554,20 +1562,16 @@ function SoundEffectsTab() {
   const modelsQuery = trpc.proStudio.sfxModels.useQuery();
   const models = modelsQuery.data ?? [];
 
-  const mutation = trpc.proStudio.soundEffects.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data as AudioResult);
-      registerBgTask(data, "audio", "🔊 音效生成", text);
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`生成失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
+  const mutation = trpc.proStudio.soundEffects.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data as AudioResult),
+      taskType: "audio",
+      taskLabel: "🔊 音效生成",
+      taskPrompt: text,
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `生成失敗：${message}`,
+    })
+  );
 
   const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
   // ElevenLabs max 22s, others up to 180s
@@ -1797,8 +1801,9 @@ function SoundEffectsTab() {
 // ─── 語音合成 Tab ─────────────────────────────────────────────────────────────
 
 function TTSTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（onMutate/onSuccess/
+  // onError/onSettled → 寫結果、registerBgTask、toast、成功/失敗回報、AI 狀態復位）。
+  const { generationMutationCallbacks } = useSubmitGeneration();
   // AIDV-899：模型（引擎）選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
   const {
     selectedModelId: engineRaw,
@@ -1850,35 +1855,27 @@ function TTSTab() {
     },
   });
 
-  const elevenMutation = trpc.proStudio.elevenLabsTTS.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎤 ElevenLabs 語音", text);
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`合成失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
+  const elevenMutation = trpc.proStudio.elevenLabsTTS.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data as AudioResult),
+      taskType: "voice",
+      taskLabel: "🎤 ElevenLabs 語音",
+      taskPrompt: text,
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `合成失敗：${message}`,
+    })
+  );
 
-  const qwenMutation = trpc.proStudio.qwenTTS.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎤 Qwen 語音", text);
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`合成失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
+  const qwenMutation = trpc.proStudio.qwenTTS.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data as AudioResult),
+      taskType: "voice",
+      taskLabel: "🎤 Qwen 語音",
+      taskPrompt: text,
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `合成失敗：${message}`,
+    })
+  );
 
   const isPending = elevenMutation.isPending || qwenMutation.isPending;
   const audioUrl = result?.audio_url ?? result?.audio?.url ?? result?.url;
@@ -2285,8 +2282,9 @@ function TTSTab() {
 // ─── 聲音克隆 Tab ─────────────────────────────────────────────────────────────
 
 function CloneTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（onMutate/onSuccess/
+  // onError/onSettled → 寫結果、registerBgTask、toast、成功/失敗回報、AI 狀態復位）。
+  const { generationMutationCallbacks } = useSubmitGeneration();
   // AIDV-899：模型（克隆模式）選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
   const {
     selectedModelId: modeRaw,
@@ -2350,77 +2348,55 @@ function CloneTab() {
   });
 
   // qwenCloneAndSpeak: clone + TTS in one step (audio_url + text → audio)
-  const qwenClone = trpc.proStudio.qwenCloneAndSpeak.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎭 Qwen 聲音克隆", text);
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`克隆失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
+  const qwenClone = trpc.proStudio.qwenCloneAndSpeak.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data as AudioResult),
+      taskType: "voice",
+      taskLabel: "🎭 Qwen 聲音克隆",
+      taskPrompt: text,
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `克隆失敗：${message}`,
+    })
+  );
   // diaTTSVoiceClone: only accepts { text } — no reference_audio_url
-  const diaClone = trpc.proStudio.diaTTSVoiceClone.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎭 Dia 聲音克隆", text);
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`克隆失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
-  const voiceDesign = trpc.proStudio.qwenVoiceDesign.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎨 語音設計", voiceDesc);
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`設計失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
-  const klingVoice = trpc.proStudio.klingCreateVoice.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setKlingResult(data);
-      registerBgTask(data, "voice", "✅ Kling 語音建立");
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`Kling 建立失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
-  const elevenLabsClone = trpc.proStudio.elevenLabsVoiceClone.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setKlingResult(data);
-      registerBgTask(data, "voice", "✅ ElevenLabs 聲音克隆");
-      toast.success("📤 任務已提交！voice_id 完成後可在 TTS 分頁直接使用");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`ElevenLabs 克隆失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
+  const diaClone = trpc.proStudio.diaTTSVoiceClone.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data as AudioResult),
+      taskType: "voice",
+      taskLabel: "🎭 Dia 聲音克隆",
+      taskPrompt: text,
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `克隆失敗：${message}`,
+    })
+  );
+  const voiceDesign = trpc.proStudio.qwenVoiceDesign.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data as AudioResult),
+      taskType: "voice",
+      taskLabel: "🎨 語音設計",
+      taskPrompt: voiceDesc,
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `設計失敗：${message}`,
+    })
+  );
+  const klingVoice = trpc.proStudio.klingCreateVoice.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setKlingResult(data),
+      taskType: "voice",
+      taskLabel: "✅ Kling 語音建立",
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `Kling 建立失敗：${message}`,
+    })
+  );
+  const elevenLabsClone = trpc.proStudio.elevenLabsVoiceClone.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setKlingResult(data),
+      taskType: "voice",
+      taskLabel: "✅ ElevenLabs 聲音克隆",
+      successToast: "📤 任務已提交！voice_id 完成後可在 TTS 分頁直接使用",
+      errorToast: message => `ElevenLabs 克隆失敗：${message}`,
+    })
+  );
 
   const isPending =
     qwenClone.isPending ||
@@ -3028,8 +3004,9 @@ function CloneTab() {
 // ─── 音訊處理 Tab ─────────────────────────────────────────────────────────────
 
 function ProcessTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（onMutate/onSuccess/
+  // onError/onSettled → 寫結果、registerBgTask、toast、成功/失敗回報、AI 狀態復位）。
+  const { generationMutationCallbacks } = useSubmitGeneration();
   // AIDV-899：模型（處理工具）選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
   const {
     selectedModelId: toolRaw,
@@ -3089,62 +3066,42 @@ function ProcessTab() {
     },
   });
 
-  const demucsMut = trpc.proStudio.demucs.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data);
-      registerBgTask(data, "audio", "🎸 音幹分離");
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
-  const isoMut = trpc.proStudio.audioIsolation.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data);
-      registerBgTask(data, "audio", "🔇 音訊隔離");
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
-  const mergeMut = trpc.proStudio.mergeAudios.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data);
-      registerBgTask(data, "audio", "🔗 音訊合併");
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
-  const changerMut = trpc.proStudio.voiceChanger.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data);
-      registerBgTask(data, "voice", "🔁 聲音變換");
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
+  const demucsMut = trpc.proStudio.demucs.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data),
+      taskType: "audio",
+      taskLabel: "🎸 音幹分離",
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `失敗：${message}`,
+    })
+  );
+  const isoMut = trpc.proStudio.audioIsolation.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data),
+      taskType: "audio",
+      taskLabel: "🔇 音訊隔離",
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `失敗：${message}`,
+    })
+  );
+  const mergeMut = trpc.proStudio.mergeAudios.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data),
+      taskType: "audio",
+      taskLabel: "🔗 音訊合併",
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `失敗：${message}`,
+    })
+  );
+  const changerMut = trpc.proStudio.voiceChanger.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data),
+      taskType: "voice",
+      taskLabel: "🔁 聲音變換",
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `失敗：${message}`,
+    })
+  );
 
   const isPending =
     demucsMut.isPending ||
@@ -3481,8 +3438,9 @@ function ProcessTab() {
 // ─── 語音識別 Tab ─────────────────────────────────────────────────────────────
 
 function ASRTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（onMutate/onSuccess/
+  // onError/onSettled → 寫結果、registerBgTask、toast、成功/失敗回報、AI 狀態復位）。
+  const { generationMutationCallbacks } = useSubmitGeneration();
   const [audioUrl, setAudioUrl] = useState("");
   const [acceleration, setAcceleration] = useState<
     "none" | "low" | "medium" | "high"
@@ -3512,20 +3470,15 @@ function ASRTab() {
     submit: () => { if (!audioUrl.trim()) return false; return true; },
   });
 
-  const mutation = trpc.proStudio.speechToText.useMutation({
-    onMutate: () => setAIState("generating"),
-    onSuccess: data => {
-      setResult(data);
-      registerBgTask(data, "audio", "📝 語音識別");
-      toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
-      reportSuccess();
-    },
-    onError: e => {
-      toast.error(`失敗：${e.message}`);
-      reportFailure();
-    },
-    onSettled: () => setAIState("idle"),
-  });
+  const mutation = trpc.proStudio.speechToText.useMutation(
+    generationMutationCallbacks({
+      onResult: data => setResult(data),
+      taskType: "audio",
+      taskLabel: "📝 語音識別",
+      successToast: SUBMIT_SUCCESS_TOAST_BG_NOTIFY,
+      errorToast: message => `失敗：${message}`,
+    })
+  );
 
   const text = result?.text ?? result?.transcript ?? result?.transcription;
 
