@@ -100,6 +100,136 @@ function warnNotImplemented(procedureName: string): void {
   });
 }
 
+// ─── AIDV-548 · 方案 A：頻率統計推薦引擎（純函式核心） ────────────────────────
+//
+// 推薦邏輯與 DB I/O 分離,核心為可單測的純函式:
+//   1. 找「其他使用者常用、當前使用者還沒試過」的功能(跨用戶熱度)→ 高分推薦。
+//   2. 不足額時,補上「當前使用者用得最少」的既有功能 → 鼓勵深入,低分。
+// 完全加性、唯讀真實使用資料,不觸碰任何計費/扣款路徑。
+
+export interface FeatureUsageInput {
+  featureId: string;
+  usageCount: number;
+}
+
+export interface FeatureGlobalPopularity {
+  featureId: string;
+  totalUsage: number;
+  userCount: number;
+}
+
+export interface ComputedRecommendation {
+  featureId: string;
+  reason: string;
+  relevanceScore: number;
+  basedOnFeatures: string[];
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * 純函式：由「當前使用者用量」＋「跨用戶功能熱度」算出前 limit 筆推薦。
+ * 排序保證確定性（同分以 featureId 字典序 tiebreak），方便測試釘住。
+ */
+export function computeFeatureRecommendations(
+  userUsage: FeatureUsageInput[],
+  globalPopularity: FeatureGlobalPopularity[],
+  limit: number
+): ComputedRecommendation[] {
+  if (limit <= 0) return [];
+
+  const usedSet = new Set(userUsage.map((u) => u.featureId));
+  const maxUserCount = Math.max(
+    1,
+    ...globalPopularity.map((g) => g.userCount)
+  );
+  const maxUserUsage = Math.max(1, ...userUsage.map((u) => u.usageCount));
+
+  // 當前使用者最常用的功能,當作「因為你常用 X」的依據信號。
+  const topUserFeatures = [...userUsage]
+    .sort(
+      (a, b) =>
+        b.usageCount - a.usageCount || a.featureId.localeCompare(b.featureId)
+    )
+    .slice(0, 3)
+    .map((u) => u.featureId);
+
+  // 1) 熱門但未使用過的功能。
+  const unusedPopular: ComputedRecommendation[] = globalPopularity
+    .filter((g) => g.userCount > 0 && !usedSet.has(g.featureId))
+    .sort(
+      (a, b) =>
+        b.userCount - a.userCount ||
+        b.totalUsage - a.totalUsage ||
+        a.featureId.localeCompare(b.featureId)
+    )
+    .map((g) => ({
+      featureId: g.featureId,
+      reason: "其他使用者常用但你還沒試過的功能",
+      relevanceScore: round2(0.5 + 0.5 * (g.userCount / maxUserCount)),
+      basedOnFeatures: topUserFeatures,
+    }));
+
+  // 2) 補額:當前使用者用得最少的既有功能(鼓勵再深入)。
+  const recSet = new Set(unusedPopular.map((r) => r.featureId));
+  const leastUsed: ComputedRecommendation[] = [...userUsage]
+    .filter((u) => u.usageCount > 0 && !recSet.has(u.featureId))
+    .sort(
+      (a, b) =>
+        a.usageCount - b.usageCount || a.featureId.localeCompare(b.featureId)
+    )
+    .map((u) => ({
+      featureId: u.featureId,
+      reason: "你較少使用,值得再深入探索的功能",
+      relevanceScore: round2(0.2 + 0.3 * (1 - u.usageCount / maxUserUsage)),
+      basedOnFeatures: [],
+    }));
+
+  return [...unusedPopular, ...leastUsed].slice(0, limit);
+}
+
+/**
+ * 純函式：把互動型別映射成要寫回 orb_feature_recommendations 的欄位集合。
+ */
+export function buildInteractionUpdate(
+  interactionType: "clicked" | "used" | "dismissed",
+  feedbackRating: number | undefined,
+  now: Date
+): Record<string, unknown> {
+  const update: Record<string, unknown> = {};
+  if (interactionType === "clicked") update.clickedAt = now;
+  else if (interactionType === "used") update.usedAt = now;
+  else if (interactionType === "dismissed") update.dismissedAt = now;
+  if (typeof feedbackRating === "number") update.feedbackRating = feedbackRating;
+  return update;
+}
+
+/**
+ * 純函式：把 usage stats 列聚合成 featureId → proficiencyScore 的映射,
+ * 略過 null / 無法解析的分數。供 orbConversationEnhancer.getUserStats 委派。
+ */
+export function toProficiencyMap(
+  rows: Array<{ featureId: string; proficiencyScore: string | null }>
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.proficiencyScore == null) continue;
+    const v = parseFloat(r.proficiencyScore);
+    if (Number.isFinite(v)) map[r.featureId] = v;
+  }
+  return map;
+}
+
+// mysql2 driver 的 insert 結果多半是 `[{ insertId }]`,少數包裝成 `{ insertId }`。
+// 兩種型態都容忍,取不到時回 0。
+function readInsertId(res: unknown): number {
+  const arr = res as Array<{ insertId?: number }> | { insertId?: number };
+  const raw = Array.isArray(arr) ? arr[0]?.insertId : arr?.insertId;
+  return Number(raw ?? 0);
+}
+
 export class OrbFeatureDiscovery {
   /**
    * Record feature usage
@@ -271,30 +401,110 @@ export class OrbFeatureDiscovery {
   }
 
   /**
-   * Generate personalized feature recommendations
+   * Aggregate the user's per-feature proficiency scores into a
+   * featureId → score map (AIDV-548). 唯讀、失敗安全（回 {}）。
+   * 供 orbConversationEnhancer.getUserStats 委派,取代原本寫死的 `{}`。
+   */
+  async getProficiencyMap(userId: number): Promise<Record<string, number>> {
+    try {
+      const db = await getDb();
+      if (!db) return {};
+      const rows = await db
+        .select({
+          featureId: orbFeatureUsageStats.featureId,
+          proficiencyScore: orbFeatureUsageStats.proficiencyScore,
+        })
+        .from(orbFeatureUsageStats)
+        .where(eq(orbFeatureUsageStats.userId, userId));
+      return toProficiencyMap(rows);
+    } catch (error) {
+      logger.error("orb_get_proficiency_map_failed", {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {};
+    }
+  }
+
+  /**
+   * Generate personalized feature recommendations (AIDV-548 · 方案 A 頻率統計).
    *
-   * @deprecated Algorithm not yet implemented; always returns []. Callers
-   * should handle empty results gracefully. Once implemented, remove the
-   * @deprecated tag and the warnNotImplemented call.
+   * 唯讀聚合真實使用資料（orb_feature_usage_stats）：優先推薦「跨用戶熱門
+   * 但當前使用者還沒試過」的功能,不足額時補上使用者用得最少的既有功能。
+   * 產出的推薦寫入 orb_feature_recommendations 以供互動追蹤,並帶回真實 DB id。
+   * 純加性、失敗安全：任何錯誤（含 DB 未設定）一律降級回 []，絕不 throw。
    */
   async generateRecommendations(
     userId: number,
     limit = 5
   ): Promise<FeatureRecommendation[]> {
-    warnNotImplemented("generateRecommendations");
     try {
-      // TODO: Implement recommendation algorithm:
-      // 1. Analyze user's usage patterns
-      // 2. Find features commonly used together (collaborative filtering)
-      // 3. Identify skill progression paths
-      // 4. Consider user's proficiency level
-      // 5. Account for feature popularity and satisfaction
-      // 6. Filter out already-used features
-      // 7. Score and rank recommendations
+      const db = await getDb();
+      if (!db) return [];
 
+      // 當前使用者既有用量（唯讀）。
+      const userRows = await db
+        .select({
+          featureId: orbFeatureUsageStats.featureId,
+          usageCount: orbFeatureUsageStats.usageCount,
+        })
+        .from(orbFeatureUsageStats)
+        .where(eq(orbFeatureUsageStats.userId, userId));
+
+      // 跨用戶功能熱度（唯讀聚合）。sum/count 在 mysql2 可能回字串,統一數值化。
+      const globalRows = await db
+        .select({
+          featureId: orbFeatureUsageStats.featureId,
+          totalUsage: sql<number>`sum(${orbFeatureUsageStats.usageCount})`,
+          userCount: sql<number>`count(distinct ${orbFeatureUsageStats.userId})`,
+        })
+        .from(orbFeatureUsageStats)
+        .groupBy(orbFeatureUsageStats.featureId);
+
+      const userUsage: FeatureUsageInput[] = userRows.map((r) => ({
+        featureId: r.featureId,
+        usageCount: Number(r.usageCount) || 0,
+      }));
+      const globalPopularity: FeatureGlobalPopularity[] = globalRows.map((r) => ({
+        featureId: r.featureId,
+        totalUsage: Number(r.totalUsage) || 0,
+        userCount: Number(r.userCount) || 0,
+      }));
+
+      const computed = computeFeatureRecommendations(
+        userUsage,
+        globalPopularity,
+        limit
+      );
+
+      // 寫入推薦以供後續互動追蹤,並回填真實自增 id。
+      const now = new Date();
       const recommendations: FeatureRecommendation[] = [];
-
-      // TODO: Insert recommendations into database for tracking
+      for (const rec of computed) {
+        const insertData: InsertOrbFeatureRecommendation = {
+          userId,
+          featureId: rec.featureId,
+          reason: rec.reason,
+          relevanceScore: rec.relevanceScore.toFixed(2),
+          basedOnFeatures: rec.basedOnFeatures.length
+            ? rec.basedOnFeatures
+            : undefined,
+          presentedAt: now,
+        };
+        const res = await db
+          .insert(orbFeatureRecommendations)
+          .values(insertData);
+        recommendations.push({
+          id: String(readInsertId(res)),
+          userId,
+          featureId: rec.featureId,
+          reason: rec.reason,
+          relevanceScore: rec.relevanceScore,
+          basedOnFeatures: rec.basedOnFeatures,
+          presentedAt: now,
+          createdAt: now,
+        });
+      }
 
       logger.info("orb_recommendations_generated", {
         userId,
@@ -307,12 +517,8 @@ export class OrbFeatureDiscovery {
         userId,
         error: error instanceof Error ? error.message : String(error),
       });
-      // L13:不再把 SQL / drizzle 原始錯誤透過 trpc 序列化丟給 client。log
-      // 上一行已記完整 error,工程師查得到根因。對 client 一律回通用碼。
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: "feature-discovery-failed",
-      });
+      // 失敗安全降級：推薦是純加性能力,失敗時回空清單,不打斷 Orb 對話。
+      return [];
     }
   }
 
@@ -320,12 +526,41 @@ export class OrbFeatureDiscovery {
    * Record user interaction with recommendation
    */
   async recordRecommendationInteraction(
+    userId: number,
     recommendationId: string,
     interactionType: "clicked" | "used" | "dismissed",
     feedbackRating?: number
   ): Promise<void> {
     try {
-      // TODO: Update database record with timestamp and feedback
+      const id = Number(recommendationId);
+      if (!Number.isInteger(id) || id <= 0) {
+        logger.warn("orb_recommendation_interaction_bad_id", {
+          recommendationId,
+          type: interactionType,
+        });
+        return;
+      }
+
+      const db = await getDb();
+      if (!db) return;
+
+      const update = buildInteractionUpdate(
+        interactionType,
+        feedbackRating,
+        new Date()
+      );
+
+      // 所有權範圍：id 是會回傳給 client 往返的字串，UPDATE 必須以 userId 限定，
+      // 防止跨用戶寫入他人的推薦互動列。
+      await db
+        .update(orbFeatureRecommendations)
+        .set(update)
+        .where(
+          and(
+            eq(orbFeatureRecommendations.id, id),
+            eq(orbFeatureRecommendations.userId, userId)
+          )
+        );
 
       logger.info("orb_recommendation_interaction", {
         recommendationId,
@@ -337,7 +572,7 @@ export class OrbFeatureDiscovery {
         recommendationId,
         error: error instanceof Error ? error.message : String(error),
       });
-      // Don't throw
+      // Don't throw — 互動追蹤失敗不應打斷功能。
     }
   }
 

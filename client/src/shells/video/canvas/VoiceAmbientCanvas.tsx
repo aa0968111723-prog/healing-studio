@@ -7,12 +7,18 @@
 //   proStudio.soundEffects（環境音 / 音效）
 // 成本原子性：先以 generate.estimateCost 估點（不扣）→ 確認 → proStudio.* 提交（伺服器先扣、
 //   失敗全額退）。提交後進 background_jobs 非同步佇列，完成後在資產庫。
+// AIDV-254：旁白語音風格選擇器 — proStudio.voiceStyles（既有 elevenLabsExtended /
+//   Qwen 內建聲線目錄）→ 選定後以 qwenTTS.voice / elevenLabsTTS.voice_id 傳參；
+//   「系統預設」不傳參＝與既有行為位元相同（加性、預設不變）。
 // ============================================================================
 import { useState } from "react";
-import { Mic, Waves, Loader2, Coins, CircleCheck, WifiOff, CheckCircle2, AlertCircle } from "lucide-react";
+import { Mic, Waves, Loader2, Coins, CircleCheck, WifiOff, CheckCircle2, AlertCircle, AudioLines } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 // U-5 續（AIDV-149）採用片 · /video S6 配音/環境音：旗標 ON 時送出成功態改用 design-kit 暖光 Card + Pill；OFF＝沿用原版。
@@ -30,6 +36,34 @@ const ENGINES: { id: Engine; label: string; needsKey?: boolean; ambient?: boolea
 /** 環境音預設秒數：估算與提交共用同一值，避免「估點 < 實扣」。 */
 const AMBIENT_DURATION_SEC = 6;
 
+/**
+ * AIDV-254 語音風格選擇器的「系統預設」哨兵值（Radix SelectItem 不允許空字串）。
+ * 選此值時提交請求**不帶** voice / voice_id 參數 → 請求體與加此功能前位元相同。
+ */
+export const VOICE_STYLE_DEFAULT = "__default__";
+
+/**
+ * AIDV-254：把（引擎 × 文字 × 語音風格）組成 proStudio.* 提交輸入（純函式，doSubmit 唯一來源）。
+ *   - qwenTTS        → { text, voice }（Qwen 預訓練聲線名稱）
+ *   - elevenLabsTTS  → { text, voice_id }（ElevenLabs voice_id）
+ *   - soundEffects   → 不吃聲線（環境音），維持既有 500 字截斷＋固定秒數
+ * 「系統預設」（VOICE_STYLE_DEFAULT）→ voice/voice_id 為 undefined＝序列化後不出現在
+ * 請求體，與加此功能前的請求位元相同（加性、預設不變）。
+ */
+export function buildVoiceSubmitInput(engine: Engine, text: string, voiceStyle: string) {
+  const chosenVoice = voiceStyle !== VOICE_STYLE_DEFAULT ? voiceStyle : undefined;
+  if (engine === "qwenTTS") {
+    return { engine, input: { text, voice: chosenVoice } } as const;
+  }
+  if (engine === "elevenLabsTTS") {
+    return { engine, input: { text, voice_id: chosenVoice } } as const;
+  }
+  return {
+    engine,
+    input: { text: text.slice(0, 500), duration_seconds: AMBIENT_DURATION_SEC },
+  } as const;
+}
+
 export function VoiceAmbientCanvas() {
   const utils = trpc.useUtils();
   const qwen = trpc.proStudio.qwenTTS.useMutation();
@@ -40,7 +74,24 @@ export function VoiceAmbientCanvas() {
   const [text, setText] = useState("");
   const [estimate, setEstimate] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState<{ requestId: string; credits: number } | null>(null);
+  // AIDV-254：語音風格（旁白聲線）。預設＝系統預設（不傳參數，行為與既有完全相同）。
+  const [voiceStyle, setVoiceStyle] = useState<string>(VOICE_STYLE_DEFAULT);
   const meta = ENGINES.find((e) => e.id === engine)!;
+
+  // AIDV-254：既有語音清單（elevenLabsExtended builtin voices ＋ Qwen 內建聲線）。
+  // 唯讀目錄、快取 10 分鐘；查詢失敗時選擇器僅剩「系統預設」＝行為不變。
+  const voiceStylesQ = trpc.proStudio.voiceStyles.useQuery(undefined, {
+    staleTime: 600_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const voiceOptions =
+    engine === "elevenLabsTTS"
+      ? voiceStylesQ.data?.elevenlabs ?? []
+      : engine === "qwenTTS"
+        ? voiceStylesQ.data?.qwen ?? []
+        : [];
+  const selectedVoice = voiceOptions.find((v) => v.id === voiceStyle);
 
   const busy = qwen.isPending || eleven.isPending || sfx.isPending;
 
@@ -78,10 +129,13 @@ export function VoiceAmbientCanvas() {
     const t = text.trim();
     if (!t) return;
     try {
+      // AIDV-254：語音風格傳參 — 統一走 buildVoiceSubmitInput（「系統預設」不帶參數
+      // ＝與既有請求位元相同；指定聲線時 Qwen 走 voice、ElevenLabs 走 voice_id）。
+      const built = buildVoiceSubmitInput(engine, t, voiceStyle);
       let res: { request_id: string; estimated_credits: number };
-      if (engine === "qwenTTS") res = await qwen.mutateAsync({ text: t });
-      else if (engine === "elevenLabsTTS") res = await eleven.mutateAsync({ text: t });
-      else res = await sfx.mutateAsync({ text: t.slice(0, 500), duration_seconds: AMBIENT_DURATION_SEC });
+      if (built.engine === "qwenTTS") res = await qwen.mutateAsync(built.input);
+      else if (built.engine === "elevenLabsTTS") res = await eleven.mutateAsync(built.input);
+      else res = await sfx.mutateAsync(built.input);
       setSubmitted({ requestId: res.request_id, credits: res.estimated_credits });
       toast.success("已送出生成佇列", { description: `已扣 ${res.estimated_credits} pts（失敗全額退還）· 背景處理中` });
     } catch (e) {
@@ -125,7 +179,7 @@ export function VoiceAmbientCanvas() {
               size="sm"
               variant={engine === e.id ? "default" : "outline"}
               className="h-7 text-xs"
-              onClick={() => { setEngine(e.id); setEstimate(null); setSubmitted(null); }}
+              onClick={() => { setEngine(e.id); setEstimate(null); setSubmitted(null); setVoiceStyle(VOICE_STYLE_DEFAULT); }}
             >
               {falDown && (
                 <span
@@ -143,6 +197,40 @@ export function VoiceAmbientCanvas() {
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
           ElevenLabs 需 <span className="font-mono">ELEVENLABS_API_KEY</span>（後端設定）；未設定會回 PRECONDITION_FAILED。
           {falDown ? " Qwen TTS / 環境音目前不可用（fal.ai 中斷），有金鑰時 ElevenLabs 仍可嘗試。" : " 無金鑰請改用 Qwen TTS。"}
+        </div>
+      )}
+
+      {/* AIDV-254：旁白語音風格選擇器 — 只在 TTS 引擎顯示（環境音無聲線概念）。
+          清單來自既有 proStudio.voiceStyles（elevenLabsExtended / Qwen 內建聲線）；
+          「系統預設」＝不傳 voice 參數＝與加此功能前行為位元相同。 */}
+      {!meta.ambient && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <AudioLines className="size-3.5 text-primary" aria-hidden /> 語音風格
+          </span>
+          <Select value={voiceStyle} onValueChange={(v) => { setVoiceStyle(v); setSubmitted(null); }}>
+            <SelectTrigger className="h-8 w-56 text-xs" aria-label="語音風格">
+              <SelectValue placeholder="系統預設" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={VOICE_STYLE_DEFAULT} className="text-xs">
+                系統預設{engine === "qwenTTS" ? "（Vivian・中文女聲）" : ""}
+              </SelectItem>
+              {voiceOptions.map((v) => (
+                <SelectItem key={v.id} value={v.id} className="text-xs">
+                  {v.name} · {v.gender === "female" ? "女聲" : "男聲"} · {v.language}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {voiceStylesQ.isError && (
+            <span className="text-[10px] text-muted-foreground">聲線清單載入失敗 · 仍可用系統預設</span>
+          )}
+          {selectedVoice && (
+            <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground" title={selectedVoice.description}>
+              {selectedVoice.description}
+            </span>
+          )}
         </div>
       )}
 

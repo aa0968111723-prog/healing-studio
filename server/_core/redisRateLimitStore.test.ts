@@ -68,7 +68,7 @@ describe("RedisRateLimitStore", () => {
 
       const result = await store.increment("ip:bad");
 
-      expect(result.totalHits).toBe(0);
+      expect(result.totalHits).toBe(1);
       expect(result.resetTime).toBeUndefined();
     });
   });

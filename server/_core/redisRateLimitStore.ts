@@ -7,7 +7,8 @@
  * MemoryStore when it is not.
  *
  * Fail-open: every Redis error is swallowed and the request is allowed
- * (totalHits=0). A Redis blip therefore degrades enforcement to best-effort
+ * (totalHits=1，見 #1269——計為視窗首擊而非 0，避免 legitimate-first-hit 語意混淆).
+ * A Redis blip therefore degrades enforcement to best-effort
  * rather than blocking all traffic.
  *
  * Key format: `<prefix>rl:<tier>:<clientKey>` (e.g. "healing-studio:rl:auth:ip:1.2.3.4")

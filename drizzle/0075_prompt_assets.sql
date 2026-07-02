@@ -13,7 +13,7 @@
 --       pa_prompt_asset_rel_unique (promptId, assetId, relation) 唯一鍵 —
 --       生成鏈 webhook+polling 雙路徑重跑與 backfill 重跑的冪等保證。
 --
--- 寫入端掛 env 旗標 ENABLE_PROMPT_ASSET_LINKS（預設 OFF）；讀取 procedure 對
+-- 寫入端掛 env 旗標 ENABLE_PROMPT_ASSET_LINKS（自 AIDV-897 起預設 ON，旗標保留作緊急關閉開關）；讀取 procedure 對
 -- 空表完全相容（回空陣列），所以本 migration 先行、旗標後開是安全的。
 --
 -- 冪等：同 0071 模式（information_schema 前檢 + PREPARE/EXECUTE），可安全重跑。
@@ -23,7 +23,7 @@
 --   ALTER TABLE `prompt_assets` DROP FOREIGN KEY `pa_assetId_fk`;
 --   DROP TABLE IF EXISTS `prompt_assets`;
 -- （回滾後：旗標 OFF 時生成鏈完全不碰本表；讀取 procedure 在表缺失時會拋錯，
---   故回滾前請先確認 ENABLE_PROMPT_ASSET_LINKS=0 且前端未啟用關聯 UI。）
+--   故回滾前請先明確設 ENABLE_PROMPT_ASSET_LINKS=false（自 AIDV-897 起預設 ON）且前端未啟用關聯 UI。）
 
 SET @stmt := IF(
   EXISTS(

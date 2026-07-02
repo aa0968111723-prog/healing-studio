@@ -637,10 +637,15 @@ const multimodalSchema = z.object({
 
   // ── Prompt ↔ Asset 關聯（prompt_assets junction, migration 0075）─────────
   // 寫入開關：ON 時 postGenActions.doPostGenComplete 在寫完 prompt_library 與
-  // digital_asset_library 後自動補建 relation=derived 的關聯邊。預設 OFF —
-  // 讀取 procedure（promptLibrary.linkedAssets / assets.linkedPrompts）不受
-  // 此旗標影響，空表回空陣列，先跑 migration 後開旗標是安全順序。
-  ENABLE_PROMPT_ASSET_LINKS: z.string().optional().default("false"),
+  // digital_asset_library 後自動補建 relation=derived 的關聯邊。
+  // AIDV-897（Bruce 放行、採方案①）：功能穩定後預設改 ON — 未設定即啟用，
+  // 生成後資產自動關聯回原始 prompt；旗標保留作緊急關閉開關（設
+  // false/0/off/no/disabled 可停用寫入端）。讀取 procedure
+  // （promptLibrary.linkedAssets / assets.linkedPrompts）不掛此旗標，
+  // 空表回空陣列；migration 0075 已於 #864 上線，先 migration 後開旗標
+  // 的安全順序已滿足。實際 runtime 判定在 postGenActions.
+  // isPromptAssetLinksEnabled()（lazy 讀 process.env，與此處同預設）。
+  ENABLE_PROMPT_ASSET_LINKS: z.string().optional().default("true"),
 
   // ── Signed-URL 直傳（AIDV-15：廢 base64，大檔不再過 tRPC/HTTP body）────────
   // ON（預設）時 client 大檔上傳改走「presign → 直接 PUT 到 R2 → finalize 落庫」

@@ -9,7 +9,7 @@ Story,Wave 0 三欄導演台正式碼,"PR #862 已於 2026-06-11 合併 feat/4-s
 Story,互動原型（三欄導演台）,"bruce882-ai-director-video-proto.static.hf.space",Done,,,,Wave 0 前端骨架/導演台
 Story,技術簡報（落地路線圖）,"bruce882-ai-director-video-brief.static.hf.space（活文件）",Done,,,,Wave 0 前端骨架/導演台
 Story,Project SSOT：MOCK→真 creative_projects,"PR #863 已於 2026-06-12 合併 feat/4-shell-restructure。ENABLE_PROJECT_SSOT 旗標（4SHELL 之下預設 ON、線上 OFF）；active id 歸 WorldContext。依賴 #862。https://github.com/aa0968111723-prog/healing-studio/pull/863",Done,,,,Wave 1 SSOT+接線
-Story,prompt_assets junction 表,"PR #864 已於 2026-06-12 合併 main。migration 0075 冪等可回滾；ENABLE_PROMPT_ASSET_LINKS 預設 OFF；讀取 procedure：promptLibrary.linkedAssets / assets.linkedPrompts；admin backfill 已備。https://github.com/aa0968111723-prog/healing-studio/pull/864",Done,decision-resolved,,,Wave 1 SSOT+接線
+Story,prompt_assets junction 表,"PR #864 已於 2026-06-12 合併 main。migration 0075 冪等可回滾；ENABLE_PROMPT_ASSET_LINKS 自 AIDV-897 起預設 ON（旗標保留作緊急關閉）；讀取 procedure：promptLibrary.linkedAssets / assets.linkedPrompts；admin backfill 已備。https://github.com/aa0968111723-prog/healing-studio/pull/864",Done,decision-resolved,,,Wave 1 SSOT+接線
 Story,合流 feat/4-shell-restructure → main,"聚合 #862（導演台）+ #863（SSOT）回流 main。驗收：旗標 OFF 線上零變化、CI 綠。依賴 #862 #863。下一步建議。",To Do,,,,Wave 1 SSOT+接線
 Story,junction backfill 真 DB 實跑,"admin 呼叫 promptLibrary.backfillAssetLinks 並核對 totalLinked；可重跑冪等。依賴 #864 與 DATABASE_URL 環境。",To Do,,,,Wave 1 SSOT+接線
 Story,junction relation 寫入點（variant/rewrite/extended）,"座艙重骰/改寫/延長流程接上三種 relation。依賴 #864 與導演台流程。",To Do,,,,Wave 1 SSOT+接線

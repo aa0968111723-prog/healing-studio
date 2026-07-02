@@ -393,6 +393,9 @@ export class OrbConversationEnhancer {
         userId
       );
       const clarificationStats = await orbClarificationEngine.getStats(userId);
+      // AIDV-548：proficiency 分數實際已寫進 orb_feature_usage_stats,委派真實
+      // 聚合取代原本寫死的 `{}`(假學習)。失敗安全,聚合失敗回 {}。
+      const proficiency = await orbFeatureDiscovery.getProficiencyMap(userId);
 
       return {
         memories: {
@@ -402,7 +405,7 @@ export class OrbConversationEnhancer {
         features: {
           discovered: discoveryInsights.totalFeaturesDiscovered,
           used: discoveryInsights.totalFeaturesUsed,
-          proficiency: {}, // TODO: Aggregate proficiency scores
+          proficiency,
         },
         clarifications: {
           total: clarificationStats.totalClarifications,

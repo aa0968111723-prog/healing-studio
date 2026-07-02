@@ -30,6 +30,7 @@ import {
   type CompositionElement,
 } from "../../shared/worldbuilding-timeline";
 import { VOICE_MODEL_REGISTRY } from "../../shared/voiceModelRegistry";
+import { generateCompositionSuggestions } from "../services/compositionSuggestionService";
 
 function asArray<T>(value: unknown, fallback: T[] = []): T[] {
   return Array.isArray(value) ? (value as T[]) : fallback;
@@ -785,33 +786,29 @@ export const worldbuildingRouter = router({
     }),
 
   /**
-   * 獲取 AI 構圖建議
+   * 獲取 AI 構圖建議（AIDV-847：mock 已替換為真實 LLM 生成）
+   *
+   * 分析元素位置、大小、層級關係與世界觀脈絡，
+   * 依構圖原則（三分法、視覺平衡、焦點引導、景深、色彩和諧）生成建議。
+   * LLM 失敗（超時 / API 錯誤 / 格式錯誤）時降級回空陣列 —— 前端
+   * CompositionAssistant 對空陣列不渲染建議面板，屬安全空結果。
    */
   getCompositionSuggestions: protectedProcedure
     .input(compositionSuggestionRequestSchema)
-    .mutation(async ({ ctx, input }) => {
-      // TODO: 實作 AI 構圖分析
-      // 分析元素位置、大小、層級關係
-      // 根據構圖原則（三分法、視覺平衡、焦點引導等）提供建議
+    .mutation(async ({ ctx, input }): Promise<CompositionSuggestion[]> => {
+      const world = await db.getWorldbuildingFramework(input.worldId);
+      if (!world || world.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
 
-      const mockSuggestions: CompositionSuggestion[] = [
-        {
-          type: "balance",
-          title: "視覺平衡建議",
-          content: "主角位於畫面右側，建議在左側增加視覺元素以平衡構圖",
-        },
-        {
-          type: "focus",
-          title: "焦點引導",
-          content: "建議使用前景元素引導視線至主角位置",
-        },
-        {
-          type: "depth",
-          title: "景深層次",
-          content: "可以通過大小對比和位置關係增強畫面的空間感",
-        },
-      ];
-
-      return mockSuggestions;
+      try {
+        return await generateCompositionSuggestions({ world, request: input });
+      } catch (e) {
+        console.warn(
+          "[Worldbuilding] getCompositionSuggestions 生成失敗，降級回空建議：",
+          e instanceof Error ? e.message : e
+        );
+        return [];
+      }
     }),
 });
