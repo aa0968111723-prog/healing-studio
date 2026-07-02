@@ -949,6 +949,14 @@ export interface FalQueueDispatchInput {
   /** 額外 HTTP headers（例如 x-fal-client-credentials） */
   extraHeaders?: Record<string, string>;
   userId?: number;
+  /**
+   * AIDV-16：是否允許降級到替代模型（預設 true，維持既有行為）。
+   * 設為 false 時「寧缺勿替」——任何會換模的路徑（catalog replacement、
+   * 不在 catalog 的 fallback chain、disabled 降級、ultra preflight 降級、
+   * submit 5xx/429 的 fallback 重試鏈）一律改為直接 throw，絕不以其他
+   * 模型偷跑。用於 tier 語意不可置換的任務（例如精修層必須是 Veo 3.1）。
+   */
+  allowFallback?: boolean;
 }
 
 export interface FalQueueDispatchResult {
@@ -992,6 +1000,14 @@ export async function dispatchFalQueueTask(
   let targetModelId = normalizeEngineModelId(params.modelId);
   let degraded = false;
   let originalModel: string | undefined;
+  // AIDV-16：allowFallback=false 時任何換模路徑一律 throw（寧缺勿替）。
+  const allowFallback = params.allowFallback !== false;
+  const throwNoFallback = (reason: string): never => {
+    throw new Error(
+      `fal.ai queue dispatch 中止 [${targetModelId}]：${reason}；` +
+        "此任務不允許降級替換模型（allowFallback=false），已直接失敗而非換模偷跑。"
+    );
+  };
 
   // F7 修復:disabled 模型優先用 catalog 內人工挑選的 replacement,而不是
   // 直接跳到 FALLBACK_CHAINS[0]。原本 studio 走 router 用 resolveActiveModelId
@@ -1000,6 +1016,12 @@ export async function dispatchFalQueueTask(
   // attribution 跟結果不一致。把 resolveActiveModelId 拉進 dispatcher 統
   // 一所有路徑。
   const replacementResolved = resolveActiveModelId(targetModelId);
+  if (replacementResolved.substituted && !allowFallback) {
+    throwNoFallback(
+      `模型已停用，catalog 指定替代品 ${replacementResolved.modelId}` +
+        (replacementResolved.reason ? `（${replacementResolved.reason}）` : "")
+    );
+  }
   if (replacementResolved.substituted) {
     console.warn(
       `[FalDispatcher] Queue model ${targetModelId} → human-curated replacement ${replacementResolved.modelId}` +
@@ -1015,6 +1037,9 @@ export async function dispatchFalQueueTask(
   const resolvedCategory = initialConfig?.category ?? params.category;
 
   if (!initialConfig && resolvedCategory) {
+    if (!allowFallback) {
+      throwNoFallback("模型不在 catalog 內");
+    }
     const fallback = (FALLBACK_CHAINS[resolvedCategory] ?? [])[0];
     if (fallback) {
       console.warn(
@@ -1032,6 +1057,11 @@ export async function dispatchFalQueueTask(
   // 200 {detail: "Path X not found"}). Auto-degrade to the category fallback
   // chain so saved brain configs / older jobs / orb tool dispatches don't
   // silently lose generations on a disabled model.
+  if (initialConfig?.disabled && !allowFallback) {
+    throwNoFallback(
+      `模型已在 catalog 標記 disabled（${initialConfig.disabledReason ?? "broken upstream"}）`
+    );
+  }
   if (initialConfig?.disabled && resolvedCategory) {
     const fallback = (FALLBACK_CHAINS[resolvedCategory] ?? []).find(
       id => {
@@ -1062,6 +1092,9 @@ export async function dispatchFalQueueTask(
       "../middleware/brainContext"
     );
     const healthy = await preflightHealthStatus(targetModelId, 3000);
+    if (!healthy && !allowFallback) {
+      throwNoFallback("ultra tier preflight 健康探測未通過");
+    }
     if (!healthy) {
       const altFallback = (FALLBACK_CHAINS[resolvedCategory!] ?? []).find(
         id => id !== targetModelId
@@ -1143,9 +1176,9 @@ export async function dispatchFalQueueTask(
     }
   };
 
-  // 主模型 → fallback chain 候選
+  // 主模型 → fallback chain 候選（allowFallback=false 時只允許主模型本身）
   const submitCandidates: string[] = [targetModelId];
-  if (resolvedCategory) {
+  if (resolvedCategory && allowFallback) {
     for (const candidate of FALLBACK_CHAINS[resolvedCategory] ?? []) {
       if (candidate !== targetModelId && !submitCandidates.includes(candidate)) {
         submitCandidates.push(candidate);

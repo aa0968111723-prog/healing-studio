@@ -2784,6 +2784,47 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     availabilityNote:
       "Veo 3 Pro：旗艦品質、原生同步音訊；fal.ai 端點若尚未開放會回 404，建議搭配 Veo 3 Standard 作為備援",
   },
+  // ── AIDV-16：雙層生影片 —— 草稿層 Seedance Lite（便宜、多 take）──
+  // draft 成本刻意壓到極低：5s ≈ 6 pts，遠低於 Veo 3.1 精修（90 pts）的 1/5。
+  // 由 draftRefinePricing.test.ts 釘住「draft ≤ refine × 1/5」不變式。
+  "fal-ai/bytedance/seedance/v1/lite/text-to-video": {
+    modelId: "fal-ai/bytedance/seedance/v1/lite/text-to-video",
+    label: "Seedance V1 Lite t2v（草稿）",
+    provider: "fal",
+    category: "text-to-video",
+    tier: "economy",
+    basePoints: 6, // 5s base
+    baseCostUsd: 0.06,
+    unit: "每5秒",
+    pointsPerSecond: 1.2,
+    freeSecondsInBase: 5,
+    minPoints: 6,
+    maxPoints: 60,
+    requiresKey: true,
+    keyEnvVar: "FAL_API_KEY",
+    availabilityNote:
+      "草稿層：ByteDance Seedance Lite，便宜快速，用於 shot 畫布多 take 比對；模型 id 以 fal 帳號頁為準",
+  },
+  // ── AIDV-16：雙層生影片 —— 精修層 Veo 3.1（旗艦，僅核准後允許）──
+  // 精修成本高（5s ≈ 90 pts），確保 draft（Seedance/Wan）永遠 ≤ 其 1/5。
+  "fal-ai/veo3.1": {
+    modelId: "fal-ai/veo3.1",
+    label: "Veo 3.1 t2v（精修）",
+    provider: "fal",
+    category: "text-to-video",
+    tier: "ultra",
+    basePoints: 90, // 5s base
+    baseCostUsd: 0.9,
+    unit: "每5秒",
+    pointsPerSecond: 18,
+    freeSecondsInBase: 5,
+    minPoints: 90,
+    maxPoints: 900,
+    requiresKey: true,
+    keyEnvVar: "FAL_API_KEY",
+    availabilityNote:
+      "精修層：Google Veo 3.1（fal.ai 代理），旗艦品質＋原生同步音訊，僅用於已核准 take 的高品質重跑；模型 id 以 fal 帳號頁為準",
+  },
   "fal-ai/pixverse/v4.5/image-to-video": {
     modelId: "fal-ai/pixverse/v4.5/image-to-video",
     label: "PixVerse V4.5 I2V",
