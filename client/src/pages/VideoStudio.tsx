@@ -84,7 +84,8 @@ import {
   type AgentActionResult,
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
-import { useLocation, useSearch } from "wouter";
+import { useLocation, useSearch, Link as RouterLink } from "wouter";
+import { CREDITS_LEDGER_HREF } from "@/components/refundStatus";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { NextStepPanel } from "@/components/layout/NextStepPanel";
 import { getVisualDensity, shouldShowAdvanced } from "@/lib/visualDensity";
@@ -266,6 +267,14 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
           <ExternalLink className="w-3 h-3" />
           新分頁
         </a>
+        {/* AIDV-969：完成畫面 → 點數紀錄（靜態導向，不依賴 refund 資料） */}
+        <RouterLink
+          href={CREDITS_LEDGER_HREF}
+          title="前往積分帳戶查看點數異動與退還機制"
+          className="ml-auto inline-flex items-center text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground px-1.5 py-1.5 whitespace-nowrap"
+        >
+          點數紀錄 →
+        </RouterLink>
       </div>
     </div>
   );
@@ -753,6 +762,14 @@ function AsyncVideoPoller({
         <span>
           生成失敗：{(error as any)?.message ?? "請重試或檢查網路連線"}
         </span>
+        {/* AIDV-969：失敗畫面 → 點數紀錄（靜態導向；退款詳情徽章在背景任務頁） */}
+        <RouterLink
+          href={CREDITS_LEDGER_HREF}
+          title="前往積分帳戶查看點數異動與退還機制"
+          className="ml-auto text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground whitespace-nowrap"
+        >
+          點數紀錄 →
+        </RouterLink>
       </div>
     );
   }
