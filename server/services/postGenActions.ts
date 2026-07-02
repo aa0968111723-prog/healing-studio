@@ -596,6 +596,15 @@ export async function refundJobIfBilled(jobId: number): Promise<boolean> {
       `[refundJobIfBilled] Refund failed for job=${jobId} user=${job.userId} points=${points} (refunded flag already set — needs manual audit):`,
       err
     );
+    // AIDV-650: 補寫 refundRestoreFailed 旗標（JSON_MERGE_PATCH 局部更新，
+    // 不覆寫 refunded 冪等鎖），讓退款狀態推導（deriveJobRefundStatus）不把
+    // 「搶到鎖但錢包從未入帳」誤報為已退款——這正是使用者被白扣、最需要
+    // 反映客服的情境。標註失敗則靜默維持原行為（旗標留存待人工稽核）。
+    try {
+      await db.mergeBackgroundJobResultJson(jobId, { refundRestoreFailed: true });
+    } catch {
+      // 靜默忽略
+    }
     return false;
   }
 

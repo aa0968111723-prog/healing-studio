@@ -2115,8 +2115,15 @@ export const generateRouter = router({
         };
       } catch (err) {
         // queue submit 失敗 → 退款 + 標記失敗
+        // AIDV-650: 與 refundJobIfBilled 同款 claim-then-refund 順序——先以
+        // atomicClaimJobRefund CAS 寫入 resultJson.refunded/refundedPoints
+        // 冪等旗標，搶到鎖才實際退點。理由：
+        //   1. 此路徑無 requestId，webhook/輪詢永遠不會補旗標；若只退點不寫
+        //      旗標，退款狀態徽章會把「已退點」永久誤報成「未退點」。
+        //   2. 旗標即退款鎖，順帶消除與後續 refundJobIfBilled 路徑的潛在雙退。
         if (!isDemoMode()) {
-          await db.refundUserPoints(userId, points);
+          const claimed = await db.atomicClaimJobRefund(jobId, points);
+          if (claimed) await db.refundUserPoints(userId, points);
         }
         await db.updateBackgroundJob(jobId, {
           status: "failed",
