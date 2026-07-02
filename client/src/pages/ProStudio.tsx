@@ -66,6 +66,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
+import { useGenerationTask } from "@/hooks/useGenerationTask";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
 import {
@@ -997,7 +998,13 @@ function MusicTab() {
   const [tags, setTags] = useState("");
   const [referenceAudioUrl, setReferenceAudioUrl] = useState("");
   // DEF-14 修正：預設改為 ACE-Step（Sonauto v2 在 fal.ai 上不穩定，除非話概可用時才切回）
-  const [musicModel, setMusicModel] = useState<MusicModelChoice>("ace-step");
+  // AIDV-899：模型選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  // raw 為 string|undefined，以初始模型回退並窄化回原 union，行為與原 useState 完全等價。
+  const {
+    selectedModelId: musicModelRaw,
+    setSelectedModelId: setMusicModel,
+  } = useGenerationTask({ initialModelId: "ace-step" });
+  const musicModel = (musicModelRaw ?? "ace-step") as MusicModelChoice;
   const [duration, setDuration] = useState(30);
   const [result, setResult] = useState<AudioResult | null>(null);
   // Suno 走獨立 task 流程（taskId/jobId），用單獨 state 追蹤輪詢
@@ -1505,9 +1512,15 @@ function SoundEffectsTab() {
   const [duration, setDuration] = useState<number>(10);
   const [useDuration, setUseDuration] = useState(false);
   const [influence, setInfluence] = useState(0.3);
-  const [sfxModel, setSfxModel] = useState<
-    "stable-audio" | "audioldm2" | "elevenlabs"
-  >("stable-audio");
+  // AIDV-899：模型選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  const {
+    selectedModelId: sfxModelRaw,
+    setSelectedModelId: setSfxModel,
+  } = useGenerationTask({ initialModelId: "stable-audio" });
+  const sfxModel = (sfxModelRaw ?? "stable-audio") as
+    | "stable-audio"
+    | "audioldm2"
+    | "elevenlabs";
   const [result, setResult] = useState<AudioResult | null>(null);
 
   // ── Agent Bridge：讓光球能控制音效分頁參數 ──
@@ -1786,7 +1799,12 @@ function SoundEffectsTab() {
 function TTSTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
-  const [engine, setEngine] = useState<"elevenlabs" | "qwen">("elevenlabs");
+  // AIDV-899：模型（引擎）選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  const {
+    selectedModelId: engineRaw,
+    setSelectedModelId: setEngine,
+  } = useGenerationTask({ initialModelId: "elevenlabs" });
+  const engine = (engineRaw ?? "elevenlabs") as "elevenlabs" | "qwen";
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [stability, setStability] = useState(0.5);
@@ -2269,7 +2287,12 @@ function TTSTab() {
 function CloneTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
-  const [mode, setMode] = useState<"qwen" | "dia" | "design" | "kling" | "elevenlabs">("qwen");
+  // AIDV-899：模型（克隆模式）選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  const {
+    selectedModelId: modeRaw,
+    setSelectedModelId: setMode,
+  } = useGenerationTask({ initialModelId: "qwen" });
+  const mode = (modeRaw ?? "qwen") as "qwen" | "dia" | "design" | "kling" | "elevenlabs";
   const [text, setText] = useState("");
   const [refAudio, setRefAudio] = useState("");
   const [refTranscript, setRefTranscript] = useState("");
@@ -3007,9 +3030,16 @@ function CloneTab() {
 function ProcessTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
-  const [tool, setTool] = useState<
-    "demucs" | "isolation" | "merge" | "changer"
-  >("demucs");
+  // AIDV-899：模型（處理工具）選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  const {
+    selectedModelId: toolRaw,
+    setSelectedModelId: setTool,
+  } = useGenerationTask({ initialModelId: "demucs" });
+  const tool = (toolRaw ?? "demucs") as
+    | "demucs"
+    | "isolation"
+    | "merge"
+    | "changer";
   const [audioUrl, setAudioUrl] = useState("");
   const [audioUrls, setAudioUrls] = useState(["", ""]);
   const [mergeStrategy, setMergeStrategy] = useState<"concatenate" | "mix">(
@@ -3602,9 +3632,18 @@ function ASRTab() {
 function AvatarVideoTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
-  const [model, setModel] = useState<
-    "wan" | "echo" | "stable" | "longcat" | "ltx" | "dubbing"
-  >("echo");
+  // AIDV-899：模型選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
+  const {
+    selectedModelId: modelRaw,
+    setSelectedModelId: setModel,
+  } = useGenerationTask({ initialModelId: "echo" });
+  const model = (modelRaw ?? "echo") as
+    | "wan"
+    | "echo"
+    | "stable"
+    | "longcat"
+    | "ltx"
+    | "dubbing";
   const [imageUrl, setImageUrl] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
