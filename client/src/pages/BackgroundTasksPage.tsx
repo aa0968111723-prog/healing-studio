@@ -19,6 +19,8 @@ import {
   useJobRefundStatuses,
   type JobRefundInfo,
 } from "@/components/RefundStatusBadge";
+import { RefundDetailLink } from "@/components/RefundDetailLink";
+import { describeRefundSummary } from "@/components/refundStatus";
 import { toast } from "sonner";
 import {
   Image,
@@ -38,6 +40,7 @@ import {
   LayoutGrid,
   List,
   Download,
+  Coins,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AgentAction, AgentActionResult, AgentCapability } from "../../../shared/agent-actions";
@@ -261,6 +264,10 @@ function JobCard({
   const cfg = STATUS_CONFIG[job.status] ?? STATUS_CONFIG.processing;
   const resultUrl = (meta?.resultUrl as string) ?? null;
   const [expanded, setExpanded] = useState(false);
+  // AIDV-969: 展開處的點數異動摘要（資料來自 credits.jobRefundStatus 既有唯讀
+  // 回傳；none/unknown/無資料 → null，安靜不顯示）
+  const refundSummary =
+    job.status === "failed" ? describeRefundSummary(refundInfo) : null;
 
   return (
     <motion.div
@@ -291,8 +298,12 @@ function JobCard({
               <span className="ml-1">{cfg.label}</span>
             </Badge>
             {/* AIDV-650: 失敗任務的退款狀態徽章（無資料時安靜不顯示） */}
+            {/* AIDV-969: 徽章旁掛「點數紀錄」小連結（顯示條件與徽章一致） */}
             {job.status === "failed" && (
-              <RefundStatusBadge info={refundInfo} className="h-5" />
+              <>
+                <RefundStatusBadge info={refundInfo} className="h-5" />
+                <RefundDetailLink info={refundInfo} />
+              </>
             )}
           </div>
 
@@ -390,6 +401,15 @@ function JobCard({
             className="overflow-hidden"
           >
             <ResultPreview job={job} />
+
+            {/* AIDV-969: 本任務點數異動摘要行（唯讀；無扣點紀錄/查不到時安靜不顯示） */}
+            {refundSummary && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <Coins className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{refundSummary}</span>
+                <RefundDetailLink info={refundInfo} />
+              </div>
+            )}
 
             {/* Raw metadata (for debugging / model training) */}
             {meta && (

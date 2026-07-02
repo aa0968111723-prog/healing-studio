@@ -33,6 +33,7 @@ import {
   useJobRefundStatuses,
   type JobRefundInfo,
 } from "@/components/RefundStatusBadge";
+import { RefundDetailLink } from "@/components/RefundDetailLink";
 import { SegmentProgressLabel } from "@/components/SegmentProgressLabel";
 import { useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -173,8 +174,12 @@ function TaskRow({
                 />
               )}
             {/* AIDV-650: 失敗任務的退款狀態徽章（無資料時安靜不顯示） */}
+            {/* AIDV-969: 徽章旁掛「點數紀錄」小連結（顯示條件與徽章一致） */}
             {task.status === "failed" && (
-              <RefundStatusBadge info={refundInfo} />
+              <>
+                <RefundStatusBadge info={refundInfo} />
+                <RefundDetailLink info={refundInfo} />
+              </>
             )}
           </div>
           {/* F010: show failure reason so users know what went wrong */}
