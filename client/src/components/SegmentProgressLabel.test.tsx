@@ -75,3 +75,54 @@ describe("SegmentProgressLabel (AIDV-589)", () => {
     expect(screen.getByText("第 1/1 段")).toBeDefined();
   });
 });
+
+describe("SegmentProgressLabel — resultJson fallback（SSE 缺席時的輪詢路徑）", () => {
+  const directorMeta = {
+    sourceStudio: "director",
+    segmentIndex: 2,
+    totalTasks: 4,
+    studioType: "video",
+  };
+
+  it("SSE 無 entry 但 resultJson 有 director 分段資訊 → 顯示「第 3/4 段」", () => {
+    mockUse.mockReturnValue({ segmentProgress: {} });
+    render(<SegmentProgressLabel jobId={101} resultJson={directorMeta} />);
+    expect(screen.getByText("第 3/4 段")).toBeDefined();
+  });
+
+  it("SSE entry 存在時優先於 resultJson fallback（即時層蓋過輪詢層）", () => {
+    mockUse.mockReturnValue({
+      segmentProgress: { 101: { currentSegment: 1, totalSegments: 4, completed: false } },
+    });
+    render(<SegmentProgressLabel jobId={101} resultJson={directorMeta} />);
+    expect(screen.getByText("第 1/4 段")).toBeDefined();
+  });
+
+  it("非 director 任務的 resultJson → 不渲染（零回歸）", () => {
+    mockUse.mockReturnValue({ segmentProgress: {} });
+    const { container } = render(
+      <SegmentProgressLabel
+        jobId={101}
+        resultJson={{ studioType: "video", prompt: "p" }}
+      />
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("director 但缺 totalTasks（dispatch 前）→ 不渲染、不 throw", () => {
+    mockUse.mockReturnValue({ segmentProgress: {} });
+    const { container } = render(
+      <SegmentProgressLabel
+        jobId={101}
+        resultJson={{ sourceStudio: "director", segmentIndex: 0 }}
+      />
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("舊 context shape（缺 segmentProgress）＋合法 resultJson → 仍可顯示 fallback", () => {
+    mockUse.mockReturnValue({ sseConnected: true, activeCount: 1 });
+    render(<SegmentProgressLabel jobId={101} resultJson={directorMeta} />);
+    expect(screen.getByText("第 3/4 段")).toBeDefined();
+  });
+});

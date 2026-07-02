@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 import {
   applySegmentEvent,
+  deriveSegmentProgressFromJobMeta,
   formatSegmentProgress,
   isSegmentEventType,
   type SegmentProgressState,
@@ -200,5 +201,77 @@ describe("formatSegmentProgress", () => {
 
   it("current > total（防禦）→ clamp 顯示", () => {
     expect(formatSegmentProgress(state(9, 3, false))).toBe("第 3/3 段");
+  });
+});
+
+describe("deriveSegmentProgressFromJobMeta — resultJson fallback（輪詢路徑）", () => {
+  const meta = (overrides: Record<string, unknown> = {}) => ({
+    sourceStudio: "director",
+    segmentIndex: 1,
+    totalTasks: 5,
+    segmentId: "seg-1",
+    studioType: "video",
+    prompt: "p",
+    ...overrides,
+  });
+
+  it("director 分段任務 → 推導出第 2/5 段（0-based +1，completed=false）", () => {
+    expect(deriveSegmentProgressFromJobMeta(meta())).toEqual(state(2, 5, false));
+  });
+
+  it("推導結果可直接餵 formatSegmentProgress → 「第 X/N 段」", () => {
+    expect(formatSegmentProgress(deriveSegmentProgressFromJobMeta(meta()))).toBe(
+      "第 2/5 段"
+    );
+  });
+
+  it("非 director 任務（一般工作室 job）→ null（零回歸）", () => {
+    expect(deriveSegmentProgressFromJobMeta(meta({ sourceStudio: "video" }))).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta(meta({ sourceStudio: undefined }))).toBeNull();
+  });
+
+  it("meta 非物件 / 缺失 → null、永不 throw", () => {
+    expect(deriveSegmentProgressFromJobMeta(undefined)).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta(null)).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta("director")).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta(42)).toBeNull();
+  });
+
+  it("缺 totalTasks（建 job 當下、dispatch 前）→ null（安靜不顯示）", () => {
+    expect(deriveSegmentProgressFromJobMeta(meta({ totalTasks: undefined }))).toBeNull();
+  });
+
+  it("totalTasks < 1 或型別錯誤 → null", () => {
+    expect(deriveSegmentProgressFromJobMeta(meta({ totalTasks: 0 }))).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta(meta({ totalTasks: "5" }))).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta(meta({ totalTasks: NaN }))).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta(meta({ totalTasks: -3 }))).toBeNull();
+  });
+
+  it("segmentIndex 缺失或不合法 → null", () => {
+    expect(deriveSegmentProgressFromJobMeta(meta({ segmentIndex: undefined }))).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta(meta({ segmentIndex: "1" }))).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta(meta({ segmentIndex: -1 }))).toBeNull();
+    expect(deriveSegmentProgressFromJobMeta(meta({ segmentIndex: Infinity }))).toBeNull();
+  });
+
+  it("segmentIndex 超過總數 → clamp 到 totalSegments", () => {
+    expect(deriveSegmentProgressFromJobMeta(meta({ segmentIndex: 9, totalTasks: 3 }))).toEqual(
+      state(3, 3, false)
+    );
+  });
+
+  it("單一分段（totalTasks=1, segmentIndex=0）→ 第 1/1 段", () => {
+    expect(
+      formatSegmentProgress(
+        deriveSegmentProgressFromJobMeta(meta({ segmentIndex: 0, totalTasks: 1 }))
+      )
+    ).toBe("第 1/1 段");
+  });
+
+  it("小數 → floor 後採用", () => {
+    expect(deriveSegmentProgressFromJobMeta(meta({ segmentIndex: 1.9, totalTasks: 3.7 }))).toEqual(
+      state(2, 3, false)
+    );
   });
 });
