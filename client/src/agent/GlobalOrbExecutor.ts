@@ -254,7 +254,11 @@ export function createGlobalOrbExecutor(deps: GlobalOrbExecutorDeps) {
 
     cancelled = false;
     paused = false;
-    approvedSteps = new Set<string>();
+    // 核准狀態只在「全新開跑」時重置；retry-resume（retryCount>0）必須保留
+    // 使用者已給的逐步核准，否則核准會被洗掉、步驟永遠卡在 awaiting_approval。
+    if (!task.retryCount || task.retryCount <= 0) {
+      approvedSteps = new Set<string>();
+    }
     if (task.steps.length === 0) {
       setState(prev => ({ ...prev, status: "completed" }));
       emitTelemetry({ event: "executor.completed", taskId: task.taskId, traceId: task.traceId });
