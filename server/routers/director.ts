@@ -2888,6 +2888,9 @@ ${segmentSummaries}
             // from a partial set of inputs (voice's charCount, for instance,
             // is not part of params and would be silently dropped on refund).
             chargedPoints: estimate.totalPoints,
+            // AIDV-968: 同額寫入 costPoints（加性；chargedPoints 保留不刪）
+            // — 退款狀態徽章（refundStatus）與 refundJobIfBilled 只認 costPoints。
+            costPoints: estimate.totalPoints,
             // AIDV-9: 座艙操作類型 → 供 runPostGenForJob 建 prompt↔asset 邊
             ...(input.relation ? { relation: input.relation } : {}),
           } as any,
@@ -3019,6 +3022,9 @@ ${segmentSummaries}
             // path can refund the same number of points instead of recomputing
             // from a partial set of inputs.
             chargedPoints: estimate.totalPoints,
+            // AIDV-968: 同額寫入 costPoints（加性；chargedPoints 保留不刪）
+            // — 退款狀態徽章（refundStatus）與 refundJobIfBilled 只認 costPoints。
+            costPoints: estimate.totalPoints,
             startedAt: Date.now(),
             ...(input.totalTasks != null ? { totalTasks: input.totalTasks } : {}),
             ...(queueResult.degraded && queueResult.originalModel
@@ -3052,8 +3058,18 @@ ${segmentSummaries}
         };
       } catch (error) {
         // Refund points on error
+        // AIDV-968: claim-then-refund（與 generate.submitMultimodalAsync /
+        // refundJobIfBilled 同款 CAS 順序，PR #1281）——先以 atomicClaimJobRefund
+        // 寫入 resultJson.refunded/refundedPoints 冪等旗標，搶到鎖才實際退點：
+        //   1. 旗標讓退款狀態徽章正確顯示「已退點」，而非永久「未退點」。
+        //   2. 旗標即退款鎖，消除與 pollGenerationTask FAILED / webhookFal
+        //      refundJobIfBilled 等其他失敗路徑並發時的雙退風險。
         if (!isDemoMode()) {
-          await db.refundUserPoints(userId, estimate.totalPoints);
+          const claimed = await db.atomicClaimJobRefund(
+            jobId,
+            estimate.totalPoints
+          );
+          if (claimed) await db.refundUserPoints(userId, estimate.totalPoints);
         }
         await db.updateBackgroundJob(jobId, {
           status: "failed",
@@ -3316,11 +3332,34 @@ ${segmentSummaries}
             typeof params.chargedPoints === "number" && params.chargedPoints > 0
               ? params.chargedPoints
               : null;
+          // AIDV-968: claim-then-refund（與 refundJobIfBilled 同款 CAS 順序，
+          // PR #1281）——先以 atomicClaimJobRefund 寫入 refunded/refundedPoints
+          // 冪等旗標，搶到鎖才退點。旗標讓退款狀態徽章正確顯示「已退點」，
+          // 同時作為退款鎖：並發輪詢、executeGenerationTask catch、webhookFal
+          // 的 refundJobIfBilled 同時打到也只會退一次（消除舊有雙退風險）。
+          // 搶到鎖後 refundUserPoints 失敗 → 補寫 refundRestoreFailed，
+          // 推導端降級 not_refunded 而非誤報已退款（同 refundJobIfBilled）。
           if (chargedPoints !== null) {
+            let claimed = false;
             try {
-              await dbModule.refundUserPoints(ctx.user.id, chargedPoints);
+              claimed = await dbModule.atomicClaimJobRefund(
+                job.id,
+                chargedPoints
+              );
+              if (claimed) {
+                await dbModule.refundUserPoints(ctx.user.id, chargedPoints);
+              }
             } catch (refundErr) {
               logger.error("refund failed (chargedPoints path)", { userId: ctx.user.id, chargedPoints, error: refundErr });
+              if (claimed) {
+                try {
+                  await dbModule.mergeBackgroundJobResultJson(job.id, {
+                    refundRestoreFailed: true,
+                  });
+                } catch {
+                  // 靜默 — refunded 旗標留存待人工稽核
+                }
+              }
             }
           } else {
             const { estimatePoints } = await import("../services/modelPricing");
@@ -3330,11 +3369,27 @@ ${segmentSummaries}
                 : typeof params.seconds_total === "number"
                   ? params.seconds_total
                   : undefined;
+            let claimed = false;
             try {
               const refund = estimatePoints(modelId, { durationSec });
-              await dbModule.refundUserPoints(ctx.user.id, refund.totalPoints);
+              claimed = await dbModule.atomicClaimJobRefund(
+                job.id,
+                refund.totalPoints
+              );
+              if (claimed) {
+                await dbModule.refundUserPoints(ctx.user.id, refund.totalPoints);
+              }
             } catch (refundErr) {
               logger.error("refund failed (recompute path)", { userId: ctx.user.id, durationSec, error: refundErr });
+              if (claimed) {
+                try {
+                  await dbModule.mergeBackgroundJobResultJson(job.id, {
+                    refundRestoreFailed: true,
+                  });
+                } catch {
+                  // 靜默 — refunded 旗標留存待人工稽核
+                }
+              }
             }
           }
         }

@@ -9,9 +9,13 @@
  *   永不 throw、查不到的 id 回 unknown、userId 原樣傳入 SQL 層（隔離邊界）。
  * - 寫入端契約（真實 resultJson 形狀）：queue submit 失敗路徑 claim 後的形狀
  *   → full；refundRestoreFailed（搶到鎖但錢包未入帳）→ 降級 not_refunded；
- *   director 流 chargedPoints-only → none（覆蓋範圍外，pin 現狀）。
+ *   director 舊任務 chargedPoints-only → none（AIDV-968 之前無旗標，fail-safe
+ *   pin 現狀）；director 新任務（AIDV-968：costPoints+chargedPoints 同額並存）
+ *   → 未退 not_refunded、退款旗標在 → full。
  * - 原始碼結構不變量（AIDV-771 慣例）：有 jobId 的失敗退款路徑必為
- *   「atomicClaimJobRefund 先、refundUserPoints 後」claim-then-refund 順序。
+ *   「atomicClaimJobRefund 先、refundUserPoints 後」claim-then-refund 順序，
+ *   含 director.ts 的 executeGenerationTask catch 與 pollGenerationTask FAILED
+ *   兩站點（AIDV-968），以及 director 扣點時 costPoints/chargedPoints 雙寫。
  */
 
 import { readFileSync } from "node:fs";
@@ -277,7 +281,7 @@ describe("deriveJobRefundStatus（純函式矩陣）", () => {
     ).toBe("none");
   });
 
-  it("director 流 chargedPoints-only resultJson（覆蓋範圍外）→ none（pin 現狀：不可兼讀 chargedPoints，否則已退款無旗標會誤報未退點）", () => {
+  it("director 舊任務 chargedPoints-only resultJson（AIDV-968 前，覆蓋範圍外）→ none（pin 現狀：不可兼讀 chargedPoints，否則已退款無旗標會誤報未退點）", () => {
     expect(
       deriveJobRefundStatus(19, {
         chargedPoints: 40,
@@ -289,6 +293,69 @@ describe("deriveJobRefundStatus（純函式矩陣）", () => {
       chargedPoints: 0,
       refundedPoints: 0,
       refundStatus: "none",
+    });
+  });
+
+  // ── AIDV-968：director 流納入覆蓋（costPoints + chargedPoints 同額並存）──
+
+  it("director 新任務形狀（costPoints 與 chargedPoints 並存）未退款 → not_refunded", () => {
+    // executeGenerationTask 扣點時的真實寫入形狀：chargedPoints（舊欄位，
+    // 加性保留）與 costPoints（AIDV-968 新增）同額並存。
+    const directorShape = {
+      segmentId: "seg-1",
+      segmentIndex: 0,
+      prompt: "a director scene",
+      modelId: "fal-ai/kling-video/v2.1/standard/text-to-video",
+      studioType: "video",
+      sourceStudio: "director",
+      label: "影片生成 - 分鏡 #1",
+      chargedPoints: 40,
+      costPoints: 40,
+    };
+    expect(deriveJobRefundStatus(20, directorShape)).toEqual({
+      taskId: 20,
+      chargedPoints: 40,
+      refundedPoints: 0,
+      refundStatus: "not_refunded",
+    });
+  });
+
+  it("director 新任務失敗退款後（claim-then-refund 旗標在）→ full", () => {
+    expect(
+      deriveJobRefundStatus(21, {
+        segmentId: "seg-1",
+        segmentIndex: 0,
+        prompt: "a director scene",
+        modelId: "fal-ai/flux",
+        studioType: "image",
+        sourceStudio: "director",
+        chargedPoints: 40,
+        costPoints: 40,
+        refunded: true,
+        refundedPoints: 40,
+      })
+    ).toEqual({
+      taskId: 21,
+      chargedPoints: 40,
+      refundedPoints: 40,
+      refundStatus: "full",
+    });
+  });
+
+  it("director 舊任務（無 costPoints）被 pollGenerationTask 補退款（claim 寫入旗標）→ 防禦分支回報 full", () => {
+    // AIDV-968 後的失敗路徑對「chargedPoints-only 舊任務」claim 也會寫
+    // refunded/refundedPoints——推導走防禦分支（costPoints 缺但旗標＋金額在）。
+    expect(
+      deriveJobRefundStatus(22, {
+        chargedPoints: 40,
+        refunded: true,
+        refundedPoints: 40,
+      })
+    ).toEqual({
+      taskId: 22,
+      chargedPoints: 40,
+      refundedPoints: 40,
+      refundStatus: "full",
     });
   });
 });
@@ -349,6 +416,83 @@ describe("失敗退款路徑的 claim-then-refund 結構不變量（AIDV-650）"
       idxRestoreFlag,
       "refundUserPoints 失敗的 catch 內應補寫 refundRestoreFailed 旗標"
     ).toBeGreaterThan(idxCatch);
+    expect(region).toContain("mergeBackgroundJobResultJson");
+  });
+
+  // ── AIDV-968：director.ts 退款站點 ─────────────────────────────────────────
+
+  it("director.ts executeGenerationTask 扣點：costPoints 與 chargedPoints 同額雙寫（加性，兩個 resultJson 寫入點皆有）", () => {
+    const src = readFileSync(
+      resolve(process.cwd(), "server/routers/director.ts"),
+      "utf8"
+    );
+    const countOf = (needle: string) => src.split(needle).length - 1;
+    // 建卡（createBackgroundJob）＋送出成功後回寫（updateBackgroundJob）兩處
+    // 都必須同額雙寫；chargedPoints 為舊欄位，保留不刪（向後相容）。
+    expect(
+      countOf("costPoints: estimate.totalPoints"),
+      "director.ts 兩個 resultJson 寫入點都應寫 costPoints"
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      countOf("chargedPoints: estimate.totalPoints"),
+      "chargedPoints 舊欄位必須保留（加性、向後相容）"
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("director.ts executeGenerationTask 送出失敗 catch：refundUserPoints 前必有 atomicClaimJobRefund（claim-then-refund）", () => {
+    const src = readFileSync(
+      resolve(process.cwd(), "server/routers/director.ts"),
+      "utf8"
+    );
+    const anchor = src.indexOf('route: "trpc.director.executeGenerationTask"');
+    expect(anchor, "找不到 executeGenerationTask 的 dispatch 站點").toBeGreaterThanOrEqual(0);
+    // 注意：不能用裸字 "pollGenerationTask" 當終點——try 區塊內的註解就提過它。
+    const end = src.indexOf("pollGenerationTask: brainProcedure", anchor);
+    expect(end).toBeGreaterThan(anchor);
+    const region = src.slice(anchor, end);
+    const idxClaim = region.indexOf(
+      "db.atomicClaimJobRefund("
+    );
+    const idxRefund = region.indexOf(
+      "db.refundUserPoints(userId, estimate.totalPoints)",
+      idxClaim
+    );
+    expect(idxClaim, "catch 內應先 atomicClaimJobRefund 寫冪等旗標").toBeGreaterThanOrEqual(0);
+    expect(idxRefund, "claim 之後才 refundUserPoints").toBeGreaterThan(idxClaim);
+    expect(region).toContain("if (claimed)");
+  });
+
+  it("director.ts pollGenerationTask FAILED：snapshot 與 recompute 兩條退款路徑皆為 claim-then-refund，且退款失敗補寫 refundRestoreFailed", () => {
+    const src = readFileSync(
+      resolve(process.cwd(), "server/routers/director.ts"),
+      "utf8"
+    );
+    const anchor = src.indexOf('if (s === "FAILED")');
+    expect(anchor, "找不到 pollGenerationTask 的 FAILED 分支").toBeGreaterThanOrEqual(0);
+    const end = src.indexOf("IN_QUEUE / IN_PROGRESS", anchor);
+    expect(end).toBeGreaterThan(anchor);
+    const region = src.slice(anchor, end);
+
+    // snapshot 路徑（chargedPoints 快照）
+    const idxClaim1 = region.indexOf("atomicClaimJobRefund(");
+    const idxRefund1 = region.indexOf(
+      "refundUserPoints(ctx.user.id, chargedPoints)",
+      idxClaim1
+    );
+    expect(idxClaim1, "snapshot 路徑應先 claim").toBeGreaterThanOrEqual(0);
+    expect(idxRefund1, "snapshot 路徑 claim 後才退點").toBeGreaterThan(idxClaim1);
+
+    // recompute 路徑（estimatePoints 回推）
+    const idxClaim2 = region.indexOf("atomicClaimJobRefund(", idxRefund1);
+    const idxRefund2 = region.indexOf(
+      "refundUserPoints(ctx.user.id, refund.totalPoints)",
+      idxClaim2
+    );
+    expect(idxClaim2, "recompute 路徑應先 claim").toBeGreaterThan(idxRefund1);
+    expect(idxRefund2, "recompute 路徑 claim 後才退點").toBeGreaterThan(idxClaim2);
+
+    // 搶到鎖但錢包未入帳 → 補寫 refundRestoreFailed（同 refundJobIfBilled）
+    expect(region).toContain("refundRestoreFailed: true");
     expect(region).toContain("mergeBackgroundJobResultJson");
   });
 });
