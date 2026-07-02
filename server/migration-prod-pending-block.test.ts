@@ -108,6 +108,8 @@ const PENDING_BLOCK = [
   "0105_agent_dlq_correlation_id",
   // AIDV-270：video_projects 加 input_assets JSON 欄位（多模態輸入素材，information_schema 守門）。
   "0106_video_input_assets",
+  // AIDV-277：creator_usage_events 用量事件表（CREATE TABLE IF NOT EXISTS + information_schema.statistics 守門；撞號改編 0106→0107）。
+  "0107_creator_usage_events",
 ];
 
 function readSql(tag: string): string {

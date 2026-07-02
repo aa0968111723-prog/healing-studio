@@ -4756,3 +4756,35 @@ export const videoAnalytics = mysqlTable(
 
 export type VideoAnalytic = typeof videoAnalytics.$inferSelect;
 export type InsertVideoAnalytic = typeof videoAnalytics.$inferInsert;
+
+// ─── Creator Usage Events (AIDV-277) ──────────────────────────────────────────
+// 每次影片生成觸發一筆用量事件；供 /creator/dashboard 配額透明度（用量計量表、
+// 費用估算、超限預警）與下游 API 用量配額（AIDV-268/269）共用同一計量邏輯。
+// 擁有權以應用層 WHERE userId 過濾（本 repo 為 MySQL，無 Postgres RLS；讀取端
+// 一律以 ctx.user.id 為界，鏡像 videoAnalyticsRouter 的做法）。
+// 注意：本卡（AIDV-277）只建表 + 唯讀端點；「生成成功後寫入一筆」的寫入點為 follow-up。
+
+export const CREATOR_USAGE_EVENT_TYPES = ["video_generated", "video_failed"] as const;
+export type CreatorUsageEventType = (typeof CREATOR_USAGE_EVENT_TYPES)[number];
+
+export const creatorUsageEvents = mysqlTable(
+  "creator_usage_events",
+  {
+    id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /** 關聯影片專案；專案刪除後保留事件（此欄可為 null，應用層 SET NULL 語意）。 */
+    videoProjectId: int("video_project_id"),
+    eventType: mysqlEnum("event_type", CREATOR_USAGE_EVENT_TYPES).notNull(),
+    /** 此次消耗的額度點數（透明化計量，非扣款真相源）。 */
+    creditsUsed: decimal("credits_used", { precision: 10, scale: 4 }).notNull().default("1.0000"),
+    /** 對應 Fal.ai 實際費用（USD）；未知時為 null。 */
+    costUsd: decimal("cost_usd", { precision: 10, scale: 6 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  table => ({
+    userCreatedIdx: index("cue_userId_createdAt_idx").on(table.userId, table.createdAt),
+  })
+);
+
+export type CreatorUsageEvent = typeof creatorUsageEvents.$inferSelect;
+export type InsertCreatorUsageEvent = typeof creatorUsageEvents.$inferInsert;
