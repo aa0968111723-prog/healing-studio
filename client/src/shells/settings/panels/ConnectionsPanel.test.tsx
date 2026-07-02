@@ -6,15 +6,29 @@
  *   · 旗標 OFF＝既有列/Badge（不進 .aidv-kit 範圍）；旗標 ON＝design-kit ProviderOption / Pill。
  *   · AIDV-148 合流精華：四值狀態 Pill 映射、狀態 dot a11y、刪除動作、上次健檢時間、
  *     ACL 規則唯讀摘要（AclRulesSummary 純展示、離線可驗）。
- * 只測純展示子元件與純函式；trpc/toast 以最小 mock 隔離。
+ *   · 修補追加：confirmDelete 守門純函式（confirm=false 零副作用）、
+ *     AclOverviewSection 真資料容器降級路徑（teams loading/error/空、rules error、
+ *     查詢契約 {teamId, projectId:null} + enabled）。
+ * trpc 以可注入樁隔離（teams.list / teamData.listProjectAccessRules 可逐測試覆寫）；toast 最小 mock。
  */
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { Cloud } from "lucide-react";
 
 const flags = vi.hoisted(() => ({ chrome: false }));
 vi.mock("@/config/featureFlags", () => ({ get ENABLE_AIDV_CHROME() { return flags.chrome; } }));
-vi.mock("@/lib/trpc", () => ({ trpc: {} }));
+// 可注入 trpc 樁：AclOverviewSection 用到的兩個 query hook 可逐測試覆寫回傳
+// {isLoading,isError,data,refetch}；其餘（dataConnections 等）本檔不渲染容器故不需要。
+const trpcStub = vi.hoisted(() => ({
+  teamsListUseQuery: vi.fn(),
+  rulesUseQuery: vi.fn(),
+}));
+vi.mock("@/lib/trpc", () => ({
+  trpc: {
+    teams: { list: { useQuery: trpcStub.teamsListUseQuery } },
+    teamData: { listProjectAccessRules: { useQuery: trpcStub.rulesUseQuery } },
+  },
+}));
 vi.mock("sonner", () => ({ toast: { success: () => {}, error: () => {} } }));
 
 import {
@@ -22,10 +36,25 @@ import {
   PendingPill,
   CategoryCard,
   AclRulesSummary,
+  AclOverviewSection,
   statusPillKind,
   healthCheckLabel,
+  confirmDelete,
 } from "./ConnectionsPanel";
 
+/** query 樁回傳的最小形狀。 */
+const qState = (over: Partial<{ isLoading: boolean; isError: boolean; data: unknown; refetch: () => void }> = {}) => ({
+  isLoading: false,
+  isError: false,
+  data: undefined,
+  refetch: vi.fn(),
+  ...over,
+});
+
+beforeEach(() => {
+  trpcStub.teamsListUseQuery.mockReset().mockReturnValue(qState({ data: [] }));
+  trpcStub.rulesUseQuery.mockReset().mockReturnValue(qState({ data: [] }));
+});
 afterEach(() => { cleanup(); flags.chrome = false; });
 
 describe("ConnectionsPanel · statusPillKind（AIDV-148 · greenfield HEALTH_PILL 合流）", () => {
@@ -215,5 +244,93 @@ describe("ConnectionsPanel · AclRulesSummary（AIDV-148 · project_data_access_
       />,
     );
     expect(screen.getByText(/未設定，沿用預設/)).toBeTruthy();
+  });
+});
+
+describe("ConnectionsPanel · confirmDelete（不可逆刪除守門 · 可測純函式）", () => {
+  it("confirmFn 回 true → mutate 以 {id} 被呼叫一次", () => {
+    const mutate = vi.fn();
+    const confirmFn = vi.fn(() => true);
+    confirmDelete(7, mutate, confirmFn);
+    expect(confirmFn).toHaveBeenCalledTimes(1);
+    expect(confirmFn).toHaveBeenCalledWith("確定刪除此連接？將一併刪除後端加密保存的憑證。");
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledWith({ id: 7 });
+  });
+
+  it("confirmFn 回 false → mutate 零呼叫（守門不可反轉/移除）", () => {
+    const mutate = vi.fn();
+    confirmDelete(7, mutate, () => false);
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("預設 confirmFn 走 window.confirm；confirm 被抑制（回 false）時零副作用", () => {
+    const spy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const mutate = vi.fn();
+    confirmDelete(9, mutate);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(mutate).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+describe("ConnectionsPanel · AclOverviewSection（真資料容器 · 降級路徑）", () => {
+  const team = { id: 5, name: "療癒工作室", role: "owner" };
+
+  it("teams 載入中 → PanelLoading（載入團隊…）", () => {
+    trpcStub.teamsListUseQuery.mockReturnValue(qState({ isLoading: true }));
+    render(<AclOverviewSection />);
+    expect(screen.getByText("載入團隊…")).toBeTruthy();
+  });
+
+  it("teams 讀取失敗 → PanelError，點「重試」呼叫 refetch", () => {
+    const refetch = vi.fn();
+    trpcStub.teamsListUseQuery.mockReturnValue(qState({ isError: true, refetch }));
+    render(<AclOverviewSection />);
+    expect(screen.getByRole("alert").textContent).toContain("讀取團隊失敗");
+    fireEvent.click(screen.getByRole("button", { name: /重試/ }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("teams=[] → role=status 顯示「尚無團隊」中性提示；rules query 以 enabled=false 停用", () => {
+    trpcStub.teamsListUseQuery.mockReturnValue(qState({ data: [] }));
+    render(<AclOverviewSection />);
+    expect(screen.getByRole("status").textContent).toContain("尚無團隊");
+    expect(trpcStub.rulesUseQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("有團隊 → rules query 以 {teamId, projectId: null} 且 enabled=true 呼叫（後端 Zod .nullable() 契約），規則渲染進 AclRulesSummary", () => {
+    trpcStub.teamsListUseQuery.mockReturnValue(qState({ data: [team] }));
+    trpcStub.rulesUseQuery.mockReturnValue(
+      qState({ data: [{ id: 1, materialId: null, connectionId: null, accessLevel: "summary_only" }] }),
+    );
+    render(<AclOverviewSection />);
+    expect(trpcStub.rulesUseQuery).toHaveBeenCalledWith(
+      { teamId: 5, projectId: null },
+      expect.objectContaining({ enabled: true }),
+    );
+    expect(screen.getByText("團隊：療癒工作室")).toBeTruthy();
+    expect(screen.getByText("團隊預設層級")).toBeTruthy();
+    expect(screen.getByText("僅摘要")).toBeTruthy();
+  });
+
+  it("有團隊但 rules 讀取失敗 → PanelError（讀取存取規則失敗）＋重試呼叫 rules refetch", () => {
+    const refetch = vi.fn();
+    trpcStub.teamsListUseQuery.mockReturnValue(qState({ data: [team] }));
+    trpcStub.rulesUseQuery.mockReturnValue(qState({ isError: true, refetch }));
+    render(<AclOverviewSection />);
+    expect(screen.getByRole("alert").textContent).toContain("讀取存取規則失敗");
+    fireEvent.click(screen.getByRole("button", { name: /重試/ }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("有團隊但 rules 載入中 → PanelLoading（載入規則…）", () => {
+    trpcStub.teamsListUseQuery.mockReturnValue(qState({ data: [team] }));
+    trpcStub.rulesUseQuery.mockReturnValue(qState({ isLoading: true }));
+    render(<AclOverviewSection />);
+    expect(screen.getByText("載入規則…")).toBeTruthy();
   });
 });

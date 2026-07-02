@@ -67,6 +67,21 @@ export function statusPillKind(status?: string): "ok" | "warn" | "bad" | "mute" 
   }
 }
 
+/**
+ * 不可逆刪除的守門（AIDV-148 修補）：抽成可測純函式。
+ * confirmFn 回 true 才呼叫 mutate({id})；回 false（含 confirm 被嵌入環境抑制）零副作用。
+ * 預設走 window.confirm；測試可注入假 confirmFn 釘住守門條件不被反轉/移除。
+ */
+export function confirmDelete(
+  id: number,
+  mutate: (args: { id: number }) => void,
+  confirmFn: (msg: string) => boolean = (m) => window.confirm(m),
+): void {
+  if (confirmFn("確定刪除此連接？將一併刪除後端加密保存的憑證。")) {
+    mutate({ id });
+  }
+}
+
 /** lastHealthCheckAt ISO → 顯示字串（無效/缺值回 null，不渲染）。 */
 export function healthCheckLabel(iso?: string | null): string | null {
   if (!iso) return null;
@@ -127,11 +142,7 @@ export function ConnectionsPanel() {
               busy={busy}
               onTest={(id) => test.mutate({ id })}
               onToggle={(id, next) => setStatus.mutate({ id, status: next })}
-              onDelete={(id) => {
-                if (window.confirm("確定刪除此連接？將一併刪除後端加密保存的憑證。")) {
-                  del.mutate({ id });
-                }
-              }}
+              onDelete={(id) => confirmDelete(id, (args) => del.mutate(args))}
             />
           ))}
         </div>
