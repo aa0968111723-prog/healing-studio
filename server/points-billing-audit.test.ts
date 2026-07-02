@@ -34,7 +34,10 @@ describe("site-wide points billing audit", () => {
 
     // chargeForFalTask helper 必須存在且接到 deductUserPoints + estimatePoints
     expect(source).toContain('import { estimatePoints } from "../services/modelPricing"');
-    expect(source).toContain('import { deductUserPoints, refundUserPoints } from "../db"');
+    // AIDV-254 修復既有紅測（origin/main 即紅）：AIDV-793 在同一行 db import 加入
+    // getCustomBlock 後，原字面量斷言過時。改為錨定「deductUserPoints 與
+    // refundUserPoints 皆自 ../db 匯入」而不綁死同行的其他匯入項。
+    expect(source).toMatch(/import \{[^}]*\bdeductUserPoints\b[^}]*\brefundUserPoints\b[^}]*\} from "\.\.\/db"/);
     expect(source).toContain("async function chargeForFalTask");
     expect(source).toContain("await deductUserPoints(userId, estimate.totalPoints)");
 

@@ -52,6 +52,7 @@ import { estimatePoints } from "../services/modelPricing";
 import { deductUserPoints, refundUserPoints, getCustomBlock } from "../db";
 import { parseVoiceBlockPrompt } from "../services/voiceCompiler";
 import type { EmotionProfile } from "../services/voiceCompiler";
+import { getVoiceStyleCatalog } from "../services/voiceStyleCatalog";
 import {
   doPostGenComplete,
   unifiedAssetPrefix,
@@ -491,6 +492,14 @@ export const proStudioRouter = router({
   checkApiKey: publicProcedure.query(() => {
     return { configured: !!process.env.FAL_API_KEY };
   }),
+
+  /**
+   * AIDV-254：/video 旁白語音風格目錄（唯讀，零計費邏輯）。
+   * 回傳既有語音清單（ElevenLabs builtin voices ＋ Qwen TTS 內建聲線），
+   * 供 VoiceAmbientCanvas 語音風格選擇器渲染；選項值可直接傳給
+   * elevenLabsTTS.voice_id / qwenTTS.voice。
+   */
+  voiceStyles: publicProcedure.query(() => getVoiceStyleCatalog()),
 
   // ═══════════════════════════════════════════════════════════════
   // 🎵 音樂生成
