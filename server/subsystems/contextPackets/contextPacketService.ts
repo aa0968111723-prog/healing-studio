@@ -244,19 +244,29 @@ export async function compileProjectContextPacket(
     input.projectId
   );
   for (const adapter of adapters) {
-    const got = await adapter.collect({
-      userId: input.userId,
-      projectId: input.projectId,
-      query,
-      limit: SOURCE_LIMIT,
-      mode: input.mode,
-      // AIDV-303：把已載入的 project 關聯欄位傳給專案上下文 adapters（加性、可選）。
-      project: {
-        worldFrameworkId: project.worldFrameworkId ?? null,
-        worldStoryboardId: project.worldStoryboardId ?? null,
-      },
-    });
-    collected.push(...got);
+    // AIDV-303：per-adapter 錯誤隔離 —— 單一來源故障（DB 瞬斷、壞資料）記 log
+    // 後跳過（best-effort，與「非本人靜默跳過」同哲學），不讓一個 adapter 的
+    // throw 拖垮整個 compile（team_data 等其餘來源照常收集）。
+    try {
+      const got = await adapter.collect({
+        userId: input.userId,
+        projectId: input.projectId,
+        query,
+        limit: SOURCE_LIMIT,
+        mode: input.mode,
+        // AIDV-303：把已載入的 project 關聯欄位傳給專案上下文 adapters（加性、可選）。
+        project: {
+          worldFrameworkId: project.worldFrameworkId ?? null,
+          worldStoryboardId: project.worldStoryboardId ?? null,
+        },
+      });
+      collected.push(...got);
+    } catch (err) {
+      console.warn(
+        `[contextPacketService] adapter "${adapter.kind}" collect failed; source skipped:`,
+        err
+      );
+    }
   }
 
   // AIDV-303：補齊每筆 ref 的來源血統（sourceType + sourceId + retrievedAt）。

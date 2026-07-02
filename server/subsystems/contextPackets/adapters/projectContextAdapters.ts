@@ -103,9 +103,11 @@ export const characterAdapter: DataSourceAdapter = {
     const framework = await loadOwnedFramework(input);
     if (!framework) return [];
     const retrievedAt = nowIso();
-    const characters = Array.isArray(framework.charactersJson)
-      ? framework.charactersJson
-      : [];
+    // 條目層守門：legacy / 手動修過的資料可能含 null 或非物件條目 →
+    // 靜默跳過壞條目，不讓一筆壞資料炸掉整個 compile。
+    const characters = (
+      Array.isArray(framework.charactersJson) ? framework.charactersJson : []
+    ).filter((c): c is Record<string, unknown> => !!c && typeof c === "object");
     return characters.slice(0, input.limit).map((c, i) => {
       const charId = str(c.id) ?? String(i);
       const name = str(c.name) ?? `角色 ${i + 1}`;
@@ -133,7 +135,10 @@ export const sceneAdapter: DataSourceAdapter = {
     const framework = await loadOwnedFramework(input);
     if (!framework) return [];
     const retrievedAt = nowIso();
-    const scenes = Array.isArray(framework.scenesJson) ? framework.scenesJson : [];
+    // 條目層守門：同 characterAdapter —— 壞條目（null / 非物件）靜默跳過。
+    const scenes = (
+      Array.isArray(framework.scenesJson) ? framework.scenesJson : []
+    ).filter((s): s is Record<string, unknown> => !!s && typeof s === "object");
     return scenes.slice(0, input.limit).map((s, i) => {
       const sceneId = str(s.id) ?? String(i);
       const name = str(s.name) ?? `場景 ${i + 1}`;
@@ -188,6 +193,17 @@ export const continuityAdapter: DataSourceAdapter = {
     }
 
     // 一致性參考圖（角色 / 場景）— userId-scoped，權限內建於查詢本身。
+    //
+    // 範圍限定（AIDV-303 修補）：consistency_vault 無 worldId / projectId 欄位
+    // （完整 scoping 需 migration，本卡禁止），getVaultItemsByUser 回的是
+    // user-global 清單。零 migration 內最誠實的 scoping proxy：只有專案有
+    // 世界觀連結（framework 或 storyboard）時才把 vault 參考圖納入 continuity，
+    // 避免與視覺連貫性無關的專案把跨專案 vault 內容持久化進 packet。
+    // 已知限制（follow-up）：多世界使用者在「有連結」的專案仍可能混入其他
+    // 世界的參考圖；待 vault 補 worldId 欄位後改為精確過濾。
+    if (!input.project?.worldFrameworkId && !input.project?.worldStoryboardId) {
+      return refs;
+    }
     const vaultItems = await db.getVaultItemsByUser(input.userId);
     const remaining = Math.max(0, input.limit - refs.length);
     for (const item of vaultItems.slice(0, remaining)) {

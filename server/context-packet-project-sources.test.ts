@@ -59,6 +59,10 @@ vi.mock("./services/teachingArchiveAccess", () => ({
 import { compileProjectContextPacket } from "./subsystems/contextPackets/contextPacketService";
 import type { ContextSourceRef } from "./subsystems/contextPackets/contracts";
 import { __ragInjectionGuardInternals } from "./services/security/ragInjectionGuard";
+import { encryptSecret } from "./_core/secretCrypto";
+
+// 外部連接（Notion）fallback lineage 測試需要可用的加密金鑰。
+process.env.CREDENTIAL_ENCRYPTION_KEY ||= "test-encryption-key-please-rotate";
 
 const { BEGIN_MARK, ZERO_WIDTH } = __ragInjectionGuardInternals;
 
@@ -142,6 +146,7 @@ let lastInsert: Record<string, unknown> | null = null;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   delete process.env.ENABLE_RAG_INJECTION_GUARD;
   getCreativeProjectMock.mockResolvedValue({ ...PROJECT });
   getLatestContextPacketForProjectMock.mockResolvedValue(null);
@@ -461,5 +466,168 @@ describe("AIDV-303 edge cases", () => {
     // 持久化 sourceRefsJson 與回傳一致（同一份 refs）。
     const persisted = lastInsert?.sourceRefsJson as ContextSourceRef[];
     expect(persisted.every(r => !!r.lineage)).toBe(true);
+  });
+});
+
+// ─── 修補回歸案：錯誤隔離 / 壞條目 / vault scoping / fallback lineage ────────
+
+describe("AIDV-303 regression — per-adapter 錯誤隔離", () => {
+  it("單一 adapter 故障（getWorldbuildingFramework reject）→ compile 仍成功且含 team_data refs", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getWorldbuildingFrameworkMock.mockRejectedValue(new Error("db connection reset"));
+    searchTeachingArchiveMock.mockResolvedValue([
+      {
+        id: 101,
+        title: "呼吸引導稿",
+        mediaType: "text",
+        sourceType: null,
+        lineage: null,
+        topic: null,
+        speaker: null,
+        sourceDate: null,
+        fileUrl: null,
+        snippet: "吸氣四拍，吐氣六拍。",
+        matchedBy: "vector",
+        score: 0.82,
+      },
+    ]);
+    loadMaterialForReadMock.mockResolvedValue({
+      material: {
+        id: 101,
+        userId: 999,
+        teamId: 7,
+        title: "呼吸引導稿",
+        visibility: "team_shared",
+        textContent: "吸氣四拍，吐氣六拍。",
+        mediaType: "text",
+      },
+      viaTeamId: 7,
+    });
+
+    const view = await compile();
+
+    // 故障來源降級為空（worldbuilding / character / scene 皆依賴 framework）。
+    expect(refsOfKind(view.sourceRefs, "worldbuilding")).toHaveLength(0);
+    expect(refsOfKind(view.sourceRefs, "character")).toHaveLength(0);
+    expect(refsOfKind(view.sourceRefs, "scene")).toHaveLength(0);
+    // 其餘來源照常收集、packet 照常寫入 —— 不會整包 500。
+    expect(refsOfKind(view.sourceRefs, "team_data")).toHaveLength(1);
+    expect(refsOfKind(view.sourceRefs, "continuity").length).toBeGreaterThan(0);
+    expect(createContextPacketMock).toHaveBeenCalledTimes(1);
+    // 故障有記 log（非靜默吞掉）。
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});
+
+describe("AIDV-303 regression — charactersJson / scenesJson 壞條目守門", () => {
+  it("含 null / 非物件條目 → 不拋錯、跳過壞條目、保留合法條目", async () => {
+    getWorldbuildingFrameworkMock.mockResolvedValue(
+      framework({
+        charactersJson: [
+          null,
+          "oops-not-an-object",
+          { id: "c1", name: "小狐", tagline: "好奇的狐狸" },
+        ],
+        scenesJson: [null, { id: "s1", name: "森林入口", tagline: "晨霧未散" }],
+      })
+    );
+
+    const view = await compile();
+
+    // 若守門失效：adapter throw → per-adapter 隔離吞掉 → 0 筆。
+    // 斷言「恰好 1 筆合法條目」證明是條目層 filter、不是整源降級。
+    const chars = refsOfKind(view.sourceRefs, "character");
+    expect(chars).toHaveLength(1);
+    expect(chars[0].refId).toBe(`${FRAMEWORK_ID}:c1`);
+    const scenes = refsOfKind(view.sourceRefs, "scene");
+    expect(scenes).toHaveLength(1);
+    expect(scenes[0].refId).toBe(`${FRAMEWORK_ID}:s1`);
+  });
+});
+
+describe("AIDV-303 regression — continuity vault scoping", () => {
+  it("專案無 framework / storyboard 連結 → 不查 vault、continuity refs 為空（即使使用者有 vault 項目）", async () => {
+    getCreativeProjectMock.mockResolvedValue({
+      ...PROJECT,
+      worldFrameworkId: null,
+      worldStoryboardId: null,
+    });
+    getVaultItemsByUserMock.mockResolvedValue([vaultItem()]);
+
+    const view = await compile();
+
+    expect(refsOfKind(view.sourceRefs, "continuity")).toHaveLength(0);
+    expect(getVaultItemsByUserMock).not.toHaveBeenCalled();
+  });
+
+  it("專案有世界觀連結 → vault 照常納入（scoping proxy 不誤傷）", async () => {
+    const view = await compile();
+    const refs = refsOfKind(view.sourceRefs, "continuity");
+    expect(refs.find(r => r.refId === "vault:9")).toBeDefined();
+  });
+});
+
+describe("AIDV-303 regression — 外部來源 fallback lineage", () => {
+  it("Notion（notes）ref 未自帶 lineage → compile 端補 fallback { sourceType: kind, sourceId: refId, retrievedAt }", async () => {
+    const notionConn = {
+      id: 50,
+      ownerUserId: OWNER,
+      teamId: null, // team-scoped 規則不適用 → 預設 summary_only
+      projectId: 7,
+      kind: "notes",
+      provider: "notion",
+      authType: "api_key",
+      status: "active",
+      encryptedCredentialRef: encryptSecret("notion_token"),
+      configJson: null,
+      lastHealthCheckAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    listDataSourceConnectionsForUserMock.mockResolvedValue([notionConn]);
+    const fetchMock = vi.fn(async (url: unknown) => {
+      if (String(url).includes("/search")) {
+        return {
+          ok: true,
+          json: async () => ({
+            results: [
+              {
+                id: "pg1",
+                url: "https://notion.so/pg1",
+                properties: {
+                  Name: { type: "title", title: [{ plain_text: "冥想筆記" }] },
+                },
+              },
+            ],
+          }),
+        };
+      }
+      // blocks/{id}/children（頁面內文）→ 空。
+      return { ok: true, json: async () => ({ results: [] }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const view = await compile();
+
+    const notes = refsOfKind(view.sourceRefs, "notes");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({
+      kind: "notes",
+      refId: "pg1",
+      title: "冥想筆記",
+      connectionId: 50,
+    });
+    // fallback 血統形狀：sourceType=kind、sourceId=refId、retrievedAt 合法 ISO。
+    expect(notes[0].lineage).toMatchObject({ sourceType: "notes", sourceId: "pg1" });
+    expect(notes[0].lineage?.retrievedAt).toMatch(ISO_RE);
+    // 持久化 sourceRefsJson 與回傳共用同一份 refs → 也帶齊 fallback 血統。
+    const persisted = lastInsert?.sourceRefsJson as ContextSourceRef[];
+    const persistedNote = persisted.find(r => r.kind === "notes");
+    expect(persistedNote?.lineage).toMatchObject({
+      sourceType: "notes",
+      sourceId: "pg1",
+    });
+    expect(persistedNote?.lineage?.retrievedAt).toMatch(ISO_RE);
   });
 });
