@@ -7,8 +7,15 @@
  *   含防禦邊角（超退 clamp、旗標在但金額缺、非法型別、字串旗標）。
  * - getJobRefundStatuses：去重、截斷 100、空陣列不打 DB、DB 錯誤整批 unknown
  *   永不 throw、查不到的 id 回 unknown、userId 原樣傳入 SQL 層（隔離邊界）。
+ * - 寫入端契約（真實 resultJson 形狀）：queue submit 失敗路徑 claim 後的形狀
+ *   → full；refundRestoreFailed（搶到鎖但錢包未入帳）→ 降級 not_refunded；
+ *   director 流 chargedPoints-only → none（覆蓋範圍外，pin 現狀）。
+ * - 原始碼結構不變量（AIDV-771 慣例）：有 jobId 的失敗退款路徑必為
+ *   「atomicClaimJobRefund 先、refundUserPoints 後」claim-then-refund 順序。
  */
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── DB mock ─────────────────────────────────────────────────────────────────
@@ -200,6 +207,149 @@ describe("deriveJobRefundStatus（純函式矩陣）", () => {
     expect(r.chargedPoints).toBe(30);
     expect(r.refundedPoints).toBe(30);
     expect(r.refundStatus).toBe("full");
+  });
+
+  // ── 真實寫入形狀回歸（寫入端契約，非理想化 fixture）─────────────────────
+
+  it("queue submit 失敗路徑（generate.submitMultimodalAsync catch，claim-then-refund 後）的 resultJson 形狀 → full", () => {
+    // 此路徑無 requestId（送出即失敗），旗標由 catch 內 atomicClaimJobRefund
+    // 直接寫入初始 resultJson——不能只靠 webhook/輪詢補旗標。
+    const submitFailShape = {
+      studioType: "video",
+      label: "影片生成",
+      modelId: "fal-ai/kling-video",
+      prompt: "a cat",
+      costPoints: 30,
+      refunded: true,
+      refundedPoints: 30,
+    };
+    expect(deriveJobRefundStatus(15, submitFailShape)).toEqual({
+      taskId: 15,
+      chargedPoints: 30,
+      refundedPoints: 30,
+      refundStatus: "full",
+    });
+  });
+
+  it("refundRestoreFailed=true（搶到退款鎖但 refundUserPoints 失敗、錢包未入帳）→ 降級 not_refunded", () => {
+    expect(
+      deriveJobRefundStatus(16, {
+        costPoints: 30,
+        refunded: true,
+        refundedPoints: 30,
+        refundRestoreFailed: true,
+      })
+    ).toEqual({
+      taskId: 16,
+      chargedPoints: 30,
+      refundedPoints: 0,
+      refundStatus: "not_refunded",
+    });
+    // 字串 "true"（JSON round-trip 邊角）同樣降級
+    expect(
+      deriveJobRefundStatus(16, {
+        costPoints: 30,
+        refunded: true,
+        refundedPoints: 30,
+        refundRestoreFailed: "true",
+      }).refundStatus
+    ).toBe("not_refunded");
+  });
+
+  it("refundRestoreFailed 為 false / 非 true 值 → 不影響正常 full 推導", () => {
+    expect(
+      deriveJobRefundStatus(17, {
+        costPoints: 30,
+        refunded: true,
+        refundedPoints: 30,
+        refundRestoreFailed: false,
+      }).refundStatus
+    ).toBe("full");
+  });
+
+  it("防禦分支（costPoints 缺）遇 refundRestoreFailed → 不回報 full（安靜 none，fail-safe）", () => {
+    expect(
+      deriveJobRefundStatus(18, {
+        refunded: true,
+        refundedPoints: 20,
+        refundRestoreFailed: true,
+      }).refundStatus
+    ).toBe("none");
+  });
+
+  it("director 流 chargedPoints-only resultJson（覆蓋範圍外）→ none（pin 現狀：不可兼讀 chargedPoints，否則已退款無旗標會誤報未退點）", () => {
+    expect(
+      deriveJobRefundStatus(19, {
+        chargedPoints: 40,
+        modality: "video",
+        prompt: "scene",
+      })
+    ).toEqual({
+      taskId: 19,
+      chargedPoints: 0,
+      refundedPoints: 0,
+      refundStatus: "none",
+    });
+  });
+});
+
+// ─── 原始碼結構不變量（AIDV-771 慣例：claim-then-refund 順序鎖）──────────────
+
+describe("失敗退款路徑的 claim-then-refund 結構不變量（AIDV-650）", () => {
+  it("generate.ts queue submit 失敗 catch：refundUserPoints 前必有 atomicClaimJobRefund（有 jobId）", () => {
+    const src = readFileSync(
+      resolve(process.cwd(), "server/routers/generate.ts"),
+      "utf8"
+    );
+    const start = src.indexOf("// queue submit 失敗");
+    expect(start, "找不到 queue submit 失敗 catch 區段").toBeGreaterThanOrEqual(0);
+    const region = src.slice(start, start + 1200);
+    const idxClaim = region.indexOf("db.atomicClaimJobRefund(jobId, points)");
+    const idxRefund = region.indexOf("db.refundUserPoints(userId, points)");
+    expect(idxClaim, "catch 內應先 atomicClaimJobRefund 寫冪等旗標").toBeGreaterThanOrEqual(0);
+    expect(idxRefund, "catch 內應有 refundUserPoints").toBeGreaterThan(idxClaim);
+    expect(region).toContain("if (claimed)");
+  });
+
+  it("proStudio.ts generateMusicSuno 失敗 catch：有 jobId 時 refundUserPoints 前必有 atomicClaimJobRefund", () => {
+    const src = readFileSync(
+      resolve(process.cwd(), "server/routers/proStudio.ts"),
+      "utf8"
+    );
+    const anchor = src.indexOf("await suno.generateMusic(");
+    expect(anchor, "找不到 suno.generateMusic 呼叫點").toBeGreaterThanOrEqual(0);
+    const end = src.indexOf("checkMusicSunoStatus", anchor);
+    expect(end).toBeGreaterThan(anchor);
+    const region = src.slice(anchor, end);
+    const idxCatch = region.indexOf("catch");
+    const idxClaim = region.indexOf("atomicClaimJobRefund(jobId, charged)", idxCatch);
+    const idxRefund = region.indexOf("refundUserPoints(ctx.user.id, charged)", idxClaim);
+    expect(idxCatch).toBeGreaterThanOrEqual(0);
+    expect(idxClaim, "catch 內有 jobId 時應先 atomicClaimJobRefund").toBeGreaterThan(idxCatch);
+    expect(idxRefund, "claim 之後才 refundUserPoints").toBeGreaterThan(idxClaim);
+    expect(region).toContain("if (claimed)");
+  });
+
+  it("postGenActions.refundJobIfBilled：claim-then-refund 順序＋退款失敗補寫 refundRestoreFailed", () => {
+    const src = readFileSync(
+      resolve(process.cwd(), "server/services/postGenActions.ts"),
+      "utf8"
+    );
+    const start = src.indexOf("export async function refundJobIfBilled");
+    expect(start).toBeGreaterThanOrEqual(0);
+    const region = src.slice(start, start + 3500);
+    const idxClaim = region.indexOf("atomicClaimJobRefund(jobId, points)");
+    const idxRefund = region.indexOf("refundUserPoints(job.userId, points)");
+    expect(idxClaim).toBeGreaterThanOrEqual(0);
+    expect(idxRefund).toBeGreaterThan(idxClaim);
+    const idxCatch = region.indexOf("catch", idxRefund);
+    const idxRestoreFlag = region.indexOf("refundRestoreFailed: true", idxCatch);
+    expect(idxCatch).toBeGreaterThan(idxRefund);
+    expect(
+      idxRestoreFlag,
+      "refundUserPoints 失敗的 catch 內應補寫 refundRestoreFailed 旗標"
+    ).toBeGreaterThan(idxCatch);
+    expect(region).toContain("mergeBackgroundJobResultJson");
   });
 });
 
