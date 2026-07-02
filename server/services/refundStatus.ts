@@ -16,13 +16,14 @@
  * 預設 OFF；點數退款（db.refundUserPoints）只加回 users.remainingGenerations、
  * 完全不寫 ledger——以 ledger 推導退款狀態必然全面誤判，故改讀 resultJson。
  *
- * 覆蓋範圍（誠實標註）：僅 costPoints 計費流——generate.prepareJob /
- * submitMultimodalAsync 與 proStudio 各計費站點。director 流（server/routers/
- * director.ts）以 `chargedPoints` 記帳、失敗路徑直接 refundUserPoints 不寫退款
- * 旗標，本推導「刻意」不讀 chargedPoints：若兼讀而無旗標，會把 director
- * 「已退款」誤報成「未退點」。→ director 任務一律 `none`、徽章安靜不顯示
- * （fail-safe）。待 follow-up 卡讓 director 寫 costPoints ＋失敗路徑走
- * atomicClaimJobRefund 同款 CAS 旗標後方可覆蓋。
+ * 覆蓋範圍（誠實標註）：costPoints 計費流——generate.prepareJob /
+ * submitMultimodalAsync、proStudio 各計費站點，以及 director 流（server/
+ * routers/director.ts；AIDV-968 起扣點時同額寫入 costPoints——舊欄位
+ * `chargedPoints` 加性保留不刪——且失敗退款路徑改走 atomicClaimJobRefund
+ * 同款 CAS claim-then-refund 旗標）。本推導仍「刻意」不讀 chargedPoints：
+ * AIDV-968 之前的 director 舊任務只有 chargedPoints、已退款也無旗標，
+ * 若兼讀會把「已退款」誤報成「未退點」。→ 這些舊任務一律 `none`、徽章
+ * 安靜不顯示（fail-safe，推導規則不變）。
  *
  * 安全約束（HARD）：
  *   - 純唯讀：只 SELECT background_jobs，絕不觸碰扣款/退款寫入路徑。
