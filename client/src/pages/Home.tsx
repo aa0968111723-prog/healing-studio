@@ -85,6 +85,7 @@ import JewelOrbStage from "@/components/home/JewelOrbStage";
 import ScrollProgressBar from "@/components/home/ScrollProgressBar";
 import SectionShimmerSkeleton from "@/components/home/SectionShimmerSkeleton";
 import { useIsMobile } from "@/hooks/useMobile";
+import { ContinueWhereYouLeftOff } from "@/components/ContinueWhereYouLeftOff";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
 const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
@@ -1591,6 +1592,11 @@ ${profileSnippet}`;
           </motion.div>
         </motion.div>
       </motion.section>
+
+      {/* ── AIDV-967：回訪「接著上次」引導卡 — hero 下方。真新手（無新手路徑
+          進度、無未完成專案）完全不渲染；查詢失敗／未登入靜默降級，絕不影響
+          首頁其餘區塊。可關閉（localStorage 記住）。 */}
+      <ContinueWhereYouLeftOff />
 
       {/* Phase 2c: 首頁瘦身 — 原本掛在這的「快速開始 / 繼續上次專案 / 直接問
           光球」三段已搬到 /create 頂部，由上面的 hero CTA「進入創作作業系統」
