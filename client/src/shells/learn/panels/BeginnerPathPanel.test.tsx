@@ -28,16 +28,25 @@ import {
 } from "../beginnerPathPersonas";
 
 // jsdom 環境可能未提供 localStorage 全域；用 Map 實作 stub。
+// stub 在 beforeEach 設置、afterEach 還原（vi.unstubAllGlobals）——
+// module scope stub 會在 vitest fork worker 跨檔重用時洩漏，造成 flake。
 const store = new Map<string, string>();
-vi.stubGlobal("localStorage", {
+const localStorageStub = {
   getItem: (k: string) => store.get(k) ?? null,
   setItem: (k: string, v: string) => { store.set(k, v); },
   removeItem: (k: string) => { store.delete(k); },
   clear: () => { store.clear(); },
-});
+};
 
-beforeEach(() => { store.clear(); });
-afterEach(() => { cleanup(); flags.personas = false; });
+beforeEach(() => {
+  store.clear();
+  vi.stubGlobal("localStorage", localStorageStub);
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  flags.personas = false;
+});
 
 const DEFAULT_TITLES = DEFAULT_STEPS.map((s) => s.title);
 

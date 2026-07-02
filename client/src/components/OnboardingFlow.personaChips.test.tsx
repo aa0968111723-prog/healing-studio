@@ -73,18 +73,25 @@ import OnboardingFlow from "./OnboardingFlow";
 import { PERSONA_LS_KEY } from "@/shells/learn/beginnerPathPersonas";
 
 // Map 版 localStorage stub：loadPersona／handleComplete 皆走這裡。
+// 注意：stub 必須在 beforeEach 內設置、afterEach 內還原（vi.unstubAllGlobals）。
+// module scope stub 不會自動還原，vitest fork worker 跨檔重用時會洩漏到
+// 其他測試檔（或被其他檔的 stub 蓋掉），造成間歇性 flake。
 const store = new Map<string, string>();
-vi.stubGlobal("localStorage", {
+const localStorageStub = {
   getItem: (k: string) => store.get(k) ?? null,
   setItem: (k: string, v: string) => { store.set(k, v); },
   removeItem: (k: string) => { store.delete(k); },
   clear: () => { store.clear(); },
-});
+};
 
-beforeEach(() => { store.clear(); });
+beforeEach(() => {
+  store.clear();
+  vi.stubGlobal("localStorage", localStorageStub);
+});
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
   captured.onSuccess = null;
 });
 
