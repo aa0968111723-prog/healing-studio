@@ -121,6 +121,8 @@ export const teamDataAdapter: DataSourceAdapter = {
     }
 
     const refs: ContextSourceRef[] = [];
+    // AIDV-303：來源血統 —— 本批 refs 共用同一擷取時間戳。
+    const retrievedAt = new Date().toISOString();
     for (const { material, snippet, score, matchedBy } of materials) {
       const rules = material.teamId ? rulesByTeam.get(material.teamId) ?? [] : [];
       const rule = resolveRule(rules, material.id, projectId);
@@ -141,6 +143,12 @@ export const teamDataAdapter: DataSourceAdapter = {
         connectionId: null,
         score,
         matchedBy,
+        // AIDV-303：精確血統（sourceType=teaching_material；id + 擷取時間）。
+        lineage: {
+          sourceType: "teaching_material",
+          sourceId: String(material.id),
+          retrievedAt,
+        },
       });
 
       // 稽核：每筆納入創作上下文的內部素材都留痕。
