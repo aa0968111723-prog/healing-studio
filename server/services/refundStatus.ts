@@ -5,14 +5,24 @@
  * 目的：任務失敗後使用者不知道「有沒有被扣點、退了沒」。此服務把退款狀態
  * 變成可查詢的唯讀事實，供前端在失敗任務卡上顯示徽章。
  *
- * 真相來源：`background_jobs.resultJson` 內的三個旗標
- *   - `costPoints`      扣點金額（計費站點於扣點成功後寫入；server 端計算值）
- *   - `refunded`        退款冪等旗標（AIDV-577 atomicClaimJobRefund CAS 寫入）
- *   - `refundedPoints`  已退回點數（與 refunded 同批 JSON_SET 寫入）
+ * 真相來源：`background_jobs.resultJson` 內的旗標
+ *   - `costPoints`           扣點金額（計費站點於扣點成功後寫入；server 端計算值）
+ *   - `refunded`             退款冪等旗標（AIDV-577 atomicClaimJobRefund CAS 寫入）
+ *   - `refundedPoints`       已退回點數（與 refunded 同批 JSON_SET 寫入）
+ *   - `refundRestoreFailed`  搶到退款鎖後 refundUserPoints 失敗（錢包未入帳）
  *
  * 為什麼不是 cost_ledger：cost_ledger 記的是 AI API 真實成本（USD）複式分錄，
- * refType 只有 "ai_usage_event"、member 帳戶目前零 credit——點數退款完全不寫
- * ledger，因此以 ledger 推導退款狀態必然全面誤判。詳見 AIDV-650 研究。
+ * refType 只有 "ai_usage_event"、member 帳戶目前零 credit，且 ENABLE_COST_LEDGER
+ * 預設 OFF；點數退款（db.refundUserPoints）只加回 users.remainingGenerations、
+ * 完全不寫 ledger——以 ledger 推導退款狀態必然全面誤判，故改讀 resultJson。
+ *
+ * 覆蓋範圍（誠實標註）：僅 costPoints 計費流——generate.prepareJob /
+ * submitMultimodalAsync 與 proStudio 各計費站點。director 流（server/routers/
+ * director.ts）以 `chargedPoints` 記帳、失敗路徑直接 refundUserPoints 不寫退款
+ * 旗標，本推導「刻意」不讀 chargedPoints：若兼讀而無旗標，會把 director
+ * 「已退款」誤報成「未退點」。→ director 任務一律 `none`、徽章安靜不顯示
+ * （fail-safe）。待 follow-up 卡讓 director 寫 costPoints ＋失敗路徑走
+ * atomicClaimJobRefund 同款 CAS 旗標後方可覆蓋。
  *
  * 安全約束（HARD）：
  *   - 純唯讀：只 SELECT background_jobs，絕不觸碰扣款/退款寫入路徑。
@@ -69,8 +79,10 @@ function readPoints(raw: unknown): number {
  *     金額缺失（防禦）→ 視為全額（旗標與金額由同一 JSON_SET 寫入，缺失屬異常）
  *   - 防禦特例：有 refunded + refundedPoints 但 costPoints 缺 → 仍回報 `full`
  *
- * 注意：refunded=true 嚴格說是「退款鎖已搶到」（AIDV-577 旗標先設後退款，
- * refundUserPoints 失敗時旗標留存待人工稽核）。此處依產品語意視為已退款。
+ * 注意：refunded=true 嚴格說是「退款鎖已搶到」（AIDV-577 旗標先設後退款）。
+ * 若 refundJobIfBilled 搶到鎖後 refundUserPoints 拋例外（錢包從未入帳），
+ * 其 catch 會補寫 `refundRestoreFailed=true`——此時不可回報已退款，降級為
+ * `not_refunded`，避免在使用者被白扣、最需要反映客服的情境給出錯誤保證。
  */
 export function deriveJobRefundStatus(
   taskId: number,
@@ -81,7 +93,12 @@ export function deriveJobRefundStatus(
       ? (resultJson as Record<string, unknown>)
       : {};
   const charged = readPoints(meta.costPoints);
-  const refundedFlag = meta.refunded === true || meta.refunded === "true";
+  // refundRestoreFailed=true → 退款鎖搶到但錢包未入帳，不得視為已退款。
+  // 與 refunded 同樣接受字串 "true"（JSON round-trip 邊角）。
+  const restoreFailed =
+    meta.refundRestoreFailed === true || meta.refundRestoreFailed === "true";
+  const refundedFlag =
+    (meta.refunded === true || meta.refunded === "true") && !restoreFailed;
   const refundedRaw = readPoints(meta.refundedPoints);
 
   if (charged <= 0) {

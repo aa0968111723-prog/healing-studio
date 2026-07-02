@@ -2106,7 +2106,20 @@ export const proStudioRouter = router({
 
         return { taskId, jobId, modelVersion: input.modelVersion, estimated_credits: charged };
       } catch (err) {
-        await refundUserPoints(ctx.user.id, charged);
+        // AIDV-650: 有 jobId 時走 claim-then-refund（與 refundJobIfBilled 同款
+        // CAS 順序）——先以 atomicClaimJobRefund 寫入 refunded/refundedPoints
+        // 冪等旗標，搶到鎖才退點。理由：
+        //   1. 此 job 已寫 costPoints，之後會被 staleJobChecker/輪詢標 failed；
+        //      若只退點不寫旗標，退款狀態徽章會把「已退點」誤報成「未退點」。
+        //   2. 旗標即退款鎖，防與 webhookSuno / stale 路徑的 refundJobIfBilled 雙退。
+        // 無 jobId（insertId 異常）時無旗標可寫、也無其他退款路徑 → 直接退點。
+        if (jobId) {
+          const { atomicClaimJobRefund } = await import("../db");
+          const claimed = await atomicClaimJobRefund(jobId, charged);
+          if (claimed) await refundUserPoints(ctx.user.id, charged);
+        } else {
+          await refundUserPoints(ctx.user.id, charged);
+        }
         throw err;
       }
     }),
