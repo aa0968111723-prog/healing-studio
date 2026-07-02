@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjects } from "@/contexts/ProjectsContext";
 import { ENABLE_PROJECT_SSOT } from "@/config/projectFlags";
+import { FEATURE_LEARN_BEGINNER_PATH } from "@/config/featureFlags";
 import {
   deriveResumeState,
   readBeginnerPathDoneIds,
@@ -33,7 +34,12 @@ export function ContinueWhereYouLeftOff() {
   const { projects, isLoading, error } = useProjects();
   const [dismissed, setDismissed] = useState<boolean>(readContinueCardDismissed);
   // 掛載時讀一次即可：本卡只在「剛回站」時提示，不需要跟面板即時同步。
-  const [pathDoneIds] = useState<string[]>(readBeginnerPathDoneIds);
+  // 路徑 slot 的旗標安全閥（與下方 SSOT 防護對稱）：AIDV-811 旗標回滾時
+  // /learn 沒有「新手路徑」分頁、?sub=start 會 fallback 到別的分頁 →
+  // 有 localStorage 進度也不能餵 slot ①，否則 CTA 承諾落空。
+  const [pathDoneIds] = useState<string[]>(
+    FEATURE_LEARN_BEGINNER_PATH ? readBeginnerPathDoneIds : () => [],
+  );
 
   if (dismissed) return null;
 

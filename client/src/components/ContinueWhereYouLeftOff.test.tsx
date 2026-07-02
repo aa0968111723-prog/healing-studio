@@ -8,6 +8,7 @@
  * - 有未完成專案 → slot ② CTA 連到 /projects/:id（對齊 AIDV-961 目的地）
  * - 載入中：有路徑進度 → 專案 slot 畫 skeleton；無路徑進度 → 不渲染
  * - 查詢失敗 → 專案 slot 靜默降級（有路徑仍顯示；全靠專案則不渲染）
+ * - 旗標回滾：FEATURE_LEARN_BEGINNER_PATH OFF → slot ① 不顯示（有進度也一樣）
  * - 可關閉：點 X → 卡片消失、localStorage 記住、重掛不再顯示
  * - a11y：region + heading、按鈕皆有可讀 label
  */
@@ -28,6 +29,13 @@ vi.mock("@/contexts/ProjectsContext", () => ({
 // SSOT 旗標依 env 而變（測試環境可能關）；元件行為以旗標 ON 為準來驗證。
 vi.mock("@/config/projectFlags", () => ({
   ENABLE_PROJECT_SSOT: true,
+}));
+// 新手路徑旗標（AIDV-811）：預設 ON；可在個別測試切 OFF 驗證回滾防護。
+const flagState = vi.hoisted(() => ({ learnBeginnerPath: true }));
+vi.mock("@/config/featureFlags", () => ({
+  get FEATURE_LEARN_BEGINNER_PATH() {
+    return flagState.learnBeginnerPath;
+  },
 }));
 
 import { useProjects } from "@/contexts/ProjectsContext";
@@ -68,7 +76,10 @@ function renderCard() {
   );
 }
 
-beforeEach(() => window.localStorage.clear());
+beforeEach(() => {
+  window.localStorage.clear();
+  flagState.learnBeginnerPath = true;
+});
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -145,6 +156,23 @@ describe("ContinueWhereYouLeftOff (AIDV-967)", () => {
     setProjects([makeProject()], { error: "boom" });
     renderCard();
     expect(screen.queryByTestId("continue-left-off")).toBeNull();
+  });
+
+  it("新手路徑旗標 OFF＋只有路徑進度 → 完全不渲染（CTA 不承諾到不了的分頁）", () => {
+    flagState.learnBeginnerPath = false;
+    setPathDone(["read-prompt", "first-image"]);
+    setProjects([]);
+    renderCard();
+    expect(screen.queryByTestId("continue-left-off")).toBeNull();
+  });
+
+  it("新手路徑旗標 OFF＋有專案 → 只顯示專案 slot、無路徑 slot", () => {
+    flagState.learnBeginnerPath = false;
+    setPathDone(["read-prompt"]);
+    setProjects([makeProject()]);
+    renderCard();
+    expect(screen.queryByTestId("continue-left-off-path")).toBeNull();
+    expect(screen.getByTestId("continue-left-off-project")).toBeTruthy();
   });
 
   it("點 X 關閉 → 卡片消失、localStorage 記住、重掛不再顯示", () => {
