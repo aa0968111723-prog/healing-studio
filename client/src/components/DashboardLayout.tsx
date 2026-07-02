@@ -918,7 +918,7 @@ function DashboardLayoutContent({
           tabIndex={-1}
           className={`relative flex-1 overflow-y-auto ${
             settings.compactMode ? "p-3 sm:p-4 lg:p-5" : "p-4 sm:p-6 lg:p-8"
-          } ${ENABLE_AIDV_CHROME ? "pt-[58px] md:pl-[76px] pb-[64px] md:pb-0" : dockPadClass} pb-safe-area-inset-bottom focus:outline-none transition-[padding] duration-300 ease-out`}
+          } ${ENABLE_AIDV_CHROME ? "pt-[58px] md:pl-[76px] lg:pl-[76px] pb-[64px] md:pb-0" : dockPadClass} pb-safe-area-inset-bottom focus:outline-none transition-[padding] duration-300 ease-out`}
           data-scroll-area
           style={{
             paddingTop: `calc(${ENABLE_AIDV_CHROME ? "58px + " : ""}${settings.compactMode ? "0.75rem" : "1rem"} + env(safe-area-inset-top, 0px))`,
