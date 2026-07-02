@@ -345,10 +345,10 @@ Return exactly:
         return null;
       }
 
-      // TODO: Implement smart question generation based on:
-      // - Detected intents and their parameters
-      // - User's historical answer patterns
-      // - Context of conversation
+      // 問題生成策略（AIDV-561 收斂，取代原 TODO 佔位）：
+      //   1. 先查歷史回答模式——高信心（>0.8）且有預設偏好 → 不問，直接沿用學習結果。
+      //   2. 否則以 LLM 依「偵測到的意圖＋使用者原話＋對話 context」生成澄清問題。
+      //   3. LLM 失敗 → 誠實降級為通用問題＋意圖清單選項（非假裝智慧生成）。
 
       // Check if we can predict answer from user patterns
       const pattern = await this.getUserAnswerPattern(
@@ -389,7 +389,7 @@ Return exactly:
           },
           {
             role: "user",
-            content: `User said: "${intentLog.userInput}"\nPossible intents: ${intentSummary}\n\nGenerate a clarification question with at most 4 options.`
+            content: `User said: "${intentLog.userInput}"\nPossible intents: ${intentSummary}${intentLog.context ? `\nConversation context: ${JSON.stringify(intentLog.context)}` : ""}\n\nGenerate a clarification question with at most 4 options.`
           }
         ];
 
@@ -742,36 +742,10 @@ Return exactly:
     }
   }
 
-  /**
-   * Predict if clarification will be needed (proactive check)
-   */
-  async predictClarificationNeed(
-    userId: number,
-    userInput: string,
-    context?: Record<string, unknown>
-  ): Promise<{
-    needsClarification: boolean;
-    confidence: number;
-    suggestedQuestions?: string[];
-  }> {
-    try {
-      // TODO: Use ML model or heuristics to predict
-
-      return {
-        needsClarification: false,
-        confidence: 0.8,
-      };
-    } catch (error) {
-      logger.error("orb_predict_clarification_failed", {
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return {
-        needsClarification: false,
-        confidence: 0,
-      };
-    }
-  }
+  // AIDV-561：原 predictClarificationNeed() 為零 callsite 的死 stub
+  // （永遠回傳固定 {needsClarification:false, confidence:0.8}，且從未被呼叫），
+  // 依卡上結論刪除；「是否需要澄清」的真實判斷已由 identifyIntent() 的
+  // ambiguityScore / intentConfidence 門檻承擔。
 }
 
 // Singleton instance

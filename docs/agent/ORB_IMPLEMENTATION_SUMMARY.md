@@ -92,7 +92,8 @@ drizzle/0043_orb_system_monitoring.sql
    - `generateClarification()` - 生成澄清問題
    - `recordAnswer()` - 記錄回答
    - `getUserAnswerPattern()` - 取得使用者模式
-   - `predictClarificationNeed()` - 預測是否需要澄清
+   - `getStats()` - 澄清統計（AIDV-196 真實聚合）
+   - （`predictClarificationNeed()` 已於 AIDV-561 移除：零 callsite 死 stub，澄清判斷由 `identifyIntent()` 的 ambiguityScore/confidence 門檻承擔）
 
 3. **OrbFeatureDiscovery** (`orbFeatureDiscovery.ts`)
    - `recordUsage()` - 記錄使用
