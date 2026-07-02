@@ -119,12 +119,19 @@ export const creativeProjectRouter = router({
       // 旗標 ON = owner 仍可，且額外允許「被顯式共享給此 user/team 的」viewer/
       //   editor 看到（A 看得到 B 顯式共享給 A 的專案）。OFF 路徑位元相同。
       if (row.userId !== ctx.user.id) {
+        // AIDV-297：帶 groupId → ENABLE_GROUP_SCOPE=ON 時對已歸組專案套跨組
+        //   隔離（非組員即使被顯式共享也擋）；OFF / 未歸組行為不變。
         const allowed =
           isDataRbacEnabled() &&
           (await canAccessResource(
             "project",
             row.id,
-            { ownerId: row.userId, visibility: null, teamId: null },
+            {
+              ownerId: row.userId,
+              visibility: null,
+              teamId: null,
+              groupId: row.groupId ?? null,
+            },
             ctx.user.id,
             "view"
           ));

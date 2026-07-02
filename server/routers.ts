@@ -65,6 +65,7 @@ import { realEarthRouter } from "./routers/realEarth";
 import { teachingArchiveRouter } from "./routers/teachingArchive";
 import { teamsRouter } from "./routers/teams";
 import { rbacRouter } from "./routers/rbac";
+import { teamGroupsRouter } from "./routers/teamGroups";
 import { spiritRouter } from "./routers/spiritRouter";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
@@ -425,6 +426,13 @@ export const appRouter = router({
   // ENABLE_DATA_RBAC 旗標 gate；enforcement（旗標 ON 時 canAccess 過濾讀取）
   // 在各讀取 procedure 內。
   rbac: rbacRouter,
+
+  // ─── Team Groups（AIDV-297 T-1）────────────────────────────────────────────
+  // 組別實體生命週期（CRUD / 成員增刪改組 / 資源掛組摘組）。寫入純加法、不受
+  // ENABLE_GROUP_SCOPE 旗標 gate；enforcement（旗標 ON 時跨組隔離）在
+  // resourceAccessResolver 的讀取路徑內。Admin 能力矩陣見
+  // services/authz/groupAccess.ts（T-2 管理台 / T-4 配額共用 SSOT）。
+  teamGroups: teamGroupsRouter,
 
   // ─── Spirit invocation ───────────────────────────────────────────────────
   // 15 位精靈直接呼叫 fal.ai 模型；圖圖只能打圖、影影只能打影 …

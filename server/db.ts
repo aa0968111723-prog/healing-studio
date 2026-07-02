@@ -93,6 +93,12 @@ import {
   resourceShares,
   type ResourceShare,
   type InsertResourceShare,
+  teamGroups,
+  type TeamGroup,
+  type InsertTeamGroup,
+  teamGroupMemberships,
+  type TeamGroupMembership,
+  type InsertTeamGroupMembership,
   refreshTokens,
   type RefreshToken,
   userWorkflows,
@@ -4045,6 +4051,8 @@ const TEACHING_MATERIAL_SUMMARY_COLUMNS = {
   id: teachingMaterials.id,
   userId: teachingMaterials.userId,
   teamId: teachingMaterials.teamId,
+  // AIDV-297（0107）：教材歸屬的組別（null＝未歸組）
+  groupId: teachingMaterials.groupId,
   title: teachingMaterials.title,
   description: teachingMaterials.description,
   mediaType: teachingMaterials.mediaType,
@@ -4821,25 +4829,40 @@ export async function transferResourceOwnershipAndWipeShares(
 }
 
 /**
- * 讀某資源的 owner facts（{ ownerId, visibility, teamId }），給 canAccess /
- * share/transfer 的擁有權驗證用。找不到回 null。不同資源表欄位略異，這裡
- * 投影成統一形狀（沒有 visibility/teamId 的型別回 null）。
+ * 讀某資源的 owner facts（{ ownerId, visibility, teamId, groupId }），給
+ * canAccess / share/transfer 的擁有權驗證用。找不到回 null。不同資源表欄位
+ * 略異，這裡投影成統一形狀（沒有 visibility/teamId 的型別回 null）。
+ * AIDV-297（0107）：加投影 groupId（資源歸屬的組別；null＝未歸組），供
+ * resolver 在 ENABLE_GROUP_SCOPE=ON 時套跨組隔離 — 純加欄位，既有呼叫端不受影響。
  */
 export async function getResourceOwnerFacts(
   resourceType: ResourceShareType,
   resourceId: number
-): Promise<{ ownerId: number; visibility: string | null; teamId: number | null } | null> {
+): Promise<{
+  ownerId: number;
+  visibility: string | null;
+  teamId: number | null;
+  groupId: number | null;
+} | null> {
   const db = await getDb();
   if (!db) return null;
   switch (resourceType) {
     case "project": {
       const rows = await db
-        .select({ ownerId: creativeProjects.userId })
+        .select({
+          ownerId: creativeProjects.userId,
+          groupId: creativeProjects.groupId,
+        })
         .from(creativeProjects)
         .where(eq(creativeProjects.id, resourceId))
         .limit(1);
       return rows[0]
-        ? { ownerId: rows[0].ownerId, visibility: null, teamId: null }
+        ? {
+            ownerId: rows[0].ownerId,
+            visibility: null,
+            teamId: null,
+            groupId: rows[0].groupId,
+          }
         : null;
     }
     case "asset": {
@@ -4847,22 +4870,36 @@ export async function getResourceOwnerFacts(
         .select({
           ownerId: digitalAssetLibrary.userId,
           visibility: digitalAssetLibrary.visibility,
+          groupId: digitalAssetLibrary.groupId,
         })
         .from(digitalAssetLibrary)
         .where(eq(digitalAssetLibrary.id, resourceId))
         .limit(1);
       return rows[0]
-        ? { ownerId: rows[0].ownerId, visibility: rows[0].visibility, teamId: null }
+        ? {
+            ownerId: rows[0].ownerId,
+            visibility: rows[0].visibility,
+            teamId: null,
+            groupId: rows[0].groupId,
+          }
         : null;
     }
     case "prompt": {
       const rows = await db
-        .select({ ownerId: promptLibrary.userId })
+        .select({
+          ownerId: promptLibrary.userId,
+          groupId: promptLibrary.groupId,
+        })
         .from(promptLibrary)
         .where(eq(promptLibrary.id, resourceId))
         .limit(1);
       return rows[0]
-        ? { ownerId: rows[0].ownerId, visibility: null, teamId: null }
+        ? {
+            ownerId: rows[0].ownerId,
+            visibility: null,
+            teamId: null,
+            groupId: rows[0].groupId,
+          }
         : null;
     }
     case "material": {
@@ -4871,6 +4908,7 @@ export async function getResourceOwnerFacts(
           ownerId: teachingMaterials.userId,
           visibility: teachingMaterials.visibility,
           teamId: teachingMaterials.teamId,
+          groupId: teachingMaterials.groupId,
         })
         .from(teachingMaterials)
         .where(eq(teachingMaterials.id, resourceId))
@@ -4880,9 +4918,292 @@ export async function getResourceOwnerFacts(
             ownerId: rows[0].ownerId,
             visibility: rows[0].visibility,
             teamId: rows[0].teamId,
+            groupId: rows[0].groupId,
           }
         : null;
     }
+    default: {
+      const _exhaustive: never = resourceType;
+      throw new Error(`未知資源型別: ${String(_exhaustive)}`);
+    }
+  }
+}
+
+// ─── Team Groups — 組別模型（AIDV-297 T-1）────────────────────────────────
+//
+// 「組別」是 AIDV-121 RBAC 的強制範圍單位（組間預設隔離），與 teams（共享池）
+// 正交。純 CRUD helper，全部 demo/無 DB 安全（讀回空/null、寫 throw）。
+// 跨組隔離的授權判斷在 services/authz/groupAccess.ts（純函式）＋
+// resourceAccessResolver.ts（I/O 橋接）。
+
+/** 建立組別（建立/刪除組別本身是 Admin 能力，守門在 router）。 */
+export async function createTeamGroup(data: InsertTeamGroup): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(teamGroups).values(data);
+  return result[0].insertId;
+}
+
+export async function getTeamGroup(id: number): Promise<TeamGroup | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(teamGroups)
+    .where(eq(teamGroups.id, id))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function updateTeamGroup(
+  id: number,
+  data: Partial<Pick<InsertTeamGroup, "name" | "description">>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(teamGroups).set(data).where(eq(teamGroups.id, id));
+}
+
+/** 列出全部組別（Admin 治理視角用）。 */
+export async function listAllTeamGroups(): Promise<TeamGroup[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(teamGroups).orderBy(desc(teamGroups.createdAt));
+}
+
+/** 列出某使用者所屬的組別（含其組內角色）。 */
+export async function listTeamGroupsForUser(
+  userId: number
+): Promise<Array<TeamGroup & { groupRole: "lead" | "member" }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      id: teamGroups.id,
+      name: teamGroups.name,
+      description: teamGroups.description,
+      createdByUserId: teamGroups.createdByUserId,
+      createdAt: teamGroups.createdAt,
+      updatedAt: teamGroups.updatedAt,
+      groupRole: teamGroupMemberships.role,
+    })
+    .from(teamGroupMemberships)
+    .innerJoin(teamGroups, eq(teamGroups.id, teamGroupMemberships.groupId))
+    .where(eq(teamGroupMemberships.userId, userId))
+    .orderBy(desc(teamGroups.createdAt));
+  return rows;
+}
+
+/** 取某使用者在某組別的會員紀錄（null＝非組員）。 */
+export async function getTeamGroupMembership(
+  groupId: number,
+  userId: number
+): Promise<TeamGroupMembership | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(teamGroupMemberships)
+    .where(
+      and(
+        eq(teamGroupMemberships.groupId, groupId),
+        eq(teamGroupMemberships.userId, userId)
+      )
+    )
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/** 列出某組別的全部成員。 */
+export async function listTeamGroupMembers(
+  groupId: number
+): Promise<TeamGroupMembership[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(teamGroupMemberships)
+    .where(eq(teamGroupMemberships.groupId, groupId))
+    .orderBy(teamGroupMemberships.joinedAt);
+}
+
+/**
+ * 批次查某使用者在多個組別的組內角色（清單過濾用，避免 N+1）。
+ * 回傳 Map<groupId, role>；不在 map 內＝非該組組員。
+ */
+export async function listGroupRolesForUserInGroups(
+  userId: number,
+  groupIds: number[]
+): Promise<Map<number, "lead" | "member">> {
+  const out = new Map<number, "lead" | "member">();
+  const db = await getDb();
+  if (!db || groupIds.length === 0) return out;
+  const rows = await db
+    .select({
+      groupId: teamGroupMemberships.groupId,
+      role: teamGroupMemberships.role,
+    })
+    .from(teamGroupMemberships)
+    .where(
+      and(
+        eq(teamGroupMemberships.userId, userId),
+        inArray(teamGroupMemberships.groupId, groupIds)
+      )
+    );
+  for (const row of rows) out.set(row.groupId, row.role);
+  return out;
+}
+
+/**
+ * 加成員進組別 / 更新組內角色（同組同人 upsert，靠 tgm_groupId_userId_uk
+ * 唯一鍵防 race condition 下的重複會員）。
+ */
+export async function upsertTeamGroupMembership(
+  data: InsertTeamGroupMembership
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .insert(teamGroupMemberships)
+    .values(data)
+    .onDuplicateKeyUpdate({
+      set: { role: data.role ?? "member", addedByUserId: data.addedByUserId },
+    });
+}
+
+/**
+ * AIDV-297「成員離開組別」的歸屬處理（單一 transaction，原子化）：
+ *   1) 刪除會員紀錄；
+ *   2) 該成員**擁有**且掛在此組別的資源（project/asset/prompt/material）
+ *      一律自動摘組（groupId → NULL）。
+ *
+ * 語意：離開組別＝把自己的資源一併帶走（組員不再看得到）。若團隊要留下
+ * 資源，離開前先走 AIDV-121 rbac.transferOwnership 把資源交接給留任成員
+ * （交接後 owner 已非離開者，不會被本函式摘組）。
+ */
+export async function removeTeamGroupMemberAndDetachOwnedResources(
+  groupId: number,
+  userId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async tx => {
+    await tx
+      .delete(teamGroupMemberships)
+      .where(
+        and(
+          eq(teamGroupMemberships.groupId, groupId),
+          eq(teamGroupMemberships.userId, userId)
+        )
+      );
+    await tx
+      .update(creativeProjects)
+      .set({ groupId: null })
+      .where(
+        and(
+          eq(creativeProjects.groupId, groupId),
+          eq(creativeProjects.userId, userId)
+        )
+      );
+    await tx
+      .update(digitalAssetLibrary)
+      .set({ groupId: null })
+      .where(
+        and(
+          eq(digitalAssetLibrary.groupId, groupId),
+          eq(digitalAssetLibrary.userId, userId)
+        )
+      );
+    await tx
+      .update(promptLibrary)
+      .set({ groupId: null })
+      .where(
+        and(
+          eq(promptLibrary.groupId, groupId),
+          eq(promptLibrary.userId, userId)
+        )
+      );
+    await tx
+      .update(teachingMaterials)
+      .set({ groupId: null })
+      .where(
+        and(
+          eq(teachingMaterials.groupId, groupId),
+          eq(teachingMaterials.userId, userId)
+        )
+      );
+  });
+}
+
+/**
+ * 刪除組別（單一 transaction，原子化）：清會員 → 四張資源表掛在此組的資源
+ * 全部摘組（groupId → NULL，不刪資源、擁有權不變）→ 刪組別本身。
+ * 不留「指向已刪組別的孤兒 groupId」（那會讓資源在旗標 ON 時被鎖進一個
+ * 沒有任何組員的幽靈組——失敗安全：摘組後回到未歸組＝現狀行為）。
+ */
+export async function deleteTeamGroupCascade(groupId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async tx => {
+    await tx
+      .delete(teamGroupMemberships)
+      .where(eq(teamGroupMemberships.groupId, groupId));
+    await tx
+      .update(creativeProjects)
+      .set({ groupId: null })
+      .where(eq(creativeProjects.groupId, groupId));
+    await tx
+      .update(digitalAssetLibrary)
+      .set({ groupId: null })
+      .where(eq(digitalAssetLibrary.groupId, groupId));
+    await tx
+      .update(promptLibrary)
+      .set({ groupId: null })
+      .where(eq(promptLibrary.groupId, groupId));
+    await tx
+      .update(teachingMaterials)
+      .set({ groupId: null })
+      .where(eq(teachingMaterials.groupId, groupId));
+    await tx.delete(teamGroups).where(eq(teamGroups.id, groupId));
+  });
+}
+
+/**
+ * 把資源掛進組別（groupId=數字）或摘組（groupId=null）。
+ * 誰能掛/摘的授權判斷在 router（owner＋組員 / lead / Admin），此處純寫入。
+ */
+export async function setResourceGroup(
+  resourceType: ResourceShareType,
+  resourceId: number,
+  groupId: number | null
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  switch (resourceType) {
+    case "project":
+      await db
+        .update(creativeProjects)
+        .set({ groupId })
+        .where(eq(creativeProjects.id, resourceId));
+      return;
+    case "asset":
+      await db
+        .update(digitalAssetLibrary)
+        .set({ groupId })
+        .where(eq(digitalAssetLibrary.id, resourceId));
+      return;
+    case "prompt":
+      await db
+        .update(promptLibrary)
+        .set({ groupId })
+        .where(eq(promptLibrary.id, resourceId));
+      return;
+    case "material":
+      await db
+        .update(teachingMaterials)
+        .set({ groupId })
+        .where(eq(teachingMaterials.id, resourceId));
+      return;
     default: {
       const _exhaustive: never = resourceType;
       throw new Error(`未知資源型別: ${String(_exhaustive)}`);

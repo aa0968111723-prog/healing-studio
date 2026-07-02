@@ -7,8 +7,15 @@ import { isDemoMode } from "../_core/googleAuth";
 import * as db from "../db";
 import { storageDelete } from "../storage";
 import { recordAuditEvent, extractRequestSource } from "../services/audit/auditLog";
-import { isDataRbacEnabled, canAccess } from "../services/authz/resourceAccess";
-import { canAccessResource } from "../services/authz/resourceAccessResolver";
+import {
+  isDataRbacEnabled,
+  resolveEffectiveRole,
+  roleCan,
+} from "../services/authz/resourceAccess";
+import {
+  applyGroupScope,
+  isGroupScopeEnabled,
+} from "../services/authz/groupAccess";
 
 // ─── Assets ──────────────────────────────────────────────────────────────
 
@@ -137,6 +144,10 @@ export const assetsRouter = router({
       //   被顯式共享 / team_shared 池成員），A 看不到 B 未共享的資產。
       // AIDV-651: 以批次查詢取代逐筆 N+1——listTeamIds 1次 + getSharesForMany 1次，
       //   再以純函式 canAccess 逐筆判定（無額外 DB 往返）。結果集語意與逐筆版完全相同。
+      // AIDV-297: ENABLE_GROUP_SCOPE=ON 時再疊組別範圍——已歸組資產對非組員
+      //   隔離（即使被顯式共享 / team_shared 也擋）、組員拿組內角色下限。
+      //   批次一次查（listGroupRolesForUserInGroups），無逐筆 N+1；
+      //   OFF（預設）時 groupScopeOn=false，過濾語意與 AIDV-651 版位元相同。
       if (isDataRbacEnabled()) {
         const memberTeamIds = await db.listTeamIdsForUser(ctx.user.id);
         const sharesMap = await db.getSharesForUserOnManyResources(
@@ -145,16 +156,35 @@ export const assetsRouter = router({
           ctx.user.id,
           memberTeamIds
         );
+        const groupScopeOn = isGroupScopeEnabled();
+        const groupedIds = groupScopeOn
+          ? [...new Set(result.map(a => a.groupId).filter((g): g is number => g != null))]
+          : [];
+        const groupRoleMap = groupedIds.length
+          ? await db.listGroupRolesForUserInGroups(ctx.user.id, groupedIds)
+          : new Map<number, "lead" | "member">();
         result = result.filter(asset => {
           const shares = sharesMap.get(asset.id) ?? [];
           const explicitShareRole =
             shares.some(s => s.role === "editor") ? "editor" :
             shares.some(s => s.role === "viewer") ? "viewer" : null;
-          return canAccess(
+          const baseRole = resolveEffectiveRole(
             { ownerId: asset.userId, visibility: asset.visibility, teamId: null },
-            { userId: ctx.user.id, memberTeamIds, explicitShareRole },
-            "view"
+            { userId: ctx.user.id, memberTeamIds, explicitShareRole }
           );
+          const scopedRole =
+            groupScopeOn && asset.groupId != null
+              ? applyGroupScope(
+                  baseRole,
+                  { ownerId: asset.userId, groupId: asset.groupId },
+                  {
+                    userId: ctx.user.id,
+                    systemRole: ctx.user.role,
+                    groupRole: groupRoleMap.get(asset.groupId) ?? null,
+                  }
+                )
+              : baseRole;
+          return roleCan(scopedRole, "view");
         });
       }
 

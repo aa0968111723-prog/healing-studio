@@ -51,6 +51,13 @@ export interface ResourceFacts {
   visibility?: string | null;
   /** 既有 team 綁定（team_shared 對應的 team；無則 null） */
   teamId?: number | null;
+  /**
+   * AIDV-297：資源歸屬的組別（team_groups.id；null/undefined＝未歸組）。
+   * 本檔的純函式**不讀**此欄位（AIDV-121 基礎語意不變）；它由
+   * resourceAccessResolver 在 ENABLE_GROUP_SCOPE=ON 時交給
+   * groupAccess.applyGroupScope 套跨組隔離。
+   */
+  groupId?: number | null;
 }
 
 /**

@@ -202,10 +202,17 @@ export const promptLibraryRouter = router({
         // 註：canAccessResource 的 visibility 僅認得 "team_shared"，無 "public"
         //   放行路徑，故此處短路而非傳 visibility:"public"。
         if (!row.isPublic) {
+          // AIDV-297：帶 groupId → ENABLE_GROUP_SCOPE=ON 時對已歸組提示詞
+          //   套跨組隔離（非組員即使被顯式共享也擋）；OFF / 未歸組行為不變。
           const allowed = await canAccessResource(
             "prompt",
             row.id,
-            { ownerId: row.userId, visibility: null, teamId: null },
+            {
+              ownerId: row.userId,
+              visibility: null,
+              teamId: null,
+              groupId: row.groupId ?? null,
+            },
             ctx.user.id,
             "view"
           );

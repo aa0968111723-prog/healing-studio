@@ -603,6 +603,17 @@ const multimodalSchema = z.object({
   ENABLE_DATA_RBAC: z.string().optional().default("false"),
 
   /**
+   * AIDV-297 組別範圍（group scope）enforcement 旗標。預設 "false"（OFF）＝
+   * 零行為變化：讀取路徑完全不看資源的 groupId，與現狀位元相同。設為
+   * "true"（ON）時，已接 canAccessResource 的讀取點對「已歸組資源」套用
+   * 跨組隔離（非組員即使被顯式共享也擋；owner 與 Admin 不受隔離），並授予
+   * 組員組內角色對應的資源權限（lead→editor、member→viewer）。
+   * 注意：group scope 疊在 AIDV-121 引擎之上，僅在 ENABLE_DATA_RBAC=ON 的
+   * enforcement 路徑內生效（旗標語意見 services/authz/groupAccess.ts）。
+   */
+  ENABLE_GROUP_SCOPE: z.string().optional().default("false"),
+
+  /**
    * File path where the in-memory orb task store flushes its tasks/timeline.
    * When set, OrbTaskStore loads on boot and writes on every mutation, so
    * in-flight long workflows survive a server restart. Leave blank in test

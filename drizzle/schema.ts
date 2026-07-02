@@ -374,11 +374,18 @@ export const digitalAssetLibrary = mysqlTable(
     archivedAt: timestamp("archivedAt"),
     expiresAt: timestamp("expiresAt"),
     archivalChecksum: varchar("archivalChecksum", { length: 64 }),
+    /**
+     * 0107（AIDV-297）：資產歸屬的組別（team_groups.id）。null＝未歸組（預設，
+     * 行為與加欄前位元相同）。ENABLE_GROUP_SCOPE=ON 時作為跨組隔離範圍單位。
+     */
+    groupId: int("groupId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
     userIdIdx: index("dal_userId_idx").on(table.userId),
+    // 0107: 組別過濾 / 組資源清單用
+    groupIdIdx: index("dal_groupId_idx").on(table.groupId),
     userIdAssetTypeIdx: index("dal_userId_assetType_idx").on(
       table.userId,
       table.assetType
@@ -1793,6 +1800,11 @@ export const promptLibrary = mysqlTable(
     modelHint: varchar("modelHint", { length: 128 }),  // 建議使用的模型 ID
     language: varchar("language", { length: 8 }).default("zh").notNull(),
     generationMode: varchar("generationMode", { length: 32 }),  // "lightning" | "deep_precision" | null
+    /**
+     * 0107（AIDV-297）：提示詞歸屬的組別（team_groups.id）。null＝未歸組（預設，
+     * 行為與加欄前位元相同）。ENABLE_GROUP_SCOPE=ON 時作為跨組隔離範圍單位。
+     */
+    groupId: int("groupId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
@@ -1800,6 +1812,8 @@ export const promptLibrary = mysqlTable(
     userIdIdx: index("pl_userId_idx").on(table.userId),
     categoryIdx: index("pl_category_idx").on(table.category),
     generationModeIdx: index("pl_generationMode_idx").on(table.generationMode),
+    // 0107: 組別過濾 / 組資源清單用
+    groupIdIdx: index("pl_groupId_idx").on(table.groupId),
   })
 );
 
@@ -3704,6 +3718,11 @@ export const creativeProjects = mysqlTable(
     tags: json("tags").$type<string[]>(),
     /** 預留擴充欄位（例如未來的設計案連結、品牌設定 id 等） */
     metadata: json("metadata").$type<Record<string, unknown>>(),
+    /**
+     * 0107（AIDV-297）：專案歸屬的組別（team_groups.id）。null＝未歸組（預設，
+     * 行為與加欄前位元相同）。ENABLE_GROUP_SCOPE=ON 時作為跨組隔離範圍單位。
+     */
+    groupId: int("groupId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     /** AIDV-316 樂觀鎖：多代理並行更新時 WHERE id=? AND version=? 確保唯一寫入者，衝突回傳 409。 */
@@ -3711,6 +3730,8 @@ export const creativeProjects = mysqlTable(
   },
   table => ({
     userIdIdx: index("cp_userId_idx").on(table.userId),
+    // 0107: 組別過濾 / 組資源清單用
+    groupIdIdx: index("cp_groupId_idx").on(table.groupId),
     userIdUpdatedAtIdx: index("cp_userId_updatedAt_idx").on(
       table.userId,
       table.updatedAt
@@ -4103,11 +4124,19 @@ export const teachingMaterials = mysqlTable(
     isFeatured: boolean("isFeatured").default(false).notNull(),
     sortOrder: int("sortOrder").default(0).notNull(),
 
+    /**
+     * 0107（AIDV-297）：教材歸屬的組別（team_groups.id）。與 teamId（共享池）
+     * 正交：group 是跨組隔離的範圍單位。null＝未歸組（預設，行為不變）。
+     */
+    groupId: int("groupId"),
+
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
     userIdIdx: index("tm_userId_idx").on(table.userId),
+    // 0107: 組別過濾 / 組資源清單用
+    groupIdIdx: index("tm_groupId_idx").on(table.groupId),
     userIdMediaTypeIdx: index("tm_userId_mediaType_idx").on(
       table.userId,
       table.mediaType
@@ -4476,6 +4505,68 @@ export const resourceShares = mysqlTable(
 
 export type ResourceShare = typeof resourceShares.$inferSelect;
 export type InsertResourceShare = typeof resourceShares.$inferInsert;
+
+// ─── Team Groups — 組別模型（AIDV-297 T-1，0107 新增）─────────────────────────
+//
+// 「組別」是 AIDV-121 RBAC 引擎的**強制範圍單位**（組間預設隔離），與既有
+// teams（team_shared 共享池）正交：team 表達「主動共享給誰」，group 表達
+// 「資源與成員屬於哪個工作範圍」。member–group 多對多（一人可屬多組）；
+// project / asset / prompt / 教材 以各表的 nullable groupId 欄歸屬到組別。
+// 跨組隔離與組內授權矩陣見 server/services/authz/groupAccess.ts。
+
+export const teamGroups = mysqlTable(
+  "team_groups",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    name: varchar("name", { length: 128 }).notNull(),
+    description: text("description"),
+    /** 建立此組別的人（稽核用；建立/刪除組別本身是 Admin 能力） */
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    createdByIdx: index("tg_createdBy_idx").on(table.createdByUserId),
+  })
+);
+
+export type TeamGroup = typeof teamGroups.$inferSelect;
+export type InsertTeamGroup = typeof teamGroups.$inferInsert;
+
+export const teamGroupMemberships = mysqlTable(
+  "team_group_memberships",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** → team_groups.id（全檔慣例：schema 不掛 FK 宣告） */
+    groupId: int("groupId").notNull(),
+    /** → users.id */
+    userId: int("userId").notNull(),
+    /**
+     * 組內角色（對應真實職責，疊在 AIDV-121 資源層 owner/editor/viewer 之上）：
+     *   lead   — 組長：管理組員（加/移/改角色）、把組資源掛組/摘組；
+     *            對組資源的組授權上限為 editor。
+     *   member — 組員：對組資源的組授權上限為 viewer。
+     * 跨組別的 Admin（Skill 信任放行/配額/資料調閱/成員增刪改組）＝
+     * users.role='admin'（小團隊先 Bruce 單一 Admin，可委派）。
+     */
+    role: mysqlEnum("role", ["lead", "member"]).default("member").notNull(),
+    /** 把此成員加進組別的人（稽核用） */
+    addedByUserId: int("addedByUserId"),
+    joinedAt: timestamp("joinedAt").defaultNow().notNull(),
+  },
+  table => ({
+    // 一個使用者在同一組別只有一筆會員紀錄；DB 層 UNIQUE 防 race condition。
+    groupUserUk: uniqueIndex("tgm_groupId_userId_uk").on(
+      table.groupId,
+      table.userId
+    ),
+    userIdIdx: index("tgm_userId_idx").on(table.userId),
+  })
+);
+
+export type TeamGroupMembership = typeof teamGroupMemberships.$inferSelect;
+export type InsertTeamGroupMembership =
+  typeof teamGroupMemberships.$inferInsert;
 
 // ─── Learn Modules — 管理員後台建立的學習文件（AIDV-214）──────────────────────────
 export const learnModules = mysqlTable(
