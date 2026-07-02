@@ -211,6 +211,55 @@ describe("POST /api/video", () => {
     await createHandler(req, res);
     expect(res.statusCode).toBe(401);
   });
+
+  // ── AIDV-270: 多模態輸入素材 ────────────────────────────────────────────────
+  it("接受 inputAssets 並下傳 createVideoProject（image style_reference + audio bgm）", async () => {
+    const { createHandler } = await getRouteHandlers();
+    const inputAssets = [
+      { type: "image", url: "https://cdn.x/style.png", role: "style_reference" },
+      { type: "audio", url: "https://cdn.x/bgm.mp3", role: "background_music" },
+    ];
+    const req = mockReq(42, { body: { title: "多模態", inputAssets } });
+    const res = mockRes();
+    await createHandler(req, res);
+    expect(res.statusCode).toBe(201);
+    expect(mockCreateVideoProject).toHaveBeenCalledWith(
+      expect.objectContaining({ inputAssets })
+    );
+  });
+
+  it("inputAssets 角色↔模態不一致 → 400（audio 標成 style_reference）", async () => {
+    const { createHandler } = await getRouteHandlers();
+    const req = mockReq(42, {
+      body: {
+        title: "壞素材",
+        inputAssets: [{ type: "audio", url: "https://cdn.x/x.mp3", role: "style_reference" }],
+      },
+    });
+    const res = mockRes();
+    await createHandler(req, res);
+    expect(res.statusCode).toBe(400);
+    expect(mockCreateVideoProject).not.toHaveBeenCalled();
+  });
+
+  it("省略 inputAssets → createVideoProject 收到 null（既有純文字路徑不變）", async () => {
+    const { createHandler } = await getRouteHandlers();
+    const req = mockReq(42, { body: { title: "純文字" } });
+    const res = mockRes();
+    await createHandler(req, res);
+    expect(mockCreateVideoProject).toHaveBeenCalledWith(
+      expect.objectContaining({ inputAssets: null })
+    );
+  });
+
+  it("serializeProject 回傳 inputAssets（DB 為 null 時回空陣列）", async () => {
+    const { getHandler } = await getRouteHandlers();
+    mockGetVideoProject.mockResolvedValue(makeProject({ id: 1, userId: 42 }));
+    const req = mockReq(42, { params: { id: "1" } });
+    const res = mockRes();
+    await getHandler(req, res);
+    expect((res.body as any).inputAssets).toEqual([]);
+  });
 });
 
 describe("GET /api/video/:id", () => {
@@ -293,6 +342,37 @@ describe("PUT /api/video/:id", () => {
     const res = mockRes();
     await updateHandler(req, res);
     expect(res.statusCode).toBe(404);
+  });
+
+  // ── AIDV-270: 更新 inputAssets ──────────────────────────────────────────────
+  it("PUT inputAssets → patch 帶 inputAssets 下傳 updateVideoProject", async () => {
+    mockGetVideoProject.mockResolvedValue(makeProject({ id: 1, userId: 42, version: 3 }));
+    mockUpdateVideoProject.mockResolvedValue({ updated: true });
+    const { updateHandler } = await getRouteHandlers();
+    const inputAssets = [{ type: "image", url: "https://cdn.x/a.jpg", role: "product_shot" }];
+    const req = mockReq(42, { params: { id: "1" }, body: { inputAssets } });
+    const res = mockRes();
+    await updateHandler(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(mockUpdateVideoProject).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ inputAssets }),
+      expect.anything()
+    );
+  });
+
+  it("PUT inputAssets:null → 清空（patch.inputAssets=null）", async () => {
+    mockGetVideoProject.mockResolvedValue(makeProject({ id: 1, userId: 42, version: 3 }));
+    mockUpdateVideoProject.mockResolvedValue({ updated: true });
+    const { updateHandler } = await getRouteHandlers();
+    const req = mockReq(42, { params: { id: "1" }, body: { inputAssets: null } });
+    const res = mockRes();
+    await updateHandler(req, res);
+    expect(mockUpdateVideoProject).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ inputAssets: null }),
+      expect.anything()
+    );
   });
 });
 

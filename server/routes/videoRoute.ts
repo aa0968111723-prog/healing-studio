@@ -28,6 +28,7 @@ import {
   getUserSubscription,
 } from "../db";
 import { VIDEO_OUTPUT_SPEC_DEFAULT } from "../../drizzle/schema";
+import { videoInputAssetsSchema } from "../../shared/video-input-assets";
 import { sanitizePlainText } from "../utils/sanitize";
 import { recordAuditEvent } from "../services/audit/auditLog";
 
@@ -75,6 +76,8 @@ function serializeProject(row: Awaited<ReturnType<typeof getVideoProject>>) {
     title: row.title,
     aspectRatio: row.aspectRatio,
     outputSpec: row.outputSpec ?? VIDEO_OUTPUT_SPEC_DEFAULT,
+    // AIDV-270: 多模態輸入素材（未提供時為空陣列，形狀對前端穩定）。
+    inputAssets: row.inputAssets ?? [],
     version: row.version,
     deadlineAt: row.deadlineAt?.toISOString() ?? null,
     priorityClass: row.priorityClass,
@@ -149,6 +152,8 @@ videoRouter.post("/api/video", async (req: AuthedReq, res: Response) => {
       outputSpec: outputSpecSchema.optional(),
       deadlineAt: z.string().datetime().optional(),
       priorityClass: z.enum(priorityClassValues).default("standard"),
+      // AIDV-270: 多模態輸入素材（image/audio + role）。省略時維持既有純文字生成。
+      inputAssets: videoInputAssetsSchema.optional(),
     })
     .safeParse(req.body);
 
@@ -156,7 +161,7 @@ videoRouter.post("/api/video", async (req: AuthedReq, res: Response) => {
     return void fail(res, 400, parsed.error.issues[0]?.message ?? "Bad Request", "BAD_REQUEST");
   }
 
-  const { title, aspectRatio, creativeProjectId, outputSpec, deadlineAt, priorityClass } =
+  const { title, aspectRatio, creativeProjectId, outputSpec, deadlineAt, priorityClass, inputAssets } =
     parsed.data;
 
   try {
@@ -176,6 +181,7 @@ videoRouter.post("/api/video", async (req: AuthedReq, res: Response) => {
       outputSpec: outputSpec ?? VIDEO_OUTPUT_SPEC_DEFAULT,
       deadlineAt: deadlineAt ? new Date(deadlineAt) : null,
       priorityClass,
+      inputAssets: inputAssets ?? null,
     });
 
     const row = await getVideoProject(id);
@@ -240,6 +246,8 @@ videoRouter.put("/api/video/:id", async (req: AuthedReq, res: Response) => {
       outputSpec: outputSpecSchema.optional(),
       deadlineAt: z.string().datetime().nullable().optional(),
       priorityClass: z.enum(priorityClassValues).optional(),
+      // AIDV-270: 多模態輸入素材可更新；傳 [] 清空、傳 null 亦清空。
+      inputAssets: videoInputAssetsSchema.nullable().optional(),
       expectedVersion: z.number().int().nonnegative().optional(),
     })
     .safeParse(req.body);
@@ -264,6 +272,7 @@ videoRouter.put("/api/video/:id", async (req: AuthedReq, res: Response) => {
     if (fields.deadlineAt !== undefined)
       patch.deadlineAt = fields.deadlineAt ? new Date(fields.deadlineAt) : null;
     if (fields.priorityClass !== undefined) patch.priorityClass = fields.priorityClass;
+    if (fields.inputAssets !== undefined) patch.inputAssets = fields.inputAssets ?? null;
 
     const meta = agentMeta(req);
     const { updated } = await updateVideoProject(

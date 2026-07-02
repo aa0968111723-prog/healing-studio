@@ -16,6 +16,8 @@ import {
   tinyint,
 } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
+// AIDV-270: 多模態輸入素材契約型別（type-only，編譯期抹除，不影響 drizzle-kit / 前端 bundle）。
+import type { VideoInputAsset } from "../shared/video-input-assets";
 
 // ─── Users ─────────────────────────────────────────────────────────────────
 export const users = mysqlTable(
@@ -4610,6 +4612,8 @@ export const videoProjects = mysqlTable(
       .notNull()
       .default("16:9"),
     outputSpec: json("output_spec").$type<VideoOutputSpec>(),
+    // AIDV-270: 多模態輸入素材（image/audio + role）。null = 未提供（既有純文字生成不變）。
+    inputAssets: json("input_assets").$type<VideoInputAsset[]>(),
     version: int("version").notNull().default(0),
     deadlineAt: timestamp("deadline_at"),
     priorityClass: mysqlEnum("priority_class", ["standard", "express", "critical"])

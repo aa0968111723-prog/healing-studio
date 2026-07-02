@@ -771,6 +771,13 @@
       "when": 1783756800000,
       "tag": "0105_agent_dlq_correlation_id",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "5",
+      "when": 1783843200000,
+      "tag": "0106_video_input_assets",
+      "breakpoints": true
     }
   ]
 }
