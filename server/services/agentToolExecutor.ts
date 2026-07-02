@@ -7638,6 +7638,8 @@ async function dispatchTrainingTool(
       name,
       description,
       modelType: modelType as never,
+      // AIDV-45 欄位對映：trainingEngine 過去漏寫，fal 訓練被記成預設 replicate。
+      trainingEngine,
       fileUrl: datasetImages[0]?.url || datasetVideos[0]?.url || "",
       fileKey: datasetImages[0]?.fileKey,
       configJson,
