@@ -320,6 +320,8 @@ export function CompositionAssistant({
       worldId: framework.id ?? 0,
       elements,
       backgroundSceneId,
+      canvasWidth: canvasSize.width,
+      canvasHeight: canvasSize.height,
     });
   };
 
