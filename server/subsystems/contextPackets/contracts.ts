@@ -22,13 +22,31 @@
  *     guardRetrievedContext（含 BEGIN/END 邊界 fence）。
  */
 
-/** 資料來源類型。第一版實作 team_data / cloud / notes；mcp / external_api 預留。 */
+/**
+ * AIDV-303：專案上下文來源類型（世界觀 / 角色 / 場景 / 前後鏡連貫性）。
+ * 全部唯讀既有表（worldbuilding_frameworks / consistency_vault / world_storyboards），
+ * 零 migration；由 projectContextAdapters 產出，走與 team_data 相同的 pipeline。
+ */
+export const PROJECT_CONTEXT_SOURCE_KINDS = [
+  "worldbuilding",
+  "character",
+  "scene",
+  "continuity",
+] as const;
+export type ProjectContextSourceKind =
+  (typeof PROJECT_CONTEXT_SOURCE_KINDS)[number];
+
+/**
+ * 資料來源類型。第一版實作 team_data / cloud / notes；mcp / external_api 預留；
+ * AIDV-303 加性擴充專案上下文來源（worldbuilding / character / scene / continuity）。
+ */
 export const DATA_SOURCE_KINDS = [
   "team_data",
   "cloud",
   "notes",
   "mcp",
   "external_api",
+  ...PROJECT_CONTEXT_SOURCE_KINDS,
 ] as const;
 export type DataSourceKind = (typeof DATA_SOURCE_KINDS)[number];
 
@@ -60,6 +78,19 @@ export const COMPILE_MODES = [
 ] as const;
 export type CompileMode = (typeof COMPILE_MODES)[number];
 
+/**
+ * AIDV-303：來源血統（lineage）— 記錄一筆 ref 從哪張表 / 哪個外部來源、哪個 id、
+ * 何時擷取。純加性欄位：只寫進 sourceRefsJson，不改任何既有欄位語意。
+ */
+export interface SourceLineage {
+  /** 來源類型（例：teaching_material / worldbuilding_framework / consistency_vault / cloud）。 */
+  sourceType: string;
+  /** 來源在其表 / 供應商內的 id（stringified）。 */
+  sourceId: string;
+  /** 擷取時間（ISO 8601）。 */
+  retrievedAt: string;
+}
+
 /** 單一資料來源的引用（存進 context_packets.sourceRefsJson）。source-agnostic。 */
 export interface ContextSourceRef {
   kind: DataSourceKind;
@@ -75,6 +106,11 @@ export interface ContextSourceRef {
   score?: number;
   /** 命中方式（vector / fts）；外部來源可省略。 */
   matchedBy?: "vector" | "fts";
+  /**
+   * AIDV-303：來源血統。adapter 可自行填（較精確的 sourceType）；未填者由
+   * compile 端統一補上 fallback（sourceType=kind, sourceId=refId）。
+   */
+  lineage?: SourceLineage;
 }
 
 export interface CompileProjectContextPacketInput {
@@ -114,6 +150,14 @@ export interface ContextAdapterInput {
   query: string;
   limit: number;
   mode: CompileMode;
+  /**
+   * AIDV-303（加性、可選）：compile 已載入的 project row 關聯欄位，讓專案上下文
+   * adapters 不必重查 creative_projects。舊 adapter 可完全忽略。
+   */
+  project?: {
+    worldFrameworkId?: number | null;
+    worldStoryboardId?: number | null;
+  } | null;
 }
 
 export interface DataSourceAdapter {

@@ -14,6 +14,7 @@ import { getCreativeProject } from "../../db";
 import * as db from "../../db";
 import { getTeamMembership } from "../../db";
 import { teamDataAdapter } from "./adapters/teamDataAdapter";
+import { projectContextAdapters } from "./adapters/projectContextAdapters";
 import { createDriveAdapter, createNotionAdapter } from "./adapters/external";
 import { sanitizeContextPacketField } from "../../services/security/ragInjectionGuard";
 import {
@@ -61,14 +62,19 @@ async function assertProjectOwnership(userId: number, projectId: number) {
 }
 
 /**
- * 某 project 啟用中的資料來源 adapters：team_data 永遠在，外加該使用者已連接且
- * status=active 的外部來源（cloud Drive / notes Notion）。mcp 留待後續里程碑。
+ * 某 project 啟用中的資料來源 adapters：team_data 永遠在，AIDV-303 專案上下文
+ * 來源（worldbuilding / character / scene / continuity；唯讀既有表）永遠在，
+ * 外加該使用者已連接且 status=active 的外部來源（cloud Drive / notes Notion）。
+ * mcp 留待後續里程碑。
  */
 async function getEnabledAdaptersForProject(
   userId: number,
   projectId: number
 ): Promise<DataSourceAdapter[]> {
-  const adapters: DataSourceAdapter[] = [teamDataAdapter];
+  const adapters: DataSourceAdapter[] = [
+    teamDataAdapter,
+    ...projectContextAdapters,
+  ];
   const connections = await db.listDataSourceConnectionsForUser(userId, projectId);
   // 連接層級存取規則：team-scoped 連接可設 accessLevel（none → 整源排除；
   // summary_only / chunk_access / full_reference → 控制外部內文長度）。
@@ -135,6 +141,26 @@ function sanitizeUntrustedRefs(refs: ContextSourceRef[]): ContextSourceRef[] {
         : {}),
     };
   });
+}
+
+/**
+ * AIDV-303：補齊來源血統（lineage）。adapter 已自帶者逐字保留（較精確的
+ * sourceType，如 teaching_material / worldbuilding_character）；未帶者統一補
+ * fallback（sourceType=kind, sourceId=refId, retrievedAt=本次 compile 時間），
+ * 讓持久化的 sourceRefsJson 每筆都有完整血統。純加性：不動任何既有欄位。
+ */
+function attachLineage(
+  refs: ContextSourceRef[],
+  retrievedAt: string
+): ContextSourceRef[] {
+  return refs.map(r =>
+    r.lineage
+      ? r
+      : {
+          ...r,
+          lineage: { sourceType: r.kind, sourceId: r.refId, retrievedAt },
+        }
+  );
 }
 
 /** Deterministic 摘要拼接（不呼叫模型）。refs 應已過 sanitizeUntrustedRefs。 */
@@ -224,14 +250,22 @@ export async function compileProjectContextPacket(
       query,
       limit: SOURCE_LIMIT,
       mode: input.mode,
+      // AIDV-303：把已載入的 project 關聯欄位傳給專案上下文 adapters（加性、可選）。
+      project: {
+        worldFrameworkId: project.worldFrameworkId ?? null,
+        worldStoryboardId: project.worldStoryboardId ?? null,
+      },
     });
     collected.push(...got);
   }
 
+  // AIDV-303：補齊每筆 ref 的來源血統（sourceType + sourceId + retrievedAt）。
+  const withLineage = attachLineage(collected, new Date().toISOString());
+
   // AIDV-69：資料層中和 untrusted 來源 title / snippet（單一 chokepoint）。
   // 旗標 OFF＝位元相同。summaryMarkdown 與下方 sourceRefsJson 共用同一份已中和 refs，
   // 確保 chips（TeamDataSourcesPanel）與未來讀 sourceRefs 的消費端皆繼承中和。
-  const refs = sanitizeUntrustedRefs(collected);
+  const refs = sanitizeUntrustedRefs(withLineage);
 
   const summaryMarkdown = buildSummaryMarkdown(project, refs);
   const tokenEstimate = Math.ceil(summaryMarkdown.length / 4);

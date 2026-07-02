@@ -22,6 +22,13 @@ describe("teamDataFormat", () => {
     expect(dataSourceKindLabel("weird")).toBe("weird");
   });
 
+  it("labels AIDV-303 project context source kinds", () => {
+    expect(dataSourceKindLabel("worldbuilding")).toBe("世界觀");
+    expect(dataSourceKindLabel("character")).toBe("角色");
+    expect(dataSourceKindLabel("scene")).toBe("場景");
+    expect(dataSourceKindLabel("continuity")).toBe("連貫性");
+  });
+
   it("labels matchedBy (empty for nullish)", () => {
     expect(matchedByLabel("vector")).toBe("語意");
     expect(matchedByLabel("fts")).toBe("關鍵字");

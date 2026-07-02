@@ -36,6 +36,11 @@ vi.mock("./db", () => ({
   // 下列在 compile 流程用不到，但 service/adapter import 了整個 module。
   getTeamMembership: vi.fn(),
   upsertProjectDataAccessRule: vi.fn(),
+  // AIDV-303 專案上下文 adapters：本檔聚焦 team_data / 外部連接，
+  // 專案上下文來源一律回空（PROJECT 未連結 framework / storyboard、vault 空）。
+  getWorldbuildingFramework: vi.fn(async () => null),
+  getWorldStoryboard: vi.fn(async () => null),
+  getVaultItemsByUser: vi.fn(async () => []),
 }));
 
 vi.mock("./services/teachingArchiveSearch", () => ({

@@ -38,6 +38,11 @@ vi.mock("./db", () => ({
     listDataSourceConnectionsForUserMock(...a),
   getTeamMembership: vi.fn(),
   upsertProjectDataAccessRule: vi.fn(),
+  // AIDV-303 專案上下文 adapters：本檔聚焦 untrusted 外部來源，
+  // 專案上下文來源一律回空（新來源的 sanitize 測試見 context-packet-project-sources.test.ts）。
+  getWorldbuildingFramework: vi.fn(async () => null),
+  getWorldStoryboard: vi.fn(async () => null),
+  getVaultItemsByUser: vi.fn(async () => []),
 }));
 
 vi.mock("./services/teachingArchiveSearch", () => ({

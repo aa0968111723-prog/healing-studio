@@ -22,6 +22,11 @@ const DATA_SOURCE_KIND_LABELS: Record<string, string> = {
   notes: "筆記",
   mcp: "MCP",
   external_api: "外部 API",
+  // AIDV-303：專案上下文來源
+  worldbuilding: "世界觀",
+  character: "角色",
+  scene: "場景",
+  continuity: "連貫性",
 };
 
 export function dataSourceKindLabel(kind: string): string {
