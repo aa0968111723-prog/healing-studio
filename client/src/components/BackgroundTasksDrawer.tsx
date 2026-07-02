@@ -33,6 +33,7 @@ import {
   useJobRefundStatuses,
   type JobRefundInfo,
 } from "@/components/RefundStatusBadge";
+import { SegmentProgressLabel } from "@/components/SegmentProgressLabel";
 import { useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 
@@ -161,6 +162,11 @@ function TaskRow({
                 {formatTime(task.createdAt)}
               </span>
             )}
+            {/* AIDV-589：影片任務的分段進度「第 X/N 段」（無 segment 事件時不渲染） */}
+            {task.studioType === "video" &&
+              (task.status === "processing" || task.status === "queued") && (
+                <SegmentProgressLabel jobId={task.jobId} />
+              )}
             {/* AIDV-650: 失敗任務的退款狀態徽章（無資料時安靜不顯示） */}
             {task.status === "failed" && (
               <RefundStatusBadge info={refundInfo} />

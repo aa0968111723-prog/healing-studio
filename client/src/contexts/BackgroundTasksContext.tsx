@@ -23,6 +23,11 @@ import { ProactiveEventBus } from "@/lib/proactiveEventBus";
 import { getRecentPlatformMention } from "@/lib/spiritWatchers";
 import { describeBgSubmitError } from "./bgSubmitError";
 import { UNIFIED_SSE_ROUTER } from "@/config/featureFlags";
+import {
+  applySegmentEvent,
+  isSegmentEventType,
+  type SegmentProgressState,
+} from "./segmentProgress";
 
 // 總總（chief-orchestrator）觀察「同時跑的精靈數」用：每種 studioType 對應
 // 哪位精靈正在工作。值是該精靈的暱稱（顯示用），key 對齊 StudioJobType。
@@ -160,6 +165,9 @@ interface BackgroundTasksContextValue {
   sseConnected: boolean;
   /** Preview URLs captured from SSE complete events, keyed by jobId — available immediately, before DB refetch */
   previewUrls: Record<number, string>;
+  /** AIDV-589：per-jobId 分段進度（segment_started / segment_completed SSE）。
+   *  未收到任何分段事件的 job 不會有 entry → UI 零回歸。 */
+  segmentProgress: Record<number, SegmentProgressState>;
   /** 通知 context 一個已在 DB 的 job 剛開始（例如 DirectorAI 伺服器端建立的任務），
    *  立即觸發 activeJobs 重抓並啟動 5s 輪詢，讓 drawer badge 即時反映。 */
   notifyJobStarted: (jobId: number) => void;
@@ -197,6 +205,12 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
 
   // AIDV-431：從 SSE complete 事件即時取得 preview_url，無需等 DB refetch。
   const [previewUrlsByJobId, setPreviewUrlsByJobId] = useState<Record<number, string>>({});
+
+  // AIDV-589：per-jobId 分段進度（segment_started / segment_completed SSE）。
+  // reducer 是純函式（segmentProgress.ts），缺欄位/亂序/重複一律靜默降級。
+  const [segmentProgressByJobId, setSegmentProgressByJobId] = useState<
+    Record<number, SegmentProgressState>
+  >({});
 
   // ─── 查詢所有活躍任務 ──────────────────────────────────────────────────────
   const activeJobsQuery = trpc.generate.activeJobs.useQuery(undefined, {
@@ -419,6 +433,16 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
           const event = (raw.bus_id === "generation" && raw.payload != null
             ? (raw.payload as { type: string; message?: string; preview_url?: string })
             : raw) as { type: string; message?: string; preview_url?: string };
+          // AIDV-589：分段進度事件（導演 AI 批次生成）。放在 complete/error
+          // 之前處理，segment_completed 與 complete 同批抵達時才不會漏掉。
+          // applySegmentEvent 為純函式且永不 throw；事件不合法時回傳原
+          // reference → setState 直接回傳 prev，不觸發 re-render（零回歸）。
+          if (isSegmentEventType(event.type)) {
+            setSegmentProgressByJobId(prev => {
+              const next = applySegmentEvent(prev[jobId], event);
+              return next && next !== prev[jobId] ? { ...prev, [jobId]: next } : prev;
+            });
+          }
           if (event.type === "complete" || event.type === "error") {
             // AIDV-431：cache preview_url immediately before DB refetch completes
             if (event.type === "complete" && event.preview_url) {
@@ -539,9 +563,10 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
       setDrawerOpen,
       sseConnected,
       previewUrls: previewUrlsByJobId,
+      segmentProgress: segmentProgressByJobId,
       notifyJobStarted,
     }),
-    [tasks, activeCount, submitTask, drawerOpen, sseConnected, previewUrlsByJobId, notifyJobStarted]
+    [tasks, activeCount, submitTask, drawerOpen, sseConnected, previewUrlsByJobId, segmentProgressByJobId, notifyJobStarted]
   );
 
   return (
