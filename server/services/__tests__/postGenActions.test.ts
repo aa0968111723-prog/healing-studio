@@ -143,6 +143,7 @@ import {
   refundJobIfBilled,
   unifiedAssetPrefix,
   findOrCreatePromptByContent,
+  isGenHistoryJobLinkEnabled,
 } from "../postGenActions";
 
 // ─── 去重「鍵」（SELECT-side filter）斷言工具 ──────────────────────────────
@@ -931,6 +932,202 @@ describe("doPostGenComplete dedupe pre-check (Codex P1 review fix)", () => {
     });
 
     expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// AIDV-169 — generation_history.backgroundJobId 一級關聯欄位（migration 0107）
+// ════════════════════════════════════════════════════════════════════════
+
+describe("isGenHistoryJobLinkEnabled (AIDV-169 flag helper)", () => {
+  afterEach(() => {
+    delete process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK;
+  });
+
+  it("defaults ON when unset / empty / whitespace（預設補關聯）", () => {
+    delete process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK;
+    expect(isGenHistoryJobLinkEnabled()).toBe(true);
+    process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK = "";
+    expect(isGenHistoryJobLinkEnabled()).toBe(true);
+    process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK = "   ";
+    expect(isGenHistoryJobLinkEnabled()).toBe(true);
+  });
+
+  it("stays ON for truthy strings", () => {
+    for (const v of ["true", "1", "on", "yes", "TRUE"]) {
+      process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK = v;
+      expect(isGenHistoryJobLinkEnabled()).toBe(true);
+    }
+  });
+
+  it("turns OFF only on explicit false-ish values（緊急回退）", () => {
+    for (const v of ["0", "false", "off", "no", "disabled", " FALSE ", "Off"]) {
+      process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK = v;
+      expect(isGenHistoryJobLinkEnabled()).toBe(false);
+    }
+  });
+});
+
+describe("generation_history backgroundJobId 關聯欄位 (AIDV-169, migration 0107)", () => {
+  beforeEach(() => {
+    createDigitalAssetMock.mockReset();
+    createDigitalAssetMock.mockResolvedValue(1);
+    createHistoryEntryMock.mockReset();
+    createHistoryEntryMock.mockResolvedValue(1);
+    insertMock.mockReset();
+    insertMock.mockResolvedValue(undefined);
+    addGenerationLogMock.mockReset();
+    getBackgroundJobMock.mockReset();
+    mergeBackgroundJobResultJsonMock.mockReset();
+    mergeBackgroundJobResultJsonMock.mockResolvedValue(undefined as never);
+    getDbMock.mockReset();
+    selectFromDedupeMock.mockReset();
+    selectFromDedupeMock.mockResolvedValue([]);
+    getDbMock.mockReturnValue(makeDbMock());
+    delete process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK;
+  });
+
+  afterEach(() => {
+    delete process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK;
+  });
+
+  it("旗標預設 ON → backgroundJobId 寫進一級欄位（且 parameterSnapshot 照舊保留）", async () => {
+    await doPostGenComplete({
+      userId: 7,
+      modality: "video",
+      modelId: "fal-ai/kling-video/v2.1",
+      prompt: "a cat dancing",
+      resultUrl: "https://cdn.example.com/video.mp4",
+      sourceStudio: "video",
+      backgroundJobId: 999,
+    });
+
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    // 一級關聯欄位（migration 0107）— 可直接 JOIN backgroundJobs 反查任務。
+    expect(historyEntry.backgroundJobId).toBe(999);
+    // parameterSnapshot JSON 內照舊保留（舊讀取端不受影響）。
+    const snapshot = historyEntry.parameterSnapshot as Record<string, unknown>;
+    expect(snapshot.backgroundJobId).toBe(999);
+  });
+
+  it("旗標明確 OFF → 一級欄位不寫（NULL），parameterSnapshot 照舊 — 回退零破壞", async () => {
+    process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK = "false";
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat",
+      resultUrl: "https://cdn.example.com/x.png",
+      backgroundJobId: 999,
+    });
+
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    // OFF ＝ 沿用現況：關聯欄位完全不進 insert values（DB 預設 NULL）。
+    expect("backgroundJobId" in historyEntry).toBe(false);
+    // 既有 parameterSnapshot 行為不變。
+    const snapshot = historyEntry.parameterSnapshot as Record<string, unknown>;
+    expect(snapshot.backgroundJobId).toBe(999);
+    // 其餘寫入照常，不受旗標影響。
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+    expect(addGenerationLogMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("無 backgroundJobId（creative sync 等非 job 來源）→ 欄位不寫，行為不變", async () => {
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat",
+      resultUrl: "https://cdn.example.com/x.png",
+    });
+
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect("backgroundJobId" in historyEntry).toBe(false);
+    const snapshot = historyEntry.parameterSnapshot as Record<string, unknown>;
+    expect("backgroundJobId" in snapshot).toBe(false);
+  });
+
+  it("無效 jobId（0 / NaN / 負數）→ 防禦性不寫欄位", async () => {
+    for (const bad of [0, NaN, -5]) {
+      createHistoryEntryMock.mockClear();
+      await doPostGenComplete({
+        userId: 7,
+        modality: "image",
+        modelId: "fal-ai/nano-banana-2",
+        prompt: "a cute cat",
+        resultUrl: "https://cdn.example.com/x.png",
+        backgroundJobId: bad,
+      });
+      const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >;
+      expect("backgroundJobId" in historyEntry).toBe(false);
+    }
+  });
+
+  it("runPostGenForJob（fal webhook / polling 完成路徑）→ jobId 進 history 一級欄位", async () => {
+    // webhookFal.ts 在 job 標 completed 後 void runPostGenForJob(jobId) —
+    // 這條就是「webhook 完成時自動補 history 記錄」的驗收路徑：history 除了
+    // 自動建 row，現在還帶 backgroundJobId 關聯欄位可反查原始任務。
+    getBackgroundJobMock.mockResolvedValueOnce({
+      id: 4242,
+      userId: 7,
+      jobType: "image",
+      status: "completed",
+      resultJson: {
+        studioType: "image",
+        modelId: "fal-ai/nano-banana-2",
+        prompt: "a cute cat",
+        imageUrl: "https://cdn.example.com/from-webhook.png",
+      },
+    });
+
+    const ran = await runPostGenForJob(4242);
+    expect(ran).toBe(true);
+
+    expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
+    const historyEntry = createHistoryEntryMock.mock.calls[0][0] as Record<
+      string,
+      unknown
+    >;
+    expect(historyEntry.backgroundJobId).toBe(4242);
+    expect(historyEntry.resultUrl).toBe(
+      "https://cdn.example.com/from-webhook.png"
+    );
+    // parameterSnapshot 也同步帶（舊讀取端）。
+    expect(
+      (historyEntry.parameterSnapshot as Record<string, unknown>)
+        .backgroundJobId
+    ).toBe(4242);
+  });
+
+  it("history 寫入失敗仍被吞錯，不弄壞生成鏈（欄位新增不影響失敗安全）", async () => {
+    createHistoryEntryMock.mockRejectedValueOnce(new Error("column missing"));
+
+    await expect(
+      doPostGenComplete({
+        userId: 7,
+        modality: "image",
+        modelId: "fal-ai/nano-banana-2",
+        prompt: "a cute cat",
+        resultUrl: "https://cdn.example.com/x.png",
+        backgroundJobId: 999,
+      })
+    ).resolves.toBeUndefined();
+
+    // 監控照常記錄成功事件 — history 失敗不倒灌。
+    expect(addGenerationLogMock).toHaveBeenCalledTimes(1);
   });
 });
 

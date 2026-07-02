@@ -963,6 +963,14 @@ export const generationHistory = mysqlTable(
     archivedAt: timestamp("archivedAt"),
     expiresAt: timestamp("expiresAt"),
     archivalChecksum: varchar("archivalChecksum", { length: 64 }),
+    // AIDV-169: backgroundJobs 關聯欄位（migration 0107）— 同 digital_asset_
+    // library.backgroundJobId 的設計：生成完成（fal webhook / polling）補寫
+    // history 時直接記下來源 backgroundJobs.id，讓歷史紀錄可反查原始任務
+    // （fal request_id、降級紀錄、退款狀態等）。nullable 以相容舊資料與非
+    // job 來源（創意工作室同步路徑）。刻意不加 DB 級外鍵約束：background_
+    // jobs 之後有 TTL 清理（AIDV-655），硬外鍵會擋刪除或需 cascade；app 層
+    // 容忍 dangling id（查不到 job 時 UI 降級為無任務詳情）。
+    backgroundJobId: int("backgroundJobId"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   table => ({
@@ -985,6 +993,11 @@ export const generationHistory = mysqlTable(
     archivedNullCreatedAtIdx: index("gh_archivedNull_createdAt_idx").on(
       sql`(\`archivedAt\` IS NULL)`,
       table.createdAt
+    ),
+    // AIDV-169: backgroundJobId 反查索引 — 「這個 job 產生了哪筆歷史？」
+    // （webhook 冪等檢查、任務詳情頁反查）不做全表掃描。
+    backgroundJobIdIdx: index("gh_backgroundJobId_idx").on(
+      table.backgroundJobId
     ),
   })
 );

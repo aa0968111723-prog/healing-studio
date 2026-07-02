@@ -128,11 +128,14 @@ export const agentPreferencesRelations = relations(agentPreferences, ({ one }) =
 }));
 
 // ── Background Jobs ───────────────────────────────────────────────────────────
-export const backgroundJobsRelations = relations(backgroundJobs, ({ one }) => ({
+export const backgroundJobsRelations = relations(backgroundJobs, ({ one, many }) => ({
   user: one(users, {
     fields: [backgroundJobs.userId],
     references: [users.id],
   }),
+  // AIDV-169: 一個 job 完成後補寫的生成歷史（webhook/polling 雙路徑，
+  // postGenComplete 旗標保證單 job 至多一筆）。
+  generationHistory: many(generationHistory),
 }));
 
 // ── Digital Asset Library ─────────────────────────────────────────────────────
@@ -173,6 +176,13 @@ export const generationHistoryRelations = relations(generationHistory, ({ one })
   user: one(users, {
     fields: [generationHistory.userId],
     references: [users.id],
+  }),
+  // AIDV-169: 反查原始背景任務（migration 0107 的 backgroundJobId 欄位）。
+  // 無 DB 級外鍵 — background_jobs TTL 清理（AIDV-655）後可能 dangling，
+  // 讀取端須容忍 null / 查無 job。
+  backgroundJob: one(backgroundJobs, {
+    fields: [generationHistory.backgroundJobId],
+    references: [backgroundJobs.id],
   }),
 }));
 

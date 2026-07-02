@@ -46,6 +46,24 @@ export function isPromptAssetLinksEnabled(): boolean {
   );
 }
 
+/**
+ * AIDV-169 — generation_history.backgroundJobId 關聯欄位（migration 0107）寫入
+ * 開關。預設 ON — 與 env.validated.ts 的 GEN_HISTORY_BACKFILL_ON_WEBHOOK 同名
+ * 同預設；同 isPromptAssetLinksEnabled 模式直接讀 process.env（lazy），讓測試
+ * 可在 runtime 重設 env 立即生效，也避免引入 env.validated 的載入副作用。
+ * 差異：本旗標預設 ON（未設／空字串＝開），只有明確設 false-ish 才關 —
+ * 緊急回退用（例如 migration 0107 還沒跑就先部署了新程式碼）。
+ * OFF 時關聯欄位留 NULL，parameterSnapshot 內的 backgroundJobId 照舊寫入，
+ * 讀取端本就容忍 NULL → 回退零破壞。
+ */
+export function isGenHistoryJobLinkEnabled(): boolean {
+  const value = process.env.GEN_HISTORY_BACKFILL_ON_WEBHOOK;
+  if (value === undefined || value === null || value.trim() === "") return true;
+  return !["0", "false", "off", "no", "disabled"].includes(
+    value.trim().toLowerCase()
+  );
+}
+
 export type PostGenModality = "image" | "video" | "audio" | "voice";
 
 /**
@@ -416,6 +434,19 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
         resultUrl,
         ...(thumbnailUrl ? { thumbnailUrl } : {}),
         costCredits: historyCostCredits,
+        // AIDV-169: backgroundJobId 抬升為 generation_history 的一級關聯欄位
+        // （migration 0107），不再只藏在 parameterSnapshot JSON — 歷史紀錄可
+        // 直接 JOIN / 反查原始 backgroundJobs 列（fal request_id、降級紀錄、
+        // 退款狀態）。旗標 GEN_HISTORY_BACKFILL_ON_WEBHOOK 預設 ON；明確關閉
+        // 或無有效 jobId（非 job 來源的 creative sync 路徑）時欄位留 NULL，
+        // 與既有資料/讀取端完全相容。parameterSnapshot 內的 backgroundJobId
+        // 照舊保留（上方），舊讀取端不受影響。
+        ...(isGenHistoryJobLinkEnabled() &&
+        typeof backgroundJobId === "number" &&
+        Number.isFinite(backgroundJobId) &&
+        backgroundJobId > 0
+          ? { backgroundJobId }
+          : {}),
       });
     } catch {
       // 靜默忽略

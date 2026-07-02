@@ -642,6 +642,21 @@ const multimodalSchema = z.object({
   // 此旗標影響，空表回空陣列，先跑 migration 後開旗標是安全順序。
   ENABLE_PROMPT_ASSET_LINKS: z.string().optional().default("false"),
 
+  // ── 生成歷史 ↔ 背景任務關聯回填（AIDV-169, migration 0107）────────────────
+  // ON（預設／留空／真值）時 postGenActions.doPostGenComplete 在 fal webhook /
+  // polling 完成補寫 generation_history 時，把 backgroundJobId 直接寫進
+  // migration 0107 新增的關聯欄位（不再只塞 parameterSnapshot JSON），讓歷史
+  // 紀錄可反查原始任務（fal request_id、降級紀錄、退款狀態）。
+  // 緊急回退（明確設 "false"/"0"/"off"/"no"）＝沿用現況不補：關聯欄位留
+  // NULL，history 其餘欄位與 parameterSnapshot 內的 backgroundJobId 照舊 —
+  // 讀取端本就容忍 NULL，回退零破壞。先跑 migration 0107 後開旗標是安全順序
+  //（欄位不存在時 ORM insert 會失敗，但 doPostGenComplete 對 history 寫入
+  // 本就整段吞錯，不會弄壞生成鏈）。
+  // 注意：postGenActions 為了讓測試在 runtime 重設 env 立即生效，直接讀
+  // process.env（lazy，同 ENABLE_PROMPT_ASSET_LINKS 模式）；此處登記僅作
+  // schema 驗證與文件化。
+  GEN_HISTORY_BACKFILL_ON_WEBHOOK: z.string().optional().default("true"),
+
   // ── Signed-URL 直傳（AIDV-15：廢 base64，大檔不再過 tRPC/HTTP body）────────
   // ON（預設）時 client 大檔上傳改走「presign → 直接 PUT 到 R2 → finalize 落庫」
   // 三段式流程，檔案位元組完全不進 Node 記憶體（不過 express.json body-parser，
