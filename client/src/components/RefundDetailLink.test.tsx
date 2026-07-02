@@ -135,6 +135,38 @@ describe("RefundDetailLink pathname 白名單 (AIDV-969 · 仿 AIDV-966)", () =>
   });
 });
 
+// ─── 3.5) VideoStudio 完成/失敗畫面掛點（AIDV-969 修補：spec ① /video 相關畫面） ──
+//
+// 驗收 ① 明列「與 /video 相關完成/失敗畫面加導向該頁的連結」。此連結為
+// 純靜態導向（固定 CREDITS_LEDGER_HREF，不依賴 refund 資料、不需 jobId），
+// 與「refund 條件顯示」（RefundDetailLink）是兩件事。以源碼靜態抽取釘住
+// 掛點存在，掛點被移除或改用死常數時本測試即刻紅。
+
+describe("VideoStudio 完成/失敗畫面掛「點數紀錄」連結 (AIDV-969 · spec ①)", () => {
+  const videoSrc = readSource("client/src/pages/VideoStudio.tsx");
+
+  it("自 refundStatus 匯入 CREDITS_LEDGER_HREF（單一事實來源，禁止硬編字串）", () => {
+    expect(videoSrc).toContain(
+      'import { CREDITS_LEDGER_HREF } from "@/components/refundStatus"'
+    );
+  });
+
+  it("完成＋失敗畫面各掛一個 href={CREDITS_LEDGER_HREF} 靜態連結（至少 2 處）", () => {
+    const mounts = videoSrc.match(/href=\{CREDITS_LEDGER_HREF\}/g) ?? [];
+    expect(mounts.length).toBeGreaterThanOrEqual(2);
+    // 完成畫面掛點（VideoPlayer 動作列）與失敗畫面掛點（AsyncVideoPoller 失敗卡）
+    expect(videoSrc).toContain("AIDV-969：完成畫面 → 點數紀錄");
+    expect(videoSrc).toContain("AIDV-969：失敗畫面 → 點數紀錄");
+  });
+
+  it("連結文字為「點數紀錄」且不帶 jobId（誠實靜態導向）", () => {
+    expect(videoSrc).toContain("點數紀錄 →");
+    // href 為固定常數，不得拼接 jobId / request_id query
+    expect(videoSrc).not.toMatch(/CREDITS_LEDGER_HREF\s*\+/);
+    expect(videoSrc).not.toMatch(/\$\{CREDITS_LEDGER_HREF\}/);
+  });
+});
+
 // ─── 4) 點數異動摘要矩陣 ─────────────────────────────────────────────────────
 
 describe("describeRefundSummary 摘要矩陣 (AIDV-969)", () => {
