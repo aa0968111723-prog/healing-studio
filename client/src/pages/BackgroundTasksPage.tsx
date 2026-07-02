@@ -14,6 +14,11 @@ import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  RefundStatusBadge,
+  useJobRefundStatuses,
+  type JobRefundInfo,
+} from "@/components/RefundStatusBadge";
 import { toast } from "sonner";
 import {
   Image,
@@ -244,9 +249,11 @@ function ResultPreview({ job }: { job: JobRow }) {
 function JobCard({
   job,
   onCheckStatus,
+  refundInfo,
 }: {
   job: JobRow;
   onCheckStatus: (jobId: number) => void;
+  refundInfo?: JobRefundInfo;
 }) {
   const meta = job.resultJson as Record<string, unknown> | null;
   const label =
@@ -283,6 +290,10 @@ function JobCard({
               {cfg.icon}
               <span className="ml-1">{cfg.label}</span>
             </Badge>
+            {/* AIDV-650: 失敗任務的退款狀態徽章（無資料時安靜不顯示） */}
+            {job.status === "failed" && (
+              <RefundStatusBadge info={refundInfo} className="h-5" />
+            )}
           </div>
 
           {/* Progress message */}
@@ -550,6 +561,18 @@ export default function BackgroundTasksPage() {
     [allJobs]
   );
 
+  // AIDV-650: 批次查詢失敗任務的退款狀態（單一查詢；上限 100，與後端截斷一致）
+  const failedJobIds = useMemo(
+    () =>
+      allJobs
+        .filter(j => j.status === "failed")
+        .map(j => j.id)
+        .sort((a, b) => a - b)
+        .slice(0, 100),
+    [allJobs]
+  );
+  const refundInfoByJobId = useJobRefundStatuses(failedJobIds);
+
   // ── Filter & search ─────────────────────────────────────────────────────
   const filteredJobs = useMemo(() => {
     let list = allJobs;
@@ -800,6 +823,7 @@ export default function BackgroundTasksPage() {
                 key={job.id}
                 job={job}
                 onCheckStatus={handleCheckStatus}
+                refundInfo={refundInfoByJobId[job.id]}
               />
             ))}
           </AnimatePresence>
