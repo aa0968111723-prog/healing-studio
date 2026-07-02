@@ -143,6 +143,7 @@ import {
   refundJobIfBilled,
   unifiedAssetPrefix,
   findOrCreatePromptByContent,
+  isPromptAssetLinksEnabled,
 } from "../postGenActions";
 
 // ─── 去重「鍵」（SELECT-side filter）斷言工具 ──────────────────────────────
@@ -317,8 +318,34 @@ describe("doPostGenComplete", () => {
     });
   });
 
-  it("does NOT link when the flag is off (default) even with both ids available", async () => {
-    // 旗標未設（預設 OFF）
+  it("links prompt to asset by default when the flag is unset (AIDV-897 default ON)", async () => {
+    // 旗標未設 → AIDV-897 方案①：預設 ON，生成後資產自動關聯回原始 prompt。
+    // beforeEach 已 delete process.env.ENABLE_PROMPT_ASSET_LINKS。
+    insertMock.mockResolvedValue([{ insertId: 55 }] as never);
+    createDigitalAssetMock.mockResolvedValue(99);
+
+    await doPostGenComplete({
+      userId: 7,
+      modality: "image",
+      modelId: "fal-ai/nano-banana-2",
+      prompt: "a cute cat sitting on the moon",
+      resultUrl: "https://cdn.example.com/result.png",
+    });
+
+    expect(createPromptAssetLinkMock).toHaveBeenCalledTimes(1);
+    expect(createPromptAssetLinkMock).toHaveBeenCalledWith({
+      promptId: 55,
+      assetId: 99,
+      relation: "derived",
+    });
+    // 既有寫入不受影響
+    expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+    expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT link when the flag is explicitly off (kill switch) even with both ids available", async () => {
+    // AIDV-897：旗標保留作緊急關閉開關 — 明確設 false 必須停用寫入端。
+    process.env.ENABLE_PROMPT_ASSET_LINKS = "false";
     insertMock.mockResolvedValue([{ insertId: 55 }] as never);
     createDigitalAssetMock.mockResolvedValue(99);
 
@@ -331,7 +358,7 @@ describe("doPostGenComplete", () => {
     });
 
     expect(createPromptAssetLinkMock).not.toHaveBeenCalled();
-    // 既有寫入不受影響
+    // 緊急關閉只停關聯寫入 — 既有資產/歷史寫入不受影響
     expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
     expect(createHistoryEntryMock).toHaveBeenCalledTimes(1);
   });
@@ -1465,5 +1492,44 @@ describe("doPostGenComplete upsert-by-content integration (AIDV-10)", () => {
     expect(insertMock).not.toHaveBeenCalled();
     expect(createPromptAssetLinkMock).not.toHaveBeenCalled();
     expect(createDigitalAssetMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── AIDV-897：isPromptAssetLinksEnabled 語意真值表（source-anchored）────────
+// 方案①（Bruce 放行）：預設 ON — 未設定/空字串即啟用；旗標保留作緊急關閉
+// 開關（false/0/off/no/disabled 明確停用）。直接對真實函式斷言：任何人把
+// 預設改回 OFF、或拿掉 kill-switch 值，這裡立即紅。
+describe("isPromptAssetLinksEnabled (AIDV-897 default ON + kill switch)", () => {
+  const ORIGINAL = process.env.ENABLE_PROMPT_ASSET_LINKS;
+
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.ENABLE_PROMPT_ASSET_LINKS;
+    else process.env.ENABLE_PROMPT_ASSET_LINKS = ORIGINAL;
+  });
+
+  it("defaults to ON when the env var is unset", () => {
+    delete process.env.ENABLE_PROMPT_ASSET_LINKS;
+    expect(isPromptAssetLinksEnabled()).toBe(true);
+  });
+
+  it("defaults to ON for empty / whitespace-only values", () => {
+    for (const v of ["", "   "]) {
+      process.env.ENABLE_PROMPT_ASSET_LINKS = v;
+      expect(isPromptAssetLinksEnabled()).toBe(true);
+    }
+  });
+
+  it("kill switch: every documented off-value disables the write path", () => {
+    for (const v of ["0", "false", "off", "no", "disabled", "FALSE", " Off "]) {
+      process.env.ENABLE_PROMPT_ASSET_LINKS = v;
+      expect(isPromptAssetLinksEnabled()).toBe(false);
+    }
+  });
+
+  it("explicit truthy values keep it ON (backward compatible with =true deployments)", () => {
+    for (const v of ["true", "TRUE", "1", "on", "yes"]) {
+      process.env.ENABLE_PROMPT_ASSET_LINKS = v;
+      expect(isPromptAssetLinksEnabled()).toBe(true);
+    }
   });
 });

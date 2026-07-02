@@ -34,13 +34,17 @@ export const MAX_LOG_FIELD_LENGTH = 200;
 
 /**
  * prompt ↔ asset 關聯（prompt_assets junction, migration 0075）寫入開關。
- * 預設 OFF — 與 env.validated.ts 的 ENABLE_PROMPT_ASSET_LINKS 同名同預設；
- * 這裡直接讀 process.env（lazy，與 perplexityThrottle 同模式）讓測試可在
- * runtime 重設 env 立即生效，也避免在本模組引入 env.validated 的載入副作用。
+ * AIDV-897（Bruce 放行、採方案①）：功能穩定後預設改 ON — env 未設定（或空
+ * 字串）視為啟用，生成完成後資產自動關聯回原始 prompt；旗標保留作緊急關閉
+ * 開關（false/0/off/no/disabled 明確停用）。與 env.validated.ts 的
+ * ENABLE_PROMPT_ASSET_LINKS 同名同預設（皆預設 ON）；這裡直接讀 process.env
+ * （lazy，與 perplexityThrottle 同模式）讓測試可在 runtime 重設 env 立即生效，
+ * 也避免在本模組引入 env.validated 的載入副作用。
  */
 export function isPromptAssetLinksEnabled(): boolean {
   const value = process.env.ENABLE_PROMPT_ASSET_LINKS;
-  if (value === undefined || value === null || value.trim() === "") return false;
+  // 未設定 / 空字串 → 預設 ON（AIDV-897 方案①）。
+  if (value === undefined || value === null || value.trim() === "") return true;
   return !["0", "false", "off", "no", "disabled"].includes(
     value.trim().toLowerCase()
   );
@@ -247,7 +251,8 @@ export interface PostGenParams {
   /**
    * prompt↔asset 關聯類型（prompt_assets.relation enum：derived/variant/rewrite/extended）。
    * 座艙重骰=variant、改寫=rewrite、延長=extended；預設 derived（生成完成的衍生關聯）。
-   * 僅在 ENABLE_PROMPT_ASSET_LINKS=ON 且 promptId+assetId 都有時實際寫入；
+   * 僅在 ENABLE_PROMPT_ASSET_LINKS=ON（AIDV-897 起預設 ON）且
+   * promptId+assetId 都有時實際寫入；
    * 寫入仍走 (promptId, assetId, relation) 唯一鍵＝冪等。
    */
   relation?: "derived" | "variant" | "rewrite" | "extended";
@@ -363,7 +368,8 @@ export async function doPostGenComplete(params: PostGenParams): Promise<void> {
       });
 
       // 1-3a-2. prompt ↔ asset 關聯（prompt_assets junction, migration 0075）。
-      // 旗標 ENABLE_PROMPT_ASSET_LINKS 預設 OFF；ON 時把 1-2 剛寫的提示詞列
+      // 旗標 ENABLE_PROMPT_ASSET_LINKS 預設 ON（AIDV-897 方案①，可設
+      // false 緊急關閉）；ON 時把 1-2 剛寫的提示詞列
       // 與本資產列連起來。relation 由呼叫端帶入（座艙重骰/改寫/延長＝
       // variant/rewrite/extended），預設 derived。(promptId, assetId, relation)
       // 唯一鍵保證 webhook+polling 雙路徑重跑冪等；失敗吞錯不影響主流程。
