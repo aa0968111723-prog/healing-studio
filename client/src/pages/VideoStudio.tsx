@@ -74,8 +74,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
-import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 import { useGenerationTask } from "@/hooks/useGenerationTask";
+import { useSubmitGeneration } from "@/hooks/useSubmitGeneration";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
 import {
@@ -800,8 +800,9 @@ function AsyncVideoPoller({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function TextToVideoTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（提交 → 寫結果 →
+  // registerBgTask → 成功 toast → reportSuccess/Failure → AI 狀態復位）。
+  const { submitGeneration } = useSubmitGeneration();
   const bus = useVideoAgentBus();
   const notifyEmptyPrompt = useEmptyPromptHelper();
   // 世界觀注入：所有送出的 prompt 在發出前先過 injectIntoPrompt，
@@ -1019,116 +1020,96 @@ function TextToVideoTab() {
   async function runKling() {
     if (!klingPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Kling", modality: "影片" });
     setLastT2VPrompt(klingPrompt);
-    setAIState("generating");
-    try {
-      const r = await klingMut.mutateAsync({
-        prompt: injectWorld(klingPrompt),
-        negativePrompt: klingNeg || undefined,
-        duration: klingDuration,
-        aspectRatio: klingAspect,
-        cfgScale: klingCfg,
-        outputSpec: effectiveOutputSpec,
-      });
-      setKlingResult(r);
-      registerBgTask(r, "video", "Kling 文生影", klingPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        klingMut.mutateAsync({
+          prompt: injectWorld(klingPrompt),
+          negativePrompt: klingNeg || undefined,
+          duration: klingDuration,
+          aspectRatio: klingAspect,
+          cfgScale: klingCfg,
+          outputSpec: effectiveOutputSpec,
+        }),
+      onResult: setKlingResult,
+      taskType: "video",
+      taskLabel: "Kling 文生影",
+      taskPrompt: klingPrompt,
+    });
   }
   runKlingRef.current = runKling;
 
   async function runWan() {
     if (!wanPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Wan", modality: "影片" });
     setLastT2VPrompt(wanPrompt);
-    setAIState("generating");
-    try {
-      const r = await wanMut.mutateAsync({
-        prompt: injectWorld(wanPrompt),
-        negativePrompt: wanNeg || undefined,
-        resolution: wanRes,
-        numFrames: wanFrames,
-        outputSpec: effectiveOutputSpec,
-      });
-      setWanResult(r);
-      registerBgTask(r, "video", "Wan 文生影", wanPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        wanMut.mutateAsync({
+          prompt: injectWorld(wanPrompt),
+          negativePrompt: wanNeg || undefined,
+          resolution: wanRes,
+          numFrames: wanFrames,
+          outputSpec: effectiveOutputSpec,
+        }),
+      onResult: setWanResult,
+      taskType: "video",
+      taskLabel: "Wan 文生影",
+      taskPrompt: wanPrompt,
+    });
   }
   runWanRef.current = runWan;
 
   async function runMinimax() {
     if (!mmPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "MiniMax", modality: "影片" });
     setLastT2VPrompt(mmPrompt);
-    setAIState("generating");
-    try {
-      const r = await mmMut.mutateAsync({
-        prompt: injectWorld(mmPrompt),
-        promptOptimizer: mmOptimize,
-        outputSpec: effectiveOutputSpec,
-      });
-      setMmResult(r);
-      registerBgTask(r, "video", "MiniMax 文生影", mmPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        mmMut.mutateAsync({
+          prompt: injectWorld(mmPrompt),
+          promptOptimizer: mmOptimize,
+          outputSpec: effectiveOutputSpec,
+        }),
+      onResult: setMmResult,
+      taskType: "video",
+      taskLabel: "MiniMax 文生影",
+      taskPrompt: mmPrompt,
+    });
   }
   runMmRef.current = runMinimax;
 
   async function runVeo3() {
     if (!veoPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Veo 3", modality: "影片" });
     setLastT2VPrompt(veoPrompt);
-    setAIState("generating");
-    try {
-      const r = await veoMut.mutateAsync({
-        prompt: injectWorld(veoPrompt),
-        aspectRatio: veoAspect,
-        generateAudio: veoAudio,
-        outputSpec: effectiveOutputSpec,
-      });
-      setVeoResult(r);
-      registerBgTask(r, "video", "Veo 3 文生影", veoPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        veoMut.mutateAsync({
+          prompt: injectWorld(veoPrompt),
+          aspectRatio: veoAspect,
+          generateAudio: veoAudio,
+          outputSpec: effectiveOutputSpec,
+        }),
+      onResult: setVeoResult,
+      taskType: "video",
+      taskLabel: "Veo 3 文生影",
+      taskPrompt: veoPrompt,
+    });
   }
   runVeoRef.current = runVeo3;
 
   async function runVeo3Pro() {
     if (!veoPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Veo 3 Pro", modality: "影片" });
     setLastT2VPrompt(veoPrompt);
-    setAIState("generating");
-    try {
-      const r = await veoProMut.mutateAsync({
-        prompt: injectWorld(veoPrompt),
-        aspectRatio: veoAspect,
-        generateAudio: veoAudio,
-      });
-      setVeoProResult(r);
-      registerBgTask(r, "video", "Veo 3 Pro 文生影", veoPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        veoProMut.mutateAsync({
+          prompt: injectWorld(veoPrompt),
+          aspectRatio: veoAspect,
+          generateAudio: veoAudio,
+        }),
+      onResult: setVeoProResult,
+      taskType: "video",
+      taskLabel: "Veo 3 Pro 文生影",
+      taskPrompt: veoPrompt,
+    });
   }
   runVeoProRef.current = runVeo3Pro;
 
@@ -1136,44 +1117,36 @@ function TextToVideoTab() {
   async function runLtx() {
     if (!ltxPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "LTX", modality: "影片" });
     setLastT2VPrompt(ltxPrompt);
-    setAIState("generating");
-    try {
-      const r = await ltxMut.mutateAsync({
-        prompt: injectWorld(ltxPrompt),
-        negativePrompt: ltxNeg || undefined,
-      });
-      setLtxResult(r);
-      registerBgTask(r, "video", "LTX 文生影", ltxPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        ltxMut.mutateAsync({
+          prompt: injectWorld(ltxPrompt),
+          negativePrompt: ltxNeg || undefined,
+        }),
+      onResult: setLtxResult,
+      taskType: "video",
+      taskLabel: "LTX 文生影",
+      taskPrompt: ltxPrompt,
+    });
   }
   runLtxRef.current = runLtx;
 
   async function runSora() {
     if (!soraPrompt.trim()) return notifyEmptyPrompt({ modelLabel: "Sora", modality: "影片" });
     setLastT2VPrompt(soraPrompt);
-    setAIState("generating");
-    try {
-      const r = await soraMut.mutateAsync({
-        prompt: injectWorld(soraPrompt),
-        duration: soraDuration,
-        resolution: soraRes,
-        aspectRatio: soraAspect,
-      });
-      setSoraResult(r);
-      registerBgTask(r, "video", "Sora 文生影", soraPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        soraMut.mutateAsync({
+          prompt: injectWorld(soraPrompt),
+          duration: soraDuration,
+          resolution: soraRes,
+          aspectRatio: soraAspect,
+        }),
+      onResult: setSoraResult,
+      taskType: "video",
+      taskLabel: "Sora 文生影",
+      taskPrompt: soraPrompt,
+    });
   }
   runSoraRef.current = runSora;
 
@@ -1798,8 +1771,9 @@ function TextToVideoTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ImageToVideoTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（提交 → 寫結果 →
+  // registerBgTask → 成功 toast → reportSuccess/Failure → AI 狀態復位）。
+  const { submitGeneration } = useSubmitGeneration();
   const bus = useVideoAgentBus();
   const notifyEmptyPrompt = useEmptyPromptHelper();
   const injectWorld = useWorldContext().injectIntoPrompt;
@@ -1955,143 +1929,119 @@ function ImageToVideoTab() {
   async function runKling() {
     if (!klingPrompt.trim() || !klingImage.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
-    setAIState("generating");
-    try {
-      const r = await klingMut.mutateAsync({
-        prompt: injectWorld(klingPrompt),
-        imageUrl: klingImage,
-        tailImageUrl: klingTail || undefined,
-        duration: klingDuration,
-      });
-      setKlingResult(r);
-      registerBgTask(r, "video", "Kling 圖生影", klingPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        klingMut.mutateAsync({
+          prompt: injectWorld(klingPrompt),
+          imageUrl: klingImage,
+          tailImageUrl: klingTail || undefined,
+          duration: klingDuration,
+        }),
+      onResult: setKlingResult,
+      taskType: "video",
+      taskLabel: "Kling 圖生影",
+      taskPrompt: klingPrompt,
+    });
   }
   runKlingRef.current = runKling;
 
   async function runKlingPro() {
     if (!klingPrompt.trim() || !klingImage.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
-    setAIState("generating");
-    try {
-      const r = await klingProMut.mutateAsync({
-        prompt: injectWorld(klingPrompt),
-        imageUrl: klingImage,
-        tailImageUrl: klingTail || undefined,
-        duration: klingDuration,
-      });
-      setKlingProResult(r);
-      registerBgTask(r, "video", "Kling Pro 圖生影", klingPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        klingProMut.mutateAsync({
+          prompt: injectWorld(klingPrompt),
+          imageUrl: klingImage,
+          tailImageUrl: klingTail || undefined,
+          duration: klingDuration,
+        }),
+      onResult: setKlingProResult,
+      taskType: "video",
+      taskLabel: "Kling Pro 圖生影",
+      taskPrompt: klingPrompt,
+    });
   }
   runKlingProRef.current = runKlingPro;
 
   async function runWan() {
     if (!wanPrompt.trim() || !wanImage.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
-    setAIState("generating");
-    try {
-      const r = await wanMut.mutateAsync({
-        prompt: injectWorld(wanPrompt),
-        imageUrl: wanImage,
-        resolution: wanRes,
-        numFrames: wanFrames,
-        negativePrompt: wanNeg || undefined,
-      });
-      setWanResult(r);
-      registerBgTask(r, "video", "Wan 圖生影", wanPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        wanMut.mutateAsync({
+          prompt: injectWorld(wanPrompt),
+          imageUrl: wanImage,
+          resolution: wanRes,
+          numFrames: wanFrames,
+          negativePrompt: wanNeg || undefined,
+        }),
+      onResult: setWanResult,
+      taskType: "video",
+      taskLabel: "Wan 圖生影",
+      taskPrompt: wanPrompt,
+    });
   }
   runWanRef.current = runWan;
 
   async function runRunway() {
     if (!runwayPrompt.trim() || !runwayImage.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
-    setAIState("generating");
-    try {
-      const r = await runwayMut.mutateAsync({
-        prompt: injectWorld(runwayPrompt),
-        imageUrl: runwayImage,
-        duration: runwayDuration,
-        ratio: runwayRatio as any,
-      });
-      setRunwayResult(r);
-      registerBgTask(r, "video", "Runway 圖生影", runwayPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        runwayMut.mutateAsync({
+          prompt: injectWorld(runwayPrompt),
+          imageUrl: runwayImage,
+          duration: runwayDuration,
+          ratio: runwayRatio as any,
+        }),
+      onResult: setRunwayResult,
+      taskType: "video",
+      taskLabel: "Runway 圖生影",
+      taskPrompt: runwayPrompt,
+    });
   }
   runRunwayRef.current = runRunway;
 
   async function runPixverse() {
     if (!pvPrompt.trim() || !pvImage.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
-    setAIState("generating");
-    try {
-      const r = await pvMut.mutateAsync({
-        prompt: injectWorld(pvPrompt),
-        imageUrl: pvImage,
-        negativePrompt: pvNeg || undefined,
-        duration: pvDuration,
-        quality: pvQuality,
-        aspectRatio: pvAspect,
-        style: pvStyle || undefined,
-      });
-      setPvResult(r);
-      registerBgTask(r, "video", "Pixverse 圖生影", pvPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        pvMut.mutateAsync({
+          prompt: injectWorld(pvPrompt),
+          imageUrl: pvImage,
+          negativePrompt: pvNeg || undefined,
+          duration: pvDuration,
+          quality: pvQuality,
+          aspectRatio: pvAspect,
+          style: pvStyle || undefined,
+        }),
+      onResult: setPvResult,
+      taskType: "video",
+      taskLabel: "Pixverse 圖生影",
+      taskPrompt: pvPrompt,
+    });
   }
   runPvRef.current = runPixverse;
 
   async function runMinimax() {
     if (!mmPrompt.trim() || !mmImage.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
-    setAIState("generating");
-    try {
-      const r = await mmMut.mutateAsync({
-        prompt: injectWorld(mmPrompt),
-        imageUrl: mmImage,
-        promptOptimizer: mmOptimize,
-        duration: mmDuration,
-        resolution: mmResolution,
-      });
-      setMmResult(r);
-      registerBgTask(r, "video", "MiniMax 圖生影", mmPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        mmMut.mutateAsync({
+          prompt: injectWorld(mmPrompt),
+          imageUrl: mmImage,
+          promptOptimizer: mmOptimize,
+          duration: mmDuration,
+          resolution: mmResolution,
+        }),
+      onResult: setMmResult,
+      taskType: "video",
+      taskLabel: "MiniMax 圖生影",
+      taskPrompt: mmPrompt,
+    });
   }
   runMmRef.current = runMinimax;
 
@@ -2639,8 +2589,9 @@ function ImageToVideoTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function VideoToVideoTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（提交 → 寫結果 →
+  // registerBgTask → 成功 toast → reportSuccess/Failure → AI 狀態復位）。
+  const { submitGeneration } = useSubmitGeneration();
   const bus = useVideoAgentBus();
   const notifyEmptyPrompt = useEmptyPromptHelper();
   const injectWorld = useWorldContext().injectIntoPrompt;
@@ -2753,71 +2704,59 @@ function VideoToVideoTab() {
   async function runWan() {
     if (!wanPrompt.trim() || !wanVideo.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與影片 URL" });
-    setAIState("generating");
-    try {
-      const r = await wanMut.mutateAsync({
-        prompt: injectWorld(wanPrompt),
-        videoUrl: wanVideo,
-        negativePrompt: wanNeg || undefined,
-        strength: wanStrength,
-      });
-      setWanResult(r);
-      registerBgTask(r, "video", "Wan 影生影", wanPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        wanMut.mutateAsync({
+          prompt: injectWorld(wanPrompt),
+          videoUrl: wanVideo,
+          negativePrompt: wanNeg || undefined,
+          strength: wanStrength,
+        }),
+      onResult: setWanResult,
+      taskType: "video",
+      taskLabel: "Wan 影生影",
+      taskPrompt: wanPrompt,
+    });
   }
   runWanRef.current = runWan;
 
   async function runKling() {
     if (!klingPrompt.trim() || !klingVideo.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與影片 URL" });
-    setAIState("generating");
-    try {
-      const r = await klingMut.mutateAsync({
-        prompt: injectWorld(klingPrompt),
-        videoUrl: klingVideo,
-        negativePrompt: klingNeg || undefined,
-        cfgScale: klingCfg,
-      });
-      setKlingResult(r);
-      registerBgTask(r, "video", "Kling 影生影", klingPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        klingMut.mutateAsync({
+          prompt: injectWorld(klingPrompt),
+          videoUrl: klingVideo,
+          negativePrompt: klingNeg || undefined,
+          cfgScale: klingCfg,
+        }),
+      onResult: setKlingResult,
+      taskType: "video",
+      taskLabel: "Kling 影生影",
+      taskPrompt: klingPrompt,
+    });
   }
   runKlingRef.current = runKling;
 
   async function runLtx() {
     if (!ltxPrompt.trim() || !ltxImage.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
-    setAIState("generating");
-    try {
-      const r = await ltxMut.mutateAsync({
-        prompt: injectWorld(ltxPrompt),
-        imageUrl: ltxImage,
-        negativePrompt: ltxNeg || undefined,
-        numFrames: ltxFrames,
-        guidanceScale: ltxGuidance,
-        expandPrompt: ltxExpand,
-      });
-      setLtxResult(r);
-      registerBgTask(r, "video", "LTX 關鍵幀生成", ltxPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        ltxMut.mutateAsync({
+          prompt: injectWorld(ltxPrompt),
+          imageUrl: ltxImage,
+          negativePrompt: ltxNeg || undefined,
+          numFrames: ltxFrames,
+          guidanceScale: ltxGuidance,
+          expandPrompt: ltxExpand,
+        }),
+      onResult: setLtxResult,
+      taskType: "video",
+      taskLabel: "LTX 關鍵幀生成",
+      taskPrompt: ltxPrompt,
+    });
   }
   runLtxRef.current = runLtx;
 
@@ -3091,8 +3030,9 @@ function VideoToVideoTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function EnhancementTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（提交 → 寫結果 →
+  // registerBgTask → 成功 toast → reportSuccess/Failure → AI 狀態復位）。
+  const { submitGeneration } = useSubmitGeneration();
   const bus = useVideoAgentBus();
   type EnhanceModel = "upscale" | "rife" | "topaz";
   // AIDV-899：模型選擇狀態收斂到共用 useGenerationTask（照 ImageStudio 採用模式）。
@@ -3129,61 +3069,46 @@ function EnhancementTab() {
 
   async function runUpscale() {
     if (!upVideo.trim()) return toast.error("請輸入影片 URL");
-    setAIState("generating");
-    try {
-      const r = await upscaleMut.mutateAsync({
-        videoUrl: upVideo,
-        upscaleFactor: upFactor,
-      });
-      setUpResult(r);
-      registerBgTask(r, "video", "影片超解析度");
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        upscaleMut.mutateAsync({
+          videoUrl: upVideo,
+          upscaleFactor: upFactor,
+        }),
+      onResult: setUpResult,
+      taskType: "video",
+      taskLabel: "影片超解析度",
+    });
   }
 
   async function runRife() {
     if (!rifeVideo.trim()) return toast.error("請輸入影片 URL");
-    setAIState("generating");
-    try {
-      const r = await rifeMut.mutateAsync({
-        videoUrl: rifeVideo,
-        multiplier: rifeMult,
-        outputFps: rifeFps,
-      });
-      setRifeResult(r);
-      registerBgTask(r, "video", "RIFE v4.6 影片補幀");
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        rifeMut.mutateAsync({
+          videoUrl: rifeVideo,
+          multiplier: rifeMult,
+          outputFps: rifeFps,
+        }),
+      onResult: setRifeResult,
+      taskType: "video",
+      taskLabel: "RIFE v4.6 影片補幀",
+    });
   }
 
   async function runTopaz() {
     if (!topazVideo.trim()) return toast.error("請輸入影片 URL");
-    setAIState("generating");
-    try {
-      const r = await topazMut.mutateAsync({
-        videoUrl: topazVideo,
-        model: topazModel,
-        outputScale: topazScale,
-      });
-      setTopazResult(r);
-      registerBgTask(r, "video", "Topaz 畫質增強");
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        topazMut.mutateAsync({
+          videoUrl: topazVideo,
+          model: topazModel,
+          outputScale: topazScale,
+        }),
+      onResult: setTopazResult,
+      taskType: "video",
+      taskLabel: "Topaz 畫質增強",
+    });
   }
 
   // ── Agent Bus subscription (enhance) ──
@@ -3495,8 +3420,9 @@ function EnhancementTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function AdvancedControlTab() {
-  const registerBgTask = useRegisterBgTask();
-  const { setAIState, reportSuccess, reportFailure } = useAIState();
+  // AIDV-970：提交骨架收斂到共用 useSubmitGeneration（提交 → 寫結果 →
+  // registerBgTask → 成功 toast → reportSuccess/Failure → AI 狀態復位）。
+  const { submitGeneration } = useSubmitGeneration();
   const bus = useVideoAgentBus();
   const notifyEmptyPrompt = useEmptyPromptHelper();
   const injectWorld = useWorldContext().injectIntoPrompt;
@@ -3548,86 +3474,69 @@ function AdvancedControlTab() {
   async function runCam() {
     if (!camPrompt.trim() || !camImage.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與圖片 URL" });
-    setAIState("generating");
-    try {
-      const r = await camMut.mutateAsync({
-        prompt: injectWorld(camPrompt),
-        imageUrl: camImage,
-        cameraMotion: camMotion as any,
-        duration: camDuration,
-      });
-      setCamResult(r);
-      registerBgTask(r, "video", "CamMaster 鏡頭控制", camPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        camMut.mutateAsync({
+          prompt: injectWorld(camPrompt),
+          imageUrl: camImage,
+          cameraMotion: camMotion as any,
+          duration: camDuration,
+        }),
+      onResult: setCamResult,
+      taskType: "video",
+      taskLabel: "CamMaster 鏡頭控制",
+      taskPrompt: camPrompt,
+    });
   }
 
   async function runAnimateDiff() {
     if (!adPrompt.trim() || !adVideo.trim())
       return notifyEmptyPrompt({ modality: "影片", missing: "請輸入提示詞與影片 URL" });
-    setAIState("generating");
-    try {
-      const r = await adMut.mutateAsync({
-        prompt: injectWorld(adPrompt),
-        videoUrl: adVideo,
-        controlNet: adControlNet,
-        guidanceScale: adGuide,
-        negativePrompt: adNeg || undefined,
-      });
-      setAdResult(r);
-      registerBgTask(r, "video", "AnimateDiff 動作控制", adPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        adMut.mutateAsync({
+          prompt: injectWorld(adPrompt),
+          videoUrl: adVideo,
+          controlNet: adControlNet,
+          guidanceScale: adGuide,
+          negativePrompt: adNeg || undefined,
+        }),
+      onResult: setAdResult,
+      taskType: "video",
+      taskLabel: "AnimateDiff 動作控制",
+      taskPrompt: adPrompt,
+    });
   }
 
   async function runDepthCrafter() {
     if (!dcVideo.trim()) return toast.error("請輸入影片 URL");
-    setAIState("generating");
-    try {
-      const r = await dcMut.mutateAsync({ videoUrl: dcVideo });
-      setDcResult(r);
-      registerBgTask(r, "video", "DepthCrafter 深度感知生成");
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        dcMut.mutateAsync({ videoUrl: dcVideo }),
+      onResult: setDcResult,
+      taskType: "video",
+      taskLabel: "DepthCrafter 深度感知生成",
+    });
   }
 
   async function runVidu() {
     const urls = viduImages.filter(u => u.trim());
     if (!viduPrompt.trim() || urls.length === 0)
       return notifyEmptyPrompt({ modelLabel: "Vidu", modality: "影片", missing: "請輸入提示詞與至少一張圖片 URL" });
-    setAIState("generating");
-    try {
-      const r = await viduMut.mutateAsync({
-        prompt: injectWorld(viduPrompt),
-        imageUrls: urls,
-        duration: viduDuration,
-        aspectRatio: viduAspect,
-        resolution: viduResolution,
-      });
-      setViduResult(r);
-      registerBgTask(r, "video", "Vidu Q1 角色一致性生成", viduPrompt);
-      toast.success("📤 任務已提交！稍後自動更新結果...");
-      reportSuccess();
-    } catch {
-      reportFailure();
-    } finally {
-      setAIState("idle");
-    }
+    await submitGeneration({
+      mutate: () =>
+        viduMut.mutateAsync({
+          prompt: injectWorld(viduPrompt),
+          imageUrls: urls,
+          duration: viduDuration,
+          aspectRatio: viduAspect,
+          resolution: viduResolution,
+        }),
+      onResult: setViduResult,
+      taskType: "video",
+      taskLabel: "Vidu Q1 角色一致性生成",
+      taskPrompt: viduPrompt,
+    });
   }
 
   // ── Agent Bus subscription (control) ──
