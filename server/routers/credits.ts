@@ -1,7 +1,9 @@
+import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getAllPricingByCategory } from "../services/modelPricing";
 import { getUserTopModelRecent } from "../db";
 import * as db from "../db";
+import { getJobRefundStatuses } from "../services/refundStatus";
 
 export const creditsRouter = router({
   /** 取得所有模型的定價分類表（公開，無需登入） */
@@ -78,4 +80,23 @@ export const creditsRouter = router({
       usedPct,
     };
   }),
+
+  /**
+   * AIDV-650: 任務退款狀態透明化 — 批次查詢（唯讀）。
+   *
+   * input：任務 id 陣列（上限 100，超出於服務層截斷）。
+   * output：每任務 { taskId, chargedPoints, refundedPoints, refundStatus }，
+   *   refundStatus ∈ none | not_refunded | partial | full | unknown。
+   *
+   * 安全：嚴格以登入使用者為界（SQL 端 userId 過濾）；非本人／不存在的 id
+   * 一律回 unknown 且回應形狀不可區分；任何內部錯誤 fallback 為 unknown、
+   * 永不 throw 到 UI。
+   */
+  jobRefundStatus: protectedProcedure
+    .input(
+      z.object({
+        jobIds: z.array(z.number().int().positive()),
+      })
+    )
+    .query(({ ctx, input }) => getJobRefundStatuses(ctx.user.id, input.jobIds)),
 });

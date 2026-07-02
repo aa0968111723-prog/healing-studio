@@ -2220,6 +2220,26 @@ export async function getBackgroundJobsByIds(ids: number[]) {
 }
 
 /**
+ * AIDV-650: 批次取回退款狀態推導所需欄位（id + resultJson）。
+ * 單一 SQL（inArray）、SQL 端強制 userId = 本人 —— 非本人的任務 id 不會出現
+ * 在結果內（呼叫端據此回 unknown，與不存在的 id 不可區分，防 IDOR 枚舉）。
+ * 純唯讀，demo 無 DB 時回空陣列。
+ */
+export async function getBackgroundJobsRefundMeta(
+  userId: number,
+  ids: number[]
+): Promise<Array<{ id: number; resultJson: unknown }>> {
+  const db = await getDb();
+  if (!db || ids.length === 0) return [];
+  return db
+    .select({ id: backgroundJobs.id, resultJson: backgroundJobs.resultJson })
+    .from(backgroundJobs)
+    .where(
+      and(eq(backgroundJobs.userId, userId), inArray(backgroundJobs.id, ids))
+    );
+}
+
+/**
  * AIDV-244：透過 fal.ai request_id 反查任意狀態的 backgroundJob（用於 ownership 驗證）。
  * 與 findProcessingJobByRequestId 的差異：不限制 status，適用於 checkVideoStatus 查詢已完成的 job。
  */

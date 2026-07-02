@@ -28,7 +28,12 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useCallback } from "react";
+import {
+  RefundStatusBadge,
+  useJobRefundStatuses,
+  type JobRefundInfo,
+} from "@/components/RefundStatusBadge";
+import { useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,7 +98,15 @@ function formatTime(iso?: string) {
 
 // ─── Task Row ─────────────────────────────────────────────────────────────────
 
-function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: string }) {
+function TaskRow({
+  task,
+  previewUrl,
+  refundInfo,
+}: {
+  task: BackgroundTask;
+  previewUrl?: string;
+  refundInfo?: JobRefundInfo;
+}) {
   const prefersReducedMotion = useReducedMotion() ?? false;
   const isDispatchFailed =
     task.status === "failed" &&
@@ -147,6 +160,10 @@ function TaskRow({ task, previewUrl }: { task: BackgroundTask; previewUrl?: stri
               <span className="text-[10px] text-muted-foreground">
                 {formatTime(task.createdAt)}
               </span>
+            )}
+            {/* AIDV-650: 失敗任務的退款狀態徽章（無資料時安靜不顯示） */}
+            {task.status === "failed" && (
+              <RefundStatusBadge info={refundInfo} />
             )}
           </div>
           {/* F010: show failure reason so users know what went wrong */}
@@ -229,6 +246,17 @@ export default function BackgroundTasksDrawer() {
     useBackgroundTasks();
   const prefersReducedMotion = useReducedMotion();
 
+  // AIDV-650: 批次查詢失敗任務的退款狀態（單一查詢；空清單時不發）
+  const failedJobIds = useMemo(
+    () =>
+      tasks
+        .filter(t => t.status === "failed")
+        .map(t => t.jobId)
+        .sort((a, b) => a - b),
+    [tasks]
+  );
+  const refundInfoByJobId = useJobRefundStatuses(failedJobIds);
+
   // 不顯示 badge 如果沒有任何任務
   if (tasks.length === 0 && !drawerOpen) return null;
 
@@ -302,7 +330,12 @@ export default function BackgroundTasksDrawer() {
                     最近完成 ({completedTasks.length})
                   </p>
                   {completedTasks.map(t => (
-                    <TaskRow key={t.jobId} task={t} previewUrl={previewUrls[t.jobId]} />
+                    <TaskRow
+                      key={t.jobId}
+                      task={t}
+                      previewUrl={previewUrls[t.jobId]}
+                      refundInfo={refundInfoByJobId[t.jobId]}
+                    />
                   ))}
                 </div>
               )}
