@@ -56,6 +56,7 @@ const ModelsPage = lazy(() => import("./pages/ModelsPage"));
 const NotesPage = lazy(() => import("./pages/NotesPage"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const CreatorDashboardPage = lazy(() => import("./pages/CreatorDashboardPage"));
 const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const AgentPreferencesPage = lazy(() => import("./pages/settings/AgentPreferencesPage"));
@@ -302,6 +303,9 @@ function Router() {
       </Route>
       <Route path="/dashboard">
         <DashboardRoute component={DashboardPage} />
+      </Route>
+      <Route path="/creator/dashboard">
+        <DashboardRoute component={CreatorDashboardPage} />
       </Route>
       <Route path="/feedback">
         <DashboardRoute component={FeedbackPage} />

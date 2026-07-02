@@ -214,6 +214,16 @@ export const FEATURE_BEGINNER_PATH_PERSONAS: boolean =
 export const ENABLE_QUICK_FEEDBACK: boolean =
   readRuntimeOverride("quickfeedback") ?? readFlag("VITE_ENABLE_QUICK_FEEDBACK", true);
 
+/**
+ * Creator 可見性儀表板（AIDV-277，收斂 AIDV-272/273）。
+ * /creator/dashboard 顯示 QuotaWidget（當月用量配額 + 80% 預警）＋ VideoPerformanceTable
+ * （每部影片觀看/完播率，複用既有 videoAnalytics）。路由永遠註冊（scan-routes 對齊）；
+ * 本旗標 OFF 時頁面渲染「未啟用」佔位＝零行為改變（純加性、可秒回滾）。
+ * 預設 ON；關閉退路：VITE_FEATURE_CREATOR_DASHBOARD=0 或 ?creatordashboard=0。
+ */
+export const FEATURE_CREATOR_DASHBOARD: boolean =
+  readRuntimeOverride("creatordashboard") ?? readFlag("VITE_FEATURE_CREATOR_DASHBOARD", true);
+
 /** 集中匯出，方便 SpineProvider / 偵錯面板一次讀取。 */
 export const FEATURE_FLAGS = {
   ENABLE_4SHELL,
@@ -229,6 +239,7 @@ export const FEATURE_FLAGS = {
   FEATURE_PROMPT_DIAGNOSTIC,
   FEATURE_BEGINNER_PATH_PERSONAS,
   ENABLE_QUICK_FEEDBACK,
+  FEATURE_CREATOR_DASHBOARD,
 } as const;
 
 export type FeatureFlagKey = keyof typeof FEATURE_FLAGS;
