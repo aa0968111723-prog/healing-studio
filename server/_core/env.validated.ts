@@ -438,6 +438,14 @@ const coreSchema = z.object({
   //   明確 "false"/"0"/"off"/"no" → 一律 fail-open（緊急回退，連 prod 也放行）。
   //   明確 "true"/"1"/"on"/"yes"  → 一律 fail-closed（連 dev 也拒絕，方便 staging 演練）。
   STRIPE_WEBHOOK_FAIL_CLOSED: z.string().optional().default(""),
+  // AIDV-167：Stripe webhook 事件落地（開通/續期/降級）總開關。預設 OFF＝維持
+  //   既有 console.log stub（零行為變化）。明確 "1"/"true"/"on"/"yes" 才啟用真實
+  //   落地（寫 user_subscriptions + stripe_webhook_events + 稽核/帳本）。
+  STRIPE_FULFILLMENT: z.string().optional().default(""),
+  // AIDV-167：Stripe price → planId 對照表（JSON 物件，如 {"price_123":"pro"}）。
+  //   planId 僅接受 free/starter/pro/enterprise；未列入對照且 metadata 無 planId
+  //   的付費事件一律 hold 轉人審（從嚴，絕不猜方案）。
+  STRIPE_PRICE_PLAN_MAP: z.string().optional().default(""),
 
   // ── 郵件發送 SMTP（AIDV-434）────────────────────────────────
   // 任意 SMTP 服務商皆可：SendGrid smtp.sendgrid.net / AWS SES / Gmail / Mailgun。

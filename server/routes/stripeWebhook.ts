@@ -3,12 +3,24 @@
  * POST /api/webhooks/stripe
  *
  * AIDV-159：簽章驗證已從骨架（永遠 return true）改為真正的 HMAC-SHA256 驗證。
- * 事件處理器（handlers）目前仍是 console.log stub，待接 entitlement 時完善。
+ * AIDV-167：事件落地（開通/續期/降級）掛旗標 STRIPE_FULFILLMENT：
+ *   - OFF（預設）：維持既有行為——先回 200，事件處理器為 console.log stub。
+ *   - ON：驗章通過後【先落地再回應】（services/billing/stripeFulfillment）：
+ *       processed / held（從嚴轉人審）/ skipped（亂序防護）/ duplicate（冪等）→ 200；
+ *       failed（處理拋錯）→ 500，讓 Stripe 重試（落地全程冪等，重試安全）；
+ *       無資料庫 → 503（fail-safe：不吞掉已付款事件，交給 Stripe 重試）。
  */
 
 import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import { serverEnv } from "../_core/env.validated";
+import { getDb } from "../db";
+import {
+  createDrizzleBillingStore,
+  isStripeFulfillmentEnabled,
+  processStripeEvent,
+  type StripeEventEnvelope,
+} from "../services/billing/stripeFulfillment";
 
 export const stripeWebhookRouter = Router();
 
@@ -158,7 +170,10 @@ function verifyStripeSignature(req: Request): StripeVerifyResult {
   return { ok: true };
 }
 
-// ─── 事件處理器（骨架）────────────────────────────────────────────────────────
+// ─── 事件處理器（骨架 — 僅 STRIPE_FULFILLMENT=OFF 時使用）───────────────────────
+//
+// AIDV-167：旗標 ON 時改走 services/billing/stripeFulfillment 的真實落地；
+// 以下 stub 保留給旗標 OFF（預設）路徑，確保零行為變化。
 
 /**
  * 處理 checkout.session.completed
@@ -255,6 +270,61 @@ function handleSubscriptionDeleted(
   // TODO: 實作訂閱取消處理邏輯
 }
 
+// ─── AIDV-167：旗標 ON 的真實落地路徑 ─────────────────────────────────────────
+//
+// 與旗標 OFF 的關鍵差異：【先落地、後回應】。付款事件一旦回 2xx，Stripe 便不再
+// 重試；若先回 200 再非同步處理，處理失敗＝已收款卻永遠漏開通。故此路徑同步等
+// 待落地結果，failed → 500（Stripe 會重試；落地冪等，重試安全）、無 DB → 503。
+async function fulfillStripeEvent(req: Request, res: Response): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) {
+      // fail-safe：資料庫不可用時不吞事件（回非 2xx 讓 Stripe 稍後重試）。
+      console.error(
+        "[StripeWebhook] ❌ STRIPE_FULFILLMENT=ON 但資料庫不可用，回 503 讓 Stripe 重試。"
+      );
+      res.status(503).json({ error: "資料庫不可用，請稍後重試" });
+      return;
+    }
+
+    const event = (req.body ?? {}) as StripeEventEnvelope;
+    console.log(
+      `[StripeWebhook] 📨 Received event: type=${String(event.type)}, id=${String(event.id)}`
+    );
+
+    const store = createDrizzleBillingStore(db);
+    const result = await processStripeEvent(store, event);
+
+    switch (result.outcome) {
+      case "failed":
+        console.error(
+          `[StripeWebhook] ❌ 事件落地失敗（${result.reason}），回 500 讓 Stripe 重試（冪等安全）。`
+        );
+        res.status(500).json({ error: "事件處理失敗，請重試" });
+        return;
+      case "held":
+        // 裁決從嚴：資訊不足不自動變更權益 → 事件已凍結轉人審（stripe_webhook_events
+        // status=held + holdReason），回 200（已妥善接收，不需 Stripe 重試）。
+        console.warn(`[StripeWebhook] ⏸️  事件轉人審（held）：${result.reason}`);
+        break;
+      case "skipped":
+        console.log(`[StripeWebhook] ℹ️  事件安全略過：${result.reason}`);
+        break;
+      case "duplicate":
+        console.log("[StripeWebhook] ♻️  重複事件（冪等），不重複落地。");
+        break;
+      case "processed":
+        console.log(`[StripeWebhook] ✅ 事件落地完成：${result.detail ?? ""}`);
+        break;
+    }
+    res.status(200).json({ received: true, outcome: result.outcome });
+  } catch (err) {
+    // processStripeEvent 已內吞 handler 錯誤；這裡兜底（getDb / store 建構等）。
+    console.error("[StripeWebhook] ❌ 落地流程未預期錯誤：", err);
+    res.status(500).json({ error: "事件處理失敗，請重試" });
+  }
+}
+
 // ─── POST /api/webhooks/stripe ─────────────────────────────────────────────
 
 stripeWebhookRouter.post(
@@ -275,7 +345,13 @@ stripeWebhookRouter.post(
       return;
     }
 
-    // 2. 驗證通過才回 200（Stripe 收到 2xx 即視為已接收，不再重試）。
+    // 2. AIDV-167：旗標 ON → 真實落地（先處理完才回應；失敗回 5xx 讓 Stripe 重試）。
+    if (isStripeFulfillmentEnabled()) {
+      await fulfillStripeEvent(req, res);
+      return;
+    }
+
+    // 3.（旗標 OFF，預設）驗證通過才回 200（Stripe 收到 2xx 即視為已接收，不再重試）。
     res.status(200).json({ received: true });
 
     try {
@@ -291,7 +367,7 @@ stripeWebhookRouter.post(
 
       const eventObject = event.data?.object ?? {};
 
-      // 3. 依事件類型分派處理器
+      // 4. 依事件類型分派 stub 處理器（旗標 OFF：只 log，不落地）
       switch (event.type) {
         case "checkout.session.completed":
           handleCheckoutSessionCompleted(eventObject);

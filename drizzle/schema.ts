@@ -2002,6 +2002,68 @@ export const userSubscriptions = mysqlTable(
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export type InsertUserSubscription = typeof userSubscriptions.$inferInsert;
 
+// ─── Stripe Webhook Events（AIDV-167：事件級冪等 + 重放安全 + 人審軌跡）────────
+//
+// 每一顆進站的 Stripe 事件（僅本服務接手的類型）在處理前先「claim」一列：
+//   eventId UNIQUE ＝事件級冪等鍵（Stripe evt_...；重送/重放同事件只落地一次）。
+//   status 生命週期：processing →（processed | held | skipped | failed）。
+//     - processed：已成功落地（開通/續期/降級已寫入 user_subscriptions）。
+//     - held     ：裁決從嚴——資訊不足（無法解析 user / 方案 / 未知狀態）不自動
+//                  變更權益，凍結轉人審（holdReason 說明原因，payload 供人審）。
+//     - skipped  ：安全略過（out-of-order 舊事件、訂閱已終結）。
+//     - failed   ：處理拋錯；webhook 回 5xx 讓 Stripe 重試，重試時可 re-claim。
+//   eventCreated（Stripe event.created）用於同訂閱事件的亂序防護：
+//     已存在「更新的 processed 事件」→ 舊事件直接 skipped，不倒退狀態。
+export const stripeWebhookEvents = mysqlTable(
+  "stripe_webhook_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** Stripe 事件 id（evt_...）；payload 無 id 時為 payload 雜湊衍生鍵。 */
+    eventId: varchar("eventId", { length: 191 }).notNull(),
+    eventType: varchar("eventType", { length: 64 }).notNull(),
+    /** data.object.id（cs_... / in_... / sub_...），供追查。 */
+    objectId: varchar("objectId", { length: 191 }),
+    /** 關聯的 Stripe subscription id（亂序防護的分組鍵）。 */
+    subscriptionId: varchar("subscriptionId", { length: 64 }),
+    /** Stripe event.created（事件產生時間，非收到時間）。 */
+    eventCreated: timestamp("eventCreated"),
+    status: mysqlEnum("status", [
+      "processing",
+      "processed",
+      "held",
+      "skipped",
+      "failed",
+    ])
+      .default("processing")
+      .notNull(),
+    /** held/skipped 的原因（人審依據）。 */
+    holdReason: text("holdReason"),
+    /** failed 的錯誤摘要。 */
+    error: text("error"),
+    /** 處理嘗試次數（failed 後 Stripe 重試會 +1）。 */
+    attempts: int("attempts").default(1).notNull(),
+    /** data.object 快照（人審/重放依據）。 */
+    payload: json("payload").$type<Record<string, unknown>>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // 事件級冪等的最終真相：同 eventId 併發雙寫其一撞 ER_DUP_ENTRY。
+    eventIdUnique: uniqueIndex("swe_eventId_unique").on(table.eventId),
+    // 亂序防護查詢：同 subscription 是否已有更新的 processed 事件。
+    subscriptionIdx: index("swe_subscription_idx").on(
+      table.subscriptionId,
+      table.status
+    ),
+    // 人審清單查詢（status=held）。
+    statusIdx: index("swe_status_idx").on(table.status),
+    createdAtIdx: index("swe_createdAt_idx").on(table.createdAt),
+  })
+);
+
+export type StripeWebhookEvent = typeof stripeWebhookEvents.$inferSelect;
+export type InsertStripeWebhookEvent = typeof stripeWebhookEvents.$inferInsert;
+
 // ─── Orb Feedback Events（Phase 3c：光球跨 session 長期記憶）────────────────
 //
 // 使用者對光球建議的每一筆反應都寫進來（accepted / edited / cancelled /
