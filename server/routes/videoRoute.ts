@@ -98,7 +98,7 @@ function serializeProject(row: Awaited<ReturnType<typeof getVideoProject>>) {
 
 export const videoRouter = Router();
 
-videoRouter.use(verifyToken);
+videoRouter.use("/api/video", verifyToken);
 
 // ── GET /api/video ────────────────────────────────────────────────────────────
 
