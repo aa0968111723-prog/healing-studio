@@ -394,6 +394,30 @@
 
 ---
 
+## 10.10 GC 波缺口補完新增卡(auth/計費守衛/憑證/RAG,詳見 GC1-GC4)
+
+> 🔴 **全案最高優先在此波出現**:GC 波 8 確認 0 推翻,封閉計費守衛層並揪出認證層密鑰外洩。
+
+### 卡 S-00 ·【P0・全案最嚴重】auth.me 洩漏 passwordHash/2FA 種子 + 前端明文 localStorage
+- 群組:安全 ｜ 驗證:對抗式已確認(GC1)
+- 出處:`GC1-auth-export-plans.md`、`server/routers/auth.ts:9`、`client/src/_core/hooks/useAuth.ts:58-61`
+- 現況:`me: publicProcedure.query(ctx => ctx.user)` 無欄位白名單,**直接回傳整列 users**(含 `passwordHash`、`twoFactorSecret` TOTP 明碼種子、`icsFeedToken`);前端把整包寫入 `localStorage` 明文。auth.me 全站高頻呼叫→**任何一處 XSS 即可讀出密碼雜湊 + 永久繞過 2FA**(密碼重設也救不回)。codebase 自身 `db.ts:2076-2080` 已明文承認要避免此洩漏並在別處正確做欄位投影,auth.me 沒跟進;前端根本沒用到這些欄位=純多餘外洩。
+- **待決策**:立即改欄位白名單投影(有現成 getUserAccountInfo 範例可抄)+ 前端停止整包落地。**建議列第 0 波第一張票**。
+
+### 其餘 GC 卡
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| B-22 | orbCostGuard.ts:127-151 | **P0** | 封閉計費守衛層:checkRetryChainCost + enforceMonthlyBudgetGate 唯一資料源對主流量結構性失明→**兩道即時守衛實務上永不觸發** |
+| B-23 | db.ts:826-827 | 高 | `deductUserPoints`/`refundUserPoints` 硬編 500 點上限,與 catalog 高價模型(sora 600/kling 550/訓練 2000-5000)矛盾→**系統性少收**(坐實 X5 §7 懸念;修 B-16 時的地雷) |
+| B-24 | orbBudgetGuard.ts:104-125 | 高 | monthly budget gate 只掛 ai.chat/director.chat,擋不到直接生成/訓練花費(含 B-16 零計費入口) |
+| B-25 | credits.ts:55-82 | 高 | credits.myBalance/財財精靈報表資料源 api_usage_logs 只由舊版 generate.ts 餵→對 orb+15 精靈失明,低餘額提醒對主要花費失效 |
+| S-35 | secretCrypto.ts:44-51 | 高 | CREDENTIAL_ENCRYPTION_KEY 未設靜默 fallback JWT_SECRET→**輪替 JWT_SECRET(常規資安動作)會靜默且不可逆打壞所有 Notion 憑證**,消費端吞掉解密失敗無告警(升級 S-08) |
+| S-36 | spiritRouter.ts:100-165 | 高 | 全 9 端點裸 protectedProcedure,spirit.invoke 真實 fal 計費繞過 generationProcedure 速率限制+GPU 並發上限→cost-DoS |
+
+> GC 也複核 X9 realEarth 教材外洩(S-19)**現況未變**;釐清 E「orb quota guard 預設關」只管聊天層,派工當下的每日生成上限不受旗標影響永遠啟用(negative result)。orbQuota 三類配額生產零呼叫卻把假「剩餘配額」寫進 planner 提示詞。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
@@ -402,4 +426,5 @@
 - 2026-07-03 `b743d2ac`(續):補 W8 卡(B-03 升級 P0、S-14〜S-16、I-04)。
 - 2026-07-03 `b743d2ac`(續):補 Z 波 S-17/S-18;X 波地毯掃描 40 條確認卡(B-10〜B-18、S-19〜S-28、PS-08〜PS-12、I-05/I-06、NSX-1/NSX-2、U-1),詳見 `X0-carpet-scan-synthesis.md`。
 - 2026-07-03 `b743d2ac`(續):Y 波前端地毯掃描 20 可證偽項 0 推翻,補前端卡(B-19/B-20、C-01/C-02、S-29〜S-32、FE-01〜FE-05),詳見 `Y0-frontend-carpet-scan-synthesis.md`。
-- 2026-07-03 `b743d2ac`(續):CC 波覆蓋補完 16 確認,補卡 S-33/S-34(langsmith 全站對話外洩、orbClarification IDOR)、B-21、SSOT-1(W1 navigate 根因)、FE-06/FE-07(AnimationStudio crash)、PS-13,並收 CC0 完整性批判。GC 波(auth/計費守衛/憑證/RAG授權)處理中。
+- 2026-07-03 `b743d2ac`(續):CC 波覆蓋補完 16 確認,補卡 S-33/S-34(langsmith 全站對話外洩、orbClarification IDOR)、B-21、SSOT-1(W1 navigate 根因)、FE-06/FE-07(AnimationStudio crash)、PS-13,並收 CC0 完整性批判。
+- 2026-07-03 `b743d2ac`(續):GC 波缺口補完 8 確認 0 推翻,補 **S-00(auth.me 洩 passwordHash/2FA=全案最高優先)**、B-22〜B-25(計費守衛層對主流量失明+硬編 500 上限少收=封閉計費群組)、S-35(憑證金鑰輪替打壞)、S-36(spiritRouter cost-DoS)。**至此 W+X+Y+Z+CC+GC 全波落地,CC0 點名缺口全數補完,研究飽和。**
