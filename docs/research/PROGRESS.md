@@ -35,7 +35,7 @@
 |---|---|---|---|
 | H1:模型成本全表 | `H1-model-costs.md` | ☑ 完成 | repo 內建定價表逐模型抽出(409 行)+典型操作成本速查;聲明「內建估價≠實際帳單」 |
 | H2:欄位字典(圖/影) | `H2-fields-image-video.md` | ☑ 完成 | ImageStudio/VideoStudio 逐欄位;VideoStudio 無 seed UI、~35 隱藏 zod 欄、flux2 參考圖上限炸 400、Wan 可用性查表失效 |
-| H3:欄位字典(音/統一/世界觀/座艙) | `H3-fields-pro-studio-animation.md` | ☐ **待補** | Fable5 額度中斷,研讀完未寫出 |
+| H3:欄位字典(音/統一/世界觀/座艙) | 併入 `L1-fields-audio-studio.md` | ☑ 完成(重寫) | 原 Fable5 中斷未寫出;已於 wave L 地毯掃描重新逐行實讀並寫出,不再另立檔案 |
 | H4:資料表字典×對外 API | `H4-data-dictionary-api.md` | ☐ **待補** | Fable5 額度中斷,研讀完未寫出 |
 
 ## 補充 wave I / J(Bruce 2026-07-03 加開)
