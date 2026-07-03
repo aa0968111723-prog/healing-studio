@@ -345,10 +345,44 @@
 
 ---
 
+## 10.8 Y 波前端地毯掃描新增卡(詳見 `Y0-frontend-carpet-scan-synthesis.md`)
+
+> 10 頁前端深挖,73 findings,20 可證偽項對抗式驗證 **0 推翻(7 下修)**。前端從 client 側**坐實了多個伺服端發現的真實可達性**(不再是理論)。北極星流程實況見 Y0 §1 圖 與 DEVZONE。
+
+### 前端計費/契約(坐實伺服端計費失效的 client 源頭)
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| B-19 | generate.ts:2143-2169(submitStudioJob) | **P0** | `submitStudioJob` 從不寫 `costPoints`→ImageStudio/ProStudio 幾乎全部背景任務**失敗退款保證 no-op**(這就是 B-01 的 client 源頭實證) |
+| B-20 | ImageStudio.tsx:3712-3751 / generate.ts:2259-2307 | **P0** | rodin3d/hunyuanWorld 結果解析恆 null→**誤判失敗並觸發退款嘗試**;另三支 3D 副輸出格式全不可見(extractFalMediaUrl 缺 model_mesh/world_file) |
+| C-01 | VideoStudio.tsx:4968-4993 | 高 | 「回到導演 AI」永遠送 `resultUrl:null`(5 分頁 reportState 缺 video_url)→生成結果連不回腳本卡 |
+| C-02 | DirectorAI.tsx:2907 / director.ts:1199-1240 | 高 | `batchGenerateWithSession` 呼叫端從不傳 storyboardId→AIDV-50 session 追蹤 100% 不觸發(且遮蔽了 W1 jobsJson 競態) |
+
+### 前端 client-security(坐實 IDOR/確認閘為活躍可達路徑)
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| S-29 | GlobalOrbChatContext.tsx:5373-5410,3357-3358 | **P0** | `runWorkflow` 顯式傳 `requireConfirmation:false` 使 `??` 安全網失效→逐步確認/成本閘門被繞(「client 布林當安全邊界」在前端被**重造**,非歷史遺留) |
+| S-30 | GlobalOrbChatContext.tsx:4605-4613 | 高 | composer 自然語言路徑同樣硬編碼 `requireConfirmation:false`,行內註解宣稱由 preferences 決定但程式碼根本沒讀 |
+| S-31 | ProStudio.tsx:4067(proStudio.ts:1688-1820) | 高 | **坐實 S-01/W2**:checkAudioStatus IDOR 是活躍呼叫路徑,`request_id` 還明碼顯示在畫面上(方便枚舉) |
+| S-32 | generate.ts:1536-1540 | 高 | **坐實 W3**:jobStatus 無 owner 檢查,ImageStudio/ProStudio 背景任務可被連號 jobId 枚舉 |
+
+### 前端死 UI / 北極星閘(CONFIRMED)
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| FE-01 | LearnHub.tsx / App.tsx:244 | **P0** | 整個 LearnHub(北極星① 自己的資料庫 UI)正式環境 100% 不可達,被 4-shell 路由 shadow;光球深連結 `?docId=` 是死指令 |
+| FE-02 | shells/settings/SettingsShell.tsx:26-49 | **P0** | `/settings` 富殼把 AdminPage/AgentPreferencesPage/SettingsPage 全變孤兒頁,連唯一「重置/重看引導」入口都不可達 |
+| FE-03 | ImageStudio:4408 / ProStudio:4747 / VideoStudio:5096 / DirectorAI:4522 | 高 | 「素材」快速開啟按鈕四處皆用永久 `hidden` class,AssetsQuickDrawer 全站不可達(北極星⑦ 素材管理入口死) |
+| FE-04 | ProjectsContext.tsx:168-177 | 高 | **違反「不跑偏」**:pickActive() 未釘選時靜默 fallback 成「最新更新一筆」專案,還是生產預設路徑 |
+| FE-05 | DriveLibrarySection.tsx:59-297 | 高 | Google Drive 連接前端兩套互不同步資料模型(`dataSourceConnections` vs `driveAssetLibraries`),同授權兩處各自記帳 |
+
+> Y4(animation)產出髒資料(唯一 finding 是字面 "test"),**建議重跑**;Y0 已排除不計入結論。imageStudio 全部 23 支生成 mutation 零點數扣除(交叉印證 V1/U3)。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
 - 2026-07-03 `812f6fdb`(續):補 W7/W9 卡(B-07〜B-09、PS-04〜PS-07、S-11〜S-13)。
 - 2026-07-03 `b743d2ac`(續):補 SYS-01 並將 NS/D/SYS「往前做」卡移至 `00-devzone.md`(研究討論開發專區),本表專責稽核問題卡。
 - 2026-07-03 `b743d2ac`(續):補 W8 卡(B-03 升級 P0、S-14〜S-16、I-04)。
-- 2026-07-03 `b743d2ac`(續):補 Z 波 S-17/S-18;X 波地毯掃描 40 條確認卡(B-10〜B-18、S-19〜S-28、PS-08〜PS-12、I-05/I-06、NSX-1/NSX-2、U-1),詳見 `X0-carpet-scan-synthesis.md`。至此 W+X+Z 波深挖全數落地。
+- 2026-07-03 `b743d2ac`(續):補 Z 波 S-17/S-18;X 波地毯掃描 40 條確認卡(B-10〜B-18、S-19〜S-28、PS-08〜PS-12、I-05/I-06、NSX-1/NSX-2、U-1),詳見 `X0-carpet-scan-synthesis.md`。
+- 2026-07-03 `b743d2ac`(續):Y 波前端地毯掃描 20 可證偽項 0 推翻,補前端卡(B-19/B-20、C-01/C-02、S-29〜S-32、FE-01〜FE-05),詳見 `Y0-frontend-carpet-scan-synthesis.md`。至此 W+X+Y+Z 波(伺服端+前端+MCP 策略)全數落地。

@@ -59,7 +59,25 @@
 
 ### 卡 NS-07 ·【功能】素材/目標/審批三柱綁 creativeProjectId — 狀態:待討論
 - 現況:digital_asset_library/consistency_vault/resource_shares/teams 資料底已在,未綁專案、enforcement OFF、無評論表。
-- 出處:`M4`。**待討論**:資產加 creativeProjectId + 狀態機(draft/in_review/approved)+ 評論表 + 目標 tracker(= 防跑偏產品化)。
+- 出處:`M4`。**待討論**:資產加 creativeProjectId + 狀態機(draft/in_review/approved)+ 評論表 + 目標 tracker(= 防跑偏產品化)。Y8 CONFIRMED:目標管理 UI 全站不存在、Project 型別只有 progress 數字,**從未建模**;素材庫與 creativeProjectId 三層(client/router/DB)皆無綁定。
+
+### 北極星前端實況(Y 波地毯掃描確認,見 `Y0-frontend-carpet-scan-synthesis.md`)
+> 一句話:北極星「腳本→分鏡→逐幕→拼接→輸出→打包」在前端**分鏡之後就斷裂**。三個關鍵斷點 + 建議優先序(Y0 §5):
+
+### 卡 NS-08 ·【最高 ROI・先修】修 4-shell 路由 shadow(SettingsShell + LearnHub 孤兒化) — 狀態:待討論
+- 現況(CONFIRMED):`/settings` 富殼把 AdminPage/AgentPreferencesPage/SettingsPage 全 shadow 成孤兒頁(含唯一重置引導入口);LearnHub 整檔正式環境 100% 不可達(北極星① 的 UI 入口)。同構問題,可能同一次修復解決。
+- 為何先修:不需重新設計功能,只需把 `shellRouteTable.ts` 已登記的頁面正確接上 `App.tsx` `<Switch>` / `SettingsShell.tsx` 路由映射。投資報酬率最高,且順手驗收 LearnHub 同款 shadow。
+- 出處:Y0 §5 斷點3、FE-01/FE-02。
+
+### 卡 NS-09 ·【地基・優先於 UI 修補】creative_projects 範疇化資料遷移 — 狀態:待討論
+- 現況(CONFIRMED):北極星承諾「AI 讀單一專案上下文」在**資料庫 schema 就不成立**——DirectorAI 腳本/分鏡操作(chat/saveSession/listSessions)無 projectId 範疇化,`project_notes_calendar` 無此欄位;AssetsLibrary/ProjectNotesDrawer 與 creativeProjectId 無綁定。ProjectsContext `pickActive()` 還靜默 fallback「最新更新一筆」(違反不跑偏)。
+- 動作:先加 `project_notes_calendar.creativeProjectId`、`digital_asset_library.creativeProjectId` 等核心表遷移,再逐一補寫入/查詢過濾;`pickActive` 改強制釘選或明標「系統猜測」。
+- 出處:Y0 §5 斷點1、NS-02、FE-04、Y8 CONFIRMED。這是 M1 SSOT 主張的資料層前置。
+
+### 卡 NS-10 ·【最高槓桿・大件】最小可用 compose 拼接服務 — 狀態:待討論(= NS-05 深化)
+- 現況(CONFIRMED):全代碼庫無真正媒體合成服務,`videoCompiler`/`audioCompiler` 只是提示詞編譯器;VideoStudio 全檔 zip/打包/匯出/拼接/compose 皆 0 命中;五步引導「成片」步驟永遠無可執行動作(死 UI)。逐幕生成三工具(圖/影/音)還互相獨立、與腳本卡失聯(`resultUrl` 恆 null)。
+- 動作:落地最小可用 compose(哪怕只是依腳本順序串接生成結果的陽春版)——Y0 判定為「解鎖腳本到成片閉環最高槓桿的單一投資」。先修生成結果回填腳本卡(VideoStudio resultUrl:null,比照 ImageStudio 既有正確實作)。
+- 出處:Y0 §5 斷點2、M1 NS-05/Q2、C-01。
 
 ---
 
@@ -110,8 +128,9 @@
 |---|---|---|
 | W 波 | 逐檔對抗式深挖(W1 director / W2 proStudio / W3 generate / W4 brainPipeline / W5 計費核心 / W6 siteKnowledge / W7 webhook 安全網 / W8 ai.ts / W9 cron-workers) | ✅ 已完成 9 檔 |
 | X 波 | 17 檔地毯掃描 + 對抗式驗證每條 critical/high + X0 綜合 | ⏳ 進行中(workflow) |
-| Z 波 | 自建 MCP 系統策略 + 8 MCP 研究 → Z1 | ⏳ 進行中(workflow) |
-| 後續候選 | client 關鍵頁(Studio.tsx/LearnHub)、falModels/modelResearcher、shared 契約層、北極星逐幕三軌編輯器 spec | 待排 |
+| Z 波 | 自建 MCP 系統策略 + 8 MCP 研究 → Z1 | ✅ 已完成 |
+| Y 波 | 前端逐頁地毯掃描 10 頁 + Y0 北極星流程實況 | ✅ 已完成(Y4 髒資料待重跑) |
+| 後續候選 | Y4 animation 重跑、shared 契約層、剩餘 orb 服務、falModels/modelResearcher、北極星逐幕三軌編輯器 spec | 待排 |
 
 > 研究結論坐實後:問題類 → 補進 `00-discussion-taskcards.md`;功能/策略類 → 補進本檔。
 
@@ -119,4 +138,5 @@
 
 ## F. 更新記錄
 
-- 2026-07-03 `b743d2ac`:建立研究討論開發專區,與稽核問題卡分家;收北極星 NS 卡、SYS-01 MCP 策略、D 決策、DEV playbook、研究登記。X/Z 波完成後續補。
+- 2026-07-03 `b743d2ac`:建立研究討論開發專區,與稽核問題卡分家;收北極星 NS 卡、SYS-01 MCP 策略、D 決策、DEV playbook、研究登記。
+- 2026-07-03 `b743d2ac`(續):SYS-01 收 Z1 結論;Y 波前端實況確認,新增 NS-08(修 shell 路由,最高 ROI 先修)、NS-09(專案範疇化資料遷移地基)、NS-10(compose 拼接最高槓桿)。
