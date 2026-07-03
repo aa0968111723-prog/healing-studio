@@ -52,7 +52,7 @@
 | K1:對抗式安全/認證 | `K1-security-bugs.md` | ☑ 完成 | 4 高危:生成入口參考圖 SSRF(無白名單+無 redirect:error)、ElevenLabs 三路徑 SSRF、assets.teamAssets 跨租戶 IDOR(RBAC OFF)、models.teamModels 無旗標可關洩 LoRA 權重;+proxy-download/safeMediaUrl 萬用尾碼白名單缺陷 |
 | K2:生成/扣點正確性 | `K2-generation-bugs.md` | ☑ 完成 | 🔴 generate.multimodal 雙重退款可套利(內層退+外層catch再退);staleJob 永不退款點數永久遺失;image/proStudio 缺 owner 檢查可竊取他人資產;creator_job_throttle 固定窗邊界雙倍超限;seed=0 truthy 丟棄範圍擴大 |
 | K3:資料完整性/雙DB | `K3-data-integrity.md` | ☑ 完成 | 🔴 GDPR 刪帳整條必炸(USER_OWNED_TABLES 含 10 張無 userId 表→SQL錯→交易回滾→刪不掉,零測試)+餵電路斷路器全站503;10 張有 userId 表漏在清單外→個資永存;resource_shares 三向不清;跨庫 IDOR(handoffTrace 只驗登入) |
-| K4:死碼/契約不符/假測試 | `K4-deadcode-contracts.md` | ◐ 進行中 | router 零呼叫/zod vs UI/死旗標/假測試統計 |
+| K4:死碼/契約不符/假測試 | `K4-deadcode-contracts.md` | ☑ 完成 | 整 router 死掉一批(apiKey/rbac全4/webhook/externalServices/musicSpecialist/orbCapabilities);FeatureFlagService 12 旗標 10 個不接線(IMAGE/VIDEO_GENERATION 宣稱回503但無檢查);settings.update 13/22 死欄位;假測試實錘(four-area-audit 11 個 expect(true));agentDlqPoller 輪詢永遠空表;孤兒服務/元件多個 |
 
 ## 全案狀態(2026-07-03)
 - 主體 Phase 0-3 ☑ + 補洞 G1-G4 ☑ + 補充 H1/H2/I/J ☑ + 深挖 K1 ☑(K2-K4 進行中)

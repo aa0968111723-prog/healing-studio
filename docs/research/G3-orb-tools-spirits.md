@@ -142,6 +142,8 @@ generateSpeech(主入口,自動依語言挑引擎+情緒標籤)、cloneVoice、d
 
 **musicSpecialist.*(音音,9 個,全註冊;generate/generateSoundEffect=medium 要確認,其餘 low;→musicSpecialistTools)**
 generate、generateSoundEffect、recommendEngine(挑引擎)、listEngines、buildPrompt(model-specific 提示詞)、estimateCost、getRecentAssets(掃素材庫)、getOptions、getTips。⚠️ recommendEngine/listEngines/estimate/getRecentAssets 與 `trpc.musicSpecialist.*` 共用實作(router 活路)。
+>
+> **勘誤(K4 複查)**:此處「router 活路」不成立——K4 實測 `client/src` 全站對 `trpc.musicSpecialist.*` **零引用**(ProStudio/OrbCreationStage 檔頭自稱的呼叫者從未接線)。故 musicSpecialist 9 工具與 accountant 同屬「executor case 不可達 + router 前端零呼叫」的雙重孤兒;唯一活路是 @音音聊天走 `spirit.invoke`。詳見 K4。
 
 **trainingSpecialist.*(練練,6 個,全註冊 low;→trainingSpecialistTools)**
 listMyModels(已訓模型)、getModelStatus、analyzeDataset(資料集夠不夠)、recommendParams(訓練參數)、estimateTraining(估時/估點,對齊 executor STEPS_PER_EPOCH 算法)、getTips。
