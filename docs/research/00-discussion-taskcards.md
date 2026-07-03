@@ -378,6 +378,22 @@
 
 ---
 
+## 10.9 CC 波覆蓋補完新增卡(詳見 CC1-CC5 + `CC0-completeness-critic.md`)
+
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| S-33 | langsmith.ts | **P0** | 8/9 procedure 用 protectedProcedure(非 admin)→**任何登入者可讀取/批次匯出全站所有使用者 LLM 對話原文**(重大外洩) |
+| S-34 | orbClarificationEngine.ts(recordAnswer) | **P0** | 更新澄清紀錄無 userId 擁有權檢查→跨用戶 IDOR 寫入 |
+| B-21 | sense.ts(inferIntent) | 高 | publicProcedure 免登入直接觸發真實 LLM 呼叫,llm tier 定義但從未掛載節流 |
+| SSOT-1 | shared/agent-plan-safety.ts、agent-plan-schema.ts、agent-actions.ts | 高 | **W1 navigate 無白名單的 SSOT 根因**:AgentPlanV3 漏了 v1 的 `isSafeInternalPath`;23 種 action 僅 15/16 受風控(execute_task+7 新動作脫離);generateCharacter/Scene/Storyboard 未判破壞性卻觸發真實 LLM+DB 寫入;appRegistry.supportedActions 與 hasCapabilityForPage 雙向脫鉤都判錯 |
+| FE-06 | AnimationStudio.tsx | **P0** | Rules-of-Hooks 違規:條件式 return 後仍有 7 個 hook→**首次載入/建第一個世界必定 React crash** |
+| FE-07 | AnimationStudio.tsx | 高 | creativeProjectId/worldFrameworkId 完全未貫穿(與 DirectorAI 脊椎脫鉤);AI 生成角色/場景只有 page-agent 能觸發,人類 UI 無按鈕(死 UI) |
+| PS-13 | orbTaskStore.ts | 中 | 持久化每次讀取整表同步落地→R15 FSM 止血成本被低估 |
+
+> **CC0 完整性批判重點**(見 `CC0-completeness-critic.md`):(1) 尚未稽核:`auth.ts`/`export.ts`(GC 波處理中)、`credits.ts`/`plans.ts`/orb 計費守衛層(GC 波)、`connectionService`/`secretCrypto`(GC 波)。(2) 13 條「wave 內部初篩未對抗驗證」的高影響主張待補驗,最優先:DirectorAI projectId 範疇化(NS-09 地基所本)、VideoCockpit 遺棄專案資料遺失、PageAgentContext 確認閘/navigate 白名單。(3) 無互斥矛盾;X 波 9 條推翻只有計數缺內容;背景 job IDOR 30+ 呼叫點逐點稽核仍待辦。(4) 新增待補外部數據:各 `ENABLE_*` 旗標在生產的實際值 repo 內不可知。(5) 信心評級:計費雙向壞=高(auth/credits 補完前殘餘中)、IDOR 系統性=高、北極星前端斷點=高/後端執行細節=中。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
@@ -385,4 +401,5 @@
 - 2026-07-03 `b743d2ac`(續):補 SYS-01 並將 NS/D/SYS「往前做」卡移至 `00-devzone.md`(研究討論開發專區),本表專責稽核問題卡。
 - 2026-07-03 `b743d2ac`(續):補 W8 卡(B-03 升級 P0、S-14〜S-16、I-04)。
 - 2026-07-03 `b743d2ac`(續):補 Z 波 S-17/S-18;X 波地毯掃描 40 條確認卡(B-10〜B-18、S-19〜S-28、PS-08〜PS-12、I-05/I-06、NSX-1/NSX-2、U-1),詳見 `X0-carpet-scan-synthesis.md`。
-- 2026-07-03 `b743d2ac`(續):Y 波前端地毯掃描 20 可證偽項 0 推翻,補前端卡(B-19/B-20、C-01/C-02、S-29〜S-32、FE-01〜FE-05),詳見 `Y0-frontend-carpet-scan-synthesis.md`。至此 W+X+Y+Z 波(伺服端+前端+MCP 策略)全數落地。
+- 2026-07-03 `b743d2ac`(續):Y 波前端地毯掃描 20 可證偽項 0 推翻,補前端卡(B-19/B-20、C-01/C-02、S-29〜S-32、FE-01〜FE-05),詳見 `Y0-frontend-carpet-scan-synthesis.md`。
+- 2026-07-03 `b743d2ac`(續):CC 波覆蓋補完 16 確認,補卡 S-33/S-34(langsmith 全站對話外洩、orbClarification IDOR)、B-21、SSOT-1(W1 navigate 根因)、FE-06/FE-07(AnimationStudio crash)、PS-13,並收 CC0 完整性批判。GC 波(auth/計費守衛/憑證/RAG授權)處理中。
