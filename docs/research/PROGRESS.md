@@ -72,3 +72,13 @@
 - **2026-07-03 Bruce 指示:不用逐階段等確認,連續執行到全案完成**(僅每階段更新本檔+commit push 留檔)。
 - Phase 2 順序:A → B → E → F →(C、D)。
 - Railway 部署問題本次不處理;實際用量數字集中列「待補清單」。
+
+## 方案設計 wave M(Bruce 2026-07-03:上傳創作系統本質,要求解決方案貼合本質)
+
+| 項目 | 產出檔 | 狀態 | 摘要 |
+|---|---|---|---|
+| M0:北極星對齊藍圖(彙整) | `M0-solution-blueprint.md` | ☑ 完成 | 四軌織成單一專案一條龍;本質七支柱對照;creativeProjectId 為串接鑰匙;G3 gate 為唯一硬前置;不跑偏三層模型;統一分階段路線 |
+| M1:專案主幹+逐幕拼接+輸出打包 | `M1-project-spine-assembly.md` | ☑ 完成 | creative_projects 為 SSOT;分鏡管線執行化=轉呼既有 16 studio.* 工具+AIDV-44 狀態機;kind=video 缺 adapter;compose 唯一大件新建 |
+| M2:單專案 AI+逐步引導+防跑偏 | `M2-project-agent-guidance.md` | ☑ 完成 | ProjectFlowGuide 已是五步引導實體(旗標鎖住)、contextPackets 子系統已在;修 G3 gate 為條件式前置;對齊門借 aidv-longloop 鎖創作者向 |
+| M3:連接器/資料庫/自動化流 | `M3-connectors-workflows.md` | ☑ 完成 | 三路徑成熟度分層;連接器後端真實非空殼但 UI 三層分裂;Adobe/Canva 走產品自建 MCP client |
+| M4:素材/目標/審改協作 | `M4-assets-goals-review.md` | ☑ 完成 | 給 creative_projects 裝素材/目標/狀態三柱;重用 schema+加 2 欄 3 表;目標管理=防跑偏產品化 |
