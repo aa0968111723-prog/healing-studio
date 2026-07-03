@@ -217,6 +217,8 @@ docs/           大量既有文件(僅供交叉比對,部分已過時)
 | **AIDV** | Jira 專案 key,單一真實任務佇列;`.claude/skills/aidv-*` 為開發工作流;`MIGRATION_FAIL_CLOSED=true` 已開 | ✓ |
 
 > 勘誤(2026-07-03,由 B-infra 實掃修正):AGENTS.md 所述 drizzle migration journal「目前到 91」已過時,實際 `drizzle/migrations/meta/_journal.json` 到 **idx 121(111 entries)**。另 `.env.production` 內含 `VITE_SHELL_SOCIAL=1`,social shell 在正式環境為 **ON**(非前端旗標檔預設的 OFF)。
+>
+> 勘誤(2026-07-03,由 C-uiux 實掃修正):背景所述品牌 tokens(navy #16223B、coral #EF6A4E、amber #F2B24A、mint #8FE3CB;Manrope)**在 repo 完全不存在(0 出現)**。實際設計系統為「亮色暖光.黏土/蜜金」系:`--background #F4EEE4`、`--primary/--brand-clay #C2613F`、`--gold #C8922F`、`--teal #3E9D94`(client/src/index.css:88-260,AIDV-74);主字型 Noto Sans TC/Inter,Fraunces 僅作 serif 顯示字。`docs/design-reference.md` 記錄的是更舊的 token,已過時。
 | **director.today** | 線上站域名(QA bot 實測對象,見 AGENTS.md) | 背景未提及 |
 
 ## 8. 既有舊分析文件(僅供交叉比對)
