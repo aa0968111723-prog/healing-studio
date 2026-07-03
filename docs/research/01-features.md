@@ -82,7 +82,7 @@
 |---|---|---|
 | 世界觀 CRUD+匯出/匯入 | 完整 | AnimationStudio.tsx:4689-5434;worldbuilding_frameworks(schema.ts:3470) |
 | 可連結語音/微調模型 | 完整 | :5357-5358 |
-| AI 生成角色/場景/分鏡 | 完整(**純文字 LLM,無圖像生成**) | worldbuildingGeneration.ts:17,173,266 |
+| AI 生成角色/場景/分鏡 | 完整(worldbuildingGeneration 為純文字 LLM;**勘誤見 G2**:頁內 QuickGenerateButtons 另真接 imageStudio 4 模型/kling i2v/textToMusic/elevenLabsTTS 做三視圖/建場圖/語音試聽;`generateStoryboard` 名不符實只 insert 空分鏡) | worldbuildingGeneration.ts:17,173,266;G2 §3/§8 |
 | 分鏡板 CRUD/骨架/管線規劃/鏡頭表匯出 | 完整 | worldStoryboard.ts:230,284;world_storyboards(schema.ts:3548) |
 | 深連結 /video/animation/:storyboardId | 完整 | shellRouteTable.ts:45 |
 
