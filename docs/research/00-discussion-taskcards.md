@@ -72,6 +72,8 @@
 | PS-05 | 持久化 | P1 | 孤兒訓練→同模型雙重訓練覆蓋(單實例可觸發) | 已確認(W9) |
 | PS-06 | 持久化 | P2 | postGenComplete 冪等非 DB-CAS,webhook 重投重複寫資產 | 已確認(W7) |
 | PS-07 | 持久化 | P2 | circuit breaker 永遠 CLOSED(吞錯) | 已確認(W9) |
+| S-17 | 安全 | P1 | Google Drive OAuth token 明文欄位,未走 secretCrypto 加密 | Z1 盤點提出,待對抗式驗證(X10 可佐證) |
+| S-18 | 安全 | P2 | skillRegistry withinTrustCeiling 對 reviewed 層 connector 檢查形同虛設 | Z1 盤點提出,待對抗式驗證 |
 
 > 「往前做」的 NS(北極星功能)/ D(決策)/ SYS(架構策略)卡已移至 `00-devzone.md`;本表專責稽核問題卡。
 > 註:X 波(17 檔地毯掃描)完成後,新坐實卡會續補到各群組並更新本表。

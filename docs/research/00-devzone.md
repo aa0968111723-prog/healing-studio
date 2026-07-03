@@ -65,12 +65,17 @@
 
 ## B. 系統架構策略卡
 
-### 卡 SYS-01 ·【策略】自建 MCP 原生系統 + 參考 8 個 MCP — 狀態:研究中(Z 波)
+### 卡 SYS-01 ·【策略】自建 MCP 原生系統 + 參考 8 個 MCP — 狀態:✅ 研究完成,待討論
 - 緣起:Bruce 提「也可以考慮自建一套自己的系統,並參考這些 MCP 去研究」。
-- 8 個參考 MCP:Hugging Face Official / Research Tracker / arXiv / Exa / Tavily / JSON / Bright Data / MCP Run Python / Playwright(對北極星支柱的映射假設見 `00-discussion-taskcards.md §10.5` 表)。
-- 研究產出:`Z1-mcp-architecture-strategy.md`(進行中)——將給出四路線矩陣[(a)採用外部 MCP 當連接器 (b)自建 MCP server 暴露自家工具 (c)自建 MCP client 消費外部 MCP (d)整體轉 MCP 原生]+ 對北極星落地路徑 + build-vs-adopt 建議。
-- 關聯:NS-06(連接器)、③ 自動化工作流、① 自建資料庫;安全上對照 U5 sandbox(引入 Run Python/Playwright 的風險)。
-- **待討論**:等 Z1 出爐,選定路線與第一步 spike。
+- 研究產出:**`Z1-mcp-architecture-strategy.md`**(已完成,含 8 MCP 對照表 + 四路線矩陣 + build-vs-adopt 建議)。
+- **Z1 推薦(供討論)**:
+  - **首選路線 (c) 自建 MCP client 消費外部 MCP**,**Canva 為第一個試點**;輔以 **(a) agent 端即用 Hugging Face 官方 MCP** 作零成本影子路徑。與 M0 七支柱藍圖既定方向一致,與現有 `connectionService.ts`/`secretCrypto.ts`/`contracts.ts` 的 `"mcp"` 預留欄位衝突最小、重用最多。
+  - **不建議**:(b) 自建 MCP server 對外暴露(Q5 自己都主張不在本波)、(d) 整體轉 MCP 原生(現有技術債水位下工程量/風險不成比例)。
+  - **先採 2 個**:① Hugging Face 官方 MCP(已認證、活躍,可即強化 `modelResearcher.ts` 模型/論文探索);② Canva 官方 MCP(線上實測 `mcp.canva.com/mcp` 生產可用、OAuth2 DCR)。
+  - **待外部確認**:Adobe 官方 MCP 存在且已認證,但「healing-studio 後端能否繞過 Claude 生態直接對接同一端點」需向 Adobe 二次確認。
+  - **安全暫緩**:兩個執行類 MCP(Run Python 已被作者封存並自承不安全;Playwright MCP 官方自陳非安全邊界、有已知 prompt injection 案例)**現在不接**,等 S-04(P0 RCE)與信任模型缺口修復後再議。
+- **硬前置(Z1 盤點揭露)**:healing-studio 目前是「MCP 零基建」起點,以下既有債必須先處理才能安全談任何對外 MCP:NS-00 G3 gate(194 case 僅約 38 可達)、S-17 Drive OAuth token 明文、S-18 withinTrustCeiling reviewed 層檢查失效。
+- **待討論**:是否採路線 (c) + 先接 HF/Canva 兩個 MCP;第一步 spike = Canva MCP client PoC(接 `connectionService` 的 mcp 欄位)。
 
 ---
 
