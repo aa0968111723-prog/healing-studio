@@ -270,9 +270,9 @@ AccountSettings(改名/改密碼/2FA/登入記錄/資料匯出/刪帳)、ForgotP
 
 ---
 
-## 5. social shell(4 頁,預設整殼停用)
+## 5. social shell(4 頁)
 
-`SHELL_SOCIAL` 預設 OFF → ShellFrame 顯示「🚫 已關閉」佔位。
+`SHELL_SOCIAL` 程式碼預設 OFF → ShellFrame 顯示「🚫 已關閉」佔位。**勘誤(B-infra 發現):`.env.production` 設 `VITE_SHELL_SOCIAL=1`,正式環境實際為 ON、四頁可達**——因此下表的 mock 發佈流程在線上是暴露給使用者的。
 
 | 頁 | 現況 |
 |---|---|

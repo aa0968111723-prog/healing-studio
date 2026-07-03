@@ -215,6 +215,8 @@ docs/           大量既有文件(僅供交叉比對,部分已過時)
 | **Gamification** | 僅在 `orbFeatureDiscovery.ts` 出現相關概念;**沒有**成形的 gamification 子系統。另有 credits/積分(creditsRouter) | ✗ 背景線索誇大 |
 | **Nixpacks 部署** | 錯誤:實際 builder=DOCKERFILE,Nixpacks 僅 fallback | ✗ 修正 |
 | **AIDV** | Jira 專案 key,單一真實任務佇列;`.claude/skills/aidv-*` 為開發工作流;`MIGRATION_FAIL_CLOSED=true` 已開 | ✓ |
+
+> 勘誤(2026-07-03,由 B-infra 實掃修正):AGENTS.md 所述 drizzle migration journal「目前到 91」已過時,實際 `drizzle/migrations/meta/_journal.json` 到 **idx 121(111 entries)**。另 `.env.production` 內含 `VITE_SHELL_SOCIAL=1`,social shell 在正式環境為 **ON**(非前端旗標檔預設的 OFF)。
 | **director.today** | 線上站域名(QA bot 實測對象,見 AGENTS.md) | 背景未提及 |
 
 ## 8. 既有舊分析文件(僅供交叉比對)

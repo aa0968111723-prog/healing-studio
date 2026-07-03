@@ -16,7 +16,7 @@
 | 子代理 B:基礎設施 × DB × 安全 × 測試 | `B-infra.md` | ☑ 完成 | env 盤點(風險分級)、雙 DB 分工與 Supabase 23 migrations 實掃、安全防護層總盤、測試/CI/部署、可觀測性、技術債 15 項+近中長期優化路徑 |
 | 子代理 C:UIUX 優缺點 | `C-uiux.md` | ☐ 未開始 | |
 | 子代理 D:實用性 × 業界對照 | `D-adoption.md` | ☐ 未開始 | |
-| 子代理 E:AI 代理架構 | `E-ai-agents.md` | ☐ 未開始 | |
+| 子代理 E:AI 代理架構 | `E-ai-agents.md` | ☑ 完成 | 光球後端管線(ai.ts 3366 行實讀)、精靈/具名代理/多代理協作、CO-STAR 實作、planner+eval、llmRouter 多供應商抽象、RAG「雙引擎」查證、MCP 現況、安全邊界與優化建議 |
 | 子代理 F:任務卡 × PR × 程式碼三方對照 | `F-tasks-prs.md` | ☐ 未開始 | |
 | Phase 3:彙整 | `00-summary.md` | ☐ 未開始 | |
 
