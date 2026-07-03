@@ -54,6 +54,15 @@
 | K3:資料完整性/雙DB | `K3-data-integrity.md` | ☑ 完成 | 🔴 GDPR 刪帳整條必炸(USER_OWNED_TABLES 含 10 張無 userId 表→SQL錯→交易回滾→刪不掉,零測試)+餵電路斷路器全站503;10 張有 userId 表漏在清單外→個資永存;resource_shares 三向不清;跨庫 IDOR(handoffTrace 只驗登入) |
 | K4:死碼/契約不符/假測試 | `K4-deadcode-contracts.md` | ☑ 完成 | 整 router 死掉一批(apiKey/rbac全4/webhook/externalServices/musicSpecialist/orbCapabilities);FeatureFlagService 12 旗標 10 個不接線(IMAGE/VIDEO_GENERATION 宣稱回503但無檢查);settings.update 13/22 死欄位;假測試實錘(four-area-audit 11 個 expect(true));agentDlqPoller 輪詢永遠空表;孤兒服務/元件多個 |
 
+## 地毯掃描 wave L(Bruce 2026-07-03:逐欄逐元件逐頁)
+
+| 項目 | 產出檔 | 狀態 | 摘要 |
+|---|---|---|---|
+| L1:音訊/統一/世界觀/座艙 | `L1-fields-audio-studio.md` | ☑ 完成 | Studio 閃電/深度模式死開關;歌詞/能量不送;TTS speed 無渲染 |
+| L2:learn shell | `L2-fields-learn.md` | ☑ 完成 | LearnHub 完整版/AIModelsHub prod 孤兒頁;TeachingArchive update 零呼叫 |
+| L3:settings/admin/dashboard/auth | `L3-fields-settings-admin.md` | ☑ 完成 | 告警規則 CRUD 無 UI;精靈靜音/最愛無 UI;system_settings 19 欄死 |
+| L4:脊椎頁+全域元件+Home | `L4-fields-spine-global.md` | ☑ 完成 | forge 分頁繞過同意書;LoRA 4/10 類別死路;Home 13/14 旗標 OFF |
+
 ## 全案狀態(2026-07-03)
 - 主體 Phase 0-3 ☑ + 補洞 G1-G4 ☑ + 補充 H1/H2/I/J ☑ + 深挖 K1 ☑(K2-K4 進行中)
 - **待補**:H3、H4(Fable5 額度中斷,已完成研讀待重寫)

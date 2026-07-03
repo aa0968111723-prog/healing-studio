@@ -117,4 +117,65 @@
 | `D-adoption.md` | 實用性 | 審改迴圈斷點+業界對照(附來源)+路線 |
 | `E-ai-agents.md` | AI 代理 | 光球 17 階段管線+旗標 OFF 能力清單+eval |
 | `F-tasks-prs.md` | 流程 | Jira 970 卡×89 PR×程式碼三方對照+收斂 |
-| `PROGRESS.md` | 進度 | 全案狀態(已全部完成) |
+| `G1-video-cockpit.md` | 座艙 | VideoCockpit 逐面板;假上傳/寫路徑空心/panels 死碼 |
+| `G2-worldbuilding-detail.md` | 世界觀 | v2-v4 逐欄;管線可規劃不可執行;兩套積木 |
+| `G3-orb-tools-spirits.md` | 光球工具 | 178 精靈工具 case 不可達;25 精靈能力表 |
+| `G4-misc-audit.md` | 雜項 | npm audit 36 漏洞;.brain-state.json 誤 commit;種子教材硬錯 |
+| `H1-model-costs.md` | 模型成本 | repo 內建定價表+典型操作成本速查 |
+| `H2-fields-image-video.md` | 欄位字典 | ImageStudio/VideoStudio 逐欄位 |
+| `I-debt-dormant.md` | 技術債 | 17 債項三級+沉睡能力四級目錄+喚醒路徑 |
+| `J-code-structure.md` | 程式碼結構 | 頂層佈局+規模量化+逐層職責+建置鏈 |
+| `K1-security-bugs.md` | 資安 | SSRF/IDOR/webhook/JWT 對抗式漏洞 |
+| `K2-generation-bugs.md` | 正確性 | 雙重退款可套利/竊取資產/stale 不退款 |
+| `K3-data-integrity.md` | 資料完整性 | GDPR 刪帳必炸/個資永存/跨庫 IDOR |
+| `K4-deadcode-contracts.md` | 死碼契約 | 整批 router 死;旗標 10/12 不接線;假測試 |
+| `L1-fields-audio-studio.md` | 欄位字典 | ProStudio/Studio/Animation/座艙逐欄 |
+| `L2-fields-learn.md` | 欄位字典 | learn shell 逐頁;LearnHub 完整版孤兒頁 |
+| `L3-fields-settings-admin.md` | 欄位字典 | settings/admin/dashboard/auth 逐欄 |
+| `L4-fields-spine-global.md` | 欄位字典 | 脊椎頁+全域元件+Home;forge 繞過同意書 |
+| `PROGRESS.md` | 進度 | 全案狀態(含 G/H/I/J/K/L 波) |
+
+---
+
+## 6. 風險登記表(K 波對抗式 bug 獵人 + L 波地毯掃描,依處置急迫性排序)
+
+> 全部是「靜態掃描找不到、單元測試綠燈掩蓋」的隱藏問題。嚴重度:🔴 立即/可利用 · 🟠 功能名存實亡/合規 · 🟡 品質信號污染。證據行號見各分冊。
+
+### 6.1 🔴 立即級(可套利 / 資安 / 資料損毀)
+
+| # | 問題 | 觸發情境 → 後果 | 出處 |
+|---|---|---|---|
+| R1 | **generate.multimodal 雙重退款** | 四模態同步生成失敗 → 內層退款後 throw、外層 catch 再退一次 → 可穩定重現套利點數 | K2 |
+| R2 | **GDPR 刪除帳號整條路徑必炸** | 呼叫刪帳 → USER_OWNED_TABLES 含 10 張無 userId 欄的表 → SQL 錯 → 交易回滾 → 連使用者都刪不掉;錯誤還餵電路斷路器可全站 503;零測試覆蓋 | K3 |
+| R3 | **10 張有 userId 的表漏在刪除清單外** | 刪帳「成功」後 → consistency_vault/orb_conversation_messages/studio_versions/timeline_frames 等個資永久留存 | K3 |
+| R4 | **生成入口參考圖 SSRF** | firstFrameUrl 等填內網/metadata URL + 302 跳轉 → 無白名單、下游無 redirect:error → 打進內網/雲端 metadata | K1 |
+| R5 | **ElevenLabs 三路徑 SSRF** | 資料庫音/影上傳 → 轉錄/配音/克隆缺 redirect:error → 任何登入者觸發內網探測 | K1 |
+| R6 | **跨 studio 竊取生成資產** | image/proStudio 的 checkImageStatus/checkAudioStatus 無 owner 檢查(videoStudio 有)→ 傳他人 requestId 竊取資產 | K2 |
+| R7 | **models.teamModels 無旗標可關洩 LoRA 權重** | 任何登入者 → 外洩全站 team_shared LoRA 模型含權重 URL(比 assets 的 RBAC 洩漏更嚴重,無修復開關) | K1 |
+| R8 | **forge 分頁繞過肖像權同意書** | 光球觸發隱藏 forge 訓練分頁 → 送出不含 subjectType/consentIds → 後端判 requiresConsent=false → 真人照片訓練繞過同意閘門 | L4 |
+
+### 6.2 🟠 功能名存實亡 / 合規
+
+| # | 問題 | 說明 | 出處 |
+|---|---|---|---|
+| R9 | **FeatureFlagService 10/12 旗標不接線** | IMAGE_GENERATION/VIDEO_GENERATION/MODEL_TRAINING 宣稱「關閉回 503/拒絕」,全站無程式碼真檢查 → 想停某模態生成停不掉 | K4 |
+| R10 | **178 個精靈工具 case 不可達** | executor gate 只路由 6 分支 → planner 會規劃、執行必敗;測試 mock 掉執行器測不到 | G3 |
+| R11 | **整批 router 死碼** | apiKey/rbac(全 4)/webhook/externalServices/musicSpecialist/orbCapabilities 後端完整、前端零呼叫 | K4 |
+| R12 | **stale 任務永不退款** | staleJobChecker 標 failed 但從不退款 → 點數永久遺失(proStudio 註解誤以為會退) | K2 |
+| R13 | **告警規則 CRUD 無 UI** | apiUsage.alerts(budget/quota/anomaly)後端完整,管理員無法從 UI 設定任何告警 | L3 |
+| R14 | **LearnHub 完整版/AIModelsHub 是 prod 孤兒頁** | 三旗標 ON 下 ShellRoutes 永遠 shadow 舊 Route → 站內無路徑可達完整版(admin CRUD/比較器/影片/測驗全失聯) | L2 |
+| R15 | **orbTask FSM in-memory 重啟即失** | redeploy/多 replica → 任務狀態蒸發,無恢復;idempotency/quota guard 預設 OFF → 重複提交重複扣點 | K2/K3 |
+| R16 | **雙 DB 分裂 + 跨庫 IDOR** | orb_system_alerts vs system_alerts 雙寫矛盾;handoffTrace 只驗登入不驗擁有權 → 跨庫 IDOR;Supabase 5 表 DDL 不在 repo 不可重建 | K3 |
+
+### 6.3 🟡 品質信號污染 / 大量死欄位
+
+| # | 問題 | 說明 | 出處 |
+|---|---|---|---|
+| R17 | **假測試** | four-area-audit.test.ts 33 斷言 11 個 expect(true);agentCapabilityRouter 零使用卻 457 行精細測試 → 覆蓋率不可信 | K4 |
+| R18 | **死開關/死欄位滿佈** | Studio「閃電/深度精確」模式選了沒用(mode 零引用)、Studio 音樂歌詞/能量不送後端、ProStudio TTS speed 滑桿沒渲染、VideoStudio 無 seed UI、settings 13/22 欄死、LoRA 4/10 類別送出必 400、VideoCockpit codec/provider 裝飾欄 | L1/L3/L4/H2 |
+| R19 | **npm 依賴漏洞 2C/9H** | protobufjs RCE(可 audit fix)、drizzle-orm SQLi(需手動升)、Sentry 套件未裝→線上錯誤追蹤 no-op | G4/B |
+
+### 6.4 修復批次建議(對應 §3 三波)
+- **第 0 波(緊急,合規+套利+資安)**:R1(雙重退款)、R2/R3(GDPR)、R4-R7(SSRF/IDOR/資產竊取)、R8(同意書繞過)——這 8 條都是可利用或法遵風險,應優先開卡。
+- **第 1 波(功能真實化)**:R9(旗標接線)、R10(精靈工具 gate)、R12(退款)、R13(告警 UI)、R14(孤兒頁路由)、R15(FSM 持久化)。
+- **衛生波**:R11(清死 router)、R17(修假測試)、R18(清死欄位)、R19(依賴升級)。
