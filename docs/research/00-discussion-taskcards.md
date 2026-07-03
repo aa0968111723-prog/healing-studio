@@ -418,6 +418,18 @@
 
 ---
 
+## 10.11 DV 波依賴弱點卡(11 npm 弱點可達性,詳見 `DV0-dependency-remediation-plan.md`)
+
+> 低噪音結論:11 個 critical/high 中只有 1 個 prod 可達——避免「36 個弱點」的假恐慌。
+
+### 卡 DEP-01 ·【P1・今天可修】ws 未鑑權即跑脆弱 frame 解析
+- 群組:安全/依賴 ｜ 驗證:已確認(DV 波,`server/_core/index.ts:1071,1075-1081` + `server/ws/orbVoiceGateway.ts:20-27`)
+- 現況:ws 8.20.0(弱點範圍 8.0.0-8.20.1);`/ws/orb-voice` upgrade handler 只檢查 pathname、**未鑑權就 handleUpgrade**,token 驗證在連線建立後才做→未登入網路端可送 tiny fragmented frames 觸發記憶體洩漏/DoS。
+- **待決策**:升 ws 到 patched 8.x(公開 API 不變低風險)+ **把 token 驗證移到 handleUpgrade 之前**(升版修不到的架構問題)。
+- 其餘:langsmith reachable-limited(升版一次解 2 CVE);axios/drizzle-orm 防禦性升版;protobufjs/undici/form-data/@grpc/fast-xml-builder 經查 **not-reachable**(識別碼固定 schema、只送 JSON、死碼鏈);vite/vitest dev-only。**立即低風險升版清單:ws / langsmith / axios / drizzle-orm。**
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
