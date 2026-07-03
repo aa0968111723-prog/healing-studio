@@ -10,8 +10,8 @@
 | 階段 | 產出檔 | 狀態 | 摘要 |
 |---|---|---|---|
 | Phase 0:建立地圖 | `00-overview.md` | ☑ 完成 | 技術棧(React19+wouter+tRPC+雙DB)、4-shell 路由全表、60+ tRPC 命名空間、102 MySQL 表、30+ cron、詞彙表(修正:非 Nixpacks 而是 Dockerfile;gamification 不存在;光球/精靈/4-shell 為核心詞彙) |
-| Phase 1-1:功能全貌 | `01-features.md` | ☐ 未開始 | |
-| Phase 1-2:全端接線 | `02-fullstack.md` | ☐ 未開始 | |
+| Phase 1-1:功能全貌 | `01-features.md` | ◐ 進行中 | 5 個子代理平行盤點(video shell / learn / settings+admin / 跨shell脊椎+social / 全域系統) |
+| Phase 1-2:全端接線 | `02-fullstack.md` | ◐ 進行中 | 與 1-1 同批子代理收集接線資料 |
 | 子代理 A:成本 × 外部整合 | `A-cost-integrations.md` | ☐ 未開始 | |
 | 子代理 B:基礎設施 × DB × 安全 × 測試 | `B-infra.md` | ☐ 未開始 | |
 | 子代理 C:UIUX 優缺點 | `C-uiux.md` | ☐ 未開始 | |
