@@ -1,0 +1,55 @@
+path,page_component,type,figma_frame_name,notes
+/,Home,static,Home,首頁／登入 orb
+/create,Create,static,Create,
+/playground,Playground,static,Playground,
+/studio,Studio,static,Studio,
+/director,DirectorAI,static,DirectorAI,
+/creative-projects,CreativeProjects,static,CreativeProjects,
+/projects,Projects,static,Projects,
+/projects/:id,ProjectDetailPage,dynamic,ProjectDetail,需真實 project id 樣本
+/animation,AnimationStudio,static,AnimationStudio,
+/animation/:storyboardId,AnimationStudio,dynamic,AnimationStudio-Storyboard,需 storyboard id 樣本
+/worldbuilding,Worldbuilding,static,Worldbuilding,
+/worldbuilding/:storyboardId,Worldbuilding,dynamic,Worldbuilding-Storyboard,需 storyboard id 樣本
+/assets,AssetsLibrary,static,AssetsLibrary,
+/models,AIModelsHub,static,Models,
+/vault,VaultPage,static,Vault,
+/shared,SharedSpace,static,SharedSpace,
+/notes,Notes,static,Notes,
+/calendar,CalendarPage,static,Calendar,
+/dashboard,Dashboard,static,Dashboard,
+/feedback,FeedbackPage,static,Feedback,
+/settings,SettingsPage,static,Settings,
+/settings/agent,AgentPreferencesPage,static,Settings-Agent,
+/settings/ai-brain,AiBrainSettings,static,Settings-AiBrain,
+/history,HistoryPage,static,History,
+/admin,AdminPage,static,Admin,需管理員權限
+/admin/api-usage,AdminApiUsage,static,Admin-ApiUsage,需管理員權限
+/admin/brain-pipeline,AdminBrainPipeline,static,Admin-BrainPipeline,需管理員權限
+/my-brain,MyBrainPage,static,MyBrain,
+/pro-studio,ProStudio,static,ProStudio,
+/image-studio,ImageStudio,static,ImageStudio,
+/light-orb-studio,LightOrbCreationStudio,static,LightOrbStudio,
+/video-studio,VideoStudio,static,VideoStudio,
+/learn,LearnHub,static,Learn,
+/learn/tutorial-overview,TutorialOverviewPage,static,Learn-TutorialOverview,
+/tutorial-overview,TutorialOverviewPage,static,TutorialOverview,
+/ai-models-hub,AIModelsHub,static,AiModelsHub,
+/model-wishlist,ModelWishlistPage,static,ModelWishlist,
+/lora-trainer,LoraTrainer,static,LoraTrainer,
+/focus-flow,FocusFlow,static,FocusFlow,
+/langsmith,Langsmith,static,Langsmith,
+/background-tasks,BackgroundTasksPage,static,BackgroundTasks,
+/credits,CreditsInfoPage,static,Credits,
+/prompt-library,PromptLibraryPage,static,PromptLibrary,
+/prompt-collection,PromptCollectionPage,static,PromptCollection,
+/agent,AgentChat,static,Agent,
+/codex,Codex,static,Codex,
+/teaching-archive,TeachingArchive,static,TeachingArchive,
+/teams,TeamsPage,static,Teams,
+/forgot-password,ForgotPasswordPage,auth,ForgotPassword,登入前頁
+/reset-password,ResetPasswordPage,auth,ResetPassword,登入前頁
+/account-settings,AccountSettingsPage,static,AccountSettings,
+/process,ProcessViewerPage,static,Process,
+/unorganized,Unorganized,static,Unorganized,
+/404,NotFound,static,NotFound,
