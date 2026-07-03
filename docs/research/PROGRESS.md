@@ -15,7 +15,7 @@
 | 子代理 A:成本 × 外部整合 | `A-cost-integrations.md` | ☑ 完成 | 依賴地圖+cron 常駐消耗+四情境成本結構(全屬架構推估);關鍵:大腦 4 slot 預設 Opus 檔=最大 LLM 成本槓桿、LLM_CACHE 覆蓋僅 2 處、cron 產出進記憶體=外呼白燒、R2 只進不出、導演批次=單擊放大器且 budget guard 預設 OFF、Suno 第三方 proxy 供應鏈風險 |
 | 子代理 B:基礎設施 × DB × 安全 × 測試 | `B-infra.md` | ☑ 完成 | env 盤點(風險分級)、雙 DB 分工與 Supabase 23 migrations 實掃、安全防護層總盤、測試/CI/部署、可觀測性、技術債 15 項+近中長期優化路徑 |
 | 子代理 C:UIUX 優缺點 | `C-uiux.md` | ☐ 未開始 | |
-| 子代理 D:實用性 × 業界對照 | `D-adoption.md` | ☐ 未開始 | |
+| 子代理 D:實用性 × 業界對照 | `D-adoption.md` | ☑ 完成 | 核心診斷:供給側達業界水準、「審改迴圈」全斷是未融入日常的主因;業界對照(LTX/Runway/Krea/OpenArt/Flora/Weavy/ComfyDeploy/Jasper,附來源);差異化=世界觀+分鏡+錨點+教材RAG+光球同一資料模型;近中長期路線+10 題團隊訪談清單 |
 | 子代理 E:AI 代理架構 | `E-ai-agents.md` | ☑ 完成 | 光球後端管線(ai.ts 3366 行實讀)、精靈/具名代理/多代理協作、CO-STAR 實作、planner+eval、llmRouter 多供應商抽象、RAG「雙引擎」查證、MCP 現況、安全邊界與優化建議 |
 | 子代理 F:任務卡 × PR × 程式碼三方對照 | `F-tasks-prs.md` | ☑ 完成 | Jira 970 卡(Done 873/未完 97)、Open PR 實為 89(殭屍 71、衝突 64、真活 9);#1298 唯一零衝突列車;WIP=1 失守(41 卡同帳號進行中);CI 30/30 秒掛=runner 問題;15 個 GitHub issue 全可關;收斂順序建議 |
 | Phase 3:彙整 | `00-summary.md` | ☐ 未開始 | |
