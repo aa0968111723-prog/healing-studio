@@ -23,7 +23,7 @@
 |---|---|---|---|---|
 | B-01 | 計費 | P0 | ~20 條 async 生成失敗保證扣款不退款 | 對抗式已確認(W5) |
 | B-02 | 計費 | P1 | 記帳分裂,無單一真相源;cost_ledger 預設關且退款不記帳 | 對抗式已確認(W5) |
-| B-03 | 計費 | P1 | LLM 成本未計入點數 / ai.chat 疑繞過計費 | 待 W8 收斂 |
+| B-03 | 計費 | **P0** | ai.chat/orb 生成結構上無法扣點(dispatch* 無 userId) | 對抗式已確認(W8,已升級) |
 | B-04 | 計費 | P1 | 多條零計費生成派工路徑 | 已確認(U3) |
 | B-05 | 計費 | P2 | Sonauto duration 計費操縱面 | 待執行期驗證 |
 | B-06 | 計費 | — | ~~multimodal 內外層雙重退款~~ | **已推翻**(W5:核心為 FOR UPDATE + CAS) |
@@ -58,8 +58,23 @@
 | HG-01 | 衛生 | P3 | LearnHub 孤兒頁 | 已確認(R14) |
 | HG-02 | 衛生 | P3 | 系統告警無 UI 出口 | 已確認(R13) |
 | HG-03 | 衛生 | P2 | GDPR 刪除/匯出鏈缺口 | 已確認(R2/R3) |
+| B-07 | 計費 | P0 | webhook 安全網對 async 失敗不成立(併 B-01) | 對抗式已確認(W7) |
+| B-08 | 計費 | P1 | 訓練/轉錄鏈觸發真實付費 API 零計費(燒錢) | 已確認(W9) |
+| B-09 | 計費 | P2 | 訓練入口限流不對稱(models.ts 無配額) | 已確認(W9) |
+| S-11 | 安全 | P2 | FAL_WEBHOOK_FAIL_CLOSED 單旗標控雙層防禦 | 已確認(W7) |
+| S-12 | 安全 | P2 | JWT_SECRET 缺失 prod 僅 warn,webhook 可能無驗證 | 已確認(W7) |
+| S-13 | 安全 | P2 | Replicate webhook 無 provider 簽章驗證 | 已確認(W7) |
+| S-14 | 安全/IDOR | P1 | ai.codeTask.approve/cancel 無 owner 檢查 | 已確認(W8) |
+| S-15 | 安全/IDOR | P1 | orbTask get/events/traceDebug 缺 owner 檢查 | 已確認(W8) |
+| S-16 | 安全 | P1 | executeTools approved 布林由 client 提供繞人工閘 | 已確認(W8) |
+| I-04 | 注入 | P1 | agentPlanner 從未清洗文字讀 urgent-skip 硬指令(免注入) | 已確認(W8) |
+| PS-04 | 持久化 | P1 | 4 worker 多實例重複執行(無 CAS 認領) | 已確認(W9) |
+| PS-05 | 持久化 | P1 | 孤兒訓練→同模型雙重訓練覆蓋(單實例可觸發) | 已確認(W9) |
+| PS-06 | 持久化 | P2 | postGenComplete 冪等非 DB-CAS,webhook 重投重複寫資產 | 已確認(W7) |
+| PS-07 | 持久化 | P2 | circuit breaker 永遠 CLOSED(吞錯) | 已確認(W9) |
 
-> 註:X 波(17 檔地毯掃描)與 W7/W8/W9 完成後,新坐實卡會續補到下方各群組,並更新本速覽表。
+> 「往前做」的 NS(北極星功能)/ D(決策)/ SYS(架構策略)卡已移至 `00-devzone.md`;本表專責稽核問題卡。
+> 註:X 波(17 檔地毯掃描)完成後,新坐實卡會續補到各群組並更新本表。
 
 ---
 
@@ -150,20 +165,15 @@
 
 ---
 
-## 6. 北極星功能群組(解放/接線,非重造)
+## 6. 北極星功能群組 →（已移至研究討論開發專區)
 
-> 主軸見 `M0-solution-blueprint.md`:**零件八成已在,被旗標與單一殼鎖住;全程用 `creativeProjectId` 串成一條龍就是「不跑偏」的地基。**
-
-- **NS-00【P0前置】修 G3 178-tool gate**:分鏡管線執行化(NS-03)與 AI 動手引導共同硬前置;不先修,體驗會蓋在「規劃會過、執行必敗」的假成功上。
-- NS-01 解放 ProjectFlowGuide 五步引導接光球(M2)｜NS-02 creativeProjectId 為 SSOT、禁猜最新一筆(M1)｜NS-03 分鏡管線執行化(M1)｜NS-04 contextPackets 接 ai.chat/director(M2)｜NS-05 compose 服務(唯一大件,需 ffmpeg vs 委外 spike,Q2)｜NS-06 連接器 UI 收斂 + Adobe/Canva MCP(M3)｜NS-07 素材/目標/審批三柱綁專案(M4)。
-- **待決策**:是否採 M0 的分階段路線(Phase 0 修 gate → Phase 1 單幕端到端+AI 讀專案 → Phase 2 引導解放+逐幕三軌+審 → Phase 3 拼接輸出打包+目標+連接器)。
+> NS 系列(北極星一條龍開發卡 NS-00〜NS-07)屬「往前做」的開發卡,已移到 **`00-devzone.md` §A**。速覽表(§1)仍保留其列作全域索引;細節與狀態流水線見 DEVZONE。
 
 ---
 
-## 7. 決策卡(N 波,拍板用)
+## 7. 決策卡 →（已移至研究討論開發專區)
 
-- D-01 Phase 0/1 實作決策(`N1-...`)｜D-02 架構決策(`N2-...`,雙 DB、102 表 0 FK)｜D-03 優先序決策(`N3-...`)｜D-04 成本/維運決策(`N4-...`)。
-- 這四張是「怎麼做」的選項題,討論時搭配對應功能卡一起看。
+> D 系列(D-01〜D-04,拍板用)屬「往前做」的決策卡,已移到 **`00-devzone.md` §C**。
 
 ---
 
@@ -234,27 +244,40 @@
 
 ---
 
-## 10.5 MCP 原生 / 自建系統策略卡(Bruce 2026-07-03 新提)
+## 10.5 MCP 原生 / 自建系統策略卡 →（已移至研究討論開發專區)
 
-### 卡 SYS-01 ·【策略・研究中】考慮「自建一套 MCP 原生系統」+ 參考 8 個 MCP
-- 群組:北極星/策略 ｜ 驗證:研究中(Z 波,見 `Z1-mcp-architecture-strategy.md`)
-- 緣起:Bruce 提「也可以考慮自建一套自己的系統,並參考這些 MCP 去研究」。
-- 待參考的 8 個 MCP 與其對北極星的映射假設(待 Z1 坐實):
-  | MCP | 能力 | 對應北極星/既有零件 |
-  |---|---|---|
-  | Hugging Face Official MCP | 搜模型/資料集/論文、操作 Gradio App | ① 自建資料庫、模型探索(`modelResearcher.ts`) |
-  | Research Tracker MCP | 語意文獻追蹤、辨識 repo/日期/模型/資料集 | ① RAG、知識庫 |
-  | arXiv MCP | 查論文、抽 metadata/摘要/連結 | ① 知識來源 |
-  | Exa MCP / Tavily MCP | 即時網頁搜尋、過濾、內容抽取 | 靈感/研究(`orbWebResearch.ts`/`perplexityDeepSearch.ts`/`inspirationFetcher.ts`) |
-  | JSON MCP | 解析/合併/拆分/驗證 JSON | 工作流資料清理(③ 自動化) |
-  | Bright Data MCP | 即時網頁導航/擷取 | 素材蒐集(② 連接器) |
-  | MCP Run Python | 沙盒執行 LLM 生成 Python | ③ 自動化執行 + 沙箱(對照 U5 sandbox RCE) |
-  | Playwright MCP | 無頭瀏覽器結構化互動 | ② 連接無 API 的工具、自動化 |
-- 核心決策問題(Z1 要回答):
-  1. **自建 vs 採用**:healing-studio 該(a)採用這些外部 MCP 當連接器、(b)自建 MCP server 對外暴露自己的工具、(c)自建 MCP client 消費外部 MCP(Adobe/Canva/Notion,M3 已提)、還是(d)整體轉成 MCP 原生架構?
-  2. 與既有 `Q5-mcp-automation-spec.md`、`externalServices`/`orbDatabaseTools`/`connectionService` 的關係——哪些是重用、哪些要新建。
-  3. 「自建一套系統」是指換掉現有 tRPC/agentToolExecutor 生態,還是在其上加一層 MCP 相容?(對照 G3 178-tool gate:現有工具生態已龐大,MCP 化的成本/效益。)
-- **待決策**:等 Z1 研究出「自建 vs 採用矩陣 + 對北極星的落地路徑」後一起討論。
+> SYS-01(Bruce 提「自建 MCP 原生系統」+ 參考 8 個 MCP)屬「往前做」的架構策略卡,已移到 **`00-devzone.md` §B**;8 MCP 對照與四路線矩陣由 Z 波 `Z1-mcp-architecture-strategy.md` 產出。
+
+---
+
+## 10.6 W8 新增卡(ai.ts 逐行深挖)
+
+> W8 坐實並升級 B-03,並新增三張安全卡與一張注入卡。
+
+### 卡 B-03(升級)·【P0】ai.chat/orb 觸發的生成結構上無法扣點
+- 群組:計費 ｜ 驗證:對抗式已確認(W8)
+- 出處:`W8-ai-router-deepdive.md`、`U2-ai-chat-orchestration-deepdive.md`、`falDispatcher.ts:480/727-800`、`orbTaskExecutor.ts:19-49`
+- 現況:`executeOrbTask` 呼叫的 `dispatchImage/Video/AudioGeneration` 參數型別**沒有 userId 欄**,使 `dispatchFalTask` 的 `if (typeof input.userId === "number")` 扣點判斷恆為 false;`executeGenerateImage` 更完全繞過 dispatcher 直打 fal 原始 API。ai.chat/executeTools/reportTaskStep/orbTask.* **沒有一條路徑計費**,與 director.ts(W1 完整計費)、proStudio.ts(chargeForFalTask 33 處)鮮明對照。
+- **待決策**:orb 觸發生成要不要計費?若要,dispatch* 補 userId 貫穿 + 統一走 dispatchFalTask。與 S-03(director 無限流)合看=成本失控總面。
+
+### 卡 S-14 ·【P1】ai.codeTask.approve/cancel 無 owner 檢查
+- 群組:安全/IDOR ｜ 驗證:已確認(W8,`ai.ts:3357-3362`)
+- 現況:資料模型無 userId,任何登入使用者可核准/取消他人的 Claude Code 修改任務。
+- **待決策**:補 owner 檢查(併入 S-01 背景 job IDOR 同一波)。
+
+### 卡 S-15 ·【P1】orbTask get/events/traceDebug 缺 owner 檢查
+- 群組:安全/IDOR ｜ 驗證:已確認(W8)
+- 現況:同一 orbTask router 7 個寫入端點有 owner 檢查,但 get/events/traceDebug 三個查詢端點漏掉(AIDV-885 修復遺漏)→ 可讀他人任務內容/軌跡。
+
+### 卡 S-16 ·【P1】ai.executeTools 的 approved 布林由 client 提供,繞人工確認閘
+- 群組:安全 ｜ 驗證:已確認(W8)
+- 現況:`approved` 由客戶端直接提供、無 token 驗證,可直接滿足 `agentToolExecutor.ts` 的 `requiresHuman` 確認閘。與 W1 askForStudioPlan 同類「client 端旗標被當安全邊界」,但更直接。
+- **待決策**:人工確認閘改伺服端狀態/簽章 token,不信任 client 布林。
+
+### 卡 I-04 ·【P1】agentPlanner 從未清洗文字讀「urgent-skip/mode」硬指令(免注入技巧)
+- 群組:注入 ｜ 驗證:已確認(W8,`agentPlanner.ts:391-402`)
+- 現況:`input.context`(10k 自由文字)在 ai.ts 至少 4 條路徑(:1252/:1864/:2036/:2470)繞過 `sanitizeOrbMessages`(:1543);agentPlanner 用正則從這段未清洗文字解讀「使用者選擇模式」與「urgent skip」硬指令 → 客戶端只需塞固定字串即可讓伺服端自組「跳過澄清、直接執行」的系統提示詞,**不需 prompt injection 技巧**。`pageSnapshot.*` 為第三個同類注入面。
+- **待決策**:併入 I-01;所有進 system prompt 的 client 可控欄位統一過 sanitize 並標 untrusted;硬指令解讀不得取自未清洗文字。
 
 ---
 
@@ -262,4 +285,5 @@
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
 - 2026-07-03 `812f6fdb`(續):補 W7/W9 卡(B-07〜B-09、PS-04〜PS-07、S-11〜S-13)。
-- 2026-07-03 `b743d2ac`(續):補 SYS-01(Bruce 提「自建 MCP 原生系統」策略卡),Z 波研究中。X 波(17 檔)與 W8 完成後續補。
+- 2026-07-03 `b743d2ac`(續):補 SYS-01 並將 NS/D/SYS「往前做」卡移至 `00-devzone.md`(研究討論開發專區),本表專責稽核問題卡。
+- 2026-07-03 `b743d2ac`(續):補 W8 卡(B-03 升級 P0、S-14〜S-16、I-04)。X/Z 波完成後續補。
