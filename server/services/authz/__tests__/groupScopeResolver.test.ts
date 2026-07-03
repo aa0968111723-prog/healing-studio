@@ -82,6 +82,11 @@ describe("AIDV-297 跨組隔離（API 層擋，不只 UI）", () => {
     ).toBe("none");
   });
 
+  // 註（AIDV-297 修補）：本測項原以 "material" 為例——但教材的生產讀取路徑
+  // （teachingArchiveAccess / listTeachingMaterialsForUser）**不經** canAccessResource，
+  // 用 material 會給「教材已隔離」的假綠燈。改以 asset（真實接線於
+  // assets.teamAssets / resolver）驗證同一 ceiling 語意；教材掛組已在
+  // teamGroups.assignResource 擋下（待讀取端接線後開放）。
   it("非組員＋team_shared 池成員 → 也被隔離（ceiling 蓋過池授權）", async () => {
     dbState.teamIds = [5];
     dbState.user = { id: OTHER_ID, role: "user" };
@@ -92,7 +97,7 @@ describe("AIDV-297 跨組隔離（API 層擋，不只 UI）", () => {
       groupId: GROUP_ID,
     };
     expect(
-      await canAccessResource("material", 1, facts, OTHER_ID, "view")
+      await canAccessResource("asset", 1, facts, OTHER_ID, "view")
     ).toBe(false);
   });
 

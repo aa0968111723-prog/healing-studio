@@ -25,6 +25,7 @@ import {
 } from "../services/audit/auditLog";
 import { isDataRbacEnabled } from "../services/authz/resourceAccess";
 import { canAccessResource } from "../services/authz/resourceAccessResolver";
+import { isGroupScopeEnabled } from "../services/authz/groupAccess";
 
 // ─── Zod Schemas ─────────────────────────────────────────────────────────────
 
@@ -201,7 +202,14 @@ export const promptLibraryRouter = router({
         //   的不一致；不新增曝光面（該 row 本就公開）。
         // 註：canAccessResource 的 visibility 僅認得 "team_shared"，無 "public"
         //   放行路徑，故此處短路而非傳 visibility:"public"。
-        if (!row.isPublic) {
+        // AIDV-297 修補：已歸組（groupId != null）的提示詞在 ENABLE_GROUP_SCOPE=ON
+        //   時**不走 public 短路**——組隔離 ceiling 連顯式共享都壓掉，比共享更寬的
+        //   public 不該反向繞過；交給 canAccessResource（組員 viewer 下限可讀、
+        //   非組員 none）。掛組/轉公開的寫入端已互斥（assignResource / update 擋），
+        //   此處是對既存矛盾資料的讀取層防禦。旗標 OFF 時行為與原樣位元相同。
+        const groupedIsolation =
+          isGroupScopeEnabled() && row.groupId != null;
+        if (!row.isPublic || groupedIsolation) {
           // AIDV-297：帶 groupId → ENABLE_GROUP_SCOPE=ON 時對已歸組提示詞
           //   套跨組隔離（非組員即使被顯式共享也擋）；OFF / 未歸組行為不變。
           const allowed = await canAccessResource(
@@ -257,12 +265,23 @@ export const promptLibraryRouter = router({
 
       // 確認本人才能改
       const existing = await db
-        .select({ userId: promptLibrary.userId })
+        .select({ userId: promptLibrary.userId, groupId: promptLibrary.groupId })
         .from(promptLibrary)
         .where(and(eq(promptLibrary.id, id), eq(promptLibrary.userId, ctx.user.id)))
         .limit(1);
 
       if (!existing[0]) throw new TRPCError({ code: "NOT_FOUND", message: "找不到此提示詞或無權限修改" });
+
+      // AIDV-297 修補：已歸組提示詞不可轉公開（public 與組間隔離語意矛盾；
+      // 與 teamGroups.assignResource 擋「公開提示詞掛組」互為鏡像，兩個寫入
+      // 方向都擋，保證「isPublic=true 且 groupId!=null」的矛盾狀態不會產生）。
+      // 不掛旗標：這是資料不變量（比照 teamGroups mutation 的純加法哲學）。
+      if (fields.isPublic === true && existing[0].groupId != null) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "已歸屬組別的提示詞不能設為公開：請先摘組再公開",
+        });
+      }
 
       await db
         .update(promptLibrary)

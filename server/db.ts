@@ -4834,6 +4834,8 @@ export async function transferResourceOwnershipAndWipeShares(
  * 略異，這裡投影成統一形狀（沒有 visibility/teamId 的型別回 null）。
  * AIDV-297（0107）：加投影 groupId（資源歸屬的組別；null＝未歸組），供
  * resolver 在 ENABLE_GROUP_SCOPE=ON 時套跨組隔離 — 純加欄位，既有呼叫端不受影響。
+ * AIDV-297 修補：prompt 另投影 isPublic（其餘型別回 null），供
+ * teamGroups.assignResource 擋「公開提示詞掛組」（public 與組隔離語意矛盾）。
  */
 export async function getResourceOwnerFacts(
   resourceType: ResourceShareType,
@@ -4843,6 +4845,8 @@ export async function getResourceOwnerFacts(
   visibility: string | null;
   teamId: number | null;
   groupId: number | null;
+  /** 僅 prompt 有意義（promptLibrary.isPublic）；其餘資源型別為 null */
+  isPublic: boolean | null;
 } | null> {
   const db = await getDb();
   if (!db) return null;
@@ -4862,6 +4866,7 @@ export async function getResourceOwnerFacts(
             visibility: null,
             teamId: null,
             groupId: rows[0].groupId,
+            isPublic: null,
           }
         : null;
     }
@@ -4881,6 +4886,7 @@ export async function getResourceOwnerFacts(
             visibility: rows[0].visibility,
             teamId: null,
             groupId: rows[0].groupId,
+            isPublic: null,
           }
         : null;
     }
@@ -4889,6 +4895,7 @@ export async function getResourceOwnerFacts(
         .select({
           ownerId: promptLibrary.userId,
           groupId: promptLibrary.groupId,
+          isPublic: promptLibrary.isPublic,
         })
         .from(promptLibrary)
         .where(eq(promptLibrary.id, resourceId))
@@ -4899,6 +4906,7 @@ export async function getResourceOwnerFacts(
             visibility: null,
             teamId: null,
             groupId: rows[0].groupId,
+            isPublic: rows[0].isPublic ?? false,
           }
         : null;
     }
@@ -4919,6 +4927,7 @@ export async function getResourceOwnerFacts(
             visibility: rows[0].visibility,
             teamId: rows[0].teamId,
             groupId: rows[0].groupId,
+            isPublic: null,
           }
         : null;
     }

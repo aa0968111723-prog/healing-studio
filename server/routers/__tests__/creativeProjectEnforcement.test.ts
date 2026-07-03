@@ -100,6 +100,30 @@ describe("AIDV-121 creativeProject.get 旗標 ON enforcement", () => {
     expect(res.id).toBe(10);
   });
 
+  it("AIDV-297：已歸組專案 → canAccessResource 收到 groupId（組隔離 wiring 釘）", async () => {
+    // 若 router 忘了把 row.groupId 投影進 facts，resolver 端的組隔離對
+    // creativeProject.get 就整條失效（教材缺陷的成因）——此測項釘住傳入。
+    (db.getCreativeProject as any).mockResolvedValue({
+      id: 10,
+      userId: OWNER_ID,
+      title: "P",
+      status: "concept",
+      tags: [],
+      groupId: 7,
+    });
+    canAccessResult = false;
+    await expect(caller(OTHER_ID).get({ id: 10 })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(canAccessResource).toHaveBeenCalledWith(
+      "project",
+      10,
+      expect.objectContaining({ ownerId: OWNER_ID, groupId: 7 }),
+      OTHER_ID,
+      "view"
+    );
+  });
+
   it("旗標 OFF：非 owner 一律 NOT_FOUND，canAccess 完全不被呼叫（零變化）", async () => {
     flagOn = false;
     (db.getCreativeProject as any).mockResolvedValue({

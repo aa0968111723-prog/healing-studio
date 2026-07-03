@@ -13,10 +13,17 @@
  *       離開/移除時自動把「該成員擁有且掛在此組」的資源摘組（歸屬處理，
  *       見 db.removeTeamGroupMemberAndDetachOwnedResources）；要留下資源請先走
  *       AIDV-121 rbac.transferOwnership 交接。
- *   assignResource — 把 project/asset/prompt/material 掛進組別（或摘組）。
+ *   assignResource — 把 project/asset/prompt 掛進組別（或摘組）。
  *       掛組：Admin，或「資源 owner 且為目標組組員」（把自己的資源帶進自己的組；
  *       lead 不能把**別人的**資源掛進組——那等於未經 owner 同意就把資源曝光給
  *       全組）。摘組：Admin、資源 owner、或該組 lead（摘組只縮小曝光面，安全）。
+ *       ⚠️ material（教材）暫不開放**掛組**：教材的讀取路徑
+ *       （teachingArchiveAccess / listTeachingMaterialsForUser / context-packet）
+ *       尚未接組別隔離，開放掛組會造成「以為有隔離、實際全池可見」的假承諾。
+ *       待 T-2 接線教材讀取端隔離後再開放（摘組仍允許——只縮小狀態面，安全）。
+ *       ⚠️ 公開提示詞（isPublic=true）不可掛組：public＝全站可讀，與組間隔離
+ *       語意矛盾（顯式共享都會被隔離壓掉，比它更寬的 public 反而放行）。
+ *       請先取消公開再掛組。
  *   listMyGroups / listAllGroups / listMembers — 唯讀查詢。
  *
  * ── 與旗標的關係（比照 rbac.ts 的解耦哲學）─────────────────────────────────
@@ -363,8 +370,31 @@ export const teamGroupsRouter = router({
       const isOwner = facts.ownerId === ctx.user.id;
 
       if (input.groupId != null) {
+        // 教材掛組暫緩（AIDV-297 修補）：教材的所有讀取路徑
+        // （teachingArchiveAccess.loadMaterialForRead/Write、
+        // listTeachingMaterialsForUser、searchTeachingMaterialsForUser、
+        // context-packet teamDataAdapter）尚未接組別隔離——若開放掛組，
+        // ENABLE_GROUP_SCOPE=ON 時已歸組教材仍對全池/全 workspace 可見，
+        // 等於寫入「使用者以為有隔離效果、實際無效」的資料。待教材讀取端
+        // 接線（T-2 follow-up）後移除此擋。摘組（groupId=null）不受此限。
+        if (input.resourceType === "material") {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "教材的組別隔離讀取路徑尚未接線，暫不開放教材掛組（避免無效的隔離承諾）",
+          });
+        }
         // 掛組：組別必須存在；Admin，或 owner 且為目標組組員。
         await requireGroup(input.groupId);
+        // 公開提示詞不可掛組：isPublic=true＝全站所有登入者可讀（listPublic /
+        // getById 短路），與「組間預設隔離」矛盾。要求先取消公開再掛組，
+        // 而非靜默改 isPublic（不替 owner 做隱含的曝光面變更）。
+        if (input.resourceType === "prompt" && facts.isPublic) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "公開提示詞不能掛進組別：請先取消公開（isPublic=false）再掛組",
+          });
+        }
         if (!admin) {
           if (!isOwner) {
             throw new TRPCError({

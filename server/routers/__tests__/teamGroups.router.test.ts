@@ -29,7 +29,7 @@ const dbMock = {
   usersById: [] as Array<{ id: number }>,
   /** getResourceOwnerFacts 回傳 */
   ownerFacts: null as
-    | { ownerId: number; visibility: string | null; teamId: number | null; groupId: number | null }
+    | { ownerId: number; visibility: string | null; teamId: number | null; groupId: number | null; isPublic?: boolean | null }
     | null,
   calls: [] as Array<{ fn: string; args: unknown[] }>,
 };
@@ -267,11 +267,84 @@ describe("AIDV-297 teamGroups.assignResource（掛組 / 摘組）", () => {
       groupId: null,
     };
     await callerFor(ADMIN).assignResource({
-      resourceType: "material",
+      resourceType: "asset",
       resourceId: 2,
       groupId: GROUP_ID,
     });
     expect(dbMock.calls.find(c => c.fn === "setResourceGroup")).toBeTruthy();
+  });
+
+  it("掛組：material 一律 BAD_REQUEST（教材讀取路徑尚未接組別隔離——擋假承諾）", async () => {
+    dbMock.ownerFacts = {
+      ownerId: MEMBER.id,
+      visibility: "team_shared",
+      teamId: 1,
+      groupId: null,
+    };
+    // owner＋組員擋、admin 也擋——讀取端沒隔離，誰掛都會產生無效的隔離承諾
+    for (const user of [MEMBER, ADMIN]) {
+      await expect(
+        callerFor(user).assignResource({
+          resourceType: "material",
+          resourceId: 2,
+          groupId: GROUP_ID,
+        })
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" } as Partial<TRPCError>);
+    }
+    expect(dbMock.calls.find(c => c.fn === "setResourceGroup")).toBeFalsy();
+  });
+
+  it("摘組：material 仍可（只縮小狀態面，安全）", async () => {
+    dbMock.ownerFacts = {
+      ownerId: MEMBER.id,
+      visibility: "team_shared",
+      teamId: 1,
+      groupId: GROUP_ID,
+    };
+    await callerFor(MEMBER).assignResource({
+      resourceType: "material",
+      resourceId: 2,
+      groupId: null,
+    });
+    const call = dbMock.calls.find(c => c.fn === "setResourceGroup");
+    expect(call!.args).toEqual(["material", 2, null]);
+  });
+
+  it("掛組：公開提示詞（isPublic=true）→ BAD_REQUEST（public 與組隔離矛盾；admin 也擋）", async () => {
+    dbMock.ownerFacts = {
+      ownerId: MEMBER.id,
+      visibility: null,
+      teamId: null,
+      groupId: null,
+      isPublic: true,
+    };
+    for (const user of [MEMBER, ADMIN]) {
+      await expect(
+        callerFor(user).assignResource({
+          resourceType: "prompt",
+          resourceId: 5,
+          groupId: GROUP_ID,
+        })
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" } as Partial<TRPCError>);
+    }
+    expect(dbMock.calls.find(c => c.fn === "setResourceGroup")).toBeFalsy();
+  });
+
+  it("掛組：非公開提示詞 → owner 組員可（isPublic 守門不誤傷）", async () => {
+    dbMock.ownerFacts = {
+      ownerId: MEMBER.id,
+      visibility: null,
+      teamId: null,
+      groupId: null,
+      isPublic: false,
+    };
+    await callerFor(MEMBER).assignResource({
+      resourceType: "prompt",
+      resourceId: 5,
+      groupId: GROUP_ID,
+    });
+    const call = dbMock.calls.find(c => c.fn === "setResourceGroup");
+    expect(call!.args).toEqual(["prompt", 5, GROUP_ID]);
   });
 
   it("摘組：該組 lead 可（縮小曝光面）", async () => {
