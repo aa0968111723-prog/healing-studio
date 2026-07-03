@@ -3,6 +3,7 @@ import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { toCsvRow } from "@shared/csv-safe";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import { readSnapshotEstimate } from "./adminApiUsageEstimate";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -246,58 +247,101 @@ function ProvidersTab() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {query.data?.providers.map(p => (
-          <GlassCard key={p.provider}>
-            <div className="flex items-center gap-2 mb-3">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: PROVIDER_COLORS[p.provider] }}
-              />
-              <span className="hs-h3 !mb-0">{PROVIDER_LABELS[p.provider]}</span>
-              {p.latestSnapshot?.tier && (
-                <Badge variant="outline" className="ml-auto text-[10px]">
-                  {p.latestSnapshot.tier}
-                </Badge>
-              )}
-            </div>
-            {p.latestSnapshot && (
-              <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mb-3">
-                <div>
-                  <span className="block">配額</span>
-                  <span className="font-medium text-foreground">
-                    {Number(p.latestSnapshot.quota ?? 0).toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  <span className="block">剩餘</span>
-                  <span className="font-medium text-foreground">
-                    {Number(p.latestSnapshot.remaining ?? 0).toLocaleString()}
-                  </span>
-                </div>
-                <div>
-                  <span className="block">餘額</span>
-                  <span className="font-medium text-foreground">
-                    ${Number(p.latestSnapshot.balanceUsd ?? 0).toFixed(2)}
-                  </span>
-                </div>
+        {query.data?.providers.map(p => {
+          // AIDV-561（併 AIDV-194）：fal/gemini 快照為「目錄單價×用量」估算值
+          // （extraData.estimated===true，quota/remaining/balanceUsd 不寫）。
+          // 估算快照渲染「估算值・未對帳」badge＋估算數字，取代原本誤導性的
+          // 配額 0／剩餘 0／$0.00；elevenlabs/suno 權威快照路徑完全不變。
+          const est = readSnapshotEstimate(p.latestSnapshot?.extraData);
+          return (
+            <GlassCard key={p.provider}>
+              <div className="flex items-center gap-2 mb-3">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: PROVIDER_COLORS[p.provider] }}
+                />
+                <span className="hs-h3 !mb-0">{PROVIDER_LABELS[p.provider]}</span>
+                {(est || p.latestSnapshot?.tier) && (
+                  <div className="ml-auto flex items-center gap-1">
+                    {est && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] text-amber-600 dark:text-amber-400 border-amber-500/40"
+                      >
+                        估算值・未對帳
+                      </Badge>
+                    )}
+                    {p.latestSnapshot?.tier && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {p.latestSnapshot.tier}
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
-            {p.recentCosts.length > 0 && (
-              <ResponsiveContainer width="100%" height={100}>
-                <BarChart data={[...p.recentCosts].reverse()}>
-                  <XAxis dataKey="date" tick={{ fontSize: 9 }} />
-                  <Tooltip />
-                  <Bar
-                    dataKey="totalCostUsd"
-                    fill={PROVIDER_COLORS[p.provider]}
-                    radius={[4, 4, 0, 0]}
-                    name="費用 (USD)"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </GlassCard>
-        ))}
+              {p.latestSnapshot && (est ? (
+                <div className="mb-3">
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div>
+                      <span className="block">今日呼叫（估算）</span>
+                      <span className="font-medium text-foreground">
+                        {est.estimateAvailable && est.todayCallCount != null
+                          ? est.todayCallCount.toLocaleString()
+                          : "—"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block">今日費用（估算）</span>
+                      <span className="font-medium text-foreground">
+                        {est.estimateAvailable && est.todayCostUsd != null
+                          ? `$${est.todayCostUsd.toFixed(4)}`
+                          : "—"}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">
+                    目錄單價×用量估算，無供應商帳單對帳；此供應商無權威配額／餘額資料。
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground mb-3">
+                  <div>
+                    <span className="block">配額</span>
+                    <span className="font-medium text-foreground">
+                      {Number(p.latestSnapshot.quota ?? 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block">剩餘</span>
+                    <span className="font-medium text-foreground">
+                      {Number(p.latestSnapshot.remaining ?? 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block">餘額</span>
+                    <span className="font-medium text-foreground">
+                      ${Number(p.latestSnapshot.balanceUsd ?? 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {p.recentCosts.length > 0 && (
+                <ResponsiveContainer width="100%" height={100}>
+                  <BarChart data={[...p.recentCosts].reverse()}>
+                    <XAxis dataKey="date" tick={{ fontSize: 9 }} />
+                    <Tooltip />
+                    <Bar
+                      dataKey="totalCostUsd"
+                      fill={PROVIDER_COLORS[p.provider]}
+                      radius={[4, 4, 0, 0]}
+                      name="費用 (USD)"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </GlassCard>
+          );
+        })}
       </div>
     </motion.div>
   );
