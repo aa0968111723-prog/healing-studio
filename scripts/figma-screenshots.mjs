@@ -96,13 +96,11 @@ const page = await ctx.newPage();
 
 for (const p of TARGETS) {
   const url = `${BASE}${p.route}`;
-  try {
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-  } catch {
-    // networkidle may never settle if backend calls keep retrying; fall back
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
-  }
-  await page.waitForTimeout(3500); // let lazy chunks + animations settle
+  // Backend-less capture builds never reach networkidle (data queries keep
+  // retrying), so wait for DOM + a fixed settle window instead of stalling on
+  // the 30s networkidle timeout per page.
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.waitForTimeout(4000); // let lazy chunks + animations settle
   // viewport-sized shot (above the fold) and full-page shot
   await page.screenshot({ path: path.join(OUT_DIR, `${p.name}-viewport.png`) });
   await page.screenshot({ path: path.join(OUT_DIR, `${p.name}-full.png`), fullPage: true });
