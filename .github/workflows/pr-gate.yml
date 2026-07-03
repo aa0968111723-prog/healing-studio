@@ -27,7 +27,10 @@ jobs:
   gate:
     name: 驗證門（tsc · routes · navigation · vitest）
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 20 分鐘在 2 核 hosted runner 上不夠：vitest 全量（602 檔 / 7441 測試，
+    # 含 three/mermaid/shiki 重測試）在本機多核就要 ~190s，慢 2–4 倍的
+    # ubuntu-latest（2 vCPU）會逼近逾時。放寬到 40 分，避免整個 job 被判 failure。
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,4 +60,8 @@ jobs:
       #   • webhookSuno.test.ts   —— 補 mock 缺漏 export + 修 complete 覆寫既有 meta 的 prod bug
       #   • modelResearcher.test.ts —— 測試與現行 prod 設計（免金鑰公開 fallback + preflight 短路）已對齊（AIDV-104）
       - name: 測試（vitest run · 全量把關）
-        run: npx vitest run
+        # 2 核 runner 上的 OOM 防護：給 V8 更大的 old-space（runner 有 ~7GB），
+        # 並用 forks pool 讓每個 worker 記憶體獨立回收，避免重測試累積爆記憶體。
+        run: npx vitest run --pool=forks
+        env:
+          NODE_OPTIONS: --max-old-space-size=5120
