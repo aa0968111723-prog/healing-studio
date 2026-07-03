@@ -33,13 +33,22 @@
 
 | 項目 | 產出檔 | 狀態 | 摘要 |
 |---|---|---|---|
-| H1:模型成本全表 | `H1-model-costs.md` | ◐ 進行中 | repo 內建定價表逐模型抽出+典型操作成本速查 |
-| H2:欄位字典(圖/影) | `H2-fields-image-video.md` | ◐ 進行中 | ImageStudio/VideoStudio 每欄位:預設/範圍/API 參數對應 |
-| H3:欄位字典(音/統一/世界觀/座艙) | `H3-fields-pro-studio-animation.md` | ◐ 進行中 | ProStudio/Studio/AnimationStudio/Cockpit 欄位級 |
-| H4:資料表字典×對外 API | `H4-data-dictionary-api.md` | ◐ 進行中 | 102 表字典+Supabase 表+/api/v1+REST 端點總表 |
+| H1:模型成本全表 | `H1-model-costs.md` | ☑ 完成 | repo 內建定價表逐模型抽出(409 行)+典型操作成本速查;聲明「內建估價≠實際帳單」 |
+| H2:欄位字典(圖/影) | `H2-fields-image-video.md` | ☑ 完成 | ImageStudio/VideoStudio 逐欄位;VideoStudio 無 seed UI、~35 隱藏 zod 欄、flux2 參考圖上限炸 400、Wan 可用性查表失效 |
+| H3:欄位字典(音/統一/世界觀/座艙) | `H3-fields-pro-studio-animation.md` | ☐ **待補** | Fable5 額度中斷,研讀完未寫出 |
+| H4:資料表字典×對外 API | `H4-data-dictionary-api.md` | ☐ **待補** | Fable5 額度中斷,研讀完未寫出 |
 
-## 全案狀態:主體(Phase 0-3)☑ 完成;G/H 補充波進行中(2026-07-03)
-- 完整 PDF:14 份版已交付 Bruce;G3+H 波完成後重產最終版
+## 補充 wave I / J(Bruce 2026-07-03 加開)
+
+| 項目 | 產出檔 | 狀態 | 摘要 |
+|---|---|---|---|
+| I:技術債總帳×沉睡能力×喚醒路徑 | `I-debt-dormant.md` | ☑ 完成 | 技術債 17 項分三級(立即/結構/衛生)+沉睡能力四級目錄(開旗標/前端接一下/資料在燒/補一段就通)+發揮優先序矩陣 |
+| J:完整程式碼結構總覽 | `J-code-structure.md` | ☑ 完成 | 頂層佈局、規模量化(52 頁/307 元件/76 router/184 服務/602 測試)、前後端逐層職責、行數大戶、建置部署鏈、依賴要點 |
+
+## 全案狀態(2026-07-03)
+- 主體 Phase 0-3 ☑ + 補洞 G1-G4 ☑ + 補充 H1/H2/I/J ☑
+- **待補**:H3、H4(Fable5 額度中斷,已完成研讀待重寫)
+- 完整 PDF:持續交付最新版給 Bruce
 
 ## 執行備註
 - **2026-07-03 Bruce 指示:不用逐階段等確認,連續執行到全案完成**(僅每階段更新本檔+commit push 留檔)。
