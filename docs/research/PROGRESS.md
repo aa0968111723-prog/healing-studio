@@ -45,8 +45,17 @@
 | I:技術債總帳×沉睡能力×喚醒路徑 | `I-debt-dormant.md` | ☑ 完成 | 技術債 17 項分三級(立即/結構/衛生)+沉睡能力四級目錄(開旗標/前端接一下/資料在燒/補一段就通)+發揮優先序矩陣 |
 | J:完整程式碼結構總覽 | `J-code-structure.md` | ☑ 完成 | 頂層佈局、規模量化(52 頁/307 元件/76 router/184 服務/602 測試)、前後端逐層職責、行數大戶、建置部署鏈、依賴要點 |
 
+## 深挖 wave K(Bruce 2026-07-03:對抗式 bug 獵人,找隱藏問題)
+
+| 項目 | 產出檔 | 狀態 | 摘要 |
+|---|---|---|---|
+| K1:對抗式安全/認證 | `K1-security-bugs.md` | ☑ 完成 | 4 高危:生成入口參考圖 SSRF(無白名單+無 redirect:error)、ElevenLabs 三路徑 SSRF、assets.teamAssets 跨租戶 IDOR(RBAC OFF)、models.teamModels 無旗標可關洩 LoRA 權重;+proxy-download/safeMediaUrl 萬用尾碼白名單缺陷 |
+| K2:生成/扣點正確性 | `K2-generation-bugs.md` | ◐ 進行中 | race/double-charge/webhook 重複/seed=0 類 truthy/錯誤吞噬 |
+| K3:資料完整性/雙DB | `K3-data-integrity.md` | ◐ 進行中 | 0 外鍵孤兒/雙DB不一致/migration冪等/記憶體態遺失/JSON無驗證 |
+| K4:死碼/契約不符/假測試 | `K4-deadcode-contracts.md` | ◐ 進行中 | router 零呼叫/zod vs UI/死旗標/假測試統計 |
+
 ## 全案狀態(2026-07-03)
-- 主體 Phase 0-3 ☑ + 補洞 G1-G4 ☑ + 補充 H1/H2/I/J ☑
+- 主體 Phase 0-3 ☑ + 補洞 G1-G4 ☑ + 補充 H1/H2/I/J ☑ + 深挖 K1 ☑(K2-K4 進行中)
 - **待補**:H3、H4(Fable5 額度中斷,已完成研讀待重寫)
 - 完整 PDF:持續交付最新版給 Bruce
 
