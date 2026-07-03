@@ -51,7 +51,7 @@
 |---|---|---|---|
 | K1:對抗式安全/認證 | `K1-security-bugs.md` | ☑ 完成 | 4 高危:生成入口參考圖 SSRF(無白名單+無 redirect:error)、ElevenLabs 三路徑 SSRF、assets.teamAssets 跨租戶 IDOR(RBAC OFF)、models.teamModels 無旗標可關洩 LoRA 權重;+proxy-download/safeMediaUrl 萬用尾碼白名單缺陷 |
 | K2:生成/扣點正確性 | `K2-generation-bugs.md` | ◐ 進行中 | race/double-charge/webhook 重複/seed=0 類 truthy/錯誤吞噬 |
-| K3:資料完整性/雙DB | `K3-data-integrity.md` | ◐ 進行中 | 0 外鍵孤兒/雙DB不一致/migration冪等/記憶體態遺失/JSON無驗證 |
+| K3:資料完整性/雙DB | `K3-data-integrity.md` | ☑ 完成 | 🔴 GDPR 刪帳整條必炸(USER_OWNED_TABLES 含 10 張無 userId 表→SQL錯→交易回滾→刪不掉,零測試)+餵電路斷路器全站503;10 張有 userId 表漏在清單外→個資永存;resource_shares 三向不清;跨庫 IDOR(handoffTrace 只驗登入) |
 | K4:死碼/契約不符/假測試 | `K4-deadcode-contracts.md` | ◐ 進行中 | router 零呼叫/zod vs UI/死旗標/假測試統計 |
 
 ## 全案狀態(2026-07-03)
