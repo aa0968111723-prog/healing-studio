@@ -46,6 +46,47 @@
 - [ ] 認證頁（`/`, `/forgot-password`, `/reset-password`）匯入時是否需登入態截圖
 - [ ] 動態頁（`:id` / `:storyboardId`）要用哪組真實 ID 當代表樣本
 
+## ⚠️ 重大限制：Figma seat 額度（實測）
+
+實作 Phase 0 試點時撞到 Figma MCP 硬限制。你目前的 Figma 帳號是
+**Professional plan · Collab seat**，MCP 工具額度是 **每月只有 6 次呼叫**
+（read 類工具計費；`generate_figma_design`、`add_code_connect_map`、`whoami` 免計）。
+
+| Seat | 額度 |
+|---|---|
+| View / Collab（你現在） | **6 次／月** |
+| Dev / Full（Pro） | 200 次／日、15 次／分 |
+| Dev / Full（Enterprise） | 600 次／日 |
+
+**影響**：
+- **路線 B（設計系統，用 `use_figma`）** 需要 20–100+ 次呼叫 → **Collab seat 做不完**，
+  必須升級到 **Full / Dev seat**。
+- **路線 A（像素快照）** 可用 **`generate_figma_design`**，它**免額度**，
+  所以就算不升級也能逐頁抓 Railway 網址的像素稿。
+
+升級路徑：Figma → 帳號設定 → 把此帳號的 seat 從 Collab 改為 **Full 或 Dev**。
+
+## 進度（Phase 0 試點 · 已寫入真實 Figma 檔）
+
+Figma 檔：`Healing Studio · Design System`
+（fileKey `NhDt6VmAqNhuI4coDxZ41X`，在你 drafts）
+
+- ✅ **43 個 Variables 已建**（額度耗盡前完成）：
+  - `Color` 集合：24 語意色 token，**Light/Dark 雙模式**，OKLCH→sRGB 精確轉換，
+    含 alpha 玻璃態；全設 scopes + `var(--x)` code syntax
+  - `Spacing` 集合：12 階（4→192px）
+  - `Radius` 集合：7 階（sm→full）
+- ✅ **頁面骨架已建**：Cover / Foundations / --- Components --- / Button / Badge /
+  Card / Input / Dialog
+- ⛔ **色票驗證頁 + 5 元件**：撞到 6/月 額度上限，未完成
+
+> 待 seat 升級後，可續建：Foundations 色票頁 → Button/Badge/Card/Input/Dialog
+> 5 元件（變體 + 變數綁定），再放大到全部 56 元件。
+
+## 部署網址（Phase 1 用）
+- Base：`https://healing-studio-production.up.railway.app`
+- 頁面路徑見 `route-manifest.csv`
+
 ## 檔案
 - `route-manifest.csv` — 53 條路由，A 路線批次匯入用
 - `README.md` — 本文件
