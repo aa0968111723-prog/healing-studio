@@ -10,8 +10,8 @@
 | 階段 | 產出檔 | 狀態 | 摘要 |
 |---|---|---|---|
 | Phase 0:建立地圖 | `00-overview.md` | ☑ 完成 | 技術棧(React19+wouter+tRPC+雙DB)、4-shell 路由全表、60+ tRPC 命名空間、102 MySQL 表、30+ cron、詞彙表(修正:非 Nixpacks 而是 Dockerfile;gamification 不存在;光球/精靈/4-shell 為核心詞彙) |
-| Phase 1-1:功能全貌 | `01-features.md` | ◐ 進行中 | 5 個子代理平行盤點(video shell / learn / settings+admin / 跨shell脊椎+social / 全域系統) |
-| Phase 1-2:全端接線 | `02-fullstack.md` | ◐ 進行中 | 與 1-1 同批子代理收集接線資料 |
+| Phase 1-1:功能全貌 | `01-features.md` | ☑ 完成 | 逐頁功能表+現況判定(完整/半成品/停用+證據);重大修正:無 Veo 3.1/Suno V5、DirectorAI 頁被 Cockpit 旗標接管、/assets section 聚合死碼、social 發佈 mock、LearnHub 影片/測驗 ephemeral;§7 全站非完整項目彙總 |
+| Phase 1-2:全端接線 | `02-fullstack.md` | ☑ 完成 | 生成統一管線(扣點→fal/Gemini→doPostGenComplete 三表→R2 歸檔)、逐頁接線表、RAG 全鏈(Pinecone gemini-embedding-001)、光球接線(FSM in-memory)、SSE/WS 總表、featureFlags 全表、cron→表對應 |
 | 子代理 A:成本 × 外部整合 | `A-cost-integrations.md` | ☐ 未開始 | |
 | 子代理 B:基礎設施 × DB × 安全 × 測試 | `B-infra.md` | ☐ 未開始 | |
 | 子代理 C:UIUX 優缺點 | `C-uiux.md` | ☐ 未開始 | |
