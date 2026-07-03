@@ -430,6 +430,33 @@
 
 ---
 
+## 10.12 IN 波接縫稽核新增卡(24 確認 0 推翻,詳見 `IN0-integration-seam-map.md`)
+
+> 接縫地圖揭露一個系統性反模式:**「正確的零件已存在,只是兩端沒接上」**——大量後端能力 client 從不呼叫,大量 client 期待後端不回。
+
+### 卡 S-37 ·【P0】admin.allUsers/allUsersPaginated 洩全站 passwordHash/2FA 給任何 admin
+- 群組:安全 ｜ 驗證:已確認(IN 波,`server/routers/admin.ts:13-27` + `server/db.ts:568-589` 全欄位無白名單)
+- 現況:與 S-00 同型態但**範圍更廣**——admin 使用者清單回傳每個使用者整列(含 passwordHash/twoFactorSecret/icsFeedToken),前端只用 id/name/email/role。任一 admin 帳號被盜或前端 XSS 即洩全站憑證。
+- **待決策**:與 S-00 一起用「集中式欄位投影/DTO 白名單」統一修(對齊 IA0 SYS-02 top-5)。
+
+### 其餘 IN 確認卡
+| 卡 | 兩端 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| B-26 | ImageStudio.tsx:3820 ↔ generate.ts:2414 / postGenActions.ts:238 | 高 | recordGenResult 契約缺 costCredits→每筆生成成本被寫死 1 點(記帳失真) |
+| SEAM-01 | imageStudio.ts:1397-1511 ↔ ImageStudio.tsx(零呼叫) | 高 | **正確路徑閒置**:checkImageStatus 有正確 estimatePoints 記帳+持久化,client 卻改走阻塞式 falQueueRun→正確計費被繞過 |
+| C-03 | VideoStudio:4985 / ProStudio:4346 ↔ DirectorAI:2422 | 高 | resultUrl:null 交接擴及 ProStudio(C-01 延伸)→生成結果連不回導演卡 |
+| C-04 | director.ts:235-258 ↔ DirectorAI.tsx:3406 | 高 | 主聊天呼叫從不傳 projectId→AIDV-152 世界觀注入在主頁面形同死碼 |
+| DEADSEAM | teachingArchive update/RealEarth/isFeatured、plans、jobStatus 系列 | 中-高 | 一整群後端完整實作但 client 零呼叫(死接縫);教材編輯/精選/RealEarth 連結前端無入口 |
+| FE-08 | DataRepairTab.tsx:22 ↔ schema.ts:301(enum) | 高 | 用不存在的 "running" 狀態篩卡住任務(真值 "processing")→**永遠漏抓真正卡住的任務** |
+| FE-09 | App.tsx/OrbGuideContext ↔ AssetsLibrary.tsx:241 | 高 | /assets?section=vault\|tasks\|prompts\|collection 深連結整組死(getInitialSection 硬編 "assets") |
+| S-38 | rbac.ts:30 ↔ admin.ts:18-39(adminProcedure) | 高 | 前端宣稱 leader 可看使用者/積分分頁,後端 admin 專屬→leader 分頁 100% FORBIDDEN |
+| FE-10 | AdminPage.tsx:280 ↔ SettingsShell(4shell ON) | 高 | 4shell+rich 旗標 ON→AdminPage 6 個 admin procedure 無存活 UI 入口(接續 FE-02 shell shadow) |
+| TA-vec | teachingArchive.ts:240 ↔ TranscriptionBadge:731 | 高 | vectorStatus 概念兩端皆不存在,語意可搜尋性被誤植進 transcriptionStatus→「已抽文」綠徽章誤導(NSX-1 的 UI 面) |
+
+> **接縫反模式根因**(對照 IA0 根因):同一個 productionStatus 被兩套 enum 治理(PS-08 確認)、resultUrl/costCredits/projectId/storyboardId 這些「串接鍵」在交接點被丟成 null/不傳。修法方向 = 契約收斂 + 串接鍵必填。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
