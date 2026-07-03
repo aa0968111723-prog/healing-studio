@@ -234,7 +234,32 @@
 
 ---
 
+## 10.5 MCP 原生 / 自建系統策略卡(Bruce 2026-07-03 新提)
+
+### 卡 SYS-01 ·【策略・研究中】考慮「自建一套 MCP 原生系統」+ 參考 8 個 MCP
+- 群組:北極星/策略 ｜ 驗證:研究中(Z 波,見 `Z1-mcp-architecture-strategy.md`)
+- 緣起:Bruce 提「也可以考慮自建一套自己的系統,並參考這些 MCP 去研究」。
+- 待參考的 8 個 MCP 與其對北極星的映射假設(待 Z1 坐實):
+  | MCP | 能力 | 對應北極星/既有零件 |
+  |---|---|---|
+  | Hugging Face Official MCP | 搜模型/資料集/論文、操作 Gradio App | ① 自建資料庫、模型探索(`modelResearcher.ts`) |
+  | Research Tracker MCP | 語意文獻追蹤、辨識 repo/日期/模型/資料集 | ① RAG、知識庫 |
+  | arXiv MCP | 查論文、抽 metadata/摘要/連結 | ① 知識來源 |
+  | Exa MCP / Tavily MCP | 即時網頁搜尋、過濾、內容抽取 | 靈感/研究(`orbWebResearch.ts`/`perplexityDeepSearch.ts`/`inspirationFetcher.ts`) |
+  | JSON MCP | 解析/合併/拆分/驗證 JSON | 工作流資料清理(③ 自動化) |
+  | Bright Data MCP | 即時網頁導航/擷取 | 素材蒐集(② 連接器) |
+  | MCP Run Python | 沙盒執行 LLM 生成 Python | ③ 自動化執行 + 沙箱(對照 U5 sandbox RCE) |
+  | Playwright MCP | 無頭瀏覽器結構化互動 | ② 連接無 API 的工具、自動化 |
+- 核心決策問題(Z1 要回答):
+  1. **自建 vs 採用**:healing-studio 該(a)採用這些外部 MCP 當連接器、(b)自建 MCP server 對外暴露自己的工具、(c)自建 MCP client 消費外部 MCP(Adobe/Canva/Notion,M3 已提)、還是(d)整體轉成 MCP 原生架構?
+  2. 與既有 `Q5-mcp-automation-spec.md`、`externalServices`/`orbDatabaseTools`/`connectionService` 的關係——哪些是重用、哪些要新建。
+  3. 「自建一套系統」是指換掉現有 tRPC/agentToolExecutor 生態,還是在其上加一層 MCP 相容?(對照 G3 178-tool gate:現有工具生態已龐大,MCP 化的成本/效益。)
+- **待決策**:等 Z1 研究出「自建 vs 採用矩陣 + 對北極星的落地路徑」後一起討論。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
-- 2026-07-03 `812f6fdb`(續):補 W7/W9 卡(B-07〜B-09、PS-04〜PS-07、S-11〜S-13)。X 波(17 檔)與 W8 完成後續補。
+- 2026-07-03 `812f6fdb`(續):補 W7/W9 卡(B-07〜B-09、PS-04〜PS-07、S-11〜S-13)。
+- 2026-07-03 `b743d2ac`(續):補 SYS-01(Bruce 提「自建 MCP 原生系統」策略卡),Z 波研究中。X 波(17 檔)與 W8 完成後續補。
