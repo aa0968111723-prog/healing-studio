@@ -283,9 +283,72 @@
 
 ---
 
+## 10.7 X 波地毯掃描新增卡(17 檔 + 對抗式驗證,詳見 `X0-carpet-scan-synthesis.md`)
+
+> X 波逐檔深挖 17 檔,50 條 critical/high 經對抗式驗證 → **40 確認、9 推翻、1 待驗**。以下按群組列確認卡;完整佐證(檔案:行號、原→訂正嚴重度、建議)見 X0 與各 X 分冊。**三個討論主軸**:①計費雙向壞(有的不收有的超收) ②IDOR 是系統性重複模式(5 CRITICAL 同形) ③RAG 對文字教材根本沒建索引。
+
+### 計費(X 波新增,接續計費失效群組)
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| B-10 | modelPricing.ts:3301+ | 高 | **反向新面**:9 個 live 模型時長費+起跳費雙重計費,使用者被**超收**(如 5 秒影片應 15pts 實收 ~30) |
+| B-11 | costAnalytics.ts:39-47 | **P0** | `invokeLLM`(~30 檔主流量:orb/導演/世界觀)繞過 `ai_usage_events`,成本分析結構性看不到→對帳不可信 |
+| B-12 | modelPricing.ts:3279 | 高 | 目錄查無 modelId 一律回退固定 5pts;dispatch 目錄與計費目錄兩份不同步→計費失真 |
+| B-13 | brain.ts:731-791 | 高 | `orbVoicePreview` 直呼 ElevenLabs TTS 零計費,限流比同類寬鬆 ~30 倍 |
+| B-14 | teachingArchive.ts:240+ | 高 | 教材 ingestion 無限流、無冪等,可重複觸發真實付費 ElevenLabs 轉錄 |
+| B-15 | falTrainer.ts:328-345 | **P0** | fal 訓練 `subscribe()` 無 timeout/requestId,本地逾時後遠端任務與計費續跑、無法查詢/取消 |
+| B-16 | models.ts create/retrain/captionImages/autofillAngles | **P0** | 四個觸發真實 Replicate/fal 訓練·生成的 mutation **零限流零計費**(涵蓋並升級 B-09) |
+| B-17/B-18 | apiUsage.ts | 中 | 對帳用截斷版 events 自相矛盾;供應商餘額恆 $0 假顯示無標示 |
+
+### 安全/IDOR(X 波新增,5 CRITICAL 同形——最高優先主題)
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| S-19 | realEarth.ts:294-300 | **P0** | `getLinkedMaterials` 繞過三層授權,任意登入者枚舉 id 讀**他人私有教材全文** |
+| S-20 | agentCollaborationOrchestrator.ts:387-410, 603-691 | **P0×2** | 協作 session 的 userId/collaborationId 為 client 可控→**偽造/劫持竄改他人 session**,無錯誤提示 |
+| S-21 | brain.ts:915-926,955-962,1272-1276 | **P0** | `errorTraces`/`diagnoseError`/`generationLogs` 僅需登入→跨用戶讀全站 prompt/錯誤/resultUrl |
+| S-22 | models.ts:20-52 | **P0** | `team_shared` 只查 visibility 不查 teamId→任何登入者讀他人模型 `trainedLoraUrl`/訓練圖 |
+| S-23 | loraTrainer.ts:152-168 | **P0** | `trainWithReplicate` 繞過肖像權同意書(models.ts create 有,此路徑沒有) |
+| S-24 | agentToolExecutor.ts:828-849 | 高 | connector fallbackTools 降級路徑繞過 `requireConfirmation` 授權閘 |
+| S-25 | showcase.ts:173-180,355-409 | 高 | publicProcedure 把「收藏/評分」當公開同意,無 userId 範圍→洩他人 prompt/resultUrl |
+| S-26 | worldbuilding.ts:688-719 | 中 | `checkConsistency` 無 owner 檢查,可覆寫他人 timelineFrame |
+| S-27 | teachingArchive.ts:100-152 | 高 | `public_disciples` 發佈無角色/審核門檻,任意新帳號可冒名汙染全站教材庫/RAG 語料 |
+| S-28 | creativeProject.ts:170-262 | 中 | create/update 不驗 worldFramework/Storyboard/directorSession id 擁有權(與 link 端不對稱) |
+
+> S-01 更新:X0 確認 `getBackgroundJob`/`updateBackgroundJob` 確實無 userId 過濾為共同根因,但抽查 `models.trainingStatus` 已補檢查→**需對 30+ 呼叫點做一次性逐點稽核**,不可假設全壞或全對。
+
+### 持久化(X 波新增)
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| PS-08 | video-state-machines.ts:113-116 | 高 | `productionStatus` 雙狀態機共用,`canTransitionSession` 遇未知狀態拋未攔截 500(一般用戶可達) |
+| PS-09 | creativeProject.ts:292-326 | 高 | **資料汙染**:`duplicate()` 共用 `worldStoryboardId`,編輯副本分鏡直接改到原專案 |
+| PS-10 | learnHub.ts | 中 | 4 個 mutation 不失效下游快取(含 learnHubOrbIndexCache),重啟前服務過期內容 |
+| PS-11 | learnHub.ts:596+ | 高 | DB 寫入失敗只 console.warn 假成功→刪除復活/新增消失/編輯還原,管理員收假成功 |
+| PS-12 | loraTrainer.ts:241-281 | 高 | Step4 失敗遺失 trainingId 無法追蹤;failed 不佔額度可立即重排付費任務 |
+
+### 注入(X 波新增)
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| I-05 | brain.ts:929-1009 | 中 | `proposalToIssueBody` code fence 未跳脫→管理員核准後 Markdown 注入真實 GitHub Issue |
+| I-06 | worldbuilding.ts:256-610 | 中 | `importFull` 自由文字未消毒進 script prompt;清洗層 `ENABLE_RAG_INJECTION_GUARD` 預設 OFF 等同無防護 |
+
+### 北極星缺口(X 波新增)
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| NSX-1 | teachingArchive.ts:240-244 | 高 | **RAG 對主要內容型態失效**:`mediaType:"text"` 教材永不向量化,語意檢索只能靠 LIKE(北極星① 地基缺口) |
+| NSX-2 | videoCompiler.ts:467+ | 中 | `CAMERA_VECTORS` 自我轉場假陽性;Step7「修正」改的欄位 prompt 根本沒讀→死碼誤導,不影響輸出 |
+
+### 待驗(修 gate 即引爆的休眠地雷)
+| 卡 | 檔案:行號 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| U-1 | orbWorkflowEngine.ts:522-538 | 待驗(低) | `runWorkflow` 硬編碼 `approved:true` 繞 `requiresHuman`;**目前呼叫路徑不可達**(X0 獨立裁決),但修 gate/新增入口時同 PR 必須補核准檢查 |
+
+> X11(rbac-teams)/X12(output-assets)本波無 critical/high,但非零發現:X12 有 `toggleVisibility` 獎勵點數 TOCTOU 重複發放、assets title/description 缺 sanitize(medium),建議排後續。詳見各分冊。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
 - 2026-07-03 `812f6fdb`(續):補 W7/W9 卡(B-07〜B-09、PS-04〜PS-07、S-11〜S-13)。
 - 2026-07-03 `b743d2ac`(續):補 SYS-01 並將 NS/D/SYS「往前做」卡移至 `00-devzone.md`(研究討論開發專區),本表專責稽核問題卡。
-- 2026-07-03 `b743d2ac`(續):補 W8 卡(B-03 升級 P0、S-14〜S-16、I-04)。X/Z 波完成後續補。
+- 2026-07-03 `b743d2ac`(續):補 W8 卡(B-03 升級 P0、S-14〜S-16、I-04)。
+- 2026-07-03 `b743d2ac`(續):補 Z 波 S-17/S-18;X 波地毯掃描 40 條確認卡(B-10〜B-18、S-19〜S-28、PS-08〜PS-12、I-05/I-06、NSX-1/NSX-2、U-1),詳見 `X0-carpet-scan-synthesis.md`。至此 W+X+Z 波深挖全數落地。
