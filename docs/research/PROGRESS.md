@@ -20,7 +20,26 @@
 | 子代理 F:任務卡 × PR × 程式碼三方對照 | `F-tasks-prs.md` | ☑ 完成 | Jira 970 卡(Done 873/未完 97)、Open PR 實為 89(殭屍 71、衝突 64、真活 9);#1298 唯一零衝突列車;WIP=1 失守(41 卡同帳號進行中);CI 30/30 秒掛=runner 問題;15 個 GitHub issue 全可關;收斂順序建議 |
 | Phase 3:彙整 | `00-summary.md` | ☑ 完成 | 跨主題總診斷(供給側達標/審改全斷/記憶體態+旗標 OFF 侵蝕可靠性)、勘誤總表、三波決策建議、待補外部數據總表、文件索引 |
 
-## 全案狀態:☑ 全部完成(2026-07-03)
+## 補洞 wave G(Bruce 2026-07-03 加開)
+
+| 項目 | 產出檔 | 狀態 | 摘要 |
+|---|---|---|---|
+| G1:VideoCockpit 座艙 | `G1-video-cockpit.md` | ☑ 完成 | 預設入口逐面板盤點;假上傳成功、寫路徑空心、panels 整目錄死碼、雙光球疊 z-index |
+| G2:世界觀/分鏡逐欄 | `G2-worldbuilding-detail.md` | ☑ 完成 | v2 擴充幾乎全落地(至 v3/v4);管線可規劃不可執行(工具名不存在);兩套積木系統;custom_blocks_combo 孤兒表 |
+| G3:光球工具×精靈能力 | `G3-orb-tools-spirits.md` | ◐ 進行中 | agentToolExecutor 工具全清單+15/25 精靈能力表+orb 前端子功能 |
+| G4:依賴漏洞×雜項 | `G4-misc-audit.md` | ☑ 完成 | npm audit 36 漏洞處置表(drizzle-orm SQLi 需手動);load-tests=k6;.brain-state.json 誤 commit;Home 800 行旗標休眠碼;種子教材硬錯 |
+
+## 補充 wave H(Bruce 2026-07-03 加開:模型成本+欄位字典+資料表字典)
+
+| 項目 | 產出檔 | 狀態 | 摘要 |
+|---|---|---|---|
+| H1:模型成本全表 | `H1-model-costs.md` | ◐ 進行中 | repo 內建定價表逐模型抽出+典型操作成本速查 |
+| H2:欄位字典(圖/影) | `H2-fields-image-video.md` | ◐ 進行中 | ImageStudio/VideoStudio 每欄位:預設/範圍/API 參數對應 |
+| H3:欄位字典(音/統一/世界觀/座艙) | `H3-fields-pro-studio-animation.md` | ◐ 進行中 | ProStudio/Studio/AnimationStudio/Cockpit 欄位級 |
+| H4:資料表字典×對外 API | `H4-data-dictionary-api.md` | ◐ 進行中 | 102 表字典+Supabase 表+/api/v1+REST 端點總表 |
+
+## 全案狀態:主體(Phase 0-3)☑ 完成;G/H 補充波進行中(2026-07-03)
+- 完整 PDF:14 份版已交付 Bruce;G3+H 波完成後重產最終版
 
 ## 執行備註
 - **2026-07-03 Bruce 指示:不用逐階段等確認,連續執行到全案完成**(僅每階段更新本檔+commit push 留檔)。
