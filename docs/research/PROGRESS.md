@@ -26,7 +26,7 @@
 |---|---|---|---|
 | G1:VideoCockpit 座艙 | `G1-video-cockpit.md` | ☑ 完成 | 預設入口逐面板盤點;假上傳成功、寫路徑空心、panels 整目錄死碼、雙光球疊 z-index |
 | G2:世界觀/分鏡逐欄 | `G2-worldbuilding-detail.md` | ☑ 完成 | v2 擴充幾乎全落地(至 v3/v4);管線可規劃不可執行(工具名不存在);兩套積木系統;custom_blocks_combo 孤兒表 |
-| G3:光球工具×精靈能力 | `G3-orb-tools-spirits.md` | ◐ 進行中 | agentToolExecutor 工具全清單+15/25 精靈能力表+orb 前端子功能 |
+| G3:光球工具×精靈能力 | `G3-orb-tools-spirits.md` | ☑ 完成 | **bug 級發現:178 個精靈工具 case 不可達**(gate 只路由 6 分支;planner 會規劃、執行必敗、測試 mock 掉測不到);真正可達內建工具僅 37;@精靈聊天走 spirit.invoke 有替代活路;25 精靈能力表+暱稱漂移清單;OrbVoiceButton 名實不符(批次非 Live) |
 | G4:依賴漏洞×雜項 | `G4-misc-audit.md` | ☑ 完成 | npm audit 36 漏洞處置表(drizzle-orm SQLi 需手動);load-tests=k6;.brain-state.json 誤 commit;Home 800 行旗標休眠碼;種子教材硬錯 |
 
 ## 補充 wave H(Bruce 2026-07-03 加開:模型成本+欄位字典+資料表字典)

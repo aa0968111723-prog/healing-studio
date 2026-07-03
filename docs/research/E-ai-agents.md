@@ -53,7 +53,7 @@ recovery policy(`orbTaskRecoveryPolicy.ts`,全檔 40 行):5 類錯誤碼→6 種
 
 ### 1.2 25 位精靈(spirits)
 
-`shared/orb-agent-roles.ts:19-45` 定義 26 值 union `AgentRole`,按 `SPIRIT_FAMILY`(:1114)分三族(原「15 精靈=6 通用+6 專精+3 主動」,後擴至 25):
+`shared/orb-agent-roles.ts:19-45` 定義的 `AgentRole` union(**勘誤:G3 實數為 25 值**),按 `SPIRIT_FAMILY`(:1114)分三族(原「15 精靈=6 通用+6 專精+3 主動」,後擴至 25):
 
 | 族 | 成員(暱稱) |
 |---|---|
@@ -88,7 +88,7 @@ recovery policy(`orbTaskRecoveryPolicy.ts`,全檔 40 行):5 類錯誤碼→6 種
 
 - `global-agent-registry.ts`:全站 PageAgentSnapshot 登記 + 與 `APP_PAGE_REGISTRY` 的漂移偵測(pageId/path 不符回 reason)。
 - `global-agent-capabilities.ts`:每頁 action 能力表(riskLevel/requiresApproval/inputSchema),planner prompt 的「capability registry summary」來源 — navigate 路徑硬約束靠它。
-- `global-agent-tools.ts`:**151 個**工具定義(name/riskLevel/requiresHuman/allowedArgsSchema/executionTarget=ui-only|server-side|claudeCode|external-provider)。
+- `global-agent-tools.ts`:**148 個**工具定義(勘誤:G3 精算;另見 G3 重大發現——registry 有註冊≠可執行,executor 只路由 37 個內建工具,178 個精靈工具 case 不可達)(name/riskLevel/requiresHuman/allowedArgsSchema/executionTarget=ui-only|server-side|claudeCode|external-provider)。
 - `global-agent-workflows.ts`:runWorkflow 輕量步驟→嚴格 AgentAction 展開 + wizard 澄清(`buildWizardClarification`)。
 - `global-agent-orchestrator.ts`(1,611 行):**client 端** DOM 編排器 — 與 server 端 `orbTaskOrchestrator` 是刻意的雙編排器分割(兩檔檔頭互相說明;邊界由 `tests/unit/shared/orchestrator-boundary.test.ts` 強制,client 檔不得 import server/**)。
 
