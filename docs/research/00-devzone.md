@@ -95,6 +95,18 @@
 - **硬前置(Z1 盤點揭露)**:healing-studio 目前是「MCP 零基建」起點,以下既有債必須先處理才能安全談任何對外 MCP:NS-00 G3 gate(194 case 僅約 38 可達)、S-17 Drive OAuth token 明文、S-18 withinTrustCeiling reviewed 層檢查失效。
 - **待討論**:是否採路線 (c) + 先接 HF/Canva 兩個 MCP;第一步 spike = Canva MCP client PoC(接 `connectionService` 的 mcp 欄位)。
 
+### 卡 SYS-02 ·【策略】業界對齊計分卡 + 集中式物件授權中介層 — 狀態:✅ 研究完成,待討論
+- 緣起:Bruce 提「可以與業界對齊」。研究產出:**`IA0-industry-alignment-scorecard.md`**(四面 flow/billing/security/agent-rag 對照 22 點,每點:業界標準→我方現況→差距→對齊修法→信心)。
+- **根因一句話(IA0)**:全站問題根因 = **「太多授權/計費/簽章判斷交給前端或被動路徑自行決定」**——這正好貫穿 S-00、IDOR 群組、計費守衛失效、client 布林當安全邊界。
+- **跨面 top-5 對齊優先(供討論)**:
+  1. **webhook HMAC 簽章**(對齊 Stripe/GitHub 標準;串 W7 S-11〜S-13)。
+  2. **auth.me BOPLA/欄位投影**(= S-00,全案最高優先;OWASP API3)。
+  3. **計費終態收斂 + outbox**(冪等計費/失敗退款/雙分錄;串 GC2/W5/W7 計費群組)。
+  4. **集中式物件授權中介層**——一層解掉 IDOR 群組(BOLA)+ 未來 MCP 的 confused-deputy;取代目前「owner 檢查下放各呼叫端」反模式(串 S-01/S-19/S-33 等)。
+  5. **SceneAssembly / scene_id 一級實體**(對齊業界逐幕模型;串 Q1/M1/NS-10 北極星逐幕三軌)。
+- **4 個差異化(不必照抄業界,可作賣點)**:腳本卡優於純逐字稿模型、RAG 尚未啟動的「空白畫布」優勢、計費 CAS 鎖本體已健康(只缺覆蓋面)、北極星逐幕規格已有 Q1/M1/Q2 雛型。
+- **待討論**:top-5 是否納入第 0/1 波;「集中式物件授權中介層」是否作為 IDOR 群組的統一解法(vs 逐點補 owner 檢查)。5 點結論有部分需線上再查證(Runway/Kling/MCP/RAG 細節遇 403)。
+
 ---
 
 ## C. 決策待拍板(源自 N 波)
