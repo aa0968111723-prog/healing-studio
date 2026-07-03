@@ -17,33 +17,84 @@ const BASE = process.env.SHOT_BASE_URL || "http://localhost:4173";
 const OUT_DIR = path.resolve("/tmp/figma-shots");
 const VIEWPORT = { width: 1440, height: 900 };
 
+// Full static route set (dynamic `:id` routes omitted — capture those with a
+// real sample id via SHOT_ONLY if needed). Mirrors client/src/App.tsx.
 const PAGES = [
   { name: "home", route: "/" },
   { name: "creation-hub", route: "/create" },
-  { name: "dashboard", route: "/dashboard" },
+  { name: "playground", route: "/playground" },
   { name: "studio", route: "/studio" },
   { name: "director-ai", route: "/director" },
+  { name: "creative-projects", route: "/creative-projects" },
+  { name: "projects", route: "/projects" },
+  { name: "animation", route: "/animation" },
+  { name: "worldbuilding", route: "/worldbuilding" },
+  { name: "assets", route: "/assets" },
+  { name: "models", route: "/models" },
+  { name: "vault", route: "/vault" },
+  { name: "shared", route: "/shared" },
+  { name: "notes", route: "/notes" },
+  { name: "calendar", route: "/calendar" },
+  { name: "dashboard", route: "/dashboard" },
+  { name: "feedback", route: "/feedback" },
+  { name: "settings", route: "/settings" },
+  { name: "settings-agent", route: "/settings/agent" },
+  { name: "settings-ai-brain", route: "/settings/ai-brain" },
+  { name: "history", route: "/history" },
+  { name: "my-brain", route: "/my-brain" },
+  { name: "pro-studio", route: "/pro-studio" },
+  { name: "image-studio", route: "/image-studio" },
+  { name: "light-orb-studio", route: "/light-orb-studio" },
+  { name: "video-studio", route: "/video-studio" },
+  { name: "learn", route: "/learn" },
+  { name: "ai-models-hub", route: "/ai-models-hub" },
+  { name: "model-wishlist", route: "/model-wishlist" },
+  { name: "tutorial-overview", route: "/tutorial-overview" },
+  { name: "lora-trainer", route: "/lora-trainer" },
+  { name: "focus-flow", route: "/focus-flow" },
+  { name: "background-tasks", route: "/background-tasks" },
+  { name: "credits", route: "/credits" },
+  { name: "prompt-library", route: "/prompt-library" },
+  { name: "prompt-collection", route: "/prompt-collection" },
+  { name: "agent", route: "/agent" },
+  { name: "teaching-archive", route: "/teaching-archive" },
+  { name: "teams", route: "/teams" },
+  { name: "account-settings", route: "/account-settings" },
+  { name: "process", route: "/process" },
 ];
+
+// Allow narrowing to a subset: SHOT_ONLY="dashboard,studio" node scripts/...
+const only = (process.env.SHOT_ONLY || "").split(",").map(s => s.trim()).filter(Boolean);
+const TARGETS = only.length ? PAGES.filter(p => only.includes(p.name)) : PAGES;
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2 });
 
-// Pre-mark all onboarding tours as seen so welcome/page tours don't overlay shots.
+// Pre-mark all onboarding surfaces as seen so tours / intro modals / the orb
+// bubble don't overlay the shots.
 await ctx.addInitScript(() => {
-  const keys = [
+  const tourKeys = [
     "welcome", "studio", "pro-studio", "image-studio", "video-studio",
     "director", "models", "history", "assets", "vault", "notes",
     "calendar", "shared", "dashboard", "feedback", "settings", "learn",
   ];
-  for (const k of keys) localStorage.setItem(`site-tour-${k}-v2`, "true");
+  for (const k of tourKeys) localStorage.setItem(`site-tour-${k}-v2`, "true");
   localStorage.setItem("hasSeenTour", "true");
+  // Orb onboarding intro modal ("光球初次見面") + skip flags (AidvShellChrome.tsx)
+  localStorage.setItem("ai-director-onboarded", "true");
+  localStorage.setItem("orb-onboarding-skipped", "true");
+  localStorage.setItem("orb-quiet-mode", "true");
+  // Home page onboarding surfaces (Home.tsx)
+  localStorage.setItem("home-onboarding-missions-v1", "dismissed");
+  localStorage.setItem("home-onboarding-track-v1", "dismissed");
+  localStorage.setItem("home-orb-lessons-v1", "done");
 });
 
 const page = await ctx.newPage();
 
-for (const p of PAGES) {
+for (const p of TARGETS) {
   const url = `${BASE}${p.route}`;
   try {
     await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
