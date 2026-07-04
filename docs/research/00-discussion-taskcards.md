@@ -502,6 +502,34 @@
 
 ---
 
+## 10.15 EH 波失敗模式卡(8 確認 2 推翻,詳見 `EH0-failure-mode-map.md`)
+
+> 四個系統性反模式:(A) DB 寫入/退款失敗只 log 仍視為成功 (B) webhook 先 ack 200 後處理失敗即消失 (C) 完成判定不驗證產出完整性 (D) 非同步啟動鏈外層 promise 無人接手(agentToolExecutor 已有 F3 修復範本)。
+
+### 卡 B-31 ·【P0・帳目說謊】refund 吞錯不 throw,補償旗標成死碼
+- 群組:計費 ｜ 驗證:對抗式已確認(EH 波,`server/db.ts` refundUserPoints/refundUserQuota + postGenActions.ts:596 / director.ts:3342)
+- 現況:atomicClaimJobRefund 先寫 refunded=true 鎖 → refundUserPoints/Quota 內部 transaction 若失敗,catch **只 console.error 不 rethrow** → 呼叫端 try/catch 永遠進不了 catch → `refundRestoreFailed` 補償旗標永不寫入 → deriveJobRefundStatus 回報「full 已全額退款」,但 `remainingGenerations` 從未加回。**錢包永久少記,且稽核記錄本身佐證「已退款」,人工難察覺。**
+- **待決策**:refund 失敗必須 rethrow 並寫 refundRestoreFailed;補一次性對帳掃描找歷史受害者。與 GC2/W5 計費群組同批。
+
+### 卡 B-32 ·【P0・收款無效果】Stripe webhook 五個 handler 全是 console.log stub
+- 群組:計費 ｜ 驗證:已確認(EH 波,`server/routes/stripeWebhook.ts`)
+- 現況:checkout.session.completed/invoice.paid/payment_failed/subscription.updated/deleted **全部只 console.log+TODO,不寫任何 userSubscriptions**;端點驗簽即回 200。**收款事件被接收但完全沒有 entitlement 邏輯生效**(與 B-27 自給點數、B-22 守衛失明合看=整個變現層形同虛設)。
+- **待決策**:訂閱付款→點數/方案的核心邏輯需實作;確認目前是否有其他路徑補上,還是付費真的沒發點。
+
+### 其餘 EH 確認卡
+| 卡 | 檔案 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| EH-01 | postGenActions.ts doPostGenComplete | **P0** | 資產/歷史寫入失敗 **catch 完全靜默(連 console 都沒)**,仍設 postGenComplete=true 永不重試→永久漏帳、使用者看到完成但資產庫空、無日誌可查 |
+| EH-02 | webhookFal/Replicate/Suno | 高 | 統一先 ack 200 才處理,DB 寫入失敗只最外層 console.error 且供應商不再重試→任務供應商端完成但本地卡住、資產未存、退款未觸發(輪詢備援能否救需執行期驗證) |
+| EH-03 | falTrainer.ts / loraTrainer.ts | 高 | 訓練完成但 outputUrl 解析 null 仍標 ready/completed→前端顯示「LoRA 就緒」允許套用空 LoRA,到下游生成才失敗,已耗訓練費無補償 |
+| EH-04 | models.ts:249-499 / modelTrainingWorker.ts | 高 | 訓練啟動 `import().then()` 缺外層 catch→import 失敗成 unhandled rejection、backgroundJob 永卡 queued/processing 無限重置迴圈永不標 failed(agentToolExecutor F3 有現成修法) |
+| EH-05 | postGenActions void 呼叫(generate/proStudio/videoStudio/director 多處) | 高 | runPostGenForJob/refundJobIfBilled 全 void 無 .catch,函式開頭 db.getBackgroundJob 無保護→DB 抖動併發 unhandled rejection 累積達 storm 閾值(50/60s)可觸發 **process.exit(1) 全站重啟**(需執行期驗證機率) |
+| EH-06 | models.ts/assets.ts toggleVisibility | 高 | 分享獎勵加點與旗標非原子雙寫:旗標寫入失敗→重複發;或退款吞錯誤判成功→旗標鎖死永不補發(與 B-29/B-30 同源) |
+
+> negative:本輪推翻 2 條。優先 3(EH0):B-31 refund 吞錯(帳目可信度影響最廣)、EH-01 postGen 靜默漏帳、EH-04 import catch(成本低有範本)。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
