@@ -530,6 +530,24 @@
 
 ---
 
+## 10.16 FL 波旗標矩陣卡(27 旗標,詳見 `FL0-feature-flag-matrix.md`)
+
+### 卡 FL-01 ·【P1】7 個安全/計費控制出廠即關,且 prod 不覆寫
+- 群組:安全/計費/維運 ｜ 驗證:對抗式已確認(FL 波,`server/_core/env.validated.ts` + `.env.production` 實測)
+- 現況:以下防護 **default OFF 且 `.env.production` 未覆寫任何後端旗標**→正式站全關:`ENABLE_COST_LEDGER`(複式帳本,B-11 記帳失明)、`ENABLE_ORB_QUOTA_GUARD`(rapid-click 節流,僅 ai.chat)、**`ENABLE_ORB_BUDGET_GUARD`**(唯一涵蓋 ai.chat+director.chat 的月度硬擋,風險最高)、`ENABLE_ORB_IDEMPOTENCY_GUARD`(生成冪等去重,關=重複點擊重複計費)、`ENABLE_RAG_INJECTION_GUARD`(注入中和,X8)、`ENABLE_DIRECTOR_WORLD_CONTEXT`(北極星世界脈絡)、`FREE_LLM_API_ENABLED`(關是正向)。
+- **待決策**:哪些該改 default ON(建議至少 ORB_BUDGET_GUARD + ORB_IDEMPOTENCY_GUARD + RAG_INJECTION_GUARD);與計費群組(B-22/B-31)、注入群組(I-06)同批決定。⚠️ 這些「守衛預設關」正是為何 B-22 守衛實務上不觸發的旗標層原因。
+
+### 其餘 FL 卡
+| 卡 | 旗標 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| FL-02 | ENABLE_CODEX_TASKS | 中 | **雙分支矛盾**:`providerRouter.ts:145` default false(認為已停用) vs `orbCodeTask.ts:30` default true(實際放行)→同旗標未設時兩處行為相反 |
+| FL-03 | FEATURE_ADVANCED_SEARCH/RAG_MEMORY/RESEARCH_MODE 等 | 低 | 死旗標:zod schema 定義但 serverEnv 零讀取(真正邏輯走 process.env 動態直讀);多個 VITE_* client 旗標(ORB_MEMORY_PANEL/APP_ID/OAUTH_PORTAL_URL)定義卻零消費 |
+| FL-04 | 北極星 prod 開關 | 高 | **正式站北極星功能沒開**:`ENABLE_PROJECT_HUB`(五步嚮導)prod OFF(dev ON 落差)、`DIRECTOR_WORLD_CONTEXT` OFF、`WORLD_STYLE_INJECTION` OFF;RAG_MEMORY 綁 PINECONE_API_KEY 是否設(待 Railway 查) |
+
+> 這解釋了 Y0 北極星前端斷點的「旗標層」成因:功能碼在,但 prod 旗標關著。優先改 default 3(FL0):ORB_BUDGET_GUARD、統一 CODEX_TASKS 雙分支、擴大 ORB_IDEMPOTENCY_GUARD 覆蓋。待補外部數據:RAG_MEMORY 的 PINECONE_API_KEY 在 Railway 是否設(研究無法從 repo 得知)。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
