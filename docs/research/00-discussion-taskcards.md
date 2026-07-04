@@ -479,6 +479,29 @@
 
 ---
 
+## 10.14 PF 波效能/資源卡(15 確認 0 推翻,詳見 `PF0-performance-map.md`)
+
+> 分層明確:**現在就痛(攻擊者可觸發或架構缺陷)** vs **規模大才痛**。
+
+### 現在就痛(優先)
+| 卡 | 檔案 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| PERF-01 | geminiMedia.ts | **P1** | 圖生影下載**使用者可控 URL**(firstFrameUrl 無 `.url()`/網域限制)**零位元組上限**→單一請求 arrayBuffer 整包進記憶體+base64 膨脹 1.33x→**記憶體 DoS(且 SSRF 面)**,不需規模 |
+| PERF-02 | internalMedia.ts | 高 | persistExternalMediaUrl 的 10MB 上限僅在有 Content-Length 時生效,chunked 來源(webhook localizeResultUrls 遞迴 walk 也走此路)90 秒視窗內完全不受限(與 PERF-01 同源缺陷,共用修法) |
+| PERF-06 | ragMemory.ts/teachingArchiveRag.ts | 中 | 每次 RAG 互動都對 Pinecone 打未快取查詢→從第一天每個生成前後多付一次網路往返(架構缺快取) |
+
+### 規模大才痛(需負載驗證門檻)
+| 卡 | 檔案 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| PERF-03 | orbMemory.ts:36,121-278 | 高 | 對話記憶用**全站共用、永不淘汰的行程內陣列**,每輪對話線性全掃;成本正比全站累積量而非單使用者;且多實例不一致 |
+| PERF-04 | ai.chat(ai.ts:1064,1494) | 高 | 每則訊息無條件:全量撈使用者整個 digital_asset_library(無 limit)+ 對 api_usage_logs 打**無索引** GROUP BY 聚合 |
+| PERF-05 | teachingArchive.list / admin.userActivity / feedback.all / background_jobs 併發檢查 | 高-中 | 無界查詢群:公開教材池無分頁、admin userActivity 全表 users×4 子查詢、feedback 全站整包;`background_jobs` 併發檢查用 jobType+status **無索引**(全表歷史掃描,無歸檔) |
+| PERF-07 | mediaArchival/assetCleanup/tagAssets | 中-低 | N+1/缺索引:backgroundJobId 與 fileKey 欄位無索引;tagAssets 迴圈逐筆 UPDATE 且 assetIds 無長度上限(對照 export.max(50) 慣例) |
+
+> 優先修 3(PF0):PERF-01+PERF-02(下載位元組上限,同源)、PERF-03(orbMemory TTL/容量上限)。negative:assetCleanup dry-run 預設關、orbVoice 單 frame 有 maxPayload、internalMedia 正常 Content-Length 情境有效。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
