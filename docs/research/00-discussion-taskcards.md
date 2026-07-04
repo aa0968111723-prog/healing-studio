@@ -572,6 +572,23 @@
 
 ---
 
+## 10.18 AX 波 a11y/行動卡(37 發現,詳見 `AX0-accessibility-map.md`)
+
+> 多屬體驗品質(非安全),但北極星「行動創作者」直接受影響。系統性反模式,建議共用元件層一次修 + ESLint 堵新增。
+
+| 卡 | 反模式 | 嚴重度 | 一句話 / 修法 |
+|---|---|---|---|
+| AX-01 | FE-03 素材抽屜 hidden class | 高 | 北極星手機流程**直接斷點**(素材入口不可達);同批修 AssetsQuickDrawer 寬度隱藏 bug。最易修影響最廣 |
+| AX-02 | 手刻 modal 缺 ARIA/Esc/focus-trap | 高 | AuthExpiredModal 等自訂彈窗缺 Esc 關閉/焦點管理/role=dialog→鍵盤與螢幕閱讀器使用者受困(登入過期影響全體) |
+| AX-03 | icon-only 按鈕缺 aria-label | 中 | 系統性:圖示按鈕螢幕閱讀器讀不出→建議 `button.tsx` 共用層強制 aria-label 必填 + ESLint 規則堵新增 |
+| AX-04 | hover-only 操作缺 focus-visible | 中 | 刪除等操作只在 hover 顯示(Y8)→鍵盤/觸控不可達 |
+| AX-05 | 觸控目標系統性 <44px | 中 | `button.tsx` size=sm 缺 44px 底線、密集控制在手機難點按 |
+| AX-06 | 固定像素抽屜寬/AmbientOrb 零響應式 | 中 | 小螢幕水平捲動/重疊;工作室座艙密集控制手機不可用(對照 S4) |
+
+> 需視覺驗證 6 項(抽屜裁切、AmbientOrb 重疊、色票對比)。優先 3(AX0):FE-03、modal Esc/ARIA、icon aria-label。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
