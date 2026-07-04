@@ -548,6 +548,30 @@
 
 ---
 
+## 10.17 DI 波無FK資料完整性卡(13 確認 0 推翻,詳見 `DI0-data-integrity-map.md`)
+
+### 卡 DI-01 ·【P0・法遵+正確性】deleteUserAccount 100% 失敗,帳號刪除從不生效
+- 群組:安全/法遵/正確性 ｜ 驗證:對抗式已確認(DI 波,`server/db.ts` deleteUserAccount + `USER_OWNED_TABLES` + `DatabaseManager.executeTransaction:359`)
+- 現況:`USER_OWNED_TABLES` 含 **11 個沒有 `userId` 欄位的表**(prompt_assets、cost_ledger、alert_configs、data_source_connections〔實際 ownerUserId〕、real_earth_entries〔createdBy〕…);交易跑到第 26 項 prompt_assets 即觸發 MySQL 1054 `Unknown column 'userId'`→整段 rollback→**前 25 表 + `DELETE FROM users` 全復原→使用者永遠無法刪除帳號,所有 PII 100% 殘留**。
+- **待決策**:立即修表名↔欄位名 map(有的用 ownerUserId/createdBy/user_id)+ CI 檢查;確認呼叫端是否吞例外回報「刪除成功」(EH 假成功家族,DI0 標待查)。**GDPR 被遺忘權目前完全未履行。**
+
+### 卡 DI-02 ·【P1・被遺忘權】deleteUserAccount 從不刪 R2 物件本體
+- 群組:法遵 ｜ 驗證:已確認(DI 波)
+- 現況:digital_asset_library/consistency_vault 的 fileUrl/fileKey 指向 R2 實體物件;deleteUserAccount 只做 SQL DELETE,**從不呼叫 R2 刪除**→即使 DB 修好,使用者上傳的圖/影/音檔案本體永久留在儲存桶。
+- **待決策**:帳號刪除鏈補 R2 物件清除(重用 signedUpload.deleteUploadedObject / assetCleanup 路徑)。
+
+### 其餘 DI 卡
+| 卡 | 檔案 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| DI-03 | orb_conversation_messages/studio_versions/consistency_vault/timeline_frames/scene_compositions | 高 | GDPR 殘留:多表不在 USER_OWNED_TABLES 清理鏈→帳號刪除後完整對話文字/創作版本(prompt/outputUrl)/參照圖永久留存並掛已刪 userId(orb_conversation_messages 欄位還是 user_id 非 userId,補進去也會炸) |
+| DI-04 | 刪 storyboard/世界觀/專案路徑 | 中-高 | orphan-on-delete:刪父後 timeline_frames/scene_compositions/context_packets(含摘要全文,notNull)/orchestration_runs 變孤兒;creative_projects 的 worldFrameworkId 等指向已刪對象不斷開→詳情頁顯示壞連結 |
+| DI-05 | worldbuilding.checkConsistency | 高 | **IDOR**(再確認 S-26):可覆寫任意使用者 timeline_frames 的 consistencyCheckJson(同檔 deleteTimelineFrame/list 都有 userId 收斂,checkConsistency 是漏掉的例外) |
+| DI-06 | worldbuilding.uploadTimelineFrame/saveComposition | 中 | 寫入 storyboardId/worldId 不驗擁有權→可掛接他人/不存在資源(懸空/跨戶孤兒) |
+
+> **「0 FK 的代價」三分類**(DI0):刪除孤兒→需應用層 cascade 服務;寫入懸空→需擁有權驗證中介(併 IN7/S-28);GDPR 殘留→表名-欄位名 map + CI 檢查。優先 3:DI-01 deleteUserAccount 結構性 bug、DI-02 補 R2 清除、DI-05 checkConsistency IDOR。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
