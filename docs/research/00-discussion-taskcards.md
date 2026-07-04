@@ -606,6 +606,26 @@
 
 ---
 
+## 10.20 SD 波 schema/migration 漂移卡(13 確認 0 推翻,詳見 `SD0-schema-migration-drift-map.md`)
+
+### 卡 DI-01(深化)·帳號刪除修法比想像更大:USER_OWNED_TABLES 系統性錯配
+- 群組:法遵/正確性 ｜ 驗證:對抗式已確認(SD 波,`server/db.ts:5300-5387` + schema.ts)
+- 現況:除 prompt_assets(第 26、無 user 欄)外,**還有 6-7 張聚合/junction/admin 表也無 user 欄**(external_service_subscriptions/cost_aggregations/cost_ledger/cost_attribution_outbox/alert_configs/fine_tuned_model_consents/orb_system_alerts〔且是 MySQL legacy,prod 是 Supabase system_alerts=誤植〕)→修好 prompt_assets 後會**接力**炸 rollback;另 4 表命名非字面 userId(需第三輪);另 **6 個有 user 概念的表根本不在清單**(news_articles/featured_showcase/resource_shares/teams/global_audit_log/project_data_access_rules)→GDPR 永遠碰不到。
+- **待決策**:DI-01 修法 = 建「表→user 欄名」對照 map + 重審 USER_OWNED_TABLES 成員資格 + CI 檢查;不是改一行。
+
+### 其餘 SD 卡
+| 卡 | 檔案 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| SD-01 | drizzle/meta/0008_snapshot.json | 高 | **遷移快照停在 24 表 vs schema 102(78 表落差)**→`drizzle-kit generate` 會產假新增 migration,套到已有這些表的環境會炸;`MIGRATION_FAIL_CLOSED` 預設 false(需 Railway 查實際值) |
+| SD-02 | 0008/0033/0082 等 6 組 tag 重號 | 中 | migration 檔名重號,其中 3 組 `ls` 字母序與真實套用序相反(人為判讀陷阱);新增 migration 無查重機制。journal 排序本身健康無 runtime bug |
+| SD-03 | 0059_media_archival_fields.sql | 低 | migration 加 4 表×5 欄+index 在 schema.ts 完全沒宣告、程式零使用(若已套=20 個死欄;對照 0058 有正確補寫=單次遺漏) |
+| SD-04 | apiUsage.ts usageByProvider / DataRepairTab | 高 | 命名漂移實害(複核 PF/IN):snapshot_at 應 snapshotAt→procedure 必 500;DataRepairTab 用不存在的 "running"→漏抓卡住任務 |
+| SD-05 | 死表清單 | 低 | agent_collaboration_steps/messages、agent_performance_metrics、email_verification_tokens(service+表+寄信全鏈孤兒無 router/頁)、subscriptionPlans/plansRouter(client 零呼叫)可移除或補接 |
+
+> SD0 優先 3:重審 USER_OWNED_TABLES(解 DI-01 全鏈)、重建 drizzle 快照基準(解 generate 不可信)、修 usageByProvider/DataRepairTab 命名。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。

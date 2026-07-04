@@ -113,3 +113,30 @@
 2. **IDOR 系統性**:同形反覆(realEarth 教材外洩、langsmith 全站對話外洩、collab 劫持、brain 跨用戶、models 團隊、orbClarification 寫入);共同根因 getBackgroundJob 無 userId + 「先寫/讀,owner 檢查下放呼叫端」。信心高。
 3. **北極星流程斷點**:分鏡後斷裂(生成三工具與腳本卡失聯、拼接不存在、打包死UI);AI 讀單一專案在資料/旗標/執行三層同斷;shell 路由 shadow 掉核心頁。信心高(前端)。
 - 另:MCP 路線建議 (c) 自建 client 先接 HF/Canva(Z1);SSOT-1 為 W1 navigate 白名單根因(CC2)。
+
+## 連續缺陷獵取波(Bruce「停下來就自動找缺陷不閒著」+「可以與業界對齊」,2026-07-03/04)
+
+| 波次 | 範圍 | 狀態 | 產出 |
+|---|---|---|---|
+| DV | 依賴弱點可達性(11 npm critical/high) | ☑ | DV1-4 + DV0(僅 ws reachable-prod) |
+| IN | 接縫稽核(前後端契約/頁面交接/元件接線/欄位跨層/事件背景) | ☑ | IN1-8 + IN0 接縫地圖 |
+| IA | 業界對齊(北極星流程/計費/安全/AI代理) | ☑ | IA1-4 + IA0 計分卡 |
+| RC | 並發競態(TOCTOU/無鎖/多實例) | ☑ | RC1-4 + RC0(B-27 免費點數繞過) |
+| PF | 效能/無界查詢/記憶體 | ☑ | PF1-4 + PF0(geminiMedia OOM) |
+| EH | 錯誤處理/失敗模式 | ☑ | EH1-4 + EH0(B-31 退款吞錯、B-32 Stripe stub) |
+| FL | 旗標矩陣(50+ ENABLE_*) | ☑ | FL1-4 + FL0(7 守衛出廠即關) |
+| DI | 無FK資料完整性/孤兒/GDPR | ☑ | DI1-4 + DI0(DI-01 帳號刪除 100% 失敗) |
+| AX | a11y/行動裝置 | ☑ | AX1-4 + AX0 |
+| TC | 測試覆蓋缺口 | ☑ | TC1-4 + TC0(測試鎖死 bug 為規格) |
+| SD | schema/migration 漂移 | ☑ | SD1-3 + SD0(快照落後 78 表、DI-01 深化) |
+
+**缺陷面盤點已飽和**(18 維度:server/client 逐檔、shared 契約、auth/計費/憑證、MCP、完整性、接縫、依賴、業界、並發、效能、失敗模式、旗標、資料完整性、a11y、測試覆蓋、schema 漂移)。續補外部數據待 Bruce/Railway:各 ENABLE_* 與 PINECONE_API_KEY/MIGRATION_FAIL_CLOSED 生產實際值、Railway 用量、團隊回饋、第三方單價、migration 0059 是否已套用。
+
+## N0 決策議程頭條(待 Bruce 說「開始討論」時展開)
+1. 🔴 認證密鑰外洩:S-00 auth.me + S-37 admin.allUsers(passwordHash/2FA 給任何 admin)
+2. 🔴 計費層形同虛設:B-27 自給免費點數 + B-31 退款吞錯帳目說謊 + B-32 Stripe webhook 全 stub + B-22 守衛出廠即關 + X3 雙重超收
+3. 法遵:DI-01 帳號刪除 100% 失敗、PII/R2 全殘留(被遺忘權未履行)
+4. IDOR 系統性:realEarth/langsmith/brain/models/collab 教材與對話外洩(集中式物件授權中介層一次解)
+5. 北極星分鏡後斷裂 + prod 旗標 OFF(功能碼在但關著):拼接不存在、生成與腳本卡失聯、PROJECT_HUB/DIRECTOR_WORLD_CONTEXT prod OFF
+6. 可用性/DoS:geminiMedia 使用者 URL 下載無上限 OOM、ws 未鑑權 frame、void 呼叫可觸發全站重啟
+7. 業界對齊 top-5(webhook HMAC/BOPLA/計費 outbox/物件授權中介/scene 一級實體)、MCP 路線 c(自建 client 先接 HF/Canva)
