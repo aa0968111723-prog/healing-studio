@@ -457,6 +457,28 @@
 
 ---
 
+## 10.13 RC 波並發競態卡 + 附帶查獲的免費點數繞過(詳見 `RC0-concurrency-race-map.md`)
+
+### 卡 B-27 ·【P0・免費無限點數・一行 tRPC 可利用】profile.updateQuotaJson 讓任何登入者自設 remainingGenerations
+- 群組:計費 ｜ 驗證:**主迴圈親自讀碼確認**(`server/routers/profile.ts:8-20` + `server/db.ts:932-944`)
+- 現況:`profile.updateQuotaJson` 是 `protectedProcedure`(任何登入者,非 admin),input 只 `.min(0)` **無上限**;`updateUserQuotaJson(ctx.user.id, ...)` 無條件把**自己的** `remainingGenerations` 設為 `image+video+audio+voice`。`remainingGenerations` 正是全站唯一活計費餘額(W5)→ **任何使用者呼叫 `updateQuotaJson({image:9e6,...})` 即可自給近乎無限免費生成點數。**
+- 這是 RC1 競態發現(無鎖絕對值 SET)背後更嚴重的授權問題:不只 lost-update,是「使用者可自寫計費餘額」。
+- **待決策**:立即改——此端點應為 admin 專屬,或移除;若保留使用者自訂配額語意,絕不可寫 `remainingGenerations`。**建議與 S-00 同列第 0 波第一批。**
+
+### 其餘 RC 確認卡
+| 卡 | 檔案 | 嚴重度 | 一句話 |
+|---|---|---|---|
+| B-28 | db.ts updateBackgroundJob | 高 | 無狀態守衛(無 WHERE status),webhook/polling/staleJobChecker 三完成路徑互相覆蓋終態;staleJobChecker 用舊快照可把剛完成的 job 打回 queued/failed→抹掉成品連結 |
+| B-29 | models.ts:727-751 toggleVisibility | 高 | 分享獎勵 check-then-act TOCTOU(與 X12 assets 同構複製到 models 表),並發雙擊重複發模型分享獎勵(refundUserQuota 只保護加點不保護資格判斷) |
+| B-30 | assets.ts:233-267 toggleVisibility | 高 | X12 獎勵 TOCTOU 覆核 HEAD **仍未修**;digitalAssetLibrary 無 version/CAS。與 B-29 合併 CAS 化修 |
+| RC-rbac | rbac.ts:144-285 | 中 | share 與 transferOwnership 無互斥:移轉「清空全部共享」的原子性可被並發 share 繞過,留孤兒授權 |
+| RC-idem | orbIdempotency.ts | 高 | 請求/任務去重為 process-local Map,多實例下同 requestId 路由到不同副本各判為新→重複觸發付費生成+LLM(需執行期確認副本數) |
+| RC-code | orbCodeTask.ts | 中 | codeTaskStore 零持久化 in-memory Map,跨 worker 不可見、重啟即失,且未呼叫 warnIfMultiInstanceSingleton |
+
+> **單實例即會壞**(不需擴容):B-27、B-28、B-29、B-30、RC-rbac。**需多實例才出事**:RC-idem、RC-code。優先上鎖 3(RC0):profile.updateQuotaJson(併 B-27 授權修)、分享獎勵 CAS(assets+models 合併)、updateBackgroundJob 狀態守衛。既有 deduct/refund/atomicClaimJobRefund 為 FOR UPDATE+CAS **健康**(negative result)。
+
+---
+
 ## 11. 更新記錄
 
 - 2026-07-03 `812f6fdb`:建立本表,seed 自 A–W 波 + M/N/R/S 方案決策卷。
