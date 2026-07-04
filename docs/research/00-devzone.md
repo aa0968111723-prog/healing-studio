@@ -107,6 +107,17 @@
 - **4 個差異化(不必照抄業界,可作賣點)**:腳本卡優於純逐字稿模型、RAG 尚未啟動的「空白畫布」優勢、計費 CAS 鎖本體已健康(只缺覆蓋面)、北極星逐幕規格已有 Q1/M1/Q2 雛型。
 - **待討論**:top-5 是否納入第 0/1 波;「集中式物件授權中介層」是否作為 IDOR 群組的統一解法(vs 逐點補 owner 檢查)。5 點結論有部分需線上再查證(Runway/Kling/MCP/RAG 細節遇 403)。
 
+### 卡 SYS-03 ·【重大策略】用此 repo 當基底新建網站 — 狀態:✅ 研究完成,待討論(緣起 Bruce 提問)
+- 研究產出:**`RB0-rebuild-strategy-blueprint.md`**(+ RB1 移植清單 / RB2 丟棄清單 / RB3 新地基規格 / RB4 三選項對照)。
+- **推薦:選項 C 乾淨地基 + Strangler**——用 repo 當「零件庫 + 規格庫」,把已驗證的好器官搬進乾淨新地基,而非從零 greenfield(選項 A)或原地打補丁(選項 B)。工時估 **1.3–1.6×**(基準=原地修復 1×),換取從架構層根治 IDOR/計費/GDPR/schema 四大系統性 bug 類。
+- **移植 12 項(RB1)**:計費原語(W5 FOR UPDATE+CAS)、secretCrypto(GC3)、ai/provider adapters、生成派工+模型目錄、ProjectFlowGuide+contextPackets(= 北極星引擎)、RAG chunk 策略、shared 契約/型別。
+- **丟棄 7 項(RB2)**:8087 行 agentToolExecutor 巨石 + 178 不可達工具、三套並存記帳、client 布林 IDOR 反模式、死表/死旗標/死路由、shell 路由 shadow、over-built 多代理層、legacy Manus OAuth 殘留。
+- **新地基 5 點(RB3)**:schema 帶 FK+一致命名(解 DI/SD)、物件級授權中介(解 IDOR 整類,= SYS-02 top-5)、冪等計費 ledger+outbox+webhook HMAC(IA2)、旗標紀律(守衛預設 ON)、北極星一條龍從第一天為主幹(compose 唯一大件,Q1/Q2/M1)。
+- **4 階段 strangler(RB4)**:①地基+authz+billing → ②移植生成 → ③北極星主幹 → ④汰換舊殼。
+- **與 M0 的關係**:M0「不重造、只解放接線」是在「修復」框架下成立;RB 指出當系統性債超過門檻(IDOR 反模式仍在複製、schema 地基錯配、計費外圈全失效),strangler 反而更省——RB0 §8 給了「何時 M0 立場仍成立 vs 何時該轉 strangler」的判準。
+- **決策取決於 3 變數(需 Bruce 提供)**:① prod 是否已有真實使用者及資料量級(≈0 則選項 A 也可考慮;量級大則 C 的並行期要更保守);② 團隊能否同時維護新舊兩地基 + 雙 on-call;③ 時程壓力與「清債 vs 北極星盡快可見」優先序,及是否需保留現有 URL/資料/既有密文金鑰(決定 secretCrypto 金鑰與 shell 是否有限保留)。
+- **待討論**:先回答 3 變數 → 我把 strangler 計畫具體化成分階段落地計畫(含每階段驗收=創作者能多走完一步一條龍)。
+
 ---
 
 ## C. 決策待拍板(源自 N 波)
