@@ -164,6 +164,7 @@ label：`decision`（待拍板，狀態用 Blocked）／`decision-resolved`（�
 - **開放工作流程 hub**：新增 Epic **AIDV-102**「🔄 AIDV 開放工作流程（看板作業 SOP·單一作業面）」＝把九階／三門映射到既有四欄（Backlog／Selected for Development＝就緒／進行中／完成）＋label，並附「想要真正自訂狀態欄」給 Bruce 的後台步驟（MCP 無法代建狀態，需 Bruce 管理員權限）。已轉 In Progress。
 - **就緒 lane 啟用**：先前無人使用的 `Selected for Development` 欄＝「就緒（設計門過、下一棒）」；首批移入 AIDV-92（U-2）／AIDV-94（U-4），各附 🗂 工作表留言。
 - **依賴連結**：Jira「Blocks」加 AIDV-13→18、13→19、44→50。
+- **2026-07-02 全看板開發順序重排（/aidv-board apply）**：盤點 967 卡（839 完成／128 未完成），依 §4.1 分級表排成七梯次（完整快照 `docs/plan/AIDV-dev-order-2026-07-02.md`；hub 留言 AIDV-102）。異動：升 Highest×2（AIDV-871 prod ANTHROPIC 金鑰 401、AIDV-873 /video 漏斗待 redeploy——與既有 511/807/808/341 同列生產 P0）；進行中卡升 High×6（35/576/650/881/945/963）；掛 `待議`/`decision`/`needs-key`/`needs-bruce` 的 Backlog 卡統一降 Low×27；AIDV-133（strangler 刪除）補降 Lowest。就緒 lane 新增 AIDV-8／103／899（各附 🗂 工作表）。依賴 Blocks 補 9 條：297→298/299/300、302→303/304/305/306、871→873、511→956。完成卡不動（鐵律 4）。
 
 ### 2.6 已拍板決策（label `decision-resolved`）
 
