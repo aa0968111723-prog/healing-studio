@@ -72,3 +72,71 @@
 - **2026-07-03 Bruce 指示:不用逐階段等確認,連續執行到全案完成**(僅每階段更新本檔+commit push 留檔)。
 - Phase 2 順序:A → B → E → F →(C、D)。
 - Railway 部署問題本次不處理;實際用量數字集中列「待補清單」。
+
+## 方案設計 wave M(Bruce 2026-07-03:上傳創作系統本質,要求解決方案貼合本質)
+
+| 項目 | 產出檔 | 狀態 | 摘要 |
+|---|---|---|---|
+| M0:北極星對齊藍圖(彙整) | `M0-solution-blueprint.md` | ☑ 完成 | 四軌織成單一專案一條龍;本質七支柱對照;creativeProjectId 為串接鑰匙;G3 gate 為唯一硬前置;不跑偏三層模型;統一分階段路線 |
+| M1:專案主幹+逐幕拼接+輸出打包 | `M1-project-spine-assembly.md` | ☑ 完成 | creative_projects 為 SSOT;分鏡管線執行化=轉呼既有 16 studio.* 工具+AIDV-44 狀態機;kind=video 缺 adapter;compose 唯一大件新建 |
+| M2:單專案 AI+逐步引導+防跑偏 | `M2-project-agent-guidance.md` | ☑ 完成 | ProjectFlowGuide 已是五步引導實體(旗標鎖住)、contextPackets 子系統已在;修 G3 gate 為條件式前置;對齊門借 aidv-longloop 鎖創作者向 |
+| M3:連接器/資料庫/自動化流 | `M3-connectors-workflows.md` | ☑ 完成 | 三路徑成熟度分層;連接器後端真實非空殼但 UI 三層分裂;Adobe/Canva 走產品自建 MCP client |
+| M4:素材/目標/審改協作 | `M4-assets-goals-review.md` | ☑ 完成 | 給 creative_projects 裝素材/目標/狀態三柱;重用 schema+加 2 欄 3 表;目標管理=防跑偏產品化 |
+
+## 決策/深研/深挖各波(N–GC,2026-07-03 火力全開)
+
+> Bruce 指示「自動長時間火力全開研究,等我說開始討論才停」+ ultracode。以下為 M 波之後全部波次,皆已 commit push 至 PR #1303。
+
+| 波次 | 範圍 | 狀態 | 產出 |
+|---|---|---|---|
+| N 波 | 決策卡(實作/架構/優先序/成本維運) | ☑ | N1-N4 |
+| P 波 | 深研(UIUX/創作者流/業界對照/安全/測試CI/資料RAG) | ☑ | P1-P6 |
+| Q 波 | spec(場景編輯器/compose spike/對齊門/orb工具全表/MCP自動化) | ☑ | Q1-Q5 |
+| R 波 | 子系統深挖(llmRouter/RAG記憶/eval規劃/cost ledger) | ☑ | R1-R4 |
+| S 波 | 策略(onboarding/credits團隊池/mobile/北極星遙測) | ☑ | S1-S5 |
+| T 波 | 開發 playbook(首批/安全/資料 PR) | ☑ | T1-T3 |
+| U 波 | 逐檔深挖(db monolith/ai.chat/fal派工/autorepair/skill沙箱/costar) | ☑ | U1-U6 |
+| V 波 | 逐檔深挖(image/video router/orb任務引擎/安全中介/世界觀生成) | ☑ | V1-V4 |
+| W 波 | 逐檔深挖(director/proStudio/generate/brainPipeline/計費核心/siteKnowledge/webhook/ai.ts/cron-workers) | ☑ | W1-W9 |
+| X 波 | 伺服端地毯掃描 17 檔 + 對抗式驗證(40 確認/9 推翻/1 待驗) | ☑ | X1-X17 + X0 綜合 |
+| Z 波 | 自建 MCP vs 採用外部 MCP 架構策略(8 MCP + 代碼盤點) | ☑ | Z1 |
+| Y 波 | 前端逐頁地毯掃描 10 頁 + 北極星流程實況(20 可證偽 0 推翻) | ☑ | Y1-Y10 + Y0 綜合(Y4 已於 CC1 重跑) |
+| CC 波 | 覆蓋補完(Y4重跑/shared契約/falModels/剩餘orb/剩餘router)+ 完整性批判 | ☑ | CC1-CC5 + CC0 |
+| GC 波 | 缺口補完(auth/export/plans、計費守衛層、憑證加密、RAG授權矩陣) | ⏳ 進行中 | GC1-GC4 |
+
+## 討論用索引(2026-07-03 新增,Bruce 指示放入任務卡逐一討論 + 隔開研究討論開發專區)
+- `00-discussion-taskcards.md`:**稽核問題卡**(往回修)——計費/安全IDOR/注入/持久化/衛生,~90 張卡,含 W/X/Y/Z/CC 波確認卡。
+- `00-devzone.md`:**研究討論開發專區**(往前做)——北極星 NS 卡(含 Y 波三斷點 NS-08/09/10)、SYS-01 自建 MCP 策略、D 決策、DEV playbook、研究登記。
+
+## 三大重點群(供 N0 決策議程,待 Bruce 說「開始討論」)
+1. **計費雙向壞**:有的路徑不收/不退(B-01/B-03/B-07/B-16/B-19),有的超收(X3 B-10);costAnalytics 對主流量 LLM 失明(B-11)。信心高。
+2. **IDOR 系統性**:同形反覆(realEarth 教材外洩、langsmith 全站對話外洩、collab 劫持、brain 跨用戶、models 團隊、orbClarification 寫入);共同根因 getBackgroundJob 無 userId + 「先寫/讀,owner 檢查下放呼叫端」。信心高。
+3. **北極星流程斷點**:分鏡後斷裂(生成三工具與腳本卡失聯、拼接不存在、打包死UI);AI 讀單一專案在資料/旗標/執行三層同斷;shell 路由 shadow 掉核心頁。信心高(前端)。
+- 另:MCP 路線建議 (c) 自建 client 先接 HF/Canva(Z1);SSOT-1 為 W1 navigate 白名單根因(CC2)。
+
+## 連續缺陷獵取波(Bruce「停下來就自動找缺陷不閒著」+「可以與業界對齊」,2026-07-03/04)
+
+| 波次 | 範圍 | 狀態 | 產出 |
+|---|---|---|---|
+| DV | 依賴弱點可達性(11 npm critical/high) | ☑ | DV1-4 + DV0(僅 ws reachable-prod) |
+| IN | 接縫稽核(前後端契約/頁面交接/元件接線/欄位跨層/事件背景) | ☑ | IN1-8 + IN0 接縫地圖 |
+| IA | 業界對齊(北極星流程/計費/安全/AI代理) | ☑ | IA1-4 + IA0 計分卡 |
+| RC | 並發競態(TOCTOU/無鎖/多實例) | ☑ | RC1-4 + RC0(B-27 免費點數繞過) |
+| PF | 效能/無界查詢/記憶體 | ☑ | PF1-4 + PF0(geminiMedia OOM) |
+| EH | 錯誤處理/失敗模式 | ☑ | EH1-4 + EH0(B-31 退款吞錯、B-32 Stripe stub) |
+| FL | 旗標矩陣(50+ ENABLE_*) | ☑ | FL1-4 + FL0(7 守衛出廠即關) |
+| DI | 無FK資料完整性/孤兒/GDPR | ☑ | DI1-4 + DI0(DI-01 帳號刪除 100% 失敗) |
+| AX | a11y/行動裝置 | ☑ | AX1-4 + AX0 |
+| TC | 測試覆蓋缺口 | ☑ | TC1-4 + TC0(測試鎖死 bug 為規格) |
+| SD | schema/migration 漂移 | ☑ | SD1-3 + SD0(快照落後 78 表、DI-01 深化) |
+
+**缺陷面盤點已飽和**(18 維度:server/client 逐檔、shared 契約、auth/計費/憑證、MCP、完整性、接縫、依賴、業界、並發、效能、失敗模式、旗標、資料完整性、a11y、測試覆蓋、schema 漂移)。續補外部數據待 Bruce/Railway:各 ENABLE_* 與 PINECONE_API_KEY/MIGRATION_FAIL_CLOSED 生產實際值、Railway 用量、團隊回饋、第三方單價、migration 0059 是否已套用。
+
+## N0 決策議程頭條(待 Bruce 說「開始討論」時展開)
+1. 🔴 認證密鑰外洩:S-00 auth.me + S-37 admin.allUsers(passwordHash/2FA 給任何 admin)
+2. 🔴 計費層形同虛設:B-27 自給免費點數 + B-31 退款吞錯帳目說謊 + B-32 Stripe webhook 全 stub + B-22 守衛出廠即關 + X3 雙重超收
+3. 法遵:DI-01 帳號刪除 100% 失敗、PII/R2 全殘留(被遺忘權未履行)
+4. IDOR 系統性:realEarth/langsmith/brain/models/collab 教材與對話外洩(集中式物件授權中介層一次解)
+5. 北極星分鏡後斷裂 + prod 旗標 OFF(功能碼在但關著):拼接不存在、生成與腳本卡失聯、PROJECT_HUB/DIRECTOR_WORLD_CONTEXT prod OFF
+6. 可用性/DoS:geminiMedia 使用者 URL 下載無上限 OOM、ws 未鑑權 frame、void 呼叫可觸發全站重啟
+7. 業界對齊 top-5(webhook HMAC/BOPLA/計費 outbox/物件授權中介/scene 一級實體)、MCP 路線 c(自建 client 先接 HF/Canva)
