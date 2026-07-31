@@ -4219,7 +4219,8 @@ export default function ProStudio() {
         canonical.startsWith("fal-ai/stable-audio") ||
         canonical.startsWith("fal-ai/musicgen") ||
         canonical.startsWith("fal-ai/ace-step") ||
-        canonical.startsWith("fal-ai/sonauto")
+        canonical.startsWith("fal-ai/sonauto") ||
+        canonical.startsWith("sonauto/")
       ) {
         targetTab = "music";
       } else {
