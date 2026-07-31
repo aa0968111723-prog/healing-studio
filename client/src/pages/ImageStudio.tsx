@@ -4011,6 +4011,20 @@ export default function ImageStudio() {
       hint: "可開啟或關閉設定面板、進階設定、歷史記錄等 UI 元件",
     },
     {
+      action: "focusElement",
+      label: "聚焦元素",
+      options: [
+        { id: "image-studio-prompt", label: "提示詞輸入框" },
+        { id: "image-studio-generate-btn", label: "生成按鈕（桌面）" },
+        { id: "image-studio-generate-btn-mobile", label: "生成按鈕（行動）" },
+        { id: "image-studio-tab-bar", label: "分頁切換列" },
+        { id: "image-studio-model-grid", label: "模型選擇區" },
+        { id: "image-studio-ref-image", label: "參考圖上傳區" },
+        { id: "image-studio-results", label: "生成結果區" },
+      ],
+      hint: "把畫面滾到指定的元素並讓它取得 focus；用 elementId 對應上方 options 的 id（要先讓 UI 上有對應 id 才有效）",
+    },
+    {
       action: "setParam",
       label: "參數",
       hint: activeTab === "t2i"
@@ -4057,6 +4071,14 @@ export default function ImageStudio() {
         guidance,
         inferSteps,
         outputSize,
+        // 之前光球只看得到參數，看不到「使用者有沒有上傳參考圖／遮罩／額外圖」，
+        // 導致 nano-banana-pro-edit 失敗時光球不知道是缺輸入；補上 hasMask /
+        // hasMultiRef / refImageCount 讓 observer 能判讀「缺什麼才會失敗」。
+        hasMask: !!maskUrl,
+        hasMultiRef: extraRefUrls.some(u => u.trim().length > 0),
+        refImageCount:
+          (refImageUrl ? 1 : 0) +
+          extraRefUrls.filter(u => u.trim().length > 0).length,
       }),
       ...(activeTab === "sd" && {
         negPrompt: negPrompt.slice(0, 80) || "(空)",
@@ -4142,6 +4164,8 @@ export default function ImageStudio() {
         return { reset: true };
       case "openDialog":
         return { dialogId: action.dialogId };
+      case "focusElement":
+        return { elementId: action.elementId };
       default:
         return null;
     }
@@ -4152,7 +4176,17 @@ export default function ImageStudio() {
   ): Promise<AgentActionResult> {
       switch (action.type) {
         case "fillPrompt": {
+          // 之前未知 slot 會 fallback 寫主 prompt — 光球誤送 "title" 之類會把
+          // 標題悄悄塞進主 prompt 欄，使用者察覺前已生成。改成明確只接受三個
+          // 已支援的 slot，其他 slot 一律退回讓光球換手。
           const slot = action.slot ?? "prompt";
+          const ALLOWED_SLOTS = ["prompt", "negativePrompt", "prompt3d"] as const;
+          if (!ALLOWED_SLOTS.includes(slot as (typeof ALLOWED_SLOTS)[number])) {
+            return {
+              ok: false,
+              reason: `unknown slot: ${slot}（允許值: ${ALLOWED_SLOTS.join("/")}）`,
+            };
+          }
           const setter =
             slot === "negativePrompt"
               ? setNegPrompt
@@ -4189,11 +4223,28 @@ export default function ImageStudio() {
         }
         case "setParam": {
           const { key, value } = action;
+          // 共用驗證輔助：列舉值不在允許清單就退回明確錯誤，避免光球把無效值塞進
+          // state、導致 UI 按鈕無對應高亮（state drift）或後端 400。
+          const validateEnum = <T extends string>(
+            label: string,
+            allowed: readonly T[]
+          ): { ok: false; reason: string } | { ok: true; v: T } =>
+            typeof value === "string" &&
+            (allowed as readonly string[]).includes(value)
+              ? { ok: true, v: value as T }
+              : {
+                  ok: false,
+                  reason: `unknown ${label}: ${value}（允許值: ${allowed.join("/")}）`,
+                };
           switch (key) {
             // ── Common params ──
-            case "aspectRatio":
-              if (typeof value === "string") setAspectRatio(value);
-              return { ok: true, message: `比例已設為 ${value}` };
+            case "aspectRatio": {
+              const allowed = ASPECT_RATIOS.map(r => r.value) as readonly string[];
+              const v = validateEnum("aspectRatio", allowed);
+              if (!v.ok) return v;
+              setAspectRatio(v.v);
+              return { ok: true, message: `比例已設為 ${v.v}` };
+            }
             case "numImages":
               if (typeof value === "number") setNumImages(Math.min(4, Math.max(1, value)));
               return { ok: true, message: `生成數量已設為 ${value}` };
@@ -4206,31 +4257,42 @@ export default function ImageStudio() {
               if (typeof value === "number") setStrength(Math.min(1, Math.max(0, value)));
               return { ok: true, message: `強度已設為 ${value}` };
             case "guidance":
-              if (typeof value === "number") setGuidance(value);
+              if (typeof value === "number") setGuidance(Math.min(30, Math.max(1, value)));
               return { ok: true, message: `引導值已設為 ${value}` };
             case "inferSteps":
-              if (typeof value === "number") setInferSteps(value);
+              if (typeof value === "number") setInferSteps(Math.min(50, Math.max(10, value)));
               return { ok: true, message: `推理步數已設為 ${value}` };
             case "negPrompt":
               if (typeof value === "string") setNegPrompt(value);
               return { ok: true, message: "負面提示詞已更新" };
-            case "outputSize":
-              if (typeof value === "string") setOutputSize(value);
+            case "outputSize": {
+              const v = validateEnum("outputSize", [
+                "auto",
+                "1024x1024",
+                "1536x1024",
+                "1024x1536",
+              ] as const);
+              if (!v.ok) return v;
+              setOutputSize(v.v);
               return { ok: true };
+            }
             // ── SD tab params ──
             case "sdGuidance":
-              if (typeof value === "number") setSdGuidance(value);
+              if (typeof value === "number") setSdGuidance(Math.min(20, Math.max(1, value)));
               return { ok: true, message: `SD 引導值已設為 ${value}` };
             case "sdInferSteps":
-              if (typeof value === "number") setSdInferSteps(value);
+              if (typeof value === "number") setSdInferSteps(Math.min(50, Math.max(10, value)));
               return { ok: true, message: `SD 步數已設為 ${value}` };
             case "sdSeed":
               if (typeof value === "string" || typeof value === "number")
                 setSdSeed(String(value));
               return { ok: true };
-            case "sdImageSize":
-              if (typeof value === "string") setSdImageSize(value);
-              return { ok: true, message: `SD 圖片尺寸已設為 ${value}` };
+            case "sdImageSize": {
+              const v = validateEnum("sdImageSize", IMAGE_SIZES.map(s => s.value) as readonly string[]);
+              if (!v.ok) return v;
+              setSdImageSize(v.v);
+              return { ok: true, message: `SD 圖片尺寸已設為 ${v.v}` };
+            }
             case "loraPath":
               if (typeof value === "string") setLoraPath(value);
               return { ok: true, message: "LoRA 路徑已設定" };
@@ -4242,16 +4304,19 @@ export default function ImageStudio() {
               return { ok: true, message: `ControlNet 強度已設為 ${value}` };
             // ── Upscale tab params ──
             case "upscaleFactor":
-              if (typeof value === "number") setUpscaleFactor(value);
+              if (typeof value === "number") setUpscaleFactor(Math.min(4, Math.max(1, value)));
               return { ok: true, message: `放大倍率已設為 ${value}x` };
-            case "upscaleMode":
-              if (typeof value === "string") setUpscaleMode(value as "factor" | "target");
+            case "upscaleMode": {
+              const v = validateEnum("upscaleMode", ["factor", "target"] as const);
+              if (!v.ok) return v;
+              setUpscaleMode(v.v);
               return { ok: true };
+            }
             // ── Pose tab params ──
             case "drawMode": {
               // PosePanel 提供 7 個偵測模式，先前 allow-list 只放 4 個基礎姿勢，
               // 導致光球用 setParam 帶入 mask 變體會被退回。同步擴成 7 個與 UI 對齊。
-              const allowed = [
+              const v = validateEnum("drawMode", [
                 "full-pose",
                 "body-pose",
                 "face-pose",
@@ -4259,47 +4324,66 @@ export default function ImageStudio() {
                 "face-hand-mask",
                 "face-mask",
                 "hand-mask",
-              ];
-              if (typeof value === "string" && allowed.includes(value)) {
-                setDrawMode(value);
-                return { ok: true, message: `骨骼偵測模式已設為 ${value}` };
-              }
-              return {
-                ok: false,
-                reason: `unknown drawMode: ${value}（允許值: ${allowed.join("/")}）`,
-              };
+              ] as const);
+              if (!v.ok) return v;
+              setDrawMode(v.v);
+              return { ok: true, message: `骨骼偵測模式已設為 ${v.v}` };
             }
             // ── 3D tab params ──
-            case "trellisResolution":
-              if (typeof value === "string") setTrellisResolution(value);
-              return { ok: true, message: `3D 解析度已設為 ${value}` };
-            case "trellisTextureSize":
-              if (typeof value === "string") setTrellisTextureSize(value);
+            case "trellisResolution": {
+              const v = validateEnum("trellisResolution", ["512", "1024", "1536"] as const);
+              if (!v.ok) return v;
+              setTrellisResolution(v.v);
+              return { ok: true, message: `3D 解析度已設為 ${v.v}` };
+            }
+            case "trellisTextureSize": {
+              const v = validateEnum("trellisTextureSize", ["1024", "2048", "4096"] as const);
+              if (!v.ok) return v;
+              setTrellisTextureSize(v.v);
               return { ok: true };
+            }
             case "enablePbr":
               if (typeof value === "boolean") setEnablePbr(value);
               return { ok: true, message: value ? "已開啟 PBR 材質" : "已關閉 PBR 材質" };
-            case "hunyuanGenType":
-              if (typeof value === "string") setHunyuanGenType(value as "Normal" | "LowPoly" | "Geometry");
-              return { ok: true, message: `3D 類型已設為 ${value}` };
+            case "hunyuanGenType": {
+              const v = validateEnum("hunyuanGenType", ["Normal", "LowPoly", "Geometry"] as const);
+              if (!v.ok) return v;
+              setHunyuanGenType(v.v);
+              return { ok: true, message: `3D 類型已設為 ${v.v}` };
+            }
             case "hunyuanFaceCount":
               if (typeof value === "number") setHunyuanFaceCount(Math.max(HUNYUAN_FACE_COUNT_MIN, Math.min(HUNYUAN_FACE_COUNT_MAX, value)));
               return { ok: true, message: `面數已設為 ${value}` };
-            case "hunyuanPolygonType":
-              if (typeof value === "string") setHunyuanPolygonType(value as "triangle" | "quadrilateral");
-              return { ok: true, message: `多邊形類型已設為 ${value}` };
-            case "rodinQuality":
-              if (typeof value === "string") setRodinQuality(value as "high" | "medium" | "low" | "extra-low");
-              return { ok: true, message: `3D 品質已設為 ${value}` };
-            case "rodinMaterial":
-              if (typeof value === "string") setRodinMaterial(value as "PBR" | "Shaded");
+            case "hunyuanPolygonType": {
+              const v = validateEnum("hunyuanPolygonType", ["triangle", "quadrilateral"] as const);
+              if (!v.ok) return v;
+              setHunyuanPolygonType(v.v);
+              return { ok: true, message: `多邊形類型已設為 ${v.v}` };
+            }
+            case "rodinQuality": {
+              const v = validateEnum("rodinQuality", ["high", "medium", "low", "extra-low"] as const);
+              if (!v.ok) return v;
+              setRodinQuality(v.v);
+              return { ok: true, message: `3D 品質已設為 ${v.v}` };
+            }
+            case "rodinMaterial": {
+              const v = validateEnum("rodinMaterial", ["PBR", "Shaded"] as const);
+              if (!v.ok) return v;
+              setRodinMaterial(v.v);
               return { ok: true };
-            case "rodinGeometryFormat":
-              if (typeof value === "string") setRodinGeometryFormat(value as "glb" | "usdz" | "fbx" | "obj" | "stl");
-              return { ok: true, message: `幾何格式已設為 ${value}` };
-            case "rodinConditionMode":
-              if (typeof value === "string") setRodinConditionMode(value as "fuse" | "concat");
+            }
+            case "rodinGeometryFormat": {
+              const v = validateEnum("rodinGeometryFormat", ["glb", "usdz", "fbx", "obj", "stl"] as const);
+              if (!v.ok) return v;
+              setRodinGeometryFormat(v.v);
+              return { ok: true, message: `幾何格式已設為 ${v.v}` };
+            }
+            case "rodinConditionMode": {
+              const v = validateEnum("rodinConditionMode", ["fuse", "concat"] as const);
+              if (!v.ok) return v;
+              setRodinConditionMode(v.v);
               return { ok: true };
+            }
             case "rodinUseHyper":
               if (typeof value === "boolean") setRodinUseHyper(value);
               return { ok: true, message: value ? "已開啟 Hyper 加速" : "已關閉 Hyper 加速" };
@@ -4330,8 +4414,34 @@ export default function ImageStudio() {
           setResultPose(null);
           return { ok: true };
         }
-        case "focusElement":
+        case "focusElement": {
+          // 之前只回 { ok: true } 純擺設，PageAgentContext 雖然會顯示 spotlight，
+          // 但在長表單下使用者根本不知道光球指的是哪個元素。這裡實際把對應節點
+          // scrollIntoView + focus，讓「請看右邊的生成按鈕」真的會把畫面滾過去。
+          if (typeof document === "undefined") return { ok: true };
+          // 兩段選取：id 找不到再 fallback 到 data-orb-anchor，給「每個 tab
+          // 都有自己一份」的元素（提示詞框、參考圖區）用，避免 HTML id 重複。
+          const el =
+            document.getElementById(action.elementId) ??
+            document.querySelector<HTMLElement>(
+              `[data-orb-anchor="${action.elementId.replace(/"/g, "")}"]`
+            );
+          if (!el) {
+            return {
+              ok: false,
+              reason: `元素 #${action.elementId} 不在頁面上`,
+            };
+          }
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          if ("focus" in el && typeof (el as HTMLElement).focus === "function") {
+            try {
+              (el as HTMLElement).focus({ preventScroll: true });
+            } catch {
+              // 元素未必能 focus（例如純 div），失敗無妨
+            }
+          }
           return { ok: true };
+        }
         case "openDialog": {
           const { dialogId } = action;
           switch (dialogId) {
@@ -4427,7 +4537,10 @@ export default function ImageStudio() {
       )}
 
       {/* ── Tab Bar — scrollable pill strip ── */}
-      <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 lg:-mx-6 px-3 sm:px-4 lg:px-6 py-2 bg-background/80 backdrop-blur-md border-b border-border/20">
+      <div
+        id="image-studio-tab-bar"
+        className="sticky top-0 z-20 -mx-3 sm:-mx-4 lg:-mx-6 px-3 sm:px-4 lg:px-6 py-2 bg-background/80 backdrop-blur-md border-b border-border/20"
+      >
         <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-fade-x -mx-1 px-1" role="tablist" aria-label="圖片創作分頁">
           {TABS.map(tab => {
             const Icon = tab.icon;
@@ -4586,7 +4699,10 @@ export default function ImageStudio() {
         {/* ── LEFT: Controls ── */}
         <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 lg:sticky lg:top-14 lg:self-start lg:overflow-y-auto lg:max-h-[calc(100vh-4rem)] space-y-3 sm:space-y-4 lg:pr-1 lg:pb-4 no-scrollbar">
           {/* Model Selection — compact horizontal-scrollable on small grids */}
-          <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
+          <div
+            id="image-studio-model-grid"
+            className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60"
+          >
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                 <Camera className="w-3.5 h-3.5" />
@@ -4720,7 +4836,10 @@ export default function ImageStudio() {
                   </button>
                 </div>
               )}
-              <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
+              <div
+                data-orb-anchor="image-studio-prompt"
+                className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60"
+              >
                 <PromptBuilder
                   value={prompt}
                   onChange={setPrompt}
@@ -4865,6 +4984,7 @@ export default function ImageStudio() {
           {activeTab === "edit" && (
             <>
               <div
+                data-orb-anchor="image-studio-ref-image"
                 className={`rounded-2xl border p-3 sm:p-4 bg-gradient-to-br ${colorClass(model.color)}`}
               >
                 <RefImageInput
@@ -4890,7 +5010,10 @@ export default function ImageStudio() {
                   </div>
                 )}
               </div>
-              <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
+              <div
+                data-orb-anchor="image-studio-prompt"
+                className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60"
+              >
                 <PromptBuilder
                   value={prompt}
                   onChange={setPrompt}
@@ -5017,7 +5140,10 @@ export default function ImageStudio() {
           {/* SD */}
           {activeTab === "sd" && (
             <>
-              <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
+              <div
+                data-orb-anchor="image-studio-prompt"
+                className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60"
+              >
                 <PromptBuilder
                   value={prompt}
                   onChange={setPrompt}
@@ -5125,6 +5251,7 @@ export default function ImageStudio() {
           {/* Generate Button — visible in-flow on desktop */}
           <div className="hidden lg:block">
             <Button
+              id="image-studio-generate-btn"
               onClick={handleGenerate}
               disabled={isGenerating}
               aria-busy={isGenerating}
@@ -5149,7 +5276,11 @@ export default function ImageStudio() {
         {/* ── RIGHT: Results / Preview + History ── */}
         <div className="flex-1 min-w-0 flex flex-col lg:flex-row gap-4 lg:gap-5">
           {/* Results Area */}
-          <div className="flex-1 min-w-0 lg:sticky lg:top-16 lg:self-start" style={{ maxHeight: stickyPanelMaxH }}>
+          <div
+            id="image-studio-results"
+            className="flex-1 min-w-0 lg:sticky lg:top-16 lg:self-start"
+            style={{ maxHeight: stickyPanelMaxH }}
+          >
             <div className="rounded-2xl border border-border/20 bg-muted/20 lg:overflow-y-auto lg:h-full" style={{ maxHeight: stickyPanelMaxH }}>
               {/* Results Header */}
               <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2.5 border-b border-border/20 bg-background/80 backdrop-blur-sm rounded-t-2xl">
@@ -5322,6 +5453,7 @@ export default function ImageStudio() {
             {model.name}
           </Badge>
           <Button
+            id="image-studio-generate-btn-mobile"
             onClick={handleGenerate}
             disabled={isGenerating}
             aria-busy={isGenerating}
