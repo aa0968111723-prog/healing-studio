@@ -1,0 +1,350 @@
+{
+ "adminRouter.ts": {
+  "runAgentEval": "執行管理員相關資料（寫入；procedure runAgentEval）"
+ },
+ "agentCollaborationRouter.ts": {
+  "startCollaboration": "啟動代理協作相關資料（寫入；procedure startCollaboration）",
+  "getCollaborationStatus": "取得代理協作相關資料（讀取；procedure getCollaborationStatus）",
+  "listUserCollaborations": "列出代理協作相關資料（讀取；procedure listUserCollaborations）",
+  "cancelCollaboration": "取消代理協作相關資料（寫入；procedure cancelCollaboration）",
+  "getCollaborationMessages": "取得代理協作相關資料（讀取；procedure getCollaborationMessages）",
+  "startAutoDiscussion": "啟動代理協作相關資料（讀取；procedure startAutoDiscussion）",
+  "executeProtocolHandoff": "執行代理協作相關資料（寫入；procedure executeProtocolHandoff）",
+  "getProtocolHandoffsFor": "取得代理協作相關資料（讀取；procedure getProtocolHandoffsFor）"
+ },
+ "agentModelPicksRouter.ts": {
+  "recordPick": "更新/寫入代理選型相關資料（寫入；procedure recordPick）",
+  "markAcceptance": "更新/寫入代理選型相關資料（寫入；procedure markAcceptance）",
+  "getPreferredForModality": "取得代理選型相關資料（讀取；procedure getPreferredForModality）",
+  "getPreferredByModalities": "取得代理選型相關資料（讀取；procedure getPreferredByModalities）",
+  "getRecent": "取得代理選型相關資料（讀取；procedure getRecent）"
+ },
+ "agentPreferencesRouter.ts": {
+  "getPreferences": "取得代理偏好相關資料（讀取；procedure getPreferences）",
+  "updatePreferences": "更新代理偏好相關資料（寫入；procedure updatePreferences）",
+  "listAvailableTools": "列出代理偏好相關資料（讀取；procedure listAvailableTools）",
+  "getDistilledProfile": "取得代理偏好相關資料（讀取；procedure getDistilledProfile）",
+  "getRecentActivity": "取得代理偏好相關資料（讀取；procedure getRecentActivity）"
+ },
+ "aiModels.ts": {
+  "list": "列出AI 模型相關資料（讀取；procedure list）",
+  "getById": "取得單一AI 模型相關資料（讀取；procedure getById）",
+  "researchStats": "搜尋AI 模型相關資料（讀取；procedure researchStats）",
+  "refreshOne": "更新/寫入AI 模型相關資料（寫入；procedure refreshOne）",
+  "refreshAll": "更新/寫入AI 模型相關資料（寫入；procedure refreshAll）",
+  "refreshStale": "更新/寫入AI 模型相關資料（寫入；procedure refreshStale）",
+  "discoveries": "查詢AI 模型相關資料（讀取；procedure discoveries）",
+  "runDiscovery": "執行AI 模型相關資料（寫入；procedure runDiscovery）",
+  "setSchedule": "設定AI 模型相關資料（寫入；procedure setSchedule）"
+ },
+ "apiUsage.ts": {
+  "list": "列出API 用量相關資料（讀取；procedure list）",
+  "upsert": "新增或更新API 用量相關資料（寫入；procedure upsert）",
+  "delete": "刪除API 用量相關資料（寫入；procedure delete）",
+  "providerReadiness": "查詢API 用量相關資料（讀取；procedure providerReadiness）",
+  "overview": "查詢API 用量相關資料（讀取；procedure overview）",
+  "usageByProvider": "查詢API 用量相關資料（讀取；procedure usageByProvider）",
+  "usageEvents": "查詢API 用量相關資料（讀取；procedure usageEvents）",
+  "billing": "查詢API 用量相關資料（讀取；procedure billing）",
+  "snapshots": "查詢API 用量相關資料（讀取；procedure snapshots）"
+ },
+ "auditLog.ts": {
+  "events": "查詢稽核日誌相關資料（讀取；procedure events）",
+  "export": "匯出稽核日誌相關資料（讀取；procedure export）"
+ },
+ "brain.ts": {
+  "catalog": "查詢AI 大腦相關資料（讀取；procedure catalog）",
+  "get": "取得AI 大腦相關資料（讀取；procedure get）",
+  "upsert": "新增或更新AI 大腦相關資料（讀取；procedure upsert）",
+  "switchModel": "查詢AI 大腦相關資料（讀取；procedure switchModel）",
+  "pricingSummary": "彙總AI 大腦相關資料（讀取；procedure pricingSummary）",
+  "healthStatus": "查詢狀態AI 大腦相關資料（讀取；procedure healthStatus）",
+  "orbVoicePreview": "更新/寫入AI 大腦相關資料（寫入；procedure orbVoicePreview）",
+  "pingProviders": "查詢AI 大腦相關資料（讀取；procedure pingProviders）",
+  "monitorSummary": "彙總AI 大腦相關資料（讀取；procedure monitorSummary）",
+  "autoRepairConfig": "查詢AI 大腦相關資料（讀取；procedure autoRepairConfig）",
+  "toggleAutoRepair": "切換AI 大腦相關資料（寫入；procedure toggleAutoRepair）",
+  "setMonitorInterval": "設定AI 大腦相關資料（寫入；procedure setMonitorInterval）",
+  "alerts": "查詢AI 大腦相關資料（讀取；procedure alerts）",
+  "dismissAlert": "更新/寫入AI 大腦相關資料（寫入；procedure dismissAlert）",
+  "errorTraces": "查詢AI 大腦相關資料（讀取；procedure errorTraces）",
+  "reportError": "更新/寫入AI 大腦相關資料（寫入；procedure reportError）",
+  "resolveError": "更新/寫入AI 大腦相關資料（寫入；procedure resolveError）",
+  "diagnoseError": "查詢AI 大腦相關資料（讀取；procedure diagnoseError）",
+  "errorCategoryLabels": "查詢AI 大腦相關資料（讀取；procedure errorCategoryLabels）",
+  "proposals": "查詢AI 大腦相關資料（讀取；procedure proposals）",
+  "createProposal": "新增AI 大腦相關資料（讀取；procedure createProposal）",
+  "approveProposal": "更新/寫入AI 大腦相關資料（寫入；procedure approveProposal）",
+  "rejectProposal": "更新/寫入AI 大腦相關資料（寫入；procedure rejectProposal）",
+  "webSearch": "搜尋AI 大腦相關資料（寫入；procedure webSearch）",
+  "researchResults": "搜尋AI 大腦相關資料（讀取；procedure researchResults）",
+  "addResearchToLearnHub": "新增AI 大腦相關資料（寫入；procedure addResearchToLearnHub）",
+  "accuracyTests": "查詢AI 大腦相關資料（讀取；procedure accuracyTests）",
+  "runAccuracyTest": "執行AI 大腦相關資料（讀取；procedure runAccuracyTest）",
+  "runAllAccuracyTests": "執行AI 大腦相關資料（寫入；procedure runAllAccuracyTests）",
+  "runFullSiteResearch": "執行AI 大腦相關資料（寫入；procedure runFullSiteResearch）",
+  "runCodeScan": "執行AI 大腦相關資料（寫入；procedure runCodeScan）",
+  "lastCodeScan": "查詢AI 大腦相關資料（讀取；procedure lastCodeScan）",
+  "githubConfigStatus": "查詢狀態AI 大腦相關資料（讀取；procedure githubConfigStatus）",
+  "testGithubConnection": "更新/寫入AI 大腦相關資料（寫入；procedure testGithubConnection）",
+  "retryGithubIssue": "更新/寫入AI 大腦相關資料（寫入；procedure retryGithubIssue）",
+  "generationLogs": "查詢AI 大腦相關資料（讀取；procedure generationLogs）"
+ },
+ "brainPipeline.ts": {
+  "getGraph": "取得大腦管線相關資料（讀取；procedure getGraph）",
+  "getMyGraph": "取得大腦管線相關資料（讀取；procedure getMyGraph）",
+  "getSummary": "取得大腦管線相關資料（讀取；procedure getSummary）",
+  "runPatrol": "執行大腦管線相關資料（寫入；procedure runPatrol）"
+ },
+ "creativeProject.ts": {
+  "list": "列出創作專案相關資料（讀取；procedure list）",
+  "get": "取得創作專案相關資料（讀取；procedure get）",
+  "getContextSummary": "取得創作專案相關資料（讀取；procedure getContextSummary）",
+  "create": "新增創作專案相關資料（寫入；procedure create）",
+  "update": "更新創作專案相關資料（寫入；procedure update）",
+  "delete": "刪除創作專案相關資料（寫入；procedure delete）",
+  "link": "查詢創作專案相關資料（讀取；procedure link）"
+ },
+ "externalServices.ts": {
+  "list": "列出外部服務相關資料（讀取；procedure list）",
+  "summary": "彙總外部服務相關資料（讀取；procedure summary）",
+  "upsert": "新增或更新外部服務相關資料（寫入；procedure upsert）",
+  "delete": "刪除外部服務相關資料（寫入；procedure delete）",
+  "updateApiKeyStatus": "更新外部服務相關資料（寫入；procedure updateApiKeyStatus）",
+  "seedDefaults": "種子資料外部服務相關資料（寫入；procedure seedDefaults）"
+ },
+ "imageStudio.ts": {
+  "checkApiKey": "查詢圖像工作室相關資料（讀取；procedure checkApiKey）"
+ },
+ "langsmith.ts": {
+  "status": "查詢狀態LangSmith 觀測相關資料（讀取；procedure status）",
+  "stats": "統計LangSmith 觀測相關資料（讀取；procedure stats）",
+  "listRuns": "列出LangSmith 觀測相關資料（讀取；procedure listRuns）",
+  "getRun": "取得LangSmith 觀測相關資料（讀取；procedure getRun）",
+  "healthStats": "統計LangSmith 觀測相關資料（讀取；procedure healthStats）",
+  "createFeedback": "新增LangSmith 觀測相關資料（寫入；procedure createFeedback）",
+  "listFeedback": "列出LangSmith 觀測相關資料（讀取；procedure listFeedback）",
+  "listDatasets": "列出LangSmith 觀測相關資料（讀取；procedure listDatasets）",
+  "addRunToDataset": "新增LangSmith 觀測相關資料（寫入；procedure addRunToDataset）",
+  "modelComparison": "查詢LangSmith 觀測相關資料（讀取；procedure modelComparison）",
+  "exportFineTuningData": "匯出LangSmith 觀測相關資料（讀取；procedure exportFineTuningData）"
+ },
+ "learnHub.ts": {
+  "list": "列出學習中心相關資料（讀取；procedure list）",
+  "getById": "取得單一學習中心相關資料（讀取；procedure getById）",
+  "categories": "查詢學習中心相關資料（讀取；procedure categories）",
+  "create": "新增學習中心相關資料（讀取；procedure create）",
+  "update": "更新學習中心相關資料（讀取；procedure update）",
+  "delete": "刪除學習中心相關資料（寫入；procedure delete）",
+  "importDocs": "匯入學習中心相關資料（讀取；procedure importDocs）",
+  "videoList": "列出學習中心相關資料（讀取；procedure videoList）",
+  "videoGetById": "取得單一學習中心相關資料（讀取；procedure videoGetById）",
+  "videoCreate": "新增學習中心相關資料（讀取；procedure videoCreate）",
+  "videoUpdate": "更新學習中心相關資料（讀取；procedure videoUpdate）",
+  "videoDelete": "刪除學習中心相關資料（寫入；procedure videoDelete）",
+  "quizList": "列出學習中心相關資料（讀取；procedure quizList）",
+  "quizGetById": "取得單一學習中心相關資料（讀取；procedure quizGetById）",
+  "quizCreate": "新增學習中心相關資料（讀取；procedure quizCreate）",
+  "quizUpdate": "更新學習中心相關資料（讀取；procedure quizUpdate）",
+  "quizDelete": "刪除學習中心相關資料（寫入；procedure quizDelete）"
+ },
+ "loraTrainer.ts": {
+  "stats": "統計LoRA 訓練相關資料（讀取；procedure stats）",
+  "replicateStatus": "查詢狀態LoRA 訓練相關資料（讀取；procedure replicateStatus）",
+  "trainingHistory": "查詢LoRA 訓練相關資料（讀取；procedure trainingHistory）",
+  "trainWithReplicate": "查詢LoRA 訓練相關資料（讀取；procedure trainWithReplicate）",
+  "replicateTrainingStatus": "查詢狀態LoRA 訓練相關資料（讀取；procedure replicateTrainingStatus）",
+  "trainingDetail": "查詢LoRA 訓練相關資料（讀取；procedure trainingDetail）"
+ },
+ "modelConsents.ts": {
+  "create": "新增模型同意相關資料（讀取；procedure create）",
+  "list": "列出模型同意相關資料（讀取；procedure list）",
+  "get": "取得模型同意相關資料（讀取；procedure get）",
+  "revoke": "更新/寫入模型同意相關資料（寫入；procedure revoke）"
+ },
+ "modelWishesRouter.ts": {
+  "list": "列出模型許願相關資料（讀取；procedure list）",
+  "create": "新增模型許願相關資料（讀取；procedure create）",
+  "delete": "刪除模型許願相關資料（寫入；procedure delete）",
+  "vote": "更新/寫入模型許願相關資料（寫入；procedure vote）",
+  "unvote": "更新/寫入模型許願相關資料（寫入；procedure unvote）",
+  "updateStatus": "更新模型許願相關資料（讀取；procedure updateStatus）"
+ },
+ "news.ts": {
+  "list": "列出新聞情報相關資料（讀取；procedure list）",
+  "getById": "取得單一新聞情報相關資料（讀取；procedure getById）",
+  "pinned": "查詢新聞情報相關資料（讀取；procedure pinned）",
+  "categories": "查詢新聞情報相關資料（讀取；procedure categories）",
+  "byTag": "查詢新聞情報相關資料（讀取；procedure byTag）"
+ },
+ "orbCapabilitiesRouter.ts": {
+  "list": "列出光球能力相關資料（讀取；procedure list）",
+  "suggestImageEditModels": "編輯光球能力相關資料（讀取；procedure suggestImageEditModels）"
+ },
+ "orbConversationsRouter.ts": {
+  "list": "列出光球對話相關資料（讀取；procedure list）",
+  "create": "新增光球對話相關資料（寫入；procedure create）",
+  "update": "更新光球對話相關資料（寫入；procedure update）",
+  "delete": "刪除光球對話相關資料（寫入；procedure delete）",
+  "getMessages": "取得光球對話相關資料（讀取；procedure getMessages）",
+  "appendMessages": "更新/寫入光球對話相關資料（寫入；procedure appendMessages）",
+  "clearMessages": "更新/寫入光球對話相關資料（寫入；procedure clearMessages）"
+ },
+ "orbProxyRouter.ts": {
+  "getRememberedPreferences": "取得光球代理相關資料（讀取；procedure getRememberedPreferences）",
+  "removePreferenceValue": "移除光球代理相關資料（寫入；procedure removePreferenceValue）",
+  "clearAllPreferenceMemory": "更新/寫入光球代理相關資料（寫入；procedure clearAllPreferenceMemory）",
+  "persistClarificationPicks": "查詢光球代理相關資料（讀取；procedure persistClarificationPicks）",
+  "unifiedSearch": "搜尋光球代理相關資料（讀取；procedure unifiedSearch）"
+ },
+ "orbSchedulerRouter.ts": {
+  "scheduleJob": "更新/寫入光球排程相關資料（寫入；procedure scheduleJob）",
+  "unscheduleJob": "更新/寫入光球排程相關資料（寫入；procedure unscheduleJob）",
+  "setEnabled": "設定光球排程相關資料（寫入；procedure setEnabled）",
+  "runNow": "執行光球排程相關資料（寫入；procedure runNow）",
+  "listJobs": "列出光球排程相關資料（讀取；procedure listJobs）",
+  "previewCron": "查詢光球排程相關資料（讀取；procedure previewCron）"
+ },
+ "proStudio.ts": {
+  "checkApiKey": "查詢專業工作室相關資料（讀取；procedure checkApiKey）",
+  "musicModels": "查詢專業工作室相關資料（讀取；procedure musicModels）",
+  "sfxModels": "查詢專業工作室相關資料（讀取；procedure sfxModels）"
+ },
+ "promptCollection.ts": {
+  "siteCatalog": "查詢提示詞收藏相關資料（讀取；procedure siteCatalog）",
+  "listMine": "列出提示詞收藏相關資料（讀取；procedure listMine）",
+  "listTeam": "列出提示詞收藏相關資料（讀取；procedure listTeam）",
+  "collect": "更新/寫入提示詞收藏相關資料（寫入；procedure collect）",
+  "update": "更新提示詞收藏相關資料（寫入；procedure update）",
+  "delete": "刪除提示詞收藏相關資料（寫入；procedure delete）",
+  "toggleFavorite": "切換提示詞收藏相關資料（寫入；procedure toggleFavorite）",
+  "incrementUseCount": "計數提示詞收藏相關資料（寫入；procedure incrementUseCount）",
+  "setVisibility": "設定提示詞收藏相關資料（寫入；procedure setVisibility）"
+ },
+ "promptLibrary.ts": {
+  "list": "列出提示詞庫相關資料（讀取；procedure list）",
+  "listPublic": "列出公開提示詞庫相關資料（讀取；procedure listPublic）",
+  "getById": "取得單一提示詞庫相關資料（讀取；procedure getById）",
+  "create": "新增提示詞庫相關資料（寫入；procedure create）",
+  "update": "更新提示詞庫相關資料（寫入；procedure update）",
+  "delete": "刪除提示詞庫相關資料（寫入；procedure delete）",
+  "toggleFavorite": "切換提示詞庫相關資料（寫入；procedure toggleFavorite）",
+  "incrementUseCount": "計數提示詞庫相關資料（寫入；procedure incrementUseCount）",
+  "adminSeed": "種子資料提示詞庫相關資料（讀取；procedure adminSeed）"
+ },
+ "rbac.ts": {
+  "listShares": "列出權限控管相關資料（讀取；procedure listShares）",
+  "share": "更新/寫入權限控管相關資料（寫入；procedure share）",
+  "revokeShare": "更新/寫入權限控管相關資料（寫入；procedure revokeShare）",
+  "transferOwnership": "更新/寫入權限控管相關資料（寫入；procedure transferOwnership）"
+ },
+ "realEarth.ts": {
+  "list": "列出真實地球相關資料（讀取；procedure list）",
+  "get": "取得真實地球相關資料（讀取；procedure get）",
+  "search": "搜尋真實地球相關資料（讀取；procedure search）",
+  "create": "新增真實地球相關資料（寫入；procedure create）",
+  "update": "更新真實地球相關資料（寫入；procedure update）",
+  "delete": "刪除真實地球相關資料（寫入；procedure delete）",
+  "taiwanHighlights": "查詢真實地球相關資料（讀取；procedure taiwanHighlights）",
+  "stats": "統計真實地球相關資料（讀取；procedure stats）",
+  "getRelated": "取得真實地球相關資料（讀取；procedure getRelated）",
+  "seedData": "種子資料真實地球相關資料（寫入；procedure seedData）",
+  "needsInit": "查詢真實地球相關資料（讀取；procedure needsInit）",
+  "getLinkedMaterials": "取得真實地球相關資料（讀取；procedure getLinkedMaterials）"
+ },
+ "sense.ts": {
+  "inferIntent": "更新/寫入意圖感知相關資料（寫入；procedure inferIntent）"
+ },
+ "showcase.ts": {
+  "list": "列出作品展示相關資料（讀取；procedure list）",
+  "getById": "取得單一作品展示相關資料（讀取；procedure getById）",
+  "trending": "查詢作品展示相關資料（讀取；procedure trending）",
+  "byModality": "查詢作品展示相關資料（讀取；procedure byModality）",
+  "byAesthetics": "查詢作品展示相關資料（讀取；procedure byAesthetics）",
+  "promote": "更新/寫入作品展示相關資料（寫入；procedure promote）",
+  "myItems": "我的作品展示相關資料（讀取；procedure myItems）",
+  "removeItem": "移除作品展示相關資料（寫入；procedure removeItem）",
+  "listComments": "列出作品展示相關資料（讀取；procedure listComments）",
+  "addComment": "新增作品展示相關資料（寫入；procedure addComment）",
+  "deleteComment": "刪除作品展示相關資料（寫入；procedure deleteComment）",
+  "stats": "統計作品展示相關資料（讀取；procedure stats）"
+ },
+ "spiritRouter.ts": {
+  "listModels": "列出精靈相關資料（讀取；procedure listModels）",
+  "invoke": "更新/寫入精靈相關資料（寫入；procedure invoke）",
+  "plan": "更新/寫入精靈相關資料（寫入；procedure plan）",
+  "run": "執行精靈相關資料（讀取；procedure run）",
+  "status": "查詢狀態精靈相關資料（讀取；procedure status）",
+  "control": "更新/寫入精靈相關資料（寫入；procedure control）",
+  "replan": "更新/寫入精靈相關資料（寫入；procedure replan）",
+  "listRuns": "列出精靈相關資料（讀取；procedure listRuns）",
+  "runStep": "執行精靈相關資料（寫入；procedure runStep）"
+ },
+ "teachingArchive.ts": {
+  "list": "列出教材庫相關資料（讀取；procedure list）",
+  "get": "取得教材庫相關資料（讀取；procedure get）",
+  "logView": "更新/寫入教材庫相關資料（寫入；procedure logView）",
+  "create": "新增教材庫相關資料（寫入；procedure create）",
+  "triggerIngestion": "更新/寫入教材庫相關資料（寫入；procedure triggerIngestion）",
+  "update": "更新教材庫相關資料（寫入；procedure update）",
+  "delete": "刪除教材庫相關資料（寫入；procedure delete）",
+  "accessLog": "查詢教材庫相關資料（讀取；procedure accessLog）",
+  "lineages": "查詢教材庫相關資料（讀取；procedure lineages）",
+  "topics": "查詢教材庫相關資料（讀取；procedure topics）",
+  "search": "搜尋教材庫相關資料（讀取；procedure search）",
+  "linkRealEarthEntry": "更新/寫入教材庫相關資料（寫入；procedure linkRealEarthEntry）",
+  "unlinkRealEarthEntry": "更新/寫入教材庫相關資料（寫入；procedure unlinkRealEarthEntry）",
+  "getRealEarthLinks": "取得教材庫相關資料（讀取；procedure getRealEarthLinks）"
+ },
+ "teams.ts": {
+  "create": "新增團隊相關資料（寫入；procedure create）",
+  "list": "列出團隊相關資料（讀取；procedure list）",
+  "get": "取得團隊相關資料（讀取；procedure get）",
+  "members": "查詢團隊相關資料（讀取；procedure members）",
+  "addMember": "新增團隊相關資料（寫入；procedure addMember）",
+  "removeMember": "移除團隊相關資料（寫入；procedure removeMember）",
+  "leave": "更新/寫入團隊相關資料（寫入；procedure leave）",
+  "delete": "刪除團隊相關資料（寫入；procedure delete）"
+ },
+ "videoStudio.ts": {
+  "checkApiKey": "查詢影片工作室相關資料（讀取；procedure checkApiKey）",
+  "modelAvailability": "查詢影片工作室相關資料（讀取；procedure modelAvailability）",
+  "listCameraModes": "列出影片工作室相關資料（讀取；procedure listCameraModes）"
+ },
+ "worldStoryboard.ts": {
+  "list": "列出世界分鏡相關資料（讀取；procedure list）",
+  "listByWorld": "列出世界分鏡相關資料（讀取；procedure listByWorld）",
+  "get": "取得世界分鏡相關資料（讀取；procedure get）",
+  "create": "新增世界分鏡相關資料（寫入；procedure create）",
+  "update": "更新世界分鏡相關資料（寫入；procedure update）",
+  "delete": "刪除世界分鏡相關資料（寫入；procedure delete）",
+  "seedSkeleton": "種子資料世界分鏡相關資料（讀取；procedure seedSkeleton）",
+  "validate": "查詢世界分鏡相關資料（讀取；procedure validate）",
+  "planPipeline": "更新/寫入世界分鏡相關資料（寫入；procedure planPipeline）",
+  "updateJob": "更新世界分鏡相關資料（讀取；procedure updateJob）",
+  "summarizeForPrompt": "查詢世界分鏡相關資料（讀取；procedure summarizeForPrompt）",
+  "createFromSegments": "新增世界分鏡相關資料（讀取；procedure createFromSegments）",
+  "exportShotList": "匯出世界分鏡相關資料（讀取；procedure exportShotList）"
+ },
+ "worldbuilding.ts": {
+  "list": "列出世界觀建構相關資料（讀取；procedure list）",
+  "get": "取得世界觀建構相關資料（讀取；procedure get）",
+  "create": "新增世界觀建構相關資料（寫入；procedure create）",
+  "update": "更新世界觀建構相關資料（寫入；procedure update）",
+  "delete": "刪除世界觀建構相關資料（寫入；procedure delete）",
+  "linkableModels": "查詢世界觀建構相關資料（讀取；procedure linkableModels）",
+  "linkableVoices": "查詢世界觀建構相關資料（讀取；procedure linkableVoices）",
+  "summarizeForPrompt": "查詢世界觀建構相關資料（讀取；procedure summarizeForPrompt）",
+  "queryEntities": "查詢世界觀建構相關資料（讀取；procedure queryEntities）",
+  "exportFull": "匯出世界觀建構相關資料（讀取；procedure exportFull）",
+  "importFull": "匯入世界觀建構相關資料（寫入；procedure importFull）",
+  "listTimelineFrames": "列出世界觀建構相關資料（讀取；procedure listTimelineFrames）",
+  "uploadTimelineFrame": "更新/寫入世界觀建構相關資料（寫入；procedure uploadTimelineFrame）",
+  "deleteTimelineFrame": "刪除世界觀建構相關資料（寫入；procedure deleteTimelineFrame）",
+  "checkConsistency": "更新/寫入世界觀建構相關資料（寫入；procedure checkConsistency）",
+  "listCompositions": "列出世界觀建構相關資料（讀取；procedure listCompositions）",
+  "saveComposition": "儲存世界觀建構相關資料（寫入；procedure saveComposition）",
+  "deleteComposition": "刪除世界觀建構相關資料（寫入；procedure deleteComposition）",
+  "getCompositionSuggestions": "取得世界觀建構相關資料（寫入；procedure getCompositionSuggestions）"
+ }
+}

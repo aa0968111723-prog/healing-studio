@@ -1,0 +1,543 @@
+[
+ {
+  "file": "adminRouter.ts",
+  "procedures": [
+   "runAgentEval"
+  ],
+  "n": 1,
+  "lines": 8
+ },
+ {
+  "file": "agentCollaborationRouter.ts",
+  "procedures": [
+   "startCollaboration",
+   "getCollaborationStatus",
+   "listUserCollaborations",
+   "cancelCollaboration",
+   "getCollaborationMessages",
+   "startAutoDiscussion",
+   "executeProtocolHandoff",
+   "getProtocolHandoffsFor"
+  ],
+  "n": 8,
+  "lines": 614
+ },
+ {
+  "file": "agentModelPicksRouter.ts",
+  "procedures": [
+   "recordPick",
+   "markAcceptance",
+   "getPreferredForModality",
+   "getPreferredByModalities",
+   "getRecent"
+  ],
+  "n": 5,
+  "lines": 161
+ },
+ {
+  "file": "agentPreferencesRouter.ts",
+  "procedures": [
+   "getPreferences",
+   "updatePreferences",
+   "listAvailableTools",
+   "getDistilledProfile",
+   "getRecentActivity"
+  ],
+  "n": 5,
+  "lines": 259
+ },
+ {
+  "file": "aiModels.ts",
+  "procedures": [
+   "list",
+   "getById",
+   "researchStats",
+   "refreshOne",
+   "refreshAll",
+   "refreshStale",
+   "discoveries",
+   "runDiscovery",
+   "setSchedule"
+  ],
+  "n": 9,
+  "lines": 237
+ },
+ {
+  "file": "apiUsage.ts",
+  "procedures": [
+   "list",
+   "upsert",
+   "delete",
+   "list",
+   "upsert",
+   "providerReadiness",
+   "overview",
+   "usageByProvider",
+   "usageEvents",
+   "billing",
+   "deepCost",
+   "snapshots",
+   "costAttribution"
+  ],
+  "n": 13,
+  "lines": 637
+ },
+ {
+  "file": "auditLog.ts",
+  "procedures": [
+   "events",
+   "export"
+  ],
+  "n": 2,
+  "lines": 75
+ },
+ {
+  "file": "brain.ts",
+  "procedures": [
+   "catalog",
+   "get",
+   "upsert",
+   "switchModel",
+   "pricingSummary",
+   "healthStatus",
+   "orbVoicePreview",
+   "pingProviders",
+   "monitorSummary",
+   "autoRepairConfig",
+   "toggleAutoRepair",
+   "setMonitorInterval",
+   "alerts",
+   "dismissAlert",
+   "errorTraces",
+   "reportError",
+   "resolveError",
+   "diagnoseError",
+   "errorCategoryLabels",
+   "proposals",
+   "createProposal",
+   "approveProposal",
+   "rejectProposal",
+   "webSearch",
+   "researchResults",
+   "addResearchToLearnHub",
+   "accuracyTests",
+   "runAccuracyTest",
+   "runAllAccuracyTests",
+   "runFullSiteResearch",
+   "runCodeScan",
+   "lastCodeScan",
+   "githubConfigStatus",
+   "testGithubConnection",
+   "retryGithubIssue",
+   "generationLogs"
+  ],
+  "n": 36,
+  "lines": 1235
+ },
+ {
+  "file": "brainPipeline.ts",
+  "procedures": [
+   "getGraph",
+   "getMyGraph",
+   "getSummary",
+   "runPatrol"
+  ],
+  "n": 4,
+  "lines": 3190
+ },
+ {
+  "file": "creativeProject.ts",
+  "procedures": [
+   "list",
+   "get",
+   "getContextSummary",
+   "create",
+   "update",
+   "delete",
+   "link"
+  ],
+  "n": 7,
+  "lines": 288
+ },
+ {
+  "file": "director.ts",
+  "procedures": [],
+  "n": 0,
+  "lines": 2905
+ },
+ {
+  "file": "externalServices.ts",
+  "procedures": [
+   "list",
+   "summary",
+   "upsert",
+   "delete",
+   "updateApiKeyStatus",
+   "seedDefaults"
+  ],
+  "n": 6,
+  "lines": 308
+ },
+ {
+  "file": "imageStudio.ts",
+  "procedures": [
+   "checkApiKey"
+  ],
+  "n": 1,
+  "lines": 1456
+ },
+ {
+  "file": "langsmith.ts",
+  "procedures": [
+   "status",
+   "stats",
+   "listRuns",
+   "getRun",
+   "healthStats",
+   "createFeedback",
+   "listFeedback",
+   "listDatasets",
+   "addRunToDataset",
+   "modelComparison",
+   "exportFineTuningData"
+  ],
+  "n": 11,
+  "lines": 948
+ },
+ {
+  "file": "learnHub.seed.ts",
+  "procedures": [],
+  "n": 0,
+  "lines": 11903
+ },
+ {
+  "file": "learnHub.ts",
+  "procedures": [
+   "list",
+   "getById",
+   "categories",
+   "create",
+   "update",
+   "delete",
+   "importDocs",
+   "videoList",
+   "videoGetById",
+   "videoCreate",
+   "videoUpdate",
+   "videoDelete",
+   "quizList",
+   "quizGetById",
+   "quizCreate",
+   "quizUpdate",
+   "quizDelete"
+  ],
+  "n": 17,
+  "lines": 960
+ },
+ {
+  "file": "loraTrainer.ts",
+  "procedures": [
+   "stats",
+   "replicateStatus",
+   "trainingHistory",
+   "trainWithReplicate",
+   "replicateTrainingStatus",
+   "trainingDetail"
+  ],
+  "n": 6,
+  "lines": 375
+ },
+ {
+  "file": "modelConsents.ts",
+  "procedures": [
+   "create",
+   "list",
+   "get",
+   "revoke"
+  ],
+  "n": 4,
+  "lines": 213
+ },
+ {
+  "file": "modelWishesRouter.ts",
+  "procedures": [
+   "list",
+   "create",
+   "delete",
+   "vote",
+   "unvote",
+   "updateStatus"
+  ],
+  "n": 6,
+  "lines": 215
+ },
+ {
+  "file": "news.ts",
+  "procedures": [
+   "list",
+   "getById",
+   "pinned",
+   "categories",
+   "byTag"
+  ],
+  "n": 5,
+  "lines": 290
+ },
+ {
+  "file": "orbCapabilitiesRouter.ts",
+  "procedures": [
+   "list",
+   "suggestImageEditModels"
+  ],
+  "n": 2,
+  "lines": 68
+ },
+ {
+  "file": "orbConversationsRouter.ts",
+  "procedures": [
+   "list",
+   "create",
+   "update",
+   "delete",
+   "getMessages",
+   "appendMessages",
+   "clearMessages"
+  ],
+  "n": 7,
+  "lines": 535
+ },
+ {
+  "file": "orbProxyRouter.ts",
+  "procedures": [
+   "getRememberedPreferences",
+   "removePreferenceValue",
+   "clearAllPreferenceMemory",
+   "persistClarificationPicks",
+   "unifiedSearch"
+  ],
+  "n": 5,
+  "lines": 154
+ },
+ {
+  "file": "orbSchedulerRouter.ts",
+  "procedures": [
+   "scheduleJob",
+   "unscheduleJob",
+   "setEnabled",
+   "runNow",
+   "listJobs",
+   "previewCron"
+  ],
+  "n": 6,
+  "lines": 305
+ },
+ {
+  "file": "proStudio.ts",
+  "procedures": [
+   "checkApiKey",
+   "musicModels",
+   "sfxModels"
+  ],
+  "n": 3,
+  "lines": 2168
+ },
+ {
+  "file": "promptCollection.ts",
+  "procedures": [
+   "siteCatalog",
+   "listMine",
+   "listTeam",
+   "collect",
+   "update",
+   "delete",
+   "toggleFavorite",
+   "incrementUseCount",
+   "setVisibility"
+  ],
+  "n": 9,
+  "lines": 588
+ },
+ {
+  "file": "promptLibrary.ts",
+  "procedures": [
+   "list",
+   "listPublic",
+   "getById",
+   "create",
+   "update",
+   "delete",
+   "toggleFavorite",
+   "incrementUseCount",
+   "linkedAssets",
+   "backfillAssetLinks",
+   "adminSeed"
+  ],
+  "n": 11,
+  "lines": 481
+ },
+ {
+  "file": "rbac.ts",
+  "procedures": [
+   "listShares",
+   "share",
+   "revokeShare",
+   "transferOwnership"
+  ],
+  "n": 4,
+  "lines": 302
+ },
+ {
+  "file": "realEarth.ts",
+  "procedures": [
+   "list",
+   "get",
+   "search",
+   "create",
+   "update",
+   "delete",
+   "taiwanHighlights",
+   "stats",
+   "getRelated",
+   "seedData",
+   "needsInit",
+   "getLinkedMaterials"
+  ],
+  "n": 12,
+  "lines": 306
+ },
+ {
+  "file": "sense.ts",
+  "procedures": [
+   "inferIntent"
+  ],
+  "n": 1,
+  "lines": 396
+ },
+ {
+  "file": "showcase.ts",
+  "procedures": [
+   "list",
+   "getById",
+   "trending",
+   "byModality",
+   "byAesthetics",
+   "promote",
+   "myItems",
+   "removeItem",
+   "listComments",
+   "addComment",
+   "deleteComment",
+   "stats"
+  ],
+  "n": 12,
+  "lines": 980
+ },
+ {
+  "file": "spiritRouter.ts",
+  "procedures": [
+   "listModels",
+   "invoke",
+   "plan",
+   "run",
+   "status",
+   "control",
+   "replan",
+   "listRuns",
+   "runStep"
+  ],
+  "n": 9,
+  "lines": 226
+ },
+ {
+  "file": "teachingArchive.ts",
+  "procedures": [
+   "list",
+   "get",
+   "logView",
+   "create",
+   "triggerIngestion",
+   "update",
+   "delete",
+   "accessLog",
+   "lineages",
+   "topics",
+   "search",
+   "linkRealEarthEntry",
+   "unlinkRealEarthEntry",
+   "getRealEarthLinks"
+  ],
+  "n": 14,
+  "lines": 539
+ },
+ {
+  "file": "teams.ts",
+  "procedures": [
+   "create",
+   "list",
+   "get",
+   "members",
+   "addMember",
+   "removeMember",
+   "leave",
+   "delete"
+  ],
+  "n": 8,
+  "lines": 215
+ },
+ {
+  "file": "videoStudio.ts",
+  "procedures": [
+   "checkApiKey",
+   "modelAvailability",
+   "listCameraModes"
+  ],
+  "n": 3,
+  "lines": 1632
+ },
+ {
+  "file": "worldStoryboard.ts",
+  "procedures": [
+   "list",
+   "listByWorld",
+   "get",
+   "create",
+   "update",
+   "delete",
+   "seedSkeleton",
+   "validate",
+   "planPipeline",
+   "updateJob",
+   "summarizeForPrompt",
+   "createFromSegments",
+   "exportShotList"
+  ],
+  "n": 13,
+  "lines": 566
+ },
+ {
+  "file": "worldbuilding.ts",
+  "procedures": [
+   "list",
+   "get",
+   "create",
+   "update",
+   "delete",
+   "linkableModels",
+   "linkableVoices",
+   "summarizeForPrompt",
+   "queryEntities",
+   "exportFull",
+   "importFull",
+   "listTimelineFrames",
+   "uploadTimelineFrame",
+   "deleteTimelineFrame",
+   "checkConsistency",
+   "listCompositions",
+   "saveComposition",
+   "deleteComposition",
+   "getCompositionSuggestions"
+  ],
+  "n": 19,
+  "lines": 797
+ }
+]

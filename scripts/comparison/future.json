@@ -1,0 +1,2561 @@
+{
+ "by_epic": {
+  "(無父卡)": {
+   "epic": "",
+   "inprog": [
+    {
+     "key": "AIDV-31",
+     "summary": "Wave 1 SSOT+接線",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-89",
+     "summary": "📥 AIDISC 討論區（Jira 暫代 · Confluence 不可達期間）",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-102",
+     "summary": "🔄 AIDV 開放工作流程（看板作業 SOP · 單一作業面）",
+     "type": "大型工作",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-160",
+     "summary": "[QA探查] 選 Mock $0 引擎，生成卻自動回退付費 hf 並可能扣點——創作者最在意的「選免費卻被偷扣」紅線",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-204",
+     "summary": "[opt] ai.chat 供應商 4xx 時自動回退次選 LLM + providerReadiness 納入文字供應商健康度（AIDV-181 R6 可立即修法）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "alert_configs"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-205",
+     "summary": "[opt] director.analyzeScriptOverview schema 快修：接受 raw script string 自行分段（消除 AIDV-180 HTTP 400，不等 M3 正式路由）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-206",
+     "summary": "[opt] 四模態 Compiler 輸入 URL 白名單 + upload finalize fail-closed：一次收斂 SSRF（AIDV-201）與惡意檔繞過（AIDV-203）兩個 C2 安全缺口",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-244",
+     "summary": "[opt] /video IDOR 全收斂：videoProject ownership check + SSE jobId 驗票 + videoSegment CRUD 矩陣——一次掃描收斂 AIDV-243/236，消除三條 C7/C6 資料洩漏路徑",
+     "type": "故事",
+     "priority": "Highest",
+     "tables": [
+      "background_jobs",
+      "team_memberships"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-251",
+     "summary": "[opt] Web 安全三層防禦收斂：CSP/HSTS/CORS 標頭 + DOMPurify input sanitize + CSRF source check——一次 PR 收斂 AIDV-249/250/224，消除 C8 OWASP A03/A05 全部攻擊面",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-259",
+     "summary": "[opt] C9 安全修補收斂：SSRF 防護 + Auth Fail-Closed——一次 PR 收斂 AIDV-257/AIDV-258",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-275",
+     "summary": "[opt] Supabase RLS 全面補強收斂：vault.secrets + auth schema 7 表 RLS 啟用——一次 migration 收斂 AIDV-266/AIDV-267，消除 C10 資料隔離漏洞",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-283",
+     "summary": "[opt] toast XSS 快修收斂：全站 innerHTML→textContent 置換 + CSP header——一次 PR 收斂 AIDV-281，阻斷 C3 XSS 向量",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-295",
+     "summary": "[opt] 多代理可觀測性三合一收斂：X-Request-ID tracing + SSE job-level namespace + Last-Event-ID——一次 PR 收斂 AIDV-289/291，解鎖企業多代理場景",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-313",
+     "summary": "[opt] Security Headers 全收斂：CSP + HSTS + X-Frame-Options + CORS allowlist + nosniff——一次 PR 收斂 AIDV-283/311/312，關閉 C3/C5 XSS＋降級＋CORS 向量",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-314",
+     "summary": "[opt] /video 列表效能＋SSE 可靠性雙收斂：cursor 分頁 + 斷線輪詢回退——一次 PR 收斂 AIDV-307/308，解鎖重度創作者留存",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-315",
+     "summary": "[opt] 檔案上傳安全全收斂：magic bytes 驗證 + SVG 拒絕 + CDN nosniff——一次 PR 收斂 AIDV-310，關閉 C5 Unrestricted Upload 向量",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-322",
+     "summary": "[opt] 身份驗證安全雙收斂：SSRF URL 沙箱 + JWT audience 強制驗證——一次 PR 收斂 AIDV-321/319，關閉 C6 最高威脅",
+     "type": "故事",
+     "priority": "Highest",
+     "tables": [],
+     "migs": []
+    }
+   ],
+   "backlog": [
+    {
+     "key": "AIDV-32",
+     "summary": "Wave 2 耐久任務/成本/血統",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-33",
+     "summary": "Wave 3 重後端/基建/協作",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-34",
+     "summary": "Wave 4 代理建置區/BYOMCP",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-55",
+     "summary": "Wave H 營運與安全硬化",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-74",
+     "summary": "Wave U：UIUX 視覺實裝（⑦ UIUX 設計 46 頁落地）",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-78",
+     "summary": "Wave I 現有功能整合（既有 orb/spirit/世界觀/教材庫 → 導演台脊椎接線）",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-125",
+     "summary": "Wave S：AI Skill 工作層（自訂＋外部 Skill，導演腦編排）",
+     "type": "大型工作",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-151",
+     "summary": "接通 Director→Video 斷點：ScriptSegment[] 自動入 videoGenerationSession 佇列",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "creative_projects"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-154",
+     "summary": "多語／在地化（i18n）：UI 文案與四態引導抽出可翻譯資源",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-155",
+     "summary": "局部編輯／inpaint 統一 UI（框選區域局部重生，不重生整鏡）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-164",
+     "summary": "[opt] Fal 派發碎片化收斂：image/audio/video router 各包 falQueueSubmit → 統一走 falDispatcher",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [
+      "background_jobs",
+      "generation_history"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-166",
+     "summary": "[opt] fal 預扣款競態：先扣點再送 fal，submit transient 失敗有白扣風險（改 hold/凍結模型）",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-167",
+     "summary": "[opt] Stripe webhook 事件處理器仍空殼：付費開通/續期/降級從未落地（AIDV-159 只修了簽章）",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-168",
+     "summary": "[opt] 生成輸入 URL 未驗證的 SSRF 面：director firstFrameUrl/sourceVideoUrl 為 z.string() 直送 fal",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-169",
+     "summary": "[opt] 生成資料完整性：backgroundJobs↔generationHistory 補關聯＋webhook 完成自動補 history＋舊 job TTL",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [
+      "background_jobs",
+      "generation_history"
+     ],
+     "migs": [
+      "0067"
+     ]
+    },
+    {
+     "key": "AIDV-170",
+     "summary": "[opt] Drizzle migration 重複編號（0008/0033/0067）修號＋補 relations.ts（PG 遷移前置）",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": [
+      "0008",
+      "0033",
+      "0067",
+      "0071",
+      "0074"
+     ]
+    },
+    {
+     "key": "AIDV-171",
+     "summary": "[opt] db:push/drizzle migrate 納入 deploy flow 自動化（Railway pre-deploy hook）",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-172",
+     "summary": "[opt] 四 Compiler 加 schema 驗證（SSML/prompt length）防供應商拒收致 job 默默失敗",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-173",
+     "summary": "[opt] 三組生成事件總線合一（generationEvents + orbChatProgress + orbTaskObserver）→ 單一 GenerationEventBus",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-174",
+     "summary": "[opt] 抽 useGenerationTask hook 消除四 studio 生成樣板大量複製（模型下拉/參數/輪詢）",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-175",
+     "summary": "[opt] 收斂面板/imageStudio 的 any-cast 為具名型別（inferRouterOutputs / typed fal 回應）",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-176",
+     "summary": "[opt] 前端效能小修：OrbCreationStage 背景輪詢關閉＋apiUsage.getProviderOverview N+1 收斂",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-177",
+     "summary": "[opt] 建置設定小修：@assets alias 對齊 tsconfig＋wouter patch-package postinstall 自動套用",
+     "type": "任務",
+     "priority": "Low",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-178",
+     "summary": "[opt] qa-explore 多代理 persona 評估輸入綁定防漂移（finding ID 一致性檢查）",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-179",
+     "summary": "[opt] 低風險小修合輯：promptLibrary content 搜尋＋download catch 日誌＋costAnalytics→orbCostGuard＋孤兒頁/過期文件清理",
+     "type": "任務",
+     "priority": "Low",
+     "tables": [
+      "prompt_library"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-180",
+     "summary": "[QA探查R5] 引導式創作「自動拆解」前後端契約不符：前端送 {script}、後端要 segments[] → HTTP 400，新手第一步即死（非 AIDV-165 LLM 根因）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-182",
+     "summary": "[opt] 上傳 signed-URL finalize 內容嗅探 fail-open：Range GET 失敗即放行，偽裝檔可繞過 AIDV-64 縱深防禦",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-183",
+     "summary": "[opt] 上傳 signed-URL finalize 內容嗅探 fail-open：Range GET 失敗即放行，偽裝檔可繞過 AIDV-64 縱深防禦",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-185",
+     "summary": "[opt] dataConnections 歸屬/生命週期硬化：create 未驗 teamId/projectId 歸屬＋router 無 delete（加密憑證無法硬刪）",
+     "type": "任務",
+     "priority": "Medium",
+     "tables": [
+      "data_source_connections",
+      "context_packets"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-186",
+     "summary": "[opt] rbac.transferOwnership：擁有權移轉＋清共享為兩個非交易 await，部分失敗留舊 owner 殘餘存取",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-187",
+     "summary": "[opt] worldbuilding router 8 個 placeholder endpoint 回 mock 並靜默吞寫入（上傳/存檔假成功、資料默默丟失）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-188",
+     "summary": "[opt] teams router 承諾『轉移擁有權』卻無 transferOwnership/updateMemberRole——owner 被困死",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "teams"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-189",
+     "summary": "[opt] apiUsage alertConfigs 只寫不評估：budget/quota/anomaly 告警從不觸發＋無 delete",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "cost_aggregations",
+      "rate_limit_rules",
+      "alert_configs"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-190",
+     "summary": "[opt] learnHub admin CRUD 寫 in-memory 模組陣列——重啟/多實例即丟失（內容管理假持久化）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-191",
+     "summary": "[opt] apiUsage 成本查詢正確性/效能：deepCost 50k 截斷時 totalCost 靜默低報＋costAttribution 無界全量載入 ledger",
+     "type": "漏洞",
+     "priority": "Low",
+     "tables": [
+      "cost_ledger"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-192",
+     "summary": "[opt] orbConversations.appendMessages messageCount read-modify-write 競態：併發 append 互覆寫、計數漂移",
+     "type": "漏洞",
+     "priority": "Low",
+     "tables": [
+      "prompt_library",
+      "orb_conversations",
+      "orb_conversation_messages"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-193",
+     "summary": "[opt] classifyLLMError permanent_model 寬子字串『does not exist』加固：補顯式 4xx status gate＋收窄 pattern（relates AIDV-165）",
+     "type": "任務",
+     "priority": "Low",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-194",
+     "summary": "[opt] providerSnapshotJob fal_ai/gemini 仍占位 snapshot＋TODO：成本對這兩家只能 catalog 估算、無權威帳單對帳",
+     "type": "故事",
+     "priority": "Low",
+     "tables": [
+      "cost_aggregations",
+      "provider_snapshots"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-195",
+     "summary": "[opt] in-scope 殼/面板硬編語意色（amber/emerald/rose）未走 design-kit token——design-token 收斂軌（本卡為該軌主卡）",
+     "type": "任務",
+     "priority": "Low",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-196",
+     "summary": "[opt] orbClarificationEngine 意圖澄清引擎全為 no-op 樁，卻經 orbConversationEnhancer 對光球活線（假澄清/假學習）",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [
+      "orb_conversations"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-197",
+     "summary": "[opt] voiceCompiler 情緒檔 EMOTION_PROFILES 寫死，未讀使用者 customBlocks 自訂語音 preset",
+     "type": "故事",
+     "priority": "Low",
+     "tables": [
+      "custom_blocks"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-198",
+     "summary": "[QA探查R7] worldbuilding 面板存角色/場景/世界觀全靜默丟失：8 placeholder endpoint 回 mock 成功但資料未持久化——creator-blocker P1（data loss）",
+     "type": "漏洞",
+     "priority": "Highest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-199",
+     "summary": "[QA探查R7] director.breakdown M3 路由缺失：引導式創作「自動拆解」正式 endpoint 至今未建，過渡接線永久成為死路（AIDV-180 toast 自揭線索）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-200",
+     "summary": "[QA探查R7] /video 文字 AI 健康度盲區：providerReadiness 無文字 LLM 狀態 + 光球意圖澄清從不觸發——創作者無法自診「AI 大腦是否可用」",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "custom_blocks",
+      "alert_configs",
+      "orb_conversations"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-201",
+     "summary": "[資安巡檢C2] SSRF via 生成輸入 URL：director firstFrameUrl/sourceVideoUrl 及 imageStudio 的 imageUrl 為 z.string() 直送 fal——可觸發內網探測",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-202",
+     "summary": "[資安巡檢C2] IDOR：promptLibrary.incrementUseCount 無 ownership 驗證——任何登入用戶可灌他人 prompt 使用次數；getById 缺 RBAC 可見性控制",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "prompt_library"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-203",
+     "summary": "[資安巡檢C2] 上傳 finalize 內容嗅探 fail-open：Range GET 失敗即放行，偽裝副檔名的惡意檔可繞過 AIDV-64 縱深防禦進入媒體管線",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-207",
+     "summary": "[QA探查R8] teams.transferOwnership 不存在：team owner 離開後 team 永久孤兒——所有成員喪失管理權（AIDV-188 creator-blocker 升格）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "teams"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-208",
+     "summary": "[QA探查R8] apiUsage alertConfigs 創作者設定預算告警卻永不觸發——幽靈設定等同 orbClarificationEngine 假學習，信任崩潰（AIDV-189 升格）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "alert_configs"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-209",
+     "summary": "[QA探查R8] learnHub admin CRUD 重啟即清空：內容團隊建立學習模組後伺服器重啟全消失——平台學習功能對生產環境等於不存在（AIDV-190 升格）",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-210",
+     "summary": "[資安巡檢C3] orbConversations 缺 userId 隔離：getConversation/appendMessages 無 ownership 查驗——登入用戶可任意讀寫他人光球對話（IDOR）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "prompt_library",
+      "orb_conversations"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-211",
+     "summary": "[資安巡檢C3] ai.chat / generation endpoints 無速率限制——任意帳號可無限觸發 LLM 呼叫耗盡供應商 quota 或觸發帳戶封停（DoS / Cost Exhaustion）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "alert_configs"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-212",
+     "summary": "[資安巡檢C3] dataConnections 無 userId ownership 查驗：任意登入用戶可讀取/刪除他人資料連線憑證（IDOR，AIDV-185 升格）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "prompt_library",
+      "orb_conversations"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-213",
+     "summary": "[opt] orbConversations 原子化 + UUID 遷移：DB transaction 防競態 + UUID PK 消 IDOR 枚舉，一次收斂 AIDV-192 + AIDV-210 兩個缺口",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "orb_conversations",
+      "prompt_library"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-214",
+     "summary": "[opt] 假持久化三路收斂：worldbuilding + learnHub + alertConfigs 評估器——單一 Drizzle migration 批次補建四表，收斂 AIDV-187/190/189 三張 opt-card",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "alert_configs"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-215",
+     "summary": "[opt] IDOR 全表 ownership guard + ai.chat rate-limit：promptLibrary/orbConversations/dataConnections 加 userId WHERE，ai.chat 加 per-user 20 RPM——收斂 C2-C3 四個 IDOR + DoS 攻擊面",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "prompt_library",
+      "orb_conversations"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-216",
+     "summary": "[QA探查R9] voiceCompiler 情緒語音忽略 customBlocks：創作者設定的語音 preset 永遠被系統預設覆蓋——個人化 AI 旁白等同不存在（AIDV-197 creator-blocker 升格）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "custom_blocks"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-217",
+     "summary": "[QA探查R9] /video segment 生成無即時進度回饋：按下生成後畫面凍結 60-90 秒無狀態更新——黑盒子等待體驗觸發創作者棄單（UX gap）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-218",
+     "summary": "[QA探查R9] teamInvite 接受邀請後成員 role 為 null：team-gated 功能全觸發 403，team 協作流程實質破損——routing gap，AIDV-207 transferOwnership 連鎖效應",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "teams"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-219",
+     "summary": "[資安巡檢C4] tRPC mutations 缺 CSRF 防護：非瀏覽器客端可跨站呼叫任何 mutation——worldbuilding/teams/upload 所有寫入端點均受影響",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "teams",
+      "alert_configs"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-220",
+     "summary": "[資安巡檢C4] worldbuilding/learnHub 富文字欄位缺 XSS 過濾：創作者存入含 &lt;script&gt; 的角色描述，team 成員開啟時觸發 stored XSS",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "prompt_library"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-221",
+     "summary": "[資安巡檢C4] auth 端點（login/register/resetPassword）缺暴力破解防護：無速率限制可無限重試密碼——與 AIDV-211 ai.chat DoS 同類，auth 層更高危",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-222",
+     "summary": "[opt] Teams 模組雙缺口收斂：transferOwnership + teamInvite role 賦值——一次 Drizzle migration 補建兩路由，收斂 AIDV-207 + AIDV-218",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "teams",
+      "orb_conversations"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-223",
+     "summary": "[opt] 全域速率限制 middleware 收斂：Upstash sliding-window 統一保護 auth.login/register/resetPassword + ai.chat——一次收斂 AIDV-211 + AIDV-221",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-224",
+     "summary": "[opt] CSRF + Stored XSS 雙層防禦收斂：x-trpc-source header 強制 + isomorphic-dompurify 全站入口——一次收斂 AIDV-219 + AIDV-220 兩個 C4 攻擊面",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "prompt_library"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-225",
+     "summary": "[QA探查R9b] orbClarificationEngine 全為 no-op 樁：光球「學習」創作者偏好的所有路徑均無實際效果——AI 導演核心差異化功能等同不存在（AIDV-196 creator-blocker 升格）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "orb_conversations"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-226",
+     "summary": "[QA探查R9b] /video 專案無「完成並匯出」流程：創作者完成所有片段後找不到匯出/下載入口——最終交付功能缺失，付費轉換關鍵路徑斷路（routing gap）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-227",
+     "summary": "[QA探查R10] /video 無版本歷程與復原機制：創作者誤刪片段或腳本後無法還原——破壞性操作零防護，付費專案資料永久消失（UX/data gap）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "creative_projects"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-228",
+     "summary": "[QA探查R10] /video 片段生成完成後無即時預覽播放器：創作者無法在匯出前審視成品畫面——盲目匯出觸發大量重生成浪費（UX gap，AIDV-226 export chain 前置斷點）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-229",
+     "summary": "[資安巡檢C5] /video 檔案上傳端點無 MIME 白名單 + 缺 content-length 上限：攻擊者可上傳任意執行檔或超大檔案觸發 DoS / RCE 風險",
+     "type": "漏洞",
+     "priority": "Highest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-230",
+     "summary": "[資安巡檢C5] JWT refresh token 無旋轉機制 + 缺 server-side revocation：竊取單一 refresh token 可無限期冒用帳號（session hijack）",
+     "type": "漏洞",
+     "priority": "Highest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-231",
+     "summary": "[opt] /video export pipeline 快取層收斂：合併成品 CDN signed URL + background_jobs TTL 清理——一次收斂 AIDV-226 匯出缺口的基礎設施面 + AIDV-164 遺留 TTL 問題",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "background_jobs",
+      "generation_history"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-232",
+     "summary": "[QA探查R11] /video 匯出完成後無「下載/分享」後置動作：成品生成後頁面無「點此下載」或「複製連結」入口——創作者無從取得成品（routing gap，AIDV-226 export chain 後段斷點）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-233",
+     "summary": "[QA探查R11] /video AI 分鏡生成失敗無單片段重試機制：片段失敗後創作者只能重生成整個分鏡——浪費 LLM token、已完成片段成果消失（UX gap，高成本）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-234",
+     "summary": "[QA探查R11] /video 字幕/CC 路由缺失：介面字幕佔位符存在但後端 endpoint 未建——無障礙合規缺口，創作者無法為成品產出 SRT/VTT（routing gap，P1）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-235",
+     "summary": "[資安巡檢C6] JWT access token 存 localStorage：前端以 window.localStorage 持久化 Bearer token，任何 XSS 得手即可完整橫取 session——應改存 httpOnly SameSite=Strict cookie",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-236",
+     "summary": "[資安巡檢C6] /video 片段生成進度 SSE/WebSocket 無驗票：任何知道 jobId 的請求可訂閱他人生成進度流——IDOR 衍生，敏感腳本內容即時洩漏",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [
+      "orb_conversations"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-237",
+     "summary": "[opt] Export Chain 四重斷點全收斂：preview播放器 + export入口 + download後置 + 片段重試——一次補完 AIDV-226/228/232/233 整條創作者交付路徑",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-238",
+     "summary": "[opt] Auth Session 三層硬化收斂：httpOnly cookie 替換 localStorage + refresh token 旋轉 + SSE/WS 驗票——一次收斂 AIDV-235/230/236 三個 C6/C5 session 攻擊面",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-239",
+     "summary": "[QA探查R12] /video 片段生成後無拖曳重排序機制：創作者無法在不重生成的情況下調整分鏡順序——強迫重生成浪費 LLM token（routing gap，P1）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-240",
+     "summary": "[QA探查R12] /video 腳本輸入無 token 用量回饋：創作者輸入超長腳本後靜默生成失敗或品質劣化——無任何提前警示（UX gap，高成本風險）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-241",
+     "summary": "[QA探查R12] /video 團隊協作編輯無衝突鎖定：兩個協作者同時編輯同一影片專案觸發靜默 last-write-wins 覆蓋——付費專案資料永久損毀（data gap，P1）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-242",
+     "summary": "[資安巡檢C7] /video 片段生成端點無速率限制：攻擊者可無限次觸發 LLM+Fal.ai 計算密集任務——平台 GPU/LLM 費用 DoS（運算成本耗盡攻擊）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-243",
+     "summary": "[資安巡檢C7] /video 影片專案 ID 可枚舉 IDOR：videoProject.get(projectId) 未驗證呼叫者所有權——任意用戶可讀取他人完整專案（腳本/片段/商業機密）",
+     "type": "漏洞",
+     "priority": "Highest",
+     "tables": [
+      "team_memberships"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-245",
+     "summary": "[opt] /video SegmentCard 互動層三功能收斂：拖曳重排序 + 單片段重試 + 協作衝突保護——一次 PR 收斂 AIDV-239/233/241，SegmentCard component 升一級",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-246",
+     "summary": "[QA探查R13] /video 匯出影片無縮圖/封面幀選擇：系統自動取第一幀作為封面，創作者無法設定客製封面圖——社群媒體上傳缺少吸睛封面，點閱率損失（routing gap，P1）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-247",
+     "summary": "[QA探查R13] /video 生成前無畫面比例/格式選擇：所有影片固定 16:9 輸出，無 9:16（短影音/Reels）或 1:1（Instagram）選項——垂直影片市場完全封鎖，Reels/TikTok 創作者無法使用（routing gap，P1）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-248",
+     "summary": "[QA探查R13] /video 專案無複製/範本功能：創作者無法一鍵複製成功專案建立變體版本——每次 A/B 測試需重填腳本重生成，浪費 LLM token 且破壞創意迭代流程（UX gap，高成本）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-249",
+     "summary": "[資安巡檢C8] /video API CORS 配置過寬 + 缺少安全回應標頭：Access-Control-Allow-Origin 可能為萬用字元，且無 CSP/X-Frame-Options/HSTS 標頭——XSS 攻擊面未收斂，token 竊取路徑仍開放",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-250",
+     "summary": "[資安巡檢C8] /video 腳本與專案名稱儲存前未 sanitize：user-controlled 內容若被 dangerouslySetInnerHTML 渲染——Stored XSS 可竊取他人 session（A03：Injection，C7 IDOR 攻擊後手）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-252",
+     "summary": "[opt] Fal.ai 派發參數動態化 + 格式選擇收斂：aspect_ratio / duration 由 videoProject 讀取取代硬編碼——一次 migration + Fal handler 修改收斂 AIDV-247/164，解鎖垂直影片市場",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-253",
+     "summary": "[opt] videoProject 生命週期三功能收斂：複製專案 + 快照版本歷程 + CAS 衝突保護——一次 PR 收斂 AIDV-248/227/241，共用 project_snapshots 表解鎖 A/B 迭代流程",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-254",
+     "summary": "[QA探查R14] /video 旁白／AI語音客製化缺失：創作者無法選擇語音風格——輸出品質失控",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-255",
+     "summary": "[QA探查R14] /video 影片解析度／畫質選擇缺失：輸出固定規格——交付品質不達標",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-256",
+     "summary": "[QA探查R14] /video 批次影片生成缺失：單次只能生成一支影片——規模化交付受阻",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-257",
+     "summary": "[資安巡檢C9] /video SSRF：Fal.ai 呼叫傳入使用者控制 URL 未驗證白名單——探測內網 / 繞過 Fal 授權",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-258",
+     "summary": "[資安巡檢C9] /video Supabase DB 暫停→Auth 旁路：DB INACTIVE 期間請求驗證中斷——未授權存取所有受保護 API",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [
+      "users"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-260",
+     "summary": "[opt] /video 輸出規格全收斂：output_spec schema + aspect_ratio + resolution/fps/codec——一次 PR 收斂 AIDV-247/AIDV-255，解除 Fal.ai 格式鎖定",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-261",
+     "summary": "[opt] Auth 基礎設施三層強化：fail-closed guard + /api/health DB probe + GoTrue config 清理——支撐 AIDV-258 P0 修補與長期穩定性",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-262",
+     "summary": "[資安巡檢C2] SSRF：未授權 /api/media/download 重定向/前綴繞過＋persistExternalMediaUrl 缺 SSRF guard",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-263",
+     "summary": "[資安巡檢C2] Orb 語音 WS DoS：併發上限以 client userId 計（可繞過）＋無 maxPayload",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-264",
+     "summary": "[資安巡檢C2] 認證 DoS：登入鎖定僅以 email 計數、無 IP 維度→可定向鎖死任意已註冊帳號（含 admin）",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-265",
+     "summary": "[資安巡檢C2] DoS 硬化：全域 50MB body 套所有路由／未授權 /api/proxy-download 無大小上限／rate-limit 用記憶體 store",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-266",
+     "summary": "[資安巡檢 healing-studio] vault.secrets 表未啟用 RLS，機密資料恐遭未授權存取",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-267",
+     "summary": "[資安巡檢 healing-studio] auth schema 中 7 張 OAuth/WebAuthn 資料表未啟用 RLS",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-268",
+     "summary": "[QA探查 R15] /video 缺少程式化影片建立 API：無 headless REST/tRPC 端點，多代理系統無法非介面呼叫生成",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-269",
+     "summary": "[QA探查 R15] /video 缺少創作者端 Webhook/Callback：非同步生成完成後無主動通知機制，代理整合須輪詢",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-270",
+     "summary": "[QA探查 R15] /video 缺少多模態輸入支援：無法同時傳入影像＋文字＋音訊作為生成素材，創意控制受限",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-271",
+     "summary": "[QA探查 R15] /video 匯出格式僅 MP4：無 WebM/GIF/ProRes 選項，網頁嵌入與動態圖需求完全封鎖",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-272",
+     "summary": "[QA探查 R15] /video 缺少影片分析數據看板：創作者無法追蹤影片觀看次數、完播率、互動數據",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-273",
+     "summary": "[QA探查 R15] /video 創作者生成配額完全不透明：無用量儀表板、無剩餘額度顯示、無超額預警",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "alert_configs"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-274",
+     "summary": "[QA探查 R15] /video AI Director 風格參數缺失：無視覺風格、節奏、轉場、運鏡調控，生成影片千篇一律",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-276",
+     "summary": "[opt] 程式化 API 整合層收斂：headless REST + API key 鑑權 + webhook 回調——一次 PR 收斂 AIDV-268/AIDV-269，解鎖 B2B/自動化市場",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "users"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-277",
+     "summary": "[opt] Creator 可見性智能層收斂：用量配額透明度 + 影片分析儀表板——一次 PR 收斂 AIDV-272/AIDV-273，建立 Creator 留存數據飛輪",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "users"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-278",
+     "summary": "[QA探查 R10] /video 成品無線上播放器：生成完成後無試看入口，創作者只能盲下載才知品質",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-279",
+     "summary": "[QA探查 R10] /video 無分段重生成：成品品質不佳時只能全部重做，迭代成本極高",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-280",
+     "summary": "[資安巡檢C3] /video 成品 CDN URL 無簽名時效：任何人取得連結後可永久訪問他人付費影片",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-281",
+     "summary": "[資安巡檢C3] /video toast 通知 innerHTML 渲染：腳本內容含 HTML/JS 時可觸發 Reflected XSS",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-282",
+     "summary": "[opt] 成品交付體驗收斂：線上播放器 + 分段重生成——一次 PR 收斂 AIDV-278/AIDV-279，解鎖「試看→迭代」成交段",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-284",
+     "summary": "Wave G：目標導向定位 · 自有素材 AI 專案管理系統（產品北極星）",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-289",
+     "summary": "[QA探查R16] /video 多代理呼叫缺分散式追蹤：無 X-Request-ID/TraceID 傳遞，跨代理 debug 無法對帳日誌——多代理編排場景全盲",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-290",
+     "summary": "[QA探查R16] /video API 無 per-client 配額隔離：多代理共享 API key 時無法歸因用量——超額時代理彼此打架，無法 debug 誰消耗配額",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-291",
+     "summary": "[QA探查R16] /video SSE job 訂閱無 agent namespace：多代理並行訂閱時事件廣播混流，Agent-A 收到 Agent-B 的 job 完成通知",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-292",
+     "summary": "[資安巡檢C4] /video job 建立端點無 rate limiting：單一帳號可無限觸發 LLM 生成任務——資源耗盡攻擊（ReDoS/LLM-DoS）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-293",
+     "summary": "[資安巡檢C4] /video tRPC input 無深度/大小限制：巢狀 JSON payload 可觸發 ReDoS / Stack Overflow（Billion Laughs pattern）",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-294",
+     "summary": "[opt] DoS 防線三合一收斂：rate limiting + input size limit + concurrent job cap——一次 PR 收斂 AIDV-292/293，消除 LLM-DoS / ReDoS 向量",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-296",
+     "summary": "Wave T：團隊運作與管理（組別型 · 把治理零件整合成可實際運作的團隊）",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-301",
+     "summary": "Wave D：專案資料模型與運作（資料骨幹 · 上下文組裝 · 跨組重用與提示詞共享）",
+     "type": "大型工作",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-307",
+     "summary": "[QA探查R17] /video videoProject 列表無分頁：重度用戶百支影片全量載入——記憶體噴發＋首屏空白超過 10 秒",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-308",
+     "summary": "[QA探查R17] /video SSE 斷線無狀態恢復：連線中斷後創作者不知 job 結果——須重整頁才能取得完成通知",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-309",
+     "summary": "[QA探查R17] /video 無影片專案複製/模板功能：重複型創作者每次從空白開始——系列化影片無路由可走",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-310",
+     "summary": "[資安巡檢C5] /video 檔案上傳 MIME 類型未驗證：攻擊者可上傳 .html/.js 偽裝 image/mp4——CDN 直連時觸發 XSS / JS 執行",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-311",
+     "summary": "[資安巡檢C5] /video CORS 配置過於寬鬆：Access-Control-Allow-Origin 允許任意來源請求帶 credentials——跨站讀取 tRPC 敏感回應",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-312",
+     "summary": "[資安巡檢C5] /video HTTP 安全 header 不完整：缺少 HSTS / X-Frame-Options / Permissions-Policy——點擊劫持＋降級攻擊向量開放",
+     "type": "漏洞",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-316",
+     "summary": "[QA探查R18] /video 多代理並行編輯同一專案無並發控制：後寫覆蓋前寫——多代理協作場景下資料靜默損毀",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-317",
+     "summary": "[QA探查R18] /video 缺少代理能力登記表（Agent Capability Registry）：任務路由盲派——多代理系統無法最佳派工",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-318",
+     "summary": "[QA探查R18] /video 代理交接無正式紀錄：子任務完成後無交棒協議——多代理管線斷鏈",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-319",
+     "summary": "[資安巡檢C6] /video JWT 未驗證 audience（aud）宣告：跨服務 token 重放攻擊——healing-studio 的 JWT 可橫向重用於 /video",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-320",
+     "summary": "[資安巡檢C6] /video IDOR 風險：videoProject ID 為連續整數——未授權用戶可枚舉他人專案",
+     "type": "漏洞",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-321",
+     "summary": "[資安巡檢C6] /video AI 生成端點缺少 SSRF 防護：攻擊者可注入惡意 URL 作為素材——使伺服器對內網發出請求",
+     "type": "漏洞",
+     "priority": "Highest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-323",
+     "summary": "[opt] 多代理路由基礎層收斂：並發鎖 + Capability Registry API——一次 PR 收斂 AIDV-316/317，解鎖 Wave T 多組別協作",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-74": {
+   "epic": "Wave U：UIUX 視覺實裝（⑦ UIUX 設計 46 頁落地）",
+   "inprog": [
+    {
+     "key": "AIDV-75",
+     "summary": "U-0 盤點：⑦ UIUX 46 頁 ↔ 既有卡缺口清單（產出細項卡）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-92",
+     "summary": "U-2 設計套件元件逐殼採用（/video /social /learn /settings）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-95",
+     "summary": "U-5 /video 六步工作流座艙視覺實裝（含確認門＋ShotCard）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-96",
+     "summary": "U-6 /social 九步旅程視覺實裝（S1–S9）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-99",
+     "summary": "U-9 共用 PromptVault「生成→存庫→重用」採用（跨 /video /social）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "digital_asset_library",
+      "prompt_library"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-103",
+     "summary": "UI/UX 一致性：ui-ux-pro-max 設計智庫接入 AIDV 工作流（設計門／驗證門）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-114",
+     "summary": "U-11 OrbAssistant 光球助手視覺實裝（跨殼：浮球＋主動泡泡＋6 情境分頁＋人格心情）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-116",
+     "summary": "U-13 團隊協作系統視覺實裝（/learn/teams：團隊／成員／角色／共享／分工看板）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "project_data_access_rules",
+      "team_memberships",
+      "teams",
+      "prompt_collection"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-117",
+     "summary": "U-14 Flow TV 全屏沉浸播放器視覺實裝（跨 /video /social 提示庫放映皮）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "digital_asset_library",
+      "prompt_library"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-118",
+     "summary": "U-15 全站四態／空／錯誤態＋RWD 斷點＋a11y（WCAG AA／reduced-motion）一致性驗收",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-119",
+     "summary": "U-10 首頁 landing 視覺實裝（門面 KV／icon set／calm orb）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    }
+   ],
+   "backlog": [
+    {
+     "key": "AIDV-133",
+     "summary": "刪除舊 UI 路徑（strangler Eliminate 階段）",
+     "type": "故事",
+     "priority": "Low",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-134",
+     "summary": "U-4a 脊椎 chrome：ProjectSwitcher 展開（專案清單＋Context Packet 重建）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-135",
+     "summary": "U-4b 脊椎 chrome：ProviderChip 下拉（hf／gemini／fal／mock＋健康狀態）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-136",
+     "summary": "U-4c 脊椎 chrome：CommandPalette ⌘K（前往/代理/切專案/Provider/主題＋鍵盤）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-137",
+     "summary": "U-4d 脊椎 chrome：Toasts（ok/warn/bad/info＋auto-dismiss＋a11y）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-138",
+     "summary": "U-4e 脊椎 chrome：MobileNav（≤780 底部 5 籤＋中央光球 FAB）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-140",
+     "summary": "U-AUDIT 完整 UI/UX ＋ 資料層連結 體檢與整改（非技術創作者北極星）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-141",
+     "summary": "U-SOP Figma 設計系統建置（SOP v1）追蹤｜S1–S7 對齊",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-143",
+     "summary": "U-SOP-7 回流 code｜Code Connect 映射 + Variables→tokens.ts 匯出",
+     "type": "故事",
+     "priority": "Low",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-144",
+     "summary": "U-9 Phase 2：PromptVaultAdoption 掛載進 /video /social（接生成→存庫→重用閉環）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-145",
+     "summary": "U-13 Phase 2：teams 元件掛載進 /learn/teams 路由＋接 teams.* 真實資料",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "teams"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-146",
+     "summary": "U-14 Phase 2：FlowTvOverlay 掛載進 /video /social＋接 promptLibrary 真實放映",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "prompt_library"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-147",
+     "summary": "U-10 Phase 2：landing 門面元件掛載進首頁 page（走查後上線）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-148",
+     "summary": "U-12 Phase 2：connectors greenfield 元件與 #917 /settings 版整併決策＋掛載",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "data_source_connections",
+      "project_data_access_rules"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-149",
+     "summary": "U-5 續：/video 其餘步驟視覺實裝（世界觀/劇本/分鏡/成片）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-150",
+     "summary": "U-6 續：/social 其餘步驟視覺實裝（S1·S3–S9）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-55": {
+   "epic": "Wave H 營運與安全硬化",
+   "inprog": [
+    {
+     "key": "AIDV-71",
+     "summary": "M8 巨檔拆分",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    }
+   ],
+   "backlog": [
+    {
+     "key": "AIDV-62",
+     "summary": "H8b userRating→模型推薦迴路",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "generation_history",
+      "agent_model_picks"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-63",
+     "summary": "H9 個資出口（刪帳號/資料匯出/log 保留）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "login_history"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-66",
+     "summary": "M3 媒體儲存版本化/快照",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-67",
+     "summary": "M4 儲存清理 job（R2 孤兒＋expiresAt）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-68",
+     "summary": "M5 金鑰輪替與加密金鑰分離",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-70",
+     "summary": "M7 staging 環境",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-72",
+     "summary": "M9 效能地雷拆除",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-73",
+     "summary": "M10 TypeScript 債",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-77",
+     "summary": "Railway MCP 接入（官方遠端版）＋自架 mcp-server 處置",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-88",
+     "summary": "Confluence MCP 連線啟用＋頁面樹/變更紀錄/討論區補建",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-104",
+     "summary": "modelResearcher 測試 vs 現行設計衝突（CI baseline 收尾）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-122",
+     "summary": "內部資料治理：素材來源血統／敏感分級／AI 輸出來源標示",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-132",
+     "summary": "退役 runtime SchemaEnsure 動態補 schema → 改 pre-deploy migration + expand-and-contract",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": [
+      "0071",
+      "0074"
+     ]
+    }
+   ]
+  },
+  "AIDV-33": {
+   "epic": "Wave 3 重後端/基建/協作",
+   "inprog": [],
+   "backlog": [
+    {
+     "key": "AIDV-18",
+     "summary": "M3 影片段落狀態機",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-19",
+     "summary": "MySQL→Supabase 遷移＋退役 Pinecone",
+     "type": "故事",
+     "priority": "Low",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-21",
+     "summary": "Yjs/Hocuspocus（腳本）＋tRPC subscription（Shot JSON）",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-22",
+     "summary": "XState 收斂",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-35",
+     "summary": "瀏覽器模擬創作者實測（E2E persona 測試）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-48",
+     "summary": "W3-B 初剪編輯器 rough-cut＋匯出打包",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [
+      "background_jobs"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-49",
+     "summary": "W3-D 代理操作面板（唯讀版起步）",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [
+      "orchestration_runs"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-50",
+     "summary": "W3-E 排程批次走 videoSession＋段落綁定",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-51",
+     "summary": "W3-F 血統檢視 v1",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [
+      "prompt_assets"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-52",
+     "summary": "W3-G strangler 刪除：P2 舊三欄",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-32": {
+   "epic": "Wave 2 耐久任務/成本/血統",
+   "inprog": [],
+   "backlog": [
+    {
+     "key": "AIDV-13",
+     "summary": "任務耐久化 BullMQ+Redis+可重連 SSE",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-16",
+     "summary": "fal.ai 雙層生影片",
+     "type": "故事",
+     "priority": "Low",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-43",
+     "summary": "W2-E G10 user_workflows 工作流持久化",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-44",
+     "summary": "W2-F G7 segment/session 狀態機（shared）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-45",
+     "summary": "W2-G G11 LoRA 調度 UI（fal 為主）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "fine_tuned_models"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-46",
+     "summary": "W2-H world 畫布（WorldPanel 完成度 Meter）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-47",
+     "summary": "W2-I G12 前置修帳",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": [
+      "0008",
+      "0026",
+      "0033",
+      "0035",
+      "0067",
+      "0071",
+      "0074"
+     ]
+    },
+    {
+     "key": "AIDV-124",
+     "summary": "API 成本配額／預算管控（可選 · 疊在 AIDV-14 之上）",
+     "type": "故事",
+     "priority": "Low",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-125": {
+   "epic": "Wave S：AI Skill 工作層（自訂＋外部 Skill，導演腦編排）",
+   "inprog": [],
+   "backlog": [
+    {
+     "key": "AIDV-126",
+     "summary": "S-1 Skill 契約 SSOT（manifest schema＋擴充 workflow_steps）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-127",
+     "summary": "S-2 官方 Skill 集：封裝現有影片流程（契約黃金樣本）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-128",
+     "summary": "S-3 Skill 編排器（orb/spirit → 多 Skill 串接／失敗重試）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-129",
+     "summary": "S-4 Skill 註冊／信任分級（官方·已審核·社群）／權限放行",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-130",
+     "summary": "S-5 Skill 成本歸屬（依 skillId 落帳，疊在 AIDV-14 上）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [
+      "cost_aggregations"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-131",
+     "summary": "S-6 外部/社群 Skill 沙箱（資料隔離＋資源上限）＋供應鏈安全（pin/重審）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-34": {
+   "epic": "Wave 4 代理建置區/BYOMCP",
+   "inprog": [],
+   "backlog": [
+    {
+     "key": "AIDV-23",
+     "summary": "可觀察/可審核/半唯讀 builder",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-24",
+     "summary": "BYOMCP 權限/稽核",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-25",
+     "summary": "orchestrator＋專責 worker",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-53",
+     "summary": "W4-E 暗色「影院/夜間」次模式",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-54",
+     "summary": "W4-F strangler 收尾刪除",
+     "type": "故事",
+     "priority": "Lowest",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-301": {
+   "epic": "Wave D：專案資料模型與運作（資料骨幹 · 上下文組裝 · 跨組重用與提示詞共享）",
+   "inprog": [],
+   "backlog": [
+    {
+     "key": "AIDV-302",
+     "summary": "D-1 專案資料模型 SSOT（物件・關聯・血統）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-303",
+     "summary": "D-2 專案上下文組裝（把專案脈絡組成 context 餵 AI · Wave G 關鍵層）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-304",
+     "summary": "D-3 資料生命週期（草稿/進行/歸檔 · 版本 · 清理）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-305",
+     "summary": "D-4 跨專案/跨組別重用 ＋ 團隊共享庫（組內共用 · 精選升級跨組）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-306",
+     "summary": "D-5 提示詞共享機制優化（標籤/搜尋/評分 · 模板變數 · 組內分享＋精選跨組）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-284": {
+   "epic": "Wave G：目標導向定位 · 自有素材 AI 專案管理系統（產品北極星）",
+   "inprog": [],
+   "backlog": [
+    {
+     "key": "AIDV-285",
+     "summary": "G-1 個人儲存空間（3–5GB 基礎）+ 個人雲端硬碟連接（未來 MCP 本機檔案直連）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-286",
+     "summary": "G-2 成本與額度政策定盤（固定 vs 變動數字、模型訓練趨近免費＋雲端算力配額）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-287",
+     "summary": "G-3 設定簡化 + 提示詞自動收集（降低操作複雜度，好用 prompt 自動入庫）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-288",
+     "summary": "G-4 平台對外 MCP 化／本機系統版（讓 Claude 等外部代理連結操作）— 研究向／待議",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-296": {
+   "epic": "Wave T：團隊運作與管理（組別型 · 把治理零件整合成可實際運作的團隊）",
+   "inprog": [],
+   "backlog": [
+    {
+     "key": "AIDV-297",
+     "summary": "T-1 組別模型 + 角色／Admin 定盤（組別實體 · 真實職責角色 · 誰是 Admin）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-298",
+     "summary": "T-2 統一管理台 Admin Console（成員/角色/組別/配額/成本/稽核/資料治理/Skill 信任一站管理）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-299",
+     "summary": "T-3 團隊運作 SOP（成員加入/離開 · 誰能拍板 · 創作端工作流）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-300",
+     "summary": "T-4 組別配額串接（組別＝配額/成本單位：G-2 政策 × 124 引擎 × 14 歸屬）",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-31": {
+   "epic": "Wave 1 SSOT+接線",
+   "inprog": [],
+   "backlog": [
+    {
+     "key": "AIDV-8",
+     "summary": "junction backfill 真 DB 實跑",
+     "type": "故事",
+     "priority": "High",
+     "tables": [
+      "prompt_library"
+     ],
+     "migs": []
+    },
+    {
+     "key": "AIDV-9",
+     "summary": "junction relation 寫入點（variant/rewrite/extended）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    },
+    {
+     "key": "AIDV-29",
+     "summary": "避雷備忘",
+     "type": "故事",
+     "priority": "Medium",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-78": {
+   "epic": "Wave I 現有功能整合（既有 orb/spirit/世界觀/教材庫 → 導演台脊椎接線）",
+   "inprog": [
+    {
+     "key": "AIDV-85",
+     "summary": "I-7 LoRA 角色一致性閉環",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    }
+   ],
+   "backlog": [
+    {
+     "key": "AIDV-120",
+     "summary": "OrbAssistant 語音 Gateway 後端實裝（取代 stub · 接 ASR/TTS/串流）",
+     "type": "故事",
+     "priority": "High",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  },
+  "AIDV-89": {
+   "epic": "📥 AIDISC 討論區（Jira 暫代 · Confluence 不可達期間）",
+   "inprog": [],
+   "backlog": [
+    {
+     "key": "AIDV-90",
+     "summary": "🔐 撤銷並更換已外洩的 Atlassian API token（安全 · 優先）",
+     "type": "任務",
+     "priority": "Highest",
+     "tables": [],
+     "migs": []
+    }
+   ]
+  }
+ },
+ "future_code": [
+  {
+   "key": "AIDV-102",
+   "summary": "🔄 AIDV 開放工作流程（看板作業 SOP · 單一作業面）",
+   "status": "進行中",
+   "hits": [
+    "needs-key",
+    "缺金鑰"
+   ],
+   "snip": "> **這張卡是什麼**：AIDV 看板「每一張卡怎麼從想法走到合併」的單一作業流程（鏡像 repo `docs/plan/AIDV-dev-workflow.md`）。任何開發都要照這條工作流程跑，不跳關。**白話**：把模糊的「做事方式」釘成一條看得見的流水線，誰來做都一樣。 --- ## 1. 看板四欄 ↔ 九階流水線對照 本看板目前用 Jira 預設四欄，已替每一欄賦予明確語意： | 看板欄位（狀態） | 對應流水線階段 | 白話：卡放這裡代表 | | --- | --- | --- | | **Backl"
+  },
+  {
+   "key": "AIDV-103",
+   "summary": "UI/UX 一致性：ui-ux-pro-max 設計智庫接入 AIDV 工作流（設計門／驗證門）",
+   "status": "進行中",
+   "hits": [
+    "待 Bruce"
+   ],
+   "snip": "把第三方開源設計智庫 **ui-ux-pro-max**（nextlevelbuilder/ui-ux-pro-max-skill v2.5.0, MIT）接入 AIDV 開發工作流，讓「任何會改變介面長相／手感／移動／互動」的卡都用同一套智庫做決策與自檢，治理跨殼跨頁的 UI/UX 一致性。 ## 範圍 * 智庫已 vendored 到 `.claude/skills/ui-ux-pro-max/`（SKILL.md＋scripts 離線 BM25 檢索＋data CSV 161 配色／字體配對／風格／UX 守則"
+  },
+  {
+   "key": "AIDV-116",
+   "summary": "U-13 團隊協作系統視覺實裝（/learn/teams：團隊／成員／角色／共享／分工看板）",
+   "status": "進行中",
+   "hits": [
+    "待接",
+    "待建"
+   ],
+   "snip": "設計交付『移植 2-14／UIUX §2-14』團隊協作（Bruce 標「很重要」），現 U-7 /learn 與 U-8 /settings 清單皆未含 teams 畫面，為缺口。 畫面 checklist： - [ ] 團隊建立／清單／詳情；成員管理（新增／移除／離開／刪除）＋角色 - [ ] 共享：專案／連接器／提示詞庫（promptCollection team_shared）／團隊教材庫（含 ACL 稽核） - [ ] cockpit 協作顯示成員在線／分工（presence ⚠即時通道待建→標待接） -"
+  },
+  {
+   "key": "AIDV-117",
+   "summary": "U-14 Flow TV 全屏沉浸播放器視覺實裝（跨 /video /social 提示庫放映皮）",
+   "status": "進行中",
+   "hits": [
+    "待接",
+    "待建"
+   ],
+   "snip": "設計交付『移植 2-12／UIUX §2-12』Flow TV 全屏播放器（仿 Google Flow TV）。U-9 為 SaveToVault／VaultBrowser 存取閉環、U-6 S4 僅提「Flow TV 牆」，全屏播放器 UI＝新建展示皮、無專卡。 畫面 checklist： - [ ] 全屏沉浸播放器＋底部 prompt 疊層＋「Hide Prompt」開關 - [ ] 模型徽章（Text to Video·Veo…）＋頻道 Channel - [ ] 播放控制：上一個／暫停／下一個＋循環＋全屏 "
+  },
+  {
+   "key": "AIDV-77",
+   "summary": "Railway MCP 接入（官方遠端版）＋自架 mcp-server 處置",
+   "status": "Backlog",
+   "hits": [
+    "待 Bruce"
+   ],
+   "snip": "目的：讓 AI 同事能直接查 Railway 部署/日誌/環境變數/重新部署，之後每次 PR 部署驗證、抓生產問題（像 06-13 的 migration 卡死 P0）都不用再瞎子摸象。 ‌ 已完成（2026-06-13）： \\- 官方遠端 MCP（https://mcp.railway.com，OAuth 短效 token、可隨時撤銷）已寫入本機 Claude Code user 層設定（\\~/.claude.json，備份 .bak-railway）。下次 session 啟動生效，首次使用會跳瀏覽器 OAut"
+  },
+  {
+   "key": "AIDV-78",
+   "summary": "Wave I 現有功能整合（既有 orb/spirit/世界觀/教材庫 → 導演台脊椎接線）",
+   "status": "Backlog",
+   "hits": [
+    "待 Bruce"
+   ],
+   "snip": "**提案中（待 Bruce 拍板）**。不動既有 Wave 0–4 定錨；本軌為新增平行軌。 **核心發現（2026-06-13 程式碼實證）**：repo 內有一整套成熟、多為 LIVE 的代理/創作系統（15 精靈＋多代理編排器＋工作流引擎＋帶確認門的工具執行器＋長期記憶＋教材庫 RAG＋世界觀／分鏡／真實地球／圖影音三大工作室 200+ procedure），但都活在舊頁面，**新四殼導演台脊椎幾乎沒接到**。最高 CP 值的未來工作＝把既有功能接進新導演台，而非再蓋新功能。 詳見 docs/plan/AID"
+  },
+  {
+   "key": "AIDV-140",
+   "summary": "U-AUDIT 完整 UI/UX ＋ 資料層連結 體檢與整改（非技術創作者北極星）",
+   "status": "Backlog",
+   "hits": [
+    "待補"
+   ],
+   "snip": "**北極星**：非技術創作者能否順暢把作品做出來。 **範圍**：現有網站介面層 UI/UX ＋ 資料層／後端連結。證據指向 repo 檔:行（HEAD f493f5d，2026-06-17 掃描）。 ## A. 介面層 UI/UX ### 🔴 高 **A1 假資料偽裝成真**｜`client/src/shells/AidvOrbMount.tsx:66` 自標「分頁資料為視覺示範，尚未接真實來源」。光球數字／狀態是假 → 一旦被發現，產品可信度崩。修：接真來源，或假資料一律打「示範」徽章。（根因見 B1） **A"
+  },
+  {
+   "key": "AIDV-144",
+   "summary": "U-9 Phase 2：PromptVaultAdoption 掛載進 /video /social（接生成→存庫→重用閉環）",
+   "status": "Backlog",
+   "hits": [
+    "Phase 2"
+   ],
+   "snip": "**承接 AIDV-99（PR #918 已合併 main）**：U-9 的可重用 `PromptVaultAdoption` 閉環元件（`client/src/components/promptVault/`）已建+測+合併，但**尚未掛進任何殼**。 **本卡範圍（Phase 2）**：把 `PromptVaultAdoption` wiring 進 /video 與 /social 創作流程，使「生成→存庫→重用」在兩殼實際可用。 **重用**：既有 `usePromptVault` 資料層、design-k"
+  },
+  {
+   "key": "AIDV-145",
+   "summary": "U-13 Phase 2：teams 元件掛載進 /learn/teams 路由＋接 teams.* 真實資料",
+   "status": "Backlog",
+   "hits": [
+    "待接",
+    "Phase 2"
+   ],
+   "snip": "**承接 AIDV-116（PR #918 已合併 main）**：greenfield 團隊協作視覺（`client/src/components/teams/`：TeamCard/MemberRow/DivisionBoard/TeamsBoard）已建+測+合併，但**尚未掛進 /learn/teams 路由、仍吃 mock**。 **本卡範圍（Phase 2）**：把 TeamsBoard 掛進 /learn 的 teams 頁／路由，接既有 `teams.*`（create/list/get/member"
+  },
+  {
+   "key": "AIDV-146",
+   "summary": "U-14 Phase 2：FlowTvOverlay 掛載進 /video /social＋接 promptLibrary 真實放映",
+   "status": "Backlog",
+   "hits": [
+    "Phase 2"
+   ],
+   "snip": "**承接 AIDV-117（PR #918 已合併 main）**：greenfield `FlowTvOverlay` 全屏放映皮（`client/src/components/flow-tv/`）已建+測+合併，但**尚未掛進任何殼、仍吃 mock items**。 **本卡範圍（Phase 2）**：把 FlowTvOverlay 掛進 /video /social 的提示庫放映入口，接 `promptLibrary.list/listPublic/getById/incrementUseCount`＋`ge"
+  },
+  {
+   "key": "AIDV-147",
+   "summary": "U-10 Phase 2：landing 門面元件掛載進首頁 page（走查後上線）",
+   "status": "Backlog",
+   "hits": [
+    "Phase 2"
+   ],
+   "snip": "**承接 AIDV-119（PR #918 已合併 main）**：greenfield 首頁 landing 門面元件（`client/src/components/home/`：LandingHero/LandingIconSet/LandingCalmOrb）已建+測+合併，但**尚未掛進首頁 page**。 **本卡範圍（Phase 2）**：把 landing 門面掛進首頁 page（碰既有 home page），旗標 `LANDING_KV`/`LANDING_CALM_ORB`（預設 ON＋env `"
+  },
+  {
+   "key": "AIDV-148",
+   "summary": "U-12 Phase 2：connectors greenfield 元件與 #917 /settings 版整併決策＋掛載",
+   "status": "Backlog",
+   "hits": [
+    "Phase 2"
+   ],
+   "snip": "**承接 AIDV-115**：本卡有兩份實作需整併——(a) PR #917 已把 /settings 連接器治理面板**掛載上線**（5 類，旗標守門）；(b) PR #918 另有 greenfield `client/src/components/connectors/ConnectorsPanel`（已建+測+合併但**未掛載**）。 **本卡範圍（Phase 2）**：拍板整併方向——擇一為主、另一退役或合流，避免兩份連接器面板並存漂移；把選定版掛載/接 `dataConnections.*`／`dat"
+  },
+  {
+   "key": "AIDV-167",
+   "summary": "[opt] Stripe webhook 事件處理器仍空殼：付費開通/續期/降級從未落地（AIDV-159 只修了簽章）",
+   "status": "Backlog",
+   "hits": [
+    "Phase 2"
+   ],
+   "snip": "> 白話：上一張卡（AIDV-159）只把 Stripe 通知的「簽章驗證」修真了（以前永遠 return true）。但收到通知後「該幫使用者開通付費／續期／降級」的實際動作，目前還是空的 console.log，等於錢收了、權限沒給。接金流前必補。 **來源**：活程式碼全端掃描；與 AIDV-159 互補（非重複）。 **對 HEAD 驗證**：`server/routes/stripeWebhook.ts` 多個事件分支（checkout.session.completed / invoice.paid /"
+  },
+  {
+   "key": "AIDV-179",
+   "summary": "[opt] 低風險小修合輯：promptLibrary content 搜尋＋download catch 日誌＋costAnalytics→orbCostGuard＋孤兒頁/過期文件清理",
+   "status": "Backlog",
+   "hits": [
+    "Phase 2"
+   ],
+   "snip": "> 白話：一籃子各自很小、風險很低的清理，給實作引擎一條條撿。逐項皆獨立、可單獨小 PR。 **來源**：比對與優化報告 §4-11／活碼掃描／全站生成管線盤點。**逐項對 HEAD 已驗仍成立。** ### 清單（逐項驗收，獨立小 PR） 1. **promptLibrary 搜尋擴及 content**（`server/routers/promptLibrary.ts`）：現只 `LIKE title`，擴為 `title LIKE ? OR content LIKE ?`（或加索引）。驗收：用只在 conte"
+  },
+  {
+   "key": "AIDV-180",
+   "summary": "[QA探查R5] 引導式創作「自動拆解」前後端契約不符：前端送 {script}、後端要 segments[] → HTTP 400，新手第一步即死（非 AIDV-165 LLM 根因）",
+   "status": "Backlog",
+   "hits": [
+    "待建"
+   ],
+   "snip": "## 白話現象（給工程小白） 新手在 /video 空專案點「**開始引導式創作**」→ 貼一段腳本 → 按「**自動拆解**」，**立刻失敗**，右下角跳紅色 toast：「腳本拆解失敗（director.analyzeScriptOverview / generateVideoScript）」。這是**新手進站後的第一個動作**，等於一打開就被擋死、完全走不進創作流程。 ## 為什麼這是一張新卡，不是 AIDV-165 的延續 * AIDV-165（LLM 模型設成失效的 Perplexity → 400 in"
+  },
+  {
+   "key": "AIDV-199",
+   "summary": "[QA探查R7] director.breakdown M3 路由缺失：引導式創作「自動拆解」正式 endpoint 至今未建，過渡接線永久成為死路（AIDV-180 toast 自揭線索）",
+   "status": "Backlog",
+   "hits": [
+    "待建"
+   ],
+   "snip": "## 白話現象 AIDV-180（R5）的後端錯誤 toast 裡有一句自白：「breakdownScript failed（過渡用 analyzeScriptOverview+generateVideoScript；**正式 director.breakdown M3 待建**）」。這代表： 1. 引導式創作的「自動拆解腳本」走的是一條**過渡臨時接線**（`director.analyzeScriptOverview` 收 `segments[]` 而非 `script` 字串）。 2. 正式的 `direct"
+  },
+  {
+   "key": "AIDV-200",
+   "summary": "[QA探查R7] /video 文字 AI 健康度盲區：providerReadiness 無文字 LLM 狀態 + 光球意圖澄清從不觸發——創作者無法自診「AI 大腦是否可用」",
+   "status": "Backlog",
+   "hits": [
+    "待 Bruce"
+   ],
+   "snip": "## 白話現象（R7 綜合） 承接 AIDV-181（R6）及 AIDV-196（opt-card），本輪彙整兩個創作者感知層缺口： ### 缺口 A：文字 AI 健康度不可見 當文字 LLM 供應商失效（402/503）： * `apiUsage.providerReadiness` 只回傳**媒體供應商**（fal_ai / gemini / elevenlabs / suno），**完全不含文字 LLM 狀態** * 創作者在 /video 上方「成本階梯」或設定頁，**看不到任何「AI 大腦是否可用」的指示"
+  },
+  {
+   "key": "AIDV-208",
+   "summary": "[QA探查R8] apiUsage alertConfigs 創作者設定預算告警卻永不觸發——幽靈設定等同 orbClarificationEngine 假學習，信任崩潰（AIDV-189 升格）",
+   "status": "Backlog",
+   "hits": [
+    "未接線"
+   ],
+   "snip": "## 白話現象（R8 票倉分析） 承接 AIDV-189（opt-card），本卡升格為創作者體驗 QA 紀錄。 創作者在 /video 設定頁→「用量與成本」→「新增告警規則」： * 填入每月預算上限（如 NT$500） * 設定告警閾值（80% 時通知） * 儲存成功（toast 顯示「已儲存告警規則」） **但** `apiUsage.alertConfigs`： 1. `create` / `update` → **只寫 DB，從不評估** 2. 無任何定時 job 或 hook 在消費超過閾值時觸發通知 "
+  },
+  {
+   "key": "AIDV-213",
+   "summary": "[opt] orbConversations 原子化 + UUID 遷移：DB transaction 防競態 + UUID PK 消 IDOR 枚舉，一次收斂 AIDV-192 + AIDV-210 兩個缺口",
+   "status": "Backlog",
+   "hits": [
+    "Phase 2"
+   ],
+   "snip": "## 問題彙整 本卡收斂兩個已知 orbConversations 缺口，改動最小化（單一 migration + 路由層守門）： | 缺口 | 卡號 | 現況 | | --- | --- | --- | | appendMessages read-modify-write 競態 | AIDV-192 | 並發 append 互覆寫，messageCount 漂移 | | getConversation/appendMessages 無 ownership 守門 | AIDV-210 (C3) | 任意登入用戶可讀"
+  },
+  {
+   "key": "AIDV-223",
+   "summary": "[opt] 全域速率限制 middleware 收斂：Upstash sliding-window 統一保護 auth.login/register/resetPassword + ai.chat——一次收斂 AIDV-211 + AIDV-221",
+   "status": "Backlog",
+   "hits": [
+    "needs-key"
+   ],
+   "snip": "## 問題彙整（C3 + C4 安全收斂） 本卡將兩輪安全巡檢發現的速率限制缺口打包為單一可複用 middleware： | 安全卡 | 端點 | 缺口 | 限制策略 | | --- | --- | --- | --- | | AIDV-211 (C3) | `ai.chat` / generation | 無限 LLM 呼叫（DoS/cost） | 20 RPM/user | | AIDV-221 (C4) | `auth.login/register/resetPassword` | 無限密碼猜測（帳號接管） "
+  },
+  {
+   "key": "AIDV-254",
+   "summary": "[QA探查R14] /video 旁白／AI語音客製化缺失：創作者無法選擇語音風格——輸出品質失控",
+   "status": "Backlog",
+   "hits": [
+    "Phase 2"
+   ],
+   "snip": "## 探查來源 * 來源：QA探查 R14 · /video endpoint multi-agent creator walk-through * 時間戳：2026-06-21 23:08 UTC * 執行者：aidv-qa-explore R14 (:08 run) --- ## 問題描述 `/video` endpoint 目前生成的影片僅能使用系統預設旁白語音（或完全無旁白），創作者無法： 1. 選擇 AI 語音風格（例如：溫柔女聲、專業男聲、活力青年聲） 2. 調整語音語速、音調、情緒風格 3. 上傳自己"
+  },
+  {
+   "key": "AIDV-288",
+   "summary": "G-4 平台對外 MCP 化／本機系統版（讓 Claude 等外部代理連結操作）— 研究向／待議",
+   "status": "Backlog",
+   "hits": [
+    "待 Bruce"
+   ],
+   "snip": "**Wave G 研究卡（**`待議`／遠期）：探索把整個平台「**包裝成 MCP 伺服器對外**」、並做出**本機系統版**，讓 Claude 等外部 AI 代理直接連結操作 AI Director 的能力。Bruce 原話：「這是我未來開發研究的方向。」 ## 方向（研究，未定稿） * 平台能力以 **MCP 對外暴露**（與 Wave 4 BYOMCP **反方向**：BYOMCP 是「消費外部 MCP」，本卡是「平台**當 MCP 伺服器**被別人用」）。 * **本機系統版**：可在個人機器跑，營運成本分"
+  },
+  {
+   "key": "AIDV-323",
+   "summary": "[opt] 多代理路由基礎層收斂：並發鎖 + Capability Registry API——一次 PR 收斂 AIDV-316/317，解鎖 Wave T 多組別協作",
+   "status": "Backlog",
+   "hits": [
+    "待 Bruce"
+   ],
+   "snip": "## 來源 Harvest（四模態彙整） | 模態 | 輸入來源 | 關鍵信號 | | --- | --- | --- | | **QA R18** | AIDV-316 (並發控制缺失) | 多代理並行寫入同一專案，last-write-wins 資料損毀率 100% | | **QA R18** | AIDV-317 (路由盲派) | 無 capability registry，任務無法依專長/負載最佳派工 | | **QA R18** | AIDV-318 (交棒缺失) | 交棒紀錄缺失，本票暫不收斂（需 a"
+  }
+ ],
+ "planned_tables": [
+  "email_verification_tokens",
+  "agent_collaboration_steps",
+  "agent_collaboration_messages",
+  "agent_performance_metrics"
+ ],
+ "future_tables_from_cards": {
+  "digital_asset_library": [
+   "AIDV-99",
+   "AIDV-117"
+  ],
+  "prompt_library": [
+   "AIDV-99",
+   "AIDV-117",
+   "AIDV-8",
+   "AIDV-146",
+   "AIDV-179",
+   "AIDV-192",
+   "AIDV-202",
+   "AIDV-210",
+   "AIDV-212",
+   "AIDV-213",
+   "AIDV-215",
+   "AIDV-220",
+   "AIDV-224"
+  ],
+  "project_data_access_rules": [
+   "AIDV-116",
+   "AIDV-148"
+  ],
+  "team_memberships": [
+   "AIDV-116",
+   "AIDV-244",
+   "AIDV-243"
+  ],
+  "teams": [
+   "AIDV-116",
+   "AIDV-145",
+   "AIDV-188",
+   "AIDV-207",
+   "AIDV-218",
+   "AIDV-219",
+   "AIDV-222"
+  ],
+  "prompt_collection": [
+   "AIDV-116"
+  ],
+  "alert_configs": [
+   "AIDV-204",
+   "AIDV-189",
+   "AIDV-200",
+   "AIDV-208",
+   "AIDV-211",
+   "AIDV-214",
+   "AIDV-219",
+   "AIDV-273"
+  ],
+  "background_jobs": [
+   "AIDV-244",
+   "AIDV-48",
+   "AIDV-164",
+   "AIDV-169",
+   "AIDV-231"
+  ],
+  "fine_tuned_models": [
+   "AIDV-45"
+  ],
+  "orchestration_runs": [
+   "AIDV-49"
+  ],
+  "prompt_assets": [
+   "AIDV-51"
+  ],
+  "generation_history": [
+   "AIDV-62",
+   "AIDV-164",
+   "AIDV-169",
+   "AIDV-231"
+  ],
+  "agent_model_picks": [
+   "AIDV-62"
+  ],
+  "login_history": [
+   "AIDV-63"
+  ],
+  "cost_aggregations": [
+   "AIDV-130",
+   "AIDV-189",
+   "AIDV-194"
+  ],
+  "data_source_connections": [
+   "AIDV-148",
+   "AIDV-185"
+  ],
+  "creative_projects": [
+   "AIDV-151",
+   "AIDV-227"
+  ],
+  "context_packets": [
+   "AIDV-185"
+  ],
+  "rate_limit_rules": [
+   "AIDV-189"
+  ],
+  "cost_ledger": [
+   "AIDV-191"
+  ],
+  "orb_conversations": [
+   "AIDV-192",
+   "AIDV-196",
+   "AIDV-200",
+   "AIDV-210",
+   "AIDV-212",
+   "AIDV-213",
+   "AIDV-215",
+   "AIDV-222",
+   "AIDV-225",
+   "AIDV-236"
+  ],
+  "orb_conversation_messages": [
+   "AIDV-192"
+  ],
+  "provider_snapshots": [
+   "AIDV-194"
+  ],
+  "custom_blocks": [
+   "AIDV-197",
+   "AIDV-200",
+   "AIDV-216"
+  ],
+  "users": [
+   "AIDV-258",
+   "AIDV-276",
+   "AIDV-277"
+  ]
+ }
+}

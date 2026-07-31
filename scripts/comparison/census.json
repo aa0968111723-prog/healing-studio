@@ -1,0 +1,3565 @@
+{
+ "total_files": 1738,
+ "total_loc": 587080,
+ "areas": {
+  "client/src": {
+   "files": 646,
+   "loc": 212972,
+   "by_ext": {
+    ".ts": 141,
+    ".tsx": 502,
+    ".css": 2,
+    ".md": 1
+   }
+  },
+  "server/services": {
+   "files": 197,
+   "loc": 92852,
+   "by_ext": {
+    ".ts": 196,
+    ".md": 1
+   }
+  },
+  "server/routers": {
+   "files": 50,
+   "loc": 39006,
+   "by_ext": {
+    ".ts": 50
+   }
+  },
+  "scripts/comparison": {
+   "files": 20,
+   "loc": 24401,
+   "by_ext": {
+    ".py": 7,
+    ".json": 12,
+    ".md": 1
+   }
+  },
+  "drizzle/meta": {
+   "files": 10,
+   "loc": 16364,
+   "by_ext": {
+    ".json": 10
+   }
+  },
+  "tests/unit": {
+   "files": 88,
+   "loc": 15859,
+   "by_ext": {
+    ".ts": 77,
+    ".tsx": 11
+   }
+  },
+  "server/_core": {
+   "files": 48,
+   "loc": 13565,
+   "by_ext": {
+    ".ts": 48
+   }
+  },
+  "docs/4shell-handoff": {
+   "files": 52,
+   "loc": 10555,
+   "by_ext": {
+    ".md": 41,
+    ".js": 2,
+    ".css": 3,
+    ".tsx": 5,
+    ".ts": 1
+   }
+  },
+  "server/routers.ts": {
+   "files": 1,
+   "loc": 9881,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/agent": {
+   "files": 14,
+   "loc": 6076,
+   "by_ext": {
+    ".md": 14
+   }
+  },
+  "shared/aiModelsCatalog.ts": {
+   "files": 1,
+   "loc": 5386,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/jobs": {
+   "files": 21,
+   "loc": 5297,
+   "by_ext": {
+    ".ts": 21
+   }
+  },
+  "server/routes": {
+   "files": 19,
+   "loc": 4422,
+   "by_ext": {
+    ".ts": 19
+   }
+  },
+  "drizzle/schema.ts": {
+   "files": 1,
+   "loc": 4252,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/db.ts": {
+   "files": 1,
+   "loc": 4248,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-studio-actions.ts": {
+   "files": 1,
+   "loc": 3031,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-agent-roles.ts": {
+   "files": 1,
+   "loc": 2884,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/subsystems": {
+   "files": 13,
+   "loc": 2255,
+   "by_ext": {
+    ".ts": 13
+   }
+  },
+  "docs/BACKEND_PIPELINE.md": {
+   "files": 1,
+   "loc": 2076,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/global-agent-core.test.ts": {
+   "files": 1,
+   "loc": 2051,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/promptReferenceLibrary.ts": {
+   "files": 1,
+   "loc": 2011,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/global-agent-tools.ts": {
+   "files": 1,
+   "loc": 1850,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/plans": {
+   "files": 5,
+   "loc": 1722,
+   "by_ext": {
+    ".md": 5
+   }
+  },
+  "docs/guides": {
+   "files": 6,
+   "loc": 1635,
+   "by_ext": {
+    ".md": 6
+   }
+  },
+  "shared/global-agent-orchestrator.ts": {
+   "files": 1,
+   "loc": 1611,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/agent-codex.ts": {
+   "files": 1,
+   "loc": 1570,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/appRegistry.ts": {
+   "files": 1,
+   "loc": 1548,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/global-agent-workflows.ts": {
+   "files": 1,
+   "loc": 1536,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/model-harness": {
+   "files": 4,
+   "loc": 1521,
+   "by_ext": {
+    ".mjs": 3,
+    ".md": 1
+   }
+  },
+  "shared/agent-actions.ts": {
+   "files": 1,
+   "loc": 1261,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "todo.md": {
+   "files": 1,
+   "loc": 1203,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "docs/audits": {
+   "files": 12,
+   "loc": 1194,
+   "by_ext": {
+    ".md": 12
+   }
+  },
+  "server/__tests__": {
+   "files": 8,
+   "loc": 1139,
+   "by_ext": {
+    ".ts": 8
+   }
+  },
+  ".claude/skills": {
+   "files": 16,
+   "loc": 1114,
+   "by_ext": {
+    ".md": 14,
+    ".js": 2
+   }
+  },
+  "shared/qualityCoachEngine.ts": {
+   "files": 1,
+   "loc": 1032,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-clarification-options.ts": {
+   "files": 1,
+   "loc": 925,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/agent-plan-adapter.ts": {
+   "files": 1,
+   "loc": 906,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/brain-auto-repair.test.ts": {
+   "files": 1,
+   "loc": 900,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/uploadRoute.ts": {
+   "files": 1,
+   "loc": 882,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "client/public": {
+   "files": 2,
+   "loc": 849,
+   "by_ext": {
+    ".js": 1,
+    ".json": 1
+   }
+  },
+  "server/agent-plan-v3.test.ts": {
+   "files": 1,
+   "loc": 846,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/middleware": {
+   "files": 2,
+   "loc": 802,
+   "by_ext": {
+    ".ts": 2
+   }
+  },
+  "shared/unifiedModelRegistry.ts": {
+   "files": 1,
+   "loc": 798,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/agent-plan-schema.ts": {
+   "files": 1,
+   "loc": 793,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/agent-skills.ts": {
+   "files": 1,
+   "loc": 790,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-task-orchestrator.test.ts": {
+   "files": 1,
+   "loc": 762,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/plan": {
+   "files": 5,
+   "loc": 751,
+   "by_ext": {
+    ".md": 5
+   }
+  },
+  "docs/SITE_MAP.md": {
+   "files": 1,
+   "loc": 711,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/data": {
+   "files": 1,
+   "loc": 695,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/audit-music-voice-studio.mjs": {
+   "files": 1,
+   "loc": 686,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "server/storage.ts": {
+   "files": 1,
+   "loc": 673,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/cross-modality-workflows.ts": {
+   "files": 1,
+   "loc": 654,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/healing.test.ts": {
+   "files": 1,
+   "loc": 637,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/cost-analytics.test.ts": {
+   "files": 1,
+   "loc": 633,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/types.ts": {
+   "files": 1,
+   "loc": 630,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/agent-plan-safety.ts": {
+   "files": 1,
+   "loc": 615,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/upload-route.test.ts": {
+   "files": 1,
+   "loc": 567,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/agent-tool-executor.test.ts": {
+   "files": 1,
+   "loc": 566,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/video-compiler.test.ts": {
+   "files": 1,
+   "loc": 566,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/brain-context.test.ts": {
+   "files": 1,
+   "loc": 545,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-script-structure.ts": {
+   "files": 1,
+   "loc": 542,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/audio-compiler.test.ts": {
+   "files": 1,
+   "loc": 536,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/workflow-confirmation.test.ts": {
+   "files": 1,
+   "loc": 535,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/BRAIN_CONFIGURATION.md": {
+   "files": 1,
+   "loc": 518,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/orb-chat-multimodal.test.ts": {
+   "files": 1,
+   "loc": 516,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-specialized-agents.ts": {
+   "files": 1,
+   "loc": 512,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/ai-chat-router-gating.test.ts": {
+   "files": 1,
+   "loc": 488,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-plan-critic.ts": {
+   "files": 1,
+   "loc": 480,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orchestrator-clarification.ts": {
+   "files": 1,
+   "loc": 470,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/slash-commands.ts": {
+   "files": 1,
+   "loc": 470,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/GLOBAL_ORB_CHAT_INTEGRATION.md": {
+   "files": 1,
+   "loc": 468,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/music-specialist-tools.test.ts": {
+   "files": 1,
+   "loc": 467,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-prompt-scenarios.ts": {
+   "files": 1,
+   "loc": 466,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/studio-tool-bridge.test.ts": {
+   "files": 1,
+   "loc": 460,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/agent-communication-protocol.ts": {
+   "files": 1,
+   "loc": 456,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/global-agent-registry.ts": {
+   "files": 1,
+   "loc": 455,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/agent-planner.test.ts": {
+   "files": 1,
+   "loc": 453,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "tests/e2e": {
+   "files": 3,
+   "loc": 442,
+   "by_ext": {
+    ".ts": 3
+   }
+  },
+  ".manus/db": {
+   "files": 19,
+   "loc": 432,
+   "by_ext": {
+    ".json": 19
+   }
+  },
+  "scripts/browser-audit": {
+   "files": 2,
+   "loc": 430,
+   "by_ext": {
+    ".mjs": 1,
+    ".md": 1
+   }
+  },
+  "shared/site-prompt-catalog.ts": {
+   "files": 1,
+   "loc": 425,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/repositories": {
+   "files": 4,
+   "loc": 420,
+   "by_ext": {
+    ".ts": 4
+   }
+  },
+  "shared/real-earth-types.ts": {
+   "files": 1,
+   "loc": 418,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/phase3-audit.test.ts": {
+   "files": 1,
+   "loc": 418,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/llm-perplexity-model-fallback.test.ts": {
+   "files": 1,
+   "loc": 418,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/agent-codex.test.ts": {
+   "files": 1,
+   "loc": 408,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/phase6-pdf-compliance.test.ts": {
+   "files": 1,
+   "loc": 408,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/soul-invitation-studio.test.ts": {
+   "files": 1,
+   "loc": 403,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-proxy-features.test.ts": {
+   "files": 1,
+   "loc": 389,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/auth-facade.test.ts": {
+   "files": 1,
+   "loc": 387,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/orb-complete-integration-status.md": {
+   "files": 1,
+   "loc": 385,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "shared/spirit-handoff-protocol.ts": {
+   "files": 1,
+   "loc": 384,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/upload-presign-route.test.ts": {
+   "files": 1,
+   "loc": 382,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/script-entity-detection.ts": {
+   "files": 1,
+   "loc": 379,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-attachment-extraction.test.ts": {
+   "files": 1,
+   "loc": 371,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-memory.test.ts": {
+   "files": 1,
+   "loc": 369,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/phase9-agentic.test.ts": {
+   "files": 1,
+   "loc": 367,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/notes": {
+   "files": 3,
+   "loc": 366,
+   "by_ext": {
+    ".md": 3
+   }
+  },
+  "shared/falModelCapabilities.ts": {
+   "files": 1,
+   "loc": 364,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/light-orb-optimization.test.ts": {
+   "files": 1,
+   "loc": 364,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/anatomy-specialist-tools.test.ts": {
+   "files": 1,
+   "loc": 361,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/phase5-audit.test.ts": {
+   "files": 1,
+   "loc": 361,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/voice-compiler.test.ts": {
+   "files": 1,
+   "loc": 359,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/calendar-sharedspace.test.ts": {
+   "files": 1,
+   "loc": 357,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/article-dialog.test.ts": {
+   "files": 1,
+   "loc": 357,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-guide-plans.ts": {
+   "files": 1,
+   "loc": 355,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/composer-imperative-parser.ts": {
+   "files": 1,
+   "loc": 355,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-memory.ts": {
+   "files": 1,
+   "loc": 350,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/orb-features-deployment-guide.md": {
+   "files": 1,
+   "loc": 347,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "docs/25-spirits-integration-audit.md": {
+   "files": 1,
+   "loc": 346,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "docs/ARCHITECTURE.md": {
+   "files": 1,
+   "loc": 342,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "scripts/simulate-director-orb.mjs": {
+   "files": 1,
+   "loc": 338,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "server/phase4-soul.test.ts": {
+   "files": 1,
+   "loc": 337,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/reports": {
+   "files": 2,
+   "loc": 337,
+   "by_ext": {
+    ".md": 2
+   }
+  },
+  "server/phase2.test.ts": {
+   "files": 1,
+   "loc": 335,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-perception-loop.ts": {
+   "files": 1,
+   "loc": 330,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/project-context-summary.test.ts": {
+   "files": 1,
+   "loc": 330,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/perplexity-throttle.test.ts": {
+   "files": 1,
+   "loc": 330,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/api-usage-aggregation.test.ts": {
+   "files": 1,
+   "loc": 327,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0059_media_archival_fields.sql": {
+   "files": 1,
+   "loc": 327,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/signed-upload.test.ts": {
+   "files": 1,
+   "loc": 325,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/signedUpload.ts": {
+   "files": 1,
+   "loc": 324,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/phase3a-visual.test.ts": {
+   "files": 1,
+   "loc": 324,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "vite.config.ts": {
+   "files": 1,
+   "loc": 322,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/voice-specialist-agent.test.ts": {
+   "files": 1,
+   "loc": 319,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/atomic-deduction.test.ts": {
+   "files": 1,
+   "loc": 318,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/context-packet-compile.test.ts": {
+   "files": 1,
+   "loc": 313,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0079_cost_attribution.sql": {
+   "files": 1,
+   "loc": 311,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "docs/orb-enhancement-complete.md": {
+   "files": 1,
+   "loc": 311,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/orb-agent-pipeline.test.ts": {
+   "files": 1,
+   "loc": 310,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/page-agent-bus.test.ts": {
+   "files": 1,
+   "loc": 309,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/visual-soul-invitation.test.ts": {
+   "files": 1,
+   "loc": 306,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-chat-multimodal.ts": {
+   "files": 1,
+   "loc": 305,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/sseRoute.test.ts": {
+   "files": 1,
+   "loc": 301,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/agent-model-picks-store.test.ts": {
+   "files": 1,
+   "loc": 291,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/dashboard-insights.ts": {
+   "files": 1,
+   "loc": 289,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/github-issue-client.test.ts": {
+   "files": 1,
+   "loc": 285,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/local-auth.test.ts": {
+   "files": 1,
+   "loc": 281,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/llm-permanent-error.test.ts": {
+   "files": 1,
+   "loc": 281,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/ai-brain-consistency.test.ts": {
+   "files": 1,
+   "loc": 281,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/composer-agent-loop.ts": {
+   "files": 1,
+   "loc": 279,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/falModels.test.ts": {
+   "files": 1,
+   "loc": 278,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-cost-governor.ts": {
+   "files": 1,
+   "loc": 275,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/audit-25-spirits.mjs": {
+   "files": 1,
+   "loc": 272,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "shared/orb-tool-result-verifier.ts": {
+   "files": 1,
+   "loc": 271,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/agent-preferences.ts": {
+   "files": 1,
+   "loc": 271,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-task-store.test.ts": {
+   "files": 1,
+   "loc": 271,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/orb-advanced-features-implementation.md": {
+   "files": 1,
+   "loc": 267,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/pdf-text-extractor.test.ts": {
+   "files": 1,
+   "loc": 265,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/composer-handoff-triggers.ts": {
+   "files": 1,
+   "loc": 264,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/researcher-agent-tools.test.ts": {
+   "files": 1,
+   "loc": 264,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-router.test.ts": {
+   "files": 1,
+   "loc": 262,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/light-orb-interaction.test.ts": {
+   "files": 1,
+   "loc": 262,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/ai-brain-settings.test.ts": {
+   "files": 1,
+   "loc": 262,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-page-state-graph.ts": {
+   "files": 1,
+   "loc": 260,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/v2vModelRegistry.ts": {
+   "files": 1,
+   "loc": 259,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/context-packet-sanitize.test.ts": {
+   "files": 1,
+   "loc": 255,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/jwt-hardening.test.ts": {
+   "files": 1,
+   "loc": 255,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/sseRoute.ts": {
+   "files": 1,
+   "loc": 254,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/scan-routes.mjs": {
+   "files": 1,
+   "loc": 254,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "server/orb-proxy-deep-optimize.test.ts": {
+   "files": 1,
+   "loc": 253,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/accountant-tools.test.ts": {
+   "files": 1,
+   "loc": 249,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/orb-confirmation-card-qa.md": {
+   "files": 1,
+   "loc": 249,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/gemini-audio-migration.test.ts": {
+   "files": 1,
+   "loc": 248,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-reply-parser.test.ts": {
+   "files": 1,
+   "loc": 245,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-guide-rewrite.test.ts": {
+   "files": 1,
+   "loc": 245,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-image-edit-routing.test.ts": {
+   "files": 1,
+   "loc": 244,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/unified-model-registry-guide.md": {
+   "files": 1,
+   "loc": 244,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/training-specialist-tools.test.ts": {
+   "files": 1,
+   "loc": 242,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/site-code-scanner.test.ts": {
+   "files": 1,
+   "loc": 239,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/voiceModelRegistry.ts": {
+   "files": 1,
+   "loc": 238,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/audioModelRegistry.ts": {
+   "files": 1,
+   "loc": 237,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/phase11-custom-blocks.test.ts": {
+   "files": 1,
+   "loc": 237,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/history-media-render.test.ts": {
+   "files": 1,
+   "loc": 236,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/llm-anthropic-adapter.test.ts": {
+   "files": 1,
+   "loc": 236,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/ai-proxy-auth.test.ts": {
+   "files": 1,
+   "loc": 235,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-reasoning.ts": {
+   "files": 1,
+   "loc": 234,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-train-lora-tool.test.ts": {
+   "files": 1,
+   "loc": 234,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/env-self-repair.test.ts": {
+   "files": 1,
+   "loc": 234,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/feedback-dialog.test.ts": {
+   "files": 1,
+   "loc": 232,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-guide-plans.test.ts": {
+   "files": 1,
+   "loc": 230,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/V2V_MODEL_REGISTRY.md": {
+   "files": 1,
+   "loc": 229,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/four-area-audit.test.ts": {
+   "files": 1,
+   "loc": 225,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/orb-model-database-summary.zh-TW.md": {
+   "files": 1,
+   "loc": 223,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "shared/modelPromptTemplates.ts": {
+   "files": 1,
+   "loc": 222,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/icsExport.test.ts": {
+   "files": 1,
+   "loc": 222,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-agent-messaging.test.ts": {
+   "files": 1,
+   "loc": 221,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/page-agent-intent.test.ts": {
+   "files": 1,
+   "loc": 218,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-dag-scheduler.test.ts": {
+   "files": 1,
+   "loc": 217,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "COORDINATION.md": {
+   "files": 1,
+   "loc": 216,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "shared/global-agent-capabilities.ts": {
+   "files": 1,
+   "loc": 213,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-process-link.ts": {
+   "files": 1,
+   "loc": 213,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-arc-state.ts": {
+   "files": 1,
+   "loc": 212,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-clarification-options.test.ts": {
+   "files": 1,
+   "loc": 206,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/llm-deep-optimize.test.ts": {
+   "files": 1,
+   "loc": 205,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orphan-migrations-journal.test.ts": {
+   "files": 1,
+   "loc": 204,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/AI_BRAIN_OVERVIEW.md": {
+   "files": 1,
+   "loc": 204,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/orb-3d-routing.test.ts": {
+   "files": 1,
+   "loc": 203,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-agent-killswitch.test.ts": {
+   "files": 1,
+   "loc": 202,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/ASSISTANT_ARCHITECTURE.md": {
+   "files": 1,
+   "loc": 202,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "docs/V2V_IMPLEMENTATION_SUMMARY.md": {
+   "files": 1,
+   "loc": 199,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/dashboard-insights.test.ts": {
+   "files": 1,
+   "loc": 198,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-web-research.test.ts": {
+   "files": 1,
+   "loc": 198,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/slash-command-runner.test.ts": {
+   "files": 1,
+   "loc": 197,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/phase7-download.test.ts": {
+   "files": 1,
+   "loc": 196,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/director-ai-architecture.md": {
+   "files": 1,
+   "loc": 194,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/fal-queue-awaiter.test.ts": {
+   "files": 1,
+   "loc": 192,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-proxy-large-optimize.test.ts": {
+   "files": 1,
+   "loc": 191,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/api-keys-validation.test.ts": {
+   "files": 1,
+   "loc": 190,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-prompt-defense.test.ts": {
+   "files": 1,
+   "loc": 190,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-task-orchestrator-reflection.test.ts": {
+   "files": 1,
+   "loc": 187,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/imageToImageModelRegistry.ts": {
+   "files": 1,
+   "loc": 185,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/external-adapters.test.ts": {
+   "files": 1,
+   "loc": 185,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-memory-dashboard.test.ts": {
+   "files": 1,
+   "loc": 185,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/15-spirits-architecture.md": {
+   "files": 1,
+   "loc": 185,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/orb-specialist-memory-store.test.ts": {
+   "files": 1,
+   "loc": 182,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-self-reflection.ts": {
+   "files": 1,
+   "loc": 179,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/model-researcher.test.ts": {
+   "files": 1,
+   "loc": 179,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/commander-create-intent.test.ts": {
+   "files": 1,
+   "loc": 178,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/data-source-connections.test.ts": {
+   "files": 1,
+   "loc": 178,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/fal-queue-dispatcher.test.ts": {
+   "files": 1,
+   "loc": 178,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/team-model-training.test.ts": {
+   "files": 1,
+   "loc": 178,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-onboarding-questions.ts": {
+   "files": 1,
+   "loc": 173,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-dag-scheduler.ts": {
+   "files": 1,
+   "loc": 172,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-reply-parser-clarify.test.ts": {
+   "files": 1,
+   "loc": 172,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/AGENT_CONDITIONS_AUDIT.md": {
+   "files": 1,
+   "loc": 172,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "package.json": {
+   "files": 1,
+   "loc": 171,
+   "by_ext": {
+    ".json": 1
+   }
+  },
+  "shared/orb-prompt-defense.ts": {
+   "files": 1,
+   "loc": 170,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/four-modality-pipeline.test.ts": {
+   "files": 1,
+   "loc": 170,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/agent-planner-gates.test.ts": {
+   "files": 1,
+   "loc": 168,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/agent-preferences-phase-d.test.ts": {
+   "files": 1,
+   "loc": 168,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/migration-fail-closed.test.ts": {
+   "files": 1,
+   "loc": 167,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-memory-rag-filter.test.ts": {
+   "files": 1,
+   "loc": 166,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/global-orb-executor.test.ts": {
+   "files": 1,
+   "loc": 164,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/scene-switcher.test.ts": {
+   "files": 1,
+   "loc": 164,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0058_asset_history_archival_fields.sql": {
+   "files": 1,
+   "loc": 164,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "shared/orb-reply-process-extractor.ts": {
+   "files": 1,
+   "loc": 163,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-step-ref-resolver.ts": {
+   "files": 1,
+   "loc": 162,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/image-specialist-tools.test.ts": {
+   "files": 1,
+   "loc": 162,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-clarification-memory.ts": {
+   "files": 1,
+   "loc": 161,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-task-state-machine.ts": {
+   "files": 1,
+   "loc": 159,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/brain-pipeline.ts": {
+   "files": 1,
+   "loc": 159,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/spirit-chat-tools.ts": {
+   "files": 1,
+   "loc": 157,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/generationEvents.ts": {
+   "files": 1,
+   "loc": 157,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/llm-cache-dedupe.test.ts": {
+   "files": 1,
+   "loc": 156,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/v2vModelSelection.ts": {
+   "files": 1,
+   "loc": 155,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-reply-process-extractor.test.ts": {
+   "files": 1,
+   "loc": 155,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/llm-fallback.test.ts": {
+   "files": 1,
+   "loc": 155,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/agent-planner-critique.test.ts": {
+   "files": 1,
+   "loc": 148,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "deep_audit.py": {
+   "files": 1,
+   "loc": 146,
+   "by_ext": {
+    ".py": 1
+   }
+  },
+  "server/orb-stage-25-spirits.test.ts": {
+   "files": 1,
+   "loc": 146,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/typography-audit-2026-05.md": {
+   "files": 1,
+   "loc": 146,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "docs/admin-api-usage.md": {
+   "files": 1,
+   "loc": 145,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/agent-plan-safety.test.ts": {
+   "files": 1,
+   "loc": 144,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-step-ref-resolver.test.ts": {
+   "files": 1,
+   "loc": 144,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/currency-conversion.test.ts": {
+   "files": 1,
+   "loc": 143,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/imageToVideoModelRegistry.ts": {
+   "files": 1,
+   "loc": 141,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/studio-tool-moderation-gate.test.ts": {
+   "files": 1,
+   "loc": 141,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/verify-redis-generation-lock.ts": {
+   "files": 1,
+   "loc": 139,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/global-orb-production-smoke-test.md": {
+   "files": 1,
+   "loc": 139,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/qualityCoach-tools.test.ts": {
+   "files": 1,
+   "loc": 138,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/connection-audit-2026-04-29.md": {
+   "files": 1,
+   "loc": 138,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/orb-page-agent-registration.test.ts": {
+   "files": 1,
+   "loc": 136,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/migration-prod-pending-block.test.ts": {
+   "files": 1,
+   "loc": 136,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/cameraMotionPrompt.ts": {
+   "files": 1,
+   "loc": 135,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/slash-commands.test.ts": {
+   "files": 1,
+   "loc": 135,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/accountant-budget-forecast.test.ts": {
+   "files": 1,
+   "loc": 134,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-process-link.test.ts": {
+   "files": 1,
+   "loc": 134,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/agent-plan-schema.test.ts": {
+   "files": 1,
+   "loc": 133,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-tool-result-verifier.test.ts": {
+   "files": 1,
+   "loc": 132,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/fullstack-current-state-2026-04-29.zh-TW.md": {
+   "files": 1,
+   "loc": 131,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/global-agent-orchestrator-preferences.test.ts": {
+   "files": 1,
+   "loc": 130,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/workflow-run-state.ts": {
+   "files": 1,
+   "loc": 129,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/provider-facade.test.ts": {
+   "files": 1,
+   "loc": 129,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-search-intent.ts": {
+   "files": 1,
+   "loc": 127,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/agent-plan-adapter.test.ts": {
+   "files": 1,
+   "loc": 127,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-code-task.test.ts": {
+   "files": 1,
+   "loc": 126,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "dev-environment/README.md": {
+   "files": 1,
+   "loc": 125,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "docs/global-orb-agent-qa.md": {
+   "files": 1,
+   "loc": 125,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "shared/agent-modality-keywords.ts": {
+   "files": 1,
+   "loc": 123,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/secret-crypto-key-source.test.ts": {
+   "files": 1,
+   "loc": 123,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/engineModelIds.ts": {
+   "files": 1,
+   "loc": 122,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-attachment-guard.test.ts": {
+   "files": 1,
+   "loc": 122,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/trpc-client-helpers.test.ts": {
+   "files": 1,
+   "loc": 121,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-modality-coherence.ts": {
+   "files": 1,
+   "loc": 120,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/orb-content-moderation.ts": {
+   "files": 1,
+   "loc": 118,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/textToImageModelRegistry.ts": {
+   "files": 1,
+   "loc": 117,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/llm-perplexity-adapter.test.ts": {
+   "files": 1,
+   "loc": 117,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/llm-concurrency.test.ts": {
+   "files": 1,
+   "loc": 115,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0027_agent_collaboration_persistence.sql": {
+   "files": 1,
+   "loc": 114,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "docs/external-api-supplier-audit-2026-04-23.md": {
+   "files": 1,
+   "loc": 114,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "drizzle/0007_tidy_thunderbird.sql": {
+   "files": 1,
+   "loc": 111,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "shared/orb-code-task.ts": {
+   "files": 1,
+   "loc": 109,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-search-refinement.test.ts": {
+   "files": 1,
+   "loc": 107,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/verify-token.test.ts": {
+   "files": 1,
+   "loc": 106,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-voice-perception-prefs.test.ts": {
+   "files": 1,
+   "loc": 106,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/image-studio-aspect-ratio.test.ts": {
+   "files": 1,
+   "loc": 105,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/videoModelCatalog.ts": {
+   "files": 1,
+   "loc": 104,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/engine-model-ids.test.ts": {
+   "files": 1,
+   "loc": 103,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/team-data-access-rules.test.ts": {
+   "files": 1,
+   "loc": 103,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-self-reflection.test.ts": {
+   "files": 1,
+   "loc": 102,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-task-state-machine.test.ts": {
+   "files": 1,
+   "loc": 101,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/ai-models-router.test.ts": {
+   "files": 1,
+   "loc": 100,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/global-orb-provider-cost-quota.md": {
+   "files": 1,
+   "loc": 100,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/global-agent-capability-registry.test.ts": {
+   "files": 1,
+   "loc": 99,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/audit-12-roles.mjs": {
+   "files": 1,
+   "loc": 99,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "docs/fullstack-node-level-map-2026-04-29.zh-TW.md": {
+   "files": 1,
+   "loc": 99,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "shared/orb-agent-contract.ts": {
+   "files": 1,
+   "loc": 98,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/skeletalModelRegistry.ts": {
+   "files": 1,
+   "loc": 98,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0065_real_earth_information_system.sql": {
+   "files": 1,
+   "loc": 98,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "docs/video-production-intake-map.md": {
+   "files": 1,
+   "loc": 97,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/orb-stay-on-page-preference.test.ts": {
+   "files": 1,
+   "loc": 96,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/smoke-routes.mjs": {
+   "files": 1,
+   "loc": 96,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "drizzle/0001_panoramic_night_thrasher.sql": {
+   "files": 1,
+   "loc": 96,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "docs/slash-command-system.md": {
+   "files": 1,
+   "loc": 96,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "shared/fineTuneModelRegistry.ts": {
+   "files": 1,
+   "loc": 95,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0075_prompt_assets.sql": {
+   "files": 1,
+   "loc": 95,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/fal-model-capabilities.test.ts": {
+   "files": 1,
+   "loc": 94,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/scan-learn-wiring.mjs": {
+   "files": 1,
+   "loc": 94,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "drizzle/0076_global_audit_log.sql": {
+   "files": 1,
+   "loc": 94,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/provider-router.test.ts": {
+   "files": 1,
+   "loc": 93,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0046_agent_preferences_15_spirits_phase3.sql": {
+   "files": 1,
+   "loc": 93,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/llm-engine-inference.test.ts": {
+   "files": 1,
+   "loc": 92,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/scan-settings-wiring.mjs": {
+   "files": 1,
+   "loc": 92,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "server/orb-chat-progress.test.ts": {
+   "files": 1,
+   "loc": 91,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0050_align_brain_defaults_to_latest.sql": {
+   "files": 1,
+   "loc": 91,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0077_cost_ledger.sql": {
+   "files": 1,
+   "loc": 91,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "test-lora-api.mjs": {
+   "files": 1,
+   "loc": 90,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "drizzle/0006_remarkable_starfox.sql": {
+   "files": 1,
+   "loc": 90,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "audit_orb.py": {
+   "files": 1,
+   "loc": 89,
+   "by_ext": {
+    ".py": 1
+   }
+  },
+  "docs/README.md": {
+   "files": 1,
+   "loc": 88,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "shared/currency.ts": {
+   "files": 1,
+   "loc": 87,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/scan-shell-routes.mjs": {
+   "files": 1,
+   "loc": 87,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "server/brain-state-persistence.test.ts": {
+   "files": 1,
+   "loc": 86,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/config": {
+   "files": 3,
+   "loc": 86,
+   "by_ext": {
+    ".ts": 3
+   }
+  },
+  "server/model-pricing-estimate.test.ts": {
+   "files": 1,
+   "loc": 85,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-quota.test.ts": {
+   "files": 1,
+   "loc": 85,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/ws": {
+   "files": 2,
+   "loc": 84,
+   "by_ext": {
+    ".ts": 2
+   }
+  },
+  "drizzle/0045_notes_curator_enhancements.sql": {
+   "files": 1,
+   "loc": 84,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0042_orb_workflow_templates.sql": {
+   "files": 1,
+   "loc": 84,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "docs/global-orb-capability-registry.md": {
+   "files": 1,
+   "loc": 83,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "docs/design-reference.md": {
+   "files": 1,
+   "loc": 82,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "drizzle/0071_context_packets.sql": {
+   "files": 1,
+   "loc": 80,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0078_resource_shares.sql": {
+   "files": 1,
+   "loc": 80,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "docs/global-orb-task-state-machine.md": {
+   "files": 1,
+   "loc": 79,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "shared/imageUpscaleModelRegistry.ts": {
+   "files": 1,
+   "loc": 78,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0070_orchestration_runs.sql": {
+   "files": 1,
+   "loc": 77,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/prompt-assets-migration.test.ts": {
+   "files": 1,
+   "loc": 75,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0040_orb_intent_clarification.sql": {
+   "files": 1,
+   "loc": 75,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0054_teams_and_audit.sql": {
+   "files": 1,
+   "loc": 75,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "shared/threeDModelRegistry.ts": {
+   "files": 1,
+   "loc": 74,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-agent-preset.test.ts": {
+   "files": 1,
+   "loc": 74,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-prompt-preference-block.test.ts": {
+   "files": 1,
+   "loc": 74,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0073_data_source_connections.sql": {
+   "files": 1,
+   "loc": 74,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0053_teaching_materials.sql": {
+   "files": 1,
+   "loc": 74,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "scripts/fix-logger-calls.py": {
+   "files": 1,
+   "loc": 73,
+   "by_ext": {
+    ".py": 1
+   }
+  },
+  "docs/global-orb-code-collaboration.md": {
+   "files": 1,
+   "loc": 73,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/eval": {
+   "files": 9,
+   "loc": 72,
+   "by_ext": {
+    ".ts": 9
+   }
+  },
+  "drizzle/0043_orb_system_monitoring.sql": {
+   "files": 1,
+   "loc": 72,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0072_project_data_access_rules.sql": {
+   "files": 1,
+   "loc": 72,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0008_admin_api_usage.sql": {
+   "files": 1,
+   "loc": 72,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/orb-tool-call-log-store.test.ts": {
+   "files": 1,
+   "loc": 71,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0041_orb_feature_usage.sql": {
+   "files": 1,
+   "loc": 71,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/studio-route-brain-linkage.test.ts": {
+   "files": 1,
+   "loc": 70,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/studioModelIntelligence.ts": {
+   "files": 1,
+   "loc": 68,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-content-moderation.test.ts": {
+   "files": 1,
+   "loc": 68,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-modality-coherence.test.ts": {
+   "files": 1,
+   "loc": 68,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/totp-service.test.ts": {
+   "files": 1,
+   "loc": 68,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/app-registry-selectors.test.ts": {
+   "files": 1,
+   "loc": 67,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0002_flat_dorian_gray.sql": {
+   "files": 1,
+   "loc": 67,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "docs/character-design": {
+   "files": 1,
+   "loc": 66,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/auth.logout.test.ts": {
+   "files": 1,
+   "loc": 65,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0057_digital_asset_library_source_tracking.sql": {
+   "files": 1,
+   "loc": 65,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/orchestration-runs-migration.test.ts": {
+   "files": 1,
+   "loc": 64,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/check-deps.mjs": {
+   "files": 1,
+   "loc": 64,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "drizzle/0063_prompt_collection.sql": {
+   "files": 1,
+   "loc": 64,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0067_creative_projects.sql": {
+   "files": 1,
+   "loc": 64,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0055_teaching_archive_fk.sql": {
+   "files": 1,
+   "loc": 64,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0039_orb_long_term_memory.sql": {
+   "files": 1,
+   "loc": 63,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "scripts/figma-screenshots.mjs": {
+   "files": 1,
+   "loc": 62,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "shared/visual-inspiration-library.ts": {
+   "files": 1,
+   "loc": 61,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/closed-loop-plan.ts": {
+   "files": 1,
+   "loc": 61,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/site-knowledge-workflow-invoke.test.ts": {
+   "files": 1,
+   "loc": 60,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-idempotency-release.test.ts": {
+   "files": 1,
+   "loc": 59,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/posthog-tracking.test.ts": {
+   "files": 1,
+   "loc": 59,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/password-hasher.test.ts": {
+   "files": 1,
+   "loc": 59,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "dev-environment/docker-compose.yml": {
+   "files": 1,
+   "loc": 59,
+   "by_ext": {
+    ".yml": 1
+   }
+  },
+  "server/orb-cost-guard.test.ts": {
+   "files": 1,
+   "loc": 58,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/global-orb-memory-rag.md": {
+   "files": 1,
+   "loc": 58,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/orb-prompt-skill-injection.test.ts": {
+   "files": 1,
+   "loc": 57,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/backend-routes-health.test.ts": {
+   "files": 1,
+   "loc": 57,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/model-capability-registry.ts": {
+   "files": 1,
+   "loc": 56,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "dev-environment/migrate-debug.mjs": {
+   "files": 1,
+   "loc": 56,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "drizzle/0032_agent_preferences_specialist_columns.sql": {
+   "files": 1,
+   "loc": 56,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/replicate-token-validation.test.ts": {
+   "files": 1,
+   "loc": 55,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/api-key-setup-guide.zh-TW.md": {
+   "files": 1,
+   "loc": 55,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "drizzle/0069_creative_projects_worldview_script.sql": {
+   "files": 1,
+   "loc": 54,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/global-agent-orchestrator-preflight.test.ts": {
+   "files": 1,
+   "loc": 53,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-tool-registry.test.ts": {
+   "files": 1,
+   "loc": 53,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0068_creative_projects_bootstrap.sql": {
+   "files": 1,
+   "loc": 53,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0022_model_training_consents.sql": {
+   "files": 1,
+   "loc": 52,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/points-billing-audit.test.ts": {
+   "files": 1,
+   "loc": 51,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-task-state-machine-extras.test.ts": {
+   "files": 1,
+   "loc": 51,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/global-orb-executor.md": {
+   "files": 1,
+   "loc": 51,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "drizzle/0044_orb_template_ratings_and_alerts.sql": {
+   "files": 1,
+   "loc": 47,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0064_timeline_frames_and_compositions.sql": {
+   "files": 1,
+   "loc": 46,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "shared/docs": {
+   "files": 1,
+   "loc": 45,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "docs/orb-trace-contract-2026-04-29.md": {
+   "files": 1,
+   "loc": 45,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "server/secret-crypto.test.ts": {
+   "files": 1,
+   "loc": 44,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/const.test.ts": {
+   "files": 1,
+   "loc": 43,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "docs/fullstack-health-check-2026-04-23.md": {
+   "files": 1,
+   "loc": 43,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "vitest.config.ts": {
+   "files": 1,
+   "loc": 41,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "AGENTS.md": {
+   "files": 1,
+   "loc": 41,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "shared/appRegistry.test.ts": {
+   "files": 1,
+   "loc": 41,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-learn-hub-memoization.test.ts": {
+   "files": 1,
+   "loc": 41,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0034_project_notes_status.sql": {
+   "files": 1,
+   "loc": 40,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0005_nasty_anita_blake.sql": {
+   "files": 1,
+   "loc": 40,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0074_fine_tuned_models_team.sql": {
+   "files": 1,
+   "loc": 39,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "shared/agent-eval.ts": {
+   "files": 1,
+   "loc": 38,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/google-auth-bridge.test.ts": {
+   "files": 1,
+   "loc": 37,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "playwright.config.ts": {
+   "files": 1,
+   "loc": 36,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0037_drive_asset_library.sql": {
+   "files": 1,
+   "loc": 36,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0051_model_wishes.sql": {
+   "files": 1,
+   "loc": 36,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "eslint.config.js": {
+   "files": 1,
+   "loc": 35,
+   "by_ext": {
+    ".js": 1
+   }
+  },
+  "shared/const.ts": {
+   "files": 1,
+   "loc": 34,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0033_add_plan_status_to_sessions.sql": {
+   "files": 1,
+   "loc": 34,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0017_agent_preferences_extend.sql": {
+   "files": 1,
+   "loc": 34,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/auto-credit-policy.test.ts": {
+   "files": 1,
+   "loc": 33,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0029_orb_conversations.sql": {
+   "files": 1,
+   "loc": 32,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0030_studio_recipes_versions.sql": {
+   "files": 1,
+   "loc": 31,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0004_past_pandemic.sql": {
+   "files": 1,
+   "loc": 31,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "shared/script-asset-needs.ts": {
+   "files": 1,
+   "loc": 28,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "config/pricing-table.json": {
+   "files": 1,
+   "loc": 28,
+   "by_ext": {
+    ".json": 1
+   }
+  },
+  "server/studio-model-intelligence.test.ts": {
+   "files": 1,
+   "loc": 27,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/visual-inspiration-selector.ts": {
+   "files": 1,
+   "loc": 25,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "shared/director-personality-prompts.ts": {
+   "files": 1,
+   "loc": 25,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/check-internal-navigation.mjs": {
+   "files": 1,
+   "loc": 25,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "tsconfig.json": {
+   "files": 1,
+   "loc": 24,
+   "by_ext": {
+    ".json": 1
+   }
+  },
+  "drizzle/0033_agent_model_picks.sql": {
+   "files": 1,
+   "loc": 24,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0003_gorgeous_stone_men.sql": {
+   "files": 1,
+   "loc": 24,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0021_align_voice_engine_default.sql": {
+   "files": 1,
+   "loc": 24,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0066_teaching_materials_real_earth_refs.sql": {
+   "files": 1,
+   "loc": 23,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0016_login_history.sql": {
+   "files": 1,
+   "loc": 22,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0036_schedule_calendar_extensions.sql": {
+   "files": 1,
+   "loc": 21,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "scripts/gitnexus-launcher.mjs": {
+   "files": 1,
+   "loc": 20,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "drizzle/0038_users_orb_memory_summary.sql": {
+   "files": 1,
+   "loc": 20,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "components.json": {
+   "files": 1,
+   "loc": 19,
+   "by_ext": {
+    ".json": 1
+   }
+  },
+  "shared/_core": {
+   "files": 1,
+   "loc": 19,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0047_featured_showcase_comments.sql": {
+   "files": 1,
+   "loc": 19,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/orb-model-catalog.test.ts": {
+   "files": 1,
+   "loc": 18,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0019_orb_scheduled_jobs.sql": {
+   "files": 1,
+   "loc": 18,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0056_jobtype_teaching_ingestion.sql": {
+   "files": 1,
+   "loc": 17,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0025_specialized_agent_memory.sql": {
+   "files": 1,
+   "loc": 17,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0014_email_verification_tokens.sql": {
+   "files": 1,
+   "loc": 17,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/ai-adapter-registry.test.ts": {
+   "files": 1,
+   "loc": 16,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0013_password_reset_tokens.sql": {
+   "files": 1,
+   "loc": 16,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0024_orb_scheduled_jobs_results.sql": {
+   "files": 1,
+   "loc": 16,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0023_agent_preferences_phase_d.sql": {
+   "files": 1,
+   "loc": 16,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle.config.ts": {
+   "files": 1,
+   "loc": 15,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0031_specialized_agent_interactions.sql": {
+   "files": 1,
+   "loc": 15,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0008_numerous_mother_askani.sql": {
+   "files": 1,
+   "loc": 14,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "shared/script-visual-inspiration-drafts.ts": {
+   "files": 1,
+   "loc": 13,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "server/orb-model-usage-context.test.ts": {
+   "files": 1,
+   "loc": 13,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0000_giant_reptil.sql": {
+   "files": 1,
+   "loc": 13,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "server/creative-projects-migration.test.ts": {
+   "files": 1,
+   "loc": 12,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "scripts/vitest-run.mjs": {
+   "files": 1,
+   "loc": 12,
+   "by_ext": {
+    ".mjs": 1
+   }
+  },
+  "db/migrations": {
+   "files": 1,
+   "loc": 12,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0052_role_leader.sql": {
+   "files": 1,
+   "loc": 12,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "types/tough-cookie-compat.d.ts": {
+   "files": 1,
+   "loc": 9,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "drizzle/0011_user_auto_credit_policy.sql": {
+   "files": 1,
+   "loc": 9,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  ".mcp.json": {
+   "files": 1,
+   "loc": 8,
+   "by_ext": {
+    ".json": 1
+   }
+  },
+  "server/app-registry-groups.test.ts": {
+   "files": 1,
+   "loc": 8,
+   "by_ext": {
+    ".ts": 1
+   }
+  },
+  "client/package.json": {
+   "files": 1,
+   "loc": 7,
+   "by_ext": {
+    ".json": 1
+   }
+  },
+  "drizzle/0018_agent_preferences_per_action.sql": {
+   "files": 1,
+   "loc": 7,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0028_user_avatar_url.sql": {
+   "files": 1,
+   "loc": 6,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "README.md": {
+   "files": 1,
+   "loc": 4,
+   "by_ext": {
+    ".md": 1
+   }
+  },
+  "drizzle/0009_prompt_library_generation_mode.sql": {
+   "files": 1,
+   "loc": 4,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0010_add_generationMode_index.sql": {
+   "files": 1,
+   "loc": 4,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0015_add_email_verification_fields.sql": {
+   "files": 1,
+   "loc": 3,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0020_user_two_factor.sql": {
+   "files": 1,
+   "loc": 3,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  "drizzle/0012_local_auth_password_hash.sql": {
+   "files": 1,
+   "loc": 2,
+   "by_ext": {
+    ".sql": 1
+   }
+  },
+  ".brain-state.json": {
+   "files": 1,
+   "loc": 1,
+   "by_ext": {
+    ".json": 1
+   }
+  },
+  "drizzle/relations.ts": {
+   "files": 1,
+   "loc": 1,
+   "by_ext": {
+    ".ts": 1
+   }
+  }
+ },
+ "biggest": [
+  [
+   13141,
+   "scripts/comparison/schema.json"
+  ],
+  [
+   11902,
+   "server/routers/learnHub.seed.ts"
+  ],
+  [
+   9881,
+   "server/routers.ts"
+  ],
+  [
+   7903,
+   "server/services/agentToolExecutor.ts"
+  ],
+  [
+   6868,
+   "client/src/pages/AnimationStudio.tsx"
+  ],
+  [
+   6624,
+   "scripts/comparison/jira_cards.json"
+  ],
+  [
+   6563,
+   "client/src/contexts/GlobalOrbChatContext.tsx"
+  ],
+  [
+   6050,
+   "client/src/pages/DirectorAI.tsx"
+  ],
+  [
+   5386,
+   "shared/aiModelsCatalog.ts"
+  ],
+  [
+   5321,
+   "client/src/pages/ImageStudio.tsx"
+  ],
+  [
+   5190,
+   "client/src/pages/VideoStudio.tsx"
+  ],
+  [
+   4991,
+   "client/src/pages/ProStudio.tsx"
+  ],
+  [
+   4982,
+   "client/src/index.css"
+  ],
+  [
+   4883,
+   "client/src/components/OrbGuidePanel.tsx"
+  ],
+  [
+   4252,
+   "drizzle/schema.ts"
+  ],
+  [
+   4248,
+   "server/db.ts"
+  ],
+  [
+   4160,
+   "client/src/components/ProactiveOrbWidget.tsx"
+  ],
+  [
+   3997,
+   "client/src/pages/Studio.tsx"
+  ],
+  [
+   3684,
+   "client/src/pages/AIModelsHub.tsx"
+  ],
+  [
+   3500,
+   "server/services/modelPricing.ts"
+  ],
+  [
+   3478,
+   "client/src/components/home/OrbCreationStage.tsx"
+  ],
+  [
+   3363,
+   "drizzle/meta/0008_snapshot.json"
+  ],
+  [
+   3272,
+   "drizzle/meta/0007_snapshot.json"
+  ],
+  [
+   3189,
+   "server/routers/brainPipeline.ts"
+  ],
+  [
+   3099,
+   "client/src/pages/LoraTrainer.tsx"
+  ],
+  [
+   3034,
+   "server/services/brainAutoRepair.ts"
+  ],
+  [
+   3031,
+   "shared/orb-studio-actions.ts"
+  ],
+  [
+   2987,
+   "client/src/pages/AgentChat.tsx"
+  ],
+  [
+   2904,
+   "server/routers/director.ts"
+  ],
+  [
+   2884,
+   "shared/orb-agent-roles.ts"
+  ],
+  [
+   2741,
+   "client/src/pages/LearnHub.tsx"
+  ],
+  [
+   2462,
+   "drizzle/meta/0006_snapshot.json"
+  ],
+  [
+   2448,
+   "client/src/components/OrbUnifiedAssistant.tsx"
+  ],
+  [
+   2434,
+   "server/services/falModels.ts"
+  ],
+  [
+   2313,
+   "server/services/siteKnowledge.ts"
+  ],
+  [
+   2168,
+   "server/_core/llm.ts"
+  ],
+  [
+   2167,
+   "server/routers/proStudio.ts"
+  ],
+  [
+   2164,
+   "client/src/pages/AdminPage.tsx"
+  ],
+  [
+   2162,
+   "client/src/components/LoginCosmicScene.tsx"
+  ],
+  [
+   2076,
+   "docs/BACKEND_PIPELINE.md"
+  ]
+ ],
+ "test_files": "368"
+}

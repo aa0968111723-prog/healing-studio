@@ -1,0 +1,1721 @@
+{
+ "server/services/postGenActions.ts": {
+  "loc": 600,
+  "comments": [
+   [
+    2,
+    "postGenActions.ts — 統一處理「生成完成後」的後置寫入動作"
+   ],
+   [
+    4,
+    "為什麼要拉成共用模組："
+   ],
+   [
+    5,
+    "原本 doPostGenComplete 寫死在 routers.ts，僅在 checkStudioJob"
+   ],
+   [
+    6,
+    "recordGenResult / 同步生成路徑被呼叫。但 fal.ai webhook 通常比 5s"
+   ],
+   [
+    7,
+    "polling 早抵達 → webhookFal.ts 把 backgroundJob 標完成 → 隨後的"
+   ],
+   [
+    8,
+    "checkStudioJob 看到 status !== \"processing\" 直接 short-circuit，"
+   ],
+   [
+    9,
+    "doPostGenComplete 永遠不跑。結果：使用者用 ImageStudio / VideoStudio"
+   ],
+   [
+    10,
+    "ProStudio 生成的圖/影/音，只有 backgroundJobs 有紀錄，"
+   ],
+   [
+    11,
+    "digital_asset_library / generation_history / prompt_library / AI 監控"
+   ],
+   [
+    12,
+    "通通沒進 →「資產庫永遠是空的」。"
+   ],
+   [
+    14,
+    "此模組提供："
+   ],
+   [
+    15,
+    "- doPostGenComplete(): 真正執行四件事（提示詞庫、資產庫、歷史、監控室）"
+   ],
+   [
+    16,
+    "- runPostGenForJob(): 從 backgroundJob.resultJson 讀回識別資訊並執行"
+   ],
+   [
+    17,
+    "doPostGenComplete，且設 postGenComplete=true 旗標，所以 webhook 與"
+   ],
+   [
+    18,
+    "polling 同時抵達也只會跑一次。"
+   ],
+   [
+    36,
+    "prompt ↔ asset 關聯（prompt_assets junction, migration 0075）寫入開關。"
+   ],
+   [
+    37,
+    "預設 OFF — 與 env.validated.ts 的 ENABLE_PROMPT_ASSET_LINKS 同名同預設；"
+   ],
+   [
+    38,
+    "這裡直接讀 process.env（lazy，與 perplexityThrottle 同模式）讓測試可在"
+   ],
+   [
+    39,
+    "runtime 重設 env 立即生效，也避免在本模組引入 env.validated 的載入副作用。"
+   ],
+   [
+    52,
+    "AIDV-10 — prompt_library 依 content 合併去重（upsert-by-content）的純查詢工具。"
+   ],
+   [
+    54,
+    "為什麼存在：生成鏈原本「每次生成都無條件新插一列 prompt_library」，"
+   ],
+   [
+    55,
+    "同一段提示詞生成 N 次就多出 N 列。本函式把寫入改成 upsert-by-content："
+   ],
+   [
+    56,
+    "先以 (userId, category, content) 查既有列 → 命中重用其 id、不再 insert；"
+   ],
+   [
+    57,
+    "未命中才照舊 insert。回傳的 id 一律給下游（#864 prompt↔asset junction、"
+   ],
+   [
+    58,
+    "useCount 累計）使用，確保同 content 的多個 asset 都連到同一 prompt 列。"
+   ],
+   [
+    60,
+    "去重 scope = (userId, category, content)（研究判定）："
+   ],
+   [
+    61,
+    "- userId   ：per-user 隱私/所有權邊界，必含。"
+   ],
+   [
+    62,
+    "- category ：存的是 modality（image/video/audio/voice）。同一句話拿去生圖"
+   ],
+   [
+    63,
+    "vs 生影是不同用途、modelHint/下游語意不同 → 納入鍵分開。"
+   ],
+   [
+    64,
+    "- content  ：完整提示詞全文比對（不截斷、不做大小寫/unicode 正規化；"
+   ],
+   [
+    65,
+    "呼叫端已 trim 過頭尾空白）。content 欄位的 TEXT 預設 collation"
+   ],
+   [
+    66,
+    "是 utf8mb4_unicode_ci（大小寫/重音/尾空白皆 INsensitive），會把"
+   ],
+   [
+    67,
+    "'A cute cat'/'a cute cat'、'café'/'cafe'、'foo'/'foo   ' 誤併成"
+   ],
+   [
+    68,
+    "同一列。為符合「完整全文、原樣比對」語意，content 的等值比對改用"
+   ],
+   [
+    69,
+    "BINARY（位元組級、case/accent/trailing-space 全 sensitive），讓"
+   ],
+   [
+    70,
+    "只差大小寫/重音/尾空白的提示詞保持為不同列、不被誤併。"
+   ],
+   [
+    72,
+    "HARD SAFETY："
+   ],
+   [
+    73,
+    "- 非破壞性：只讀既有列＋新插，不 UPDATE/DELETE 任何既有列、不做資料遷移。"
+   ],
+   [
+    74,
+    "- 不動 migration：純 app 層 query-before-insert，不依賴任何 DB 唯一鍵。"
+   ],
+   [
+    75,
+    "- 永不弄壞生成鏈：SELECT 一旦出錯，安全 fallback 成原本的 insert；"
+   ],
+   [
+    76,
+    "insert 也出錯時回傳 null（呼叫端視為「沒有 promptId」照常往下走）。"
+   ],
+   [
+    78,
+    "並發 race（無 DB 唯一鍵）已知缺口：兩條並發鏈同 content 同時查不到 → 都 insert"
+   ],
+   [
+    79,
+    "→ 偶發多一列。相對「現狀完全不去重」仍是淨改善；命中時 orderBy id asc 取最早"
+   ],
+   [
+    80,
+    "一列，讓後續讀路徑對既有重複列仍穩定收斂到固定 id。"
+   ],
+   [
+    82,
+    "抽成獨立函式（而非內嵌在 doPostGenComplete）以便單測 upsert 矩陣。"
+   ],
+   [
+    84,
+    "@returns 既有/新插列的 id；任何情況下都拿不到有效 id 時回 null。"
+   ],
+   [
+    87,
+    "已 getDb() 拿到的連線（呼叫端負責 null 檢查；此處假設非 null）。"
+   ],
+   [
+    94,
+    "提示詞全文（呼叫端已 trim）。"
+   ],
+   [
+    97,
+    "prompt_library.title（截斷後）。僅在「未命中、需新插」時使用。"
+   ],
+   [
+    99,
+    "prompt_library.modelHint（截斷後）。僅在新插時寫入；命中時不覆寫既有值。"
+   ],
+   [
+    108,
+    "(1) 先以 (userId, category, content) 查既有列 — 命中則重用，永不重插。"
+   ],
+   [
+    109,
+    "content 用 BINARY 等值比對（避開 utf8mb4_unicode_ci 的 case/accent/trailing-"
+   ],
+   [
+    110,
+    "space 折疊，符合「完整全文原樣比對」語意，不誤併僅大小寫/重音/尾空白不同的列）。"
+   ],
+   [
+    111,
+    "SELECT 失敗時整段吞錯往下走 fallback insert（best-effort，不阻斷生成鏈）。"
+   ],
+   [
+    121,
+    "BINARY 位元組級比對 — case/accent/trailing-space 全 sensitive。"
+   ],
+   [
+    125,
+    "歷史上（去重上線前）同 content 可能已有多列 → 取最小 id 穩定收斂。"
+   ],
+   [
+    130,
+    "命中既有列 → 重用 id，不 insert。同時 useCount += 1 讓「重用」真正累計，"
+   ],
+   [
+    131,
+    "使 search_prompts / promptLibrary.list 的 useCount desc 熱門排序反映實際"
+   ],
+   [
+    132,
+    "生成重用次數（與 promptLibrary.incrementUseCount 同 SQL）。"
+   ],
+   [
+    133,
+    "累計失敗吞錯：絕不能讓 useCount 寫入弄壞生成鏈或丟掉已命中的 id。"
+   ],
+   [
+    140,
+    "useCount 累計失敗不影響重用 — 仍回傳命中的 id。"
+   ],
+   [
+    145,
+    "SELECT 失敗：安全 fallback 成原本的 insert（下方），絕不讓去重弄壞生成鏈。"
+   ],
+   [
+    148,
+    "(2) 未命中（或查詢失敗 fallback）→ 照舊 insert 新列，回傳 insertId。"
+   ],
+   [
+    149,
+    "insert 失敗時回傳 null（呼叫端視為無 promptId 照常往下走）。"
+   ],
+   [
+    161,
+    "mysql2 driver 回 [ResultSetHeader]；防禦式取值（測試 mock 可能回 undefined）。"
+   ],
+   [
+    165,
+    "insert 失敗（並發撞列、DB 暫時不可用等）→ null，不拋。"
+   ],
+   [
+    171,
+    "統一 AI 生成資產的 S3/儲存路徑前綴。"
+   ],
+   [
+    173,
+    "過去各工作室自行組路徑（generated/director/<model>、"
+   ],
+   [
+    174,
+    "generated/image-studio/<model>、generated/pro-studio/<model>、"
+   ],
+   [
+    175,
+    "generated/webhook/<jobId>…）導致同一個使用者的資產散落在不同 prefix，"
+   ],
+   [
+    176,
+    "也讓「我的資產」反向掃描變得不可能。"
+   ],
+   [
+    178,
+    "一律走 `generated/studio/<userId>/<source>[/<subfolder>][/<sanitized-model>]`，"
+   ],
+   [
+    179,
+    "來源欄位包含：creative / director / image / video / pro / background"
+   ],
+   [
+    180,
+    "webhook / suno / replicate。"
+   ],
+   [
+    219,
+    "自訂歷史紀錄 compiledPrompt，用來支援呼叫端自己的 dedupe（例如"
+   ],
+   [
+    220,
+    "imageStudio.checkImageStatus 一份請求會被輪詢多次，靠"
+   ],
+   [
+    221,
+    "compiledPrompt === `[imageStudio:<model>:<request>]` 作唯一鍵）。"
+   ],
+   [
+    222,
+    "若不提供，會 fallback 到 promptText 作 compiledPrompt（既有行為）。"
+   ],
+   [
+    226,
+    "直接指定 generation_history.compiledPrompt — 創意工作室會在這帶"
+   ],
+   [
+    227,
+    "vibe-card / 安全審核後完整組合過的提示詞，與 dedupeMarker 互斥。"
+   ],
+   [
+    230,
+    "額外塞進 generationHistory.parameterSnapshot 的欄位"
+   ],
+   [
+    232,
+    "縮圖 URL — 影片 / 圖片預覽"
+   ],
+   [
+    235,
+    "實際扣款點數（由 submitMultimodalAsync 的 estimatePoints().totalPoints 算出，"
+   ],
+   [
+    236,
+    "經 backgroundJob.resultJson.costPoints 透過 runPostGenForJob 帶入）。"
+   ],
+   [
+    237,
+    "缺值時退回 1 以保留原行為 — 寫入 generation_history.costCredits 用以做帳。"
+   ],
+   [
+    241,
+    "對應的 backgroundJobs.id（若有）。寫入 digital_asset_library 與"
+   ],
+   [
+    242,
+    "generation_history.parameterSnapshot 讓「我的資產」反向查得到原始"
+   ],
+   [
+    243,
+    "任務記錄（fal request_id、降級紀錄等）。Schema 欄位於 migration 0047"
+   ],
+   [
+    244,
+    "新增；舊 schema 下會被 ORM 忽略。"
+   ],
+   [
+    248,
+    "prompt↔asset 關聯類型（prompt_assets.relation enum：derived/variant/rewrite/extended）。"
+   ],
+   [
+    249,
+    "座艙重骰=variant、改寫=rewrite、延長=extended；預設 derived（生成完成的衍生關聯）。"
+   ],
+   [
+    250,
+    "僅在 ENABLE_PROMPT_ASSET_LINKS=ON 且 promptId+assetId 都有時實際寫入；"
+   ],
+   [
+    251,
+    "寫入仍走 (promptId, assetId, relation) 唯一鍵＝冪等。"
+   ],
+   [
+    257,
+    "同步寫入提示詞庫 + 資產庫 + 歷史 + 監控。"
+   ],
+   [
+    258,
+    "各子任務皆吞錯，不影響主流程。"
+   ],
+   [
+    283,
+    "1-0. dedupe 前檢 — checkImageStatus / checkVideoStatus / checkAudioStatus"
+   ],
+   [
+    284,
+    "都是輪詢端點，每 3 秒會打一次；命中 COMPLETED 就會呼叫到此處。沒有"
+   ],
+   [
+    285,
+    "前檢就會在 generation_history / digital_asset_library / promptLibrary /"
+   ],
+   [
+    286,
+    "monitoring log 每輪都新增一筆。"
+   ],
+   [
+    287,
+    "所有 polling caller 都會帶 dedupeMarker（格式 [<source>:<modelId>:<requestId>]）—"
+   ],
+   [
+    288,
+    "在此用它做 generation_history.compiledPrompt 的存在檢查即可短路後續所有寫入。"
+   ],
+   [
+    306,
+    "同一個 fal request 已經寫過一次了 — 整個 post-gen 流程都跳過，"
+   ],
+   [
+    307,
+    "避免重複資產 / 歷史 / 監控紀錄。"
+   ],
+   [
+    312,
+    "dedupe 查詢失敗時繼續執行（best-effort），可接受偶發重複。"
+   ],
+   [
+    316,
+    "1-2. 提示詞庫（AIDV-10：upsert-by-content 去重）"
+   ],
+   [
+    317,
+    "記下重用/新寫入列的 id — 1-3a 寫完資產後（旗標 ON 時）用它建 prompt ↔ asset 邊。"
+   ],
+   [
+    318,
+    "改為 findOrCreatePromptByContent：先以 (userId, category, content) 查既有列 →"
+   ],
+   [
+    319,
+    "命中重用其 id、不再 insert；未命中才照舊 insert。確保同一段提示詞生成 N 次"
+   ],
+   [
+    320,
+    "只會有「一列 prompt、N 個 asset 都連到它」，而非每次都新插一列。"
+   ],
+   [
+    321,
+    "整段 try/catch 吞錯：去重出錯絕不能讓生成鏈失敗。"
+   ],
+   [
+    339,
+    "靜默忽略 — 去重/寫入失敗不能擋資產/歷史/監控寫入。"
+   ],
+   [
+    343,
+    "1-3a. 數位資產庫 — 補上 0047 migration 新增的來源追蹤欄位"
+   ],
+   [
+    344,
+    "（sourceStudio / modelId / backgroundJobId），讓「我的資產」可依"
+   ],
+   [
+    345,
+    "工作室與 AI 模型分類，並反向連回 backgroundJobs。"
+   ],
+   [
+    365,
+    "1-3a-2. prompt ↔ asset 關聯（prompt_assets junction, migration 0075）。"
+   ],
+   [
+    366,
+    "旗標 ENABLE_PROMPT_ASSET_LINKS 預設 OFF；ON 時把 1-2 剛寫的提示詞列"
+   ],
+   [
+    367,
+    "與本資產列連起來。relation 由呼叫端帶入（座艙重骰/改寫/延長＝"
+   ],
+   [
+    368,
+    "variant/rewrite/extended），預設 derived。(promptId, assetId, relation)"
+   ],
+   [
+    369,
+    "唯一鍵保證 webhook+polling 雙路徑重跑冪等；失敗吞錯不影響主流程。"
+   ],
+   [
+    384,
+    "靜默忽略 — 關聯失敗不能擋資產/歷史寫入"
+   ]
+  ]
+ },
+ "server/_core/generationLock.ts": {
+  "loc": 580,
+  "comments": [
+   [
+    2,
+    "generationLock.ts — Duplicate-submission lock for generation entry points"
+   ],
+   [
+    4,
+    "Purpose"
+   ],
+   [
+    6,
+    "Prevents a single user from accidentally firing the *same* generation request"
+   ],
+   [
+    7,
+    "twice concurrently (double-click, retry storms, parallel agent steps). It is a"
+   ],
+   [
+    8,
+    "convenience lock — NOT a security control — so it is **fail-open by design**:"
+   ],
+   [
+    9,
+    "if the lock backend is unavailable, slow, or errors, generation is allowed to"
+   ],
+   [
+    10,
+    "proceed and only a warning is logged. A user must never be unable to generate"
+   ],
+   [
+    11,
+    "because the lock had a problem."
+   ],
+   [
+    13,
+    "Semantics (Redis SET NX PX + Lua CAS-del, emulated faithfully in-memory)"
+   ],
+   [
+    15,
+    "acquire(key, ttlMs):"
+   ],
+   [
+    16,
+    "- Atomically sets `key → token` only if `key` is currently free"
+   ],
+   [
+    17,
+    "(SET key token NX PX ttl). Returns the token on success, or `null`"
+   ],
+   [
+    18,
+    "if the key is already held (someone else's generation is in progress)."
+   ],
+   [
+    19,
+    "- Every lock carries a TTL so a crashed/abandoned holder never wedges the"
+   ],
+   [
+    20,
+    "resource permanently — the lock auto-expires."
+   ],
+   [
+    21,
+    "release(key, token):"
+   ],
+   [
+    22,
+    "- Compare-and-delete: only removes the entry if its stored value still"
+   ],
+   [
+    23,
+    "equals `token` (Lua CAS-del). This guarantees we never delete a lock"
+   ],
+   [
+    24,
+    "that a *subsequent* legitimate attempt acquired after our TTL lapsed."
+   ],
+   [
+    26,
+    "Backend (the active store depends on REDIS_URL — read this before relying on it)"
+   ],
+   [
+    28,
+    "The store is selected at boot via the `GenerationLockStore` seam:"
+   ],
+   [
+    29,
+    "- REDIS_URL unset  → `InMemoryGenerationLockStore` (the default). Correct"
+   ],
+   [
+    30,
+    "single-instance semantics (token-compare delete + TTL auto-expiry), but"
+   ],
+   [
+    31,
+    "per-process only**. Two identical submits landing on different replicas"
+   ],
+   [
+    32,
+    "would BOTH acquire, and a restart drops all locks. This robustly covers"
+   ],
+   [
+    33,
+    "the dominant case (one user, one browser, double-click / retry storm →"
+   ],
+   [
+    34,
+    "same process) and degrades gracefully (fail-open) otherwise."
+   ],
+   [
+    35,
+    "- REDIS_URL set    → `RedisGenerationLockStore` (see redisGenerationLockStore.ts),"
+   ],
+   [
+    36,
+    "swapped in at boot by `initGenerationLockBackend()`. `setNxPx` → `SET key"
+   ],
+   [
+    37,
+    "token NX PX ttl`, `casDel` → the Lua get-compare-del script. This makes"
+   ],
+   [
+    38,
+    "the dedup guarantee **cross-instance**: contending submits on different"
+   ],
+   [
+    39,
+    "replicas hit the same Redis key, so only one acquires. Call sites never"
+   ],
+   [
+    40,
+    "change — they use the `generationLock` singleton, whose store is swapped."
+   ],
+   [
+    42,
+    "Either way the lock is fail-open: if the backend is unavailable/slow/errors,"
+   ],
+   [
+    43,
+    "generation proceeds (availability > dedup). A down Redis therefore degrades"
+   ],
+   [
+    44,
+    "cross-instance dedup back to best-effort; it can never block a user."
+   ],
+   [
+    46,
+    "Late-write self-heal (Redis edge case)"
+   ],
+   [
+    48,
+    "A slow `setNxPx` can land on Redis *after* our op timeout already fired and we"
+   ],
+   [
+    49,
+    "failed open. That would leave a lock nobody is tracking. On every fail-open"
+   ],
+   [
+    50,
+    "acquire we therefore schedule a best-effort CAS-del on our own token to"
+   ],
+   [
+    51,
+    "neutralize such a late-landed write (see `scheduleSelfHeal`). It only ever"
+   ],
+   [
+    52,
+    "deletes a lock whose value equals our unique token, so it can never delete"
+   ],
+   [
+    53,
+    "another caller's lock."
+   ],
+   [
+    55,
+    "Hot-path safety"
+   ],
+   [
+    57,
+    "All store operations are wrapped with a short timeout (default 200ms) and a"
+   ],
+   [
+    58,
+    "try/catch. A timeout or error is treated as \"lock unavailable\" → fail-open."
+   ],
+   [
+    59,
+    "The in-memory store is synchronous so the timeout never actually fires for it,"
+   ],
+   [
+    60,
+    "but the guard is in place for any future async (Redis) backend."
+   ],
+   [
+    62,
+    "Usage"
+   ],
+   [
+    64,
+    "import { generationLock, buildGenerationLockKey } from \"./generationLock\";"
+   ],
+   [
+    66,
+    "const key = buildGenerationLockKey(userId, { segments, generationOptions });"
+   ],
+   [
+    67,
+    "const token = await generationLock.acquire(key, 180_000);"
+   ],
+   [
+    68,
+    "if (token === GENERATION_LOCKED) {"
+   ],
+   [
+    69,
+    "throw new TRPCError({ code: \"CONFLICT\", message: \"此生成正在進行中\" });"
+   ],
+   [
+    71,
+    "try {"
+   ],
+   [
+    72,
+    "... do the generation submission ..."
+   ],
+   [
+    73,
+    "} finally {"
+   ],
+   [
+    74,
+    "if (token) await generationLock.release(key, token);"
+   ],
+   [
+    85,
+    "Sentinel returned by acquire() when the lock is already held by another"
+   ],
+   [
+    86,
+    "in-progress generation. Distinct from `null` (which we never return) so call"
+   ],
+   [
+    87,
+    "sites can branch unambiguously. A real token is always a uuid string."
+   ],
+   [
+    91,
+    "Result of acquire(): a token string (got the lock), or GENERATION_LOCKED."
+   ],
+   [
+    95,
+    "Default TTL for the *planning* lock (ms) on autoGenerateFromSegments."
+   ],
+   [
+    97,
+    "The planning call only builds task descriptors + checks the point balance"
+   ],
+   [
+    98,
+    "(a few fast DB reads); it does NOT deduct points or dispatch. So this TTL"
+   ],
+   [
+    99,
+    "just needs to debounce a concurrent identical *plan*. 180s is far more than"
+   ],
+   [
+    100,
+    "planning ever takes — it is deliberately generous so a crashed planner never"
+   ],
+   [
+    101,
+    "wedges the resource (the lock auto-expires either way)."
+   ],
+   [
+    106,
+    "TTL for the *per-task* execution lock (ms) on executeGenerationTask."
+   ],
+   [
+    108,
+    "THIS is the lock that actually prevents duplicate *paid* generation: it is"
+   ],
+   [
+    109,
+    "held across the point deduction + fal queue submit (the money + dispatch"
+   ],
+   [
+    110,
+    "path). The held critical section is short — a couple of DB writes plus one"
+   ],
+   [
+    111,
+    "fal `submit` HTTP round-trip that returns a request_id quickly (the long"
+   ],
+   [
+    112,
+    "generation itself happens later via separate polling, NOT under this lock)."
+   ],
+   [
+    114,
+    "60s bounds a hung submit with comfortable margin while keeping the dedup"
+   ],
+   [
+    115,
+    "window tight: a genuine retry of a *failed* task (which released its lock in"
+   ],
+   [
+    116,
+    "finally) is never blocked, but a true concurrent double-fire of the same task"
+   ],
+   [
+    117,
+    "is. As with every lock here it auto-expires, so a crash mid-submit cannot"
+   ],
+   [
+    118,
+    "wedge the user out of re-running that task."
+   ],
+   [
+    122,
+    "Short timeout on each backend op so a slow/hung backend never blocks the hot path."
+   ],
+   [
+    126,
+    "Self-heal of a *late-landed* lock (see the doc block). After a fail-open"
+   ],
+   [
+    127,
+    "acquire we re-attempt CAS-del on our own token a few times, spaced out, to"
+   ],
+   [
+    128,
+    "catch a `setNxPx` that lands shortly after the op timeout fired. Bounded and"
+   ],
+   [
+    129,
+    "best-effort: a handful of attempts over <1s, all errors swallowed."
+   ],
+   [
+    134,
+    "Key namespace prefix (the Redis backend further prepends REDIS_KEY_PREFIX)."
+   ],
+   [
+    140,
+    "Minimal lock store contract. Maps 1:1 onto Redis primitives:"
+   ],
+   [
+    141,
+    "setNxPx → `SET key token NX PX ttl`"
+   ],
+   [
+    142,
+    "casDel  → Lua `if redis.call('get',k)==token then return redis.call('del',k) end`"
+   ],
+   [
+    144,
+    "A Redis-backed implementation can be added later behind this interface with"
+   ],
+   [
+    145,
+    "zero changes to callers."
+   ],
+   [
+    149,
+    "Set `key`→`token` with a `ttlMs` expiry **only if** `key` is currently"
+   ],
+   [
+    150,
+    "unset (NX). Returns true if the lock was taken, false if already held."
+   ],
+   [
+    154,
+    "Delete `key` **only if** its current value equals `token` (compare-and-delete)."
+   ],
+   [
+    155,
+    "Returns true if a matching entry was removed, false otherwise."
+   ],
+   [
+    168,
+    "In-process lock store with correct single-instance semantics:"
+   ],
+   [
+    169,
+    "- NX honoured against non-expired entries (expired entries are treated as free)"
+   ],
+   [
+    170,
+    "- TTL auto-expiry (lazy on access; a periodic sweep reclaims memory)"
+   ],
+   [
+    171,
+    "- token compare-and-delete (never deletes another holder's lock)"
+   ],
+   [
+    173,
+    "Note: this is per-process. On a single Railway instance that is exactly the"
+   ],
+   [
+    174,
+    "dedup scope we want. With horizontal scaling, swap in a Redis-backed store via"
+   ],
+   [
+    175,
+    "the GenerationLockStore seam — call sites do not change."
+   ],
+   [
+    190,
+    "Held by a live lock → NX fails."
+   ],
+   [
+    193,
+    "Free or expired → take it."
+   ],
+   [
+    207,
+    "Test/diagnostic helper: is a (non-expired) lock currently held for `key`?"
+   ],
+   [
+    220,
+    "Stop the sweep timer and clear state (tests / graceful shutdown)."
+   ],
+   [
+    233,
+    "Deterministically hash an arbitrary generation payload to a short hex digest."
+   ],
+   [
+    234,
+    "Uses sha256 (collision-resistant; we slice to 16 hex chars = 64 bits, ample"
+   ],
+   [
+    235,
+    "for a per-user dedup window). Stable JSON key ordering is NOT enforced here —"
+   ],
+   [
+    236,
+    "callers pass a structurally stable object (the validated tRPC input), so the"
+   ],
+   [
+    237,
+    "field order is already deterministic."
+   ],
+   [
+    245,
+    "Build a lock key that precisely represents \"the same generation request\"."
+   ],
+   [
+    247,
+    "Granularity: `gen-lock:{userId}:{payloadHash}`"
+   ],
+   [
+    248,
+    "- Same user + same payload  → same key → second concurrent submit is blocked"
+   ],
+   [
+    249,
+    "(this is exactly \"don't run the same generation twice\")."
+   ],
+   [
+    250,
+    "- Same user + different payload (different segments/options/project)"
+   ],
+   [
+    251,
+    "→ different hash → different key → parallel generations are allowed."
+   ],
+   [
+    252,
+    "- Different users → different userId → always independent."
+   ],
+   [
+    254,
+    "This is intentionally scoped per-user: two different users submitting an"
+   ],
+   [
+    255,
+    "identical payload still get independent locks (their generations are"
+   ],
+   [
+    256,
+    "legitimately separate jobs)."
+   ]
+  ]
+ },
+ "server/_core/providerFacade.ts": {
+  "loc": 157,
+  "comments": [
+   [
+    2,
+    "providerFacade.ts — 統一供應商門面（W1-2／AIDV-11）"
+   ],
+   [
+    4,
+    "所有外部 AI 供應商的 base URL 集中在這一張路由表。任何要打供應商的"
+   ],
+   [
+    5,
+    "程式碼（adapters、aiProxy、llmRouter、studio routers、jobs）一律從這裡"
+   ],
+   [
+    6,
+    "解析 base URL，不再各自硬編 host——加新供應商、換網域、掛閘道都只改這裡。"
+   ],
+   [
+    8,
+    "Cloudflare AI Gateway（D10 已拍板，code 端先行）："
+   ],
+   [
+    9,
+    "設定 CF_AI_GATEWAY_BASE_URL（形如"
+   ],
+   [
+    10,
+    "https://gateway.ai.cloudflare.com/v1/<account>/<gateway>）後，"
+   ],
+   [
+    11,
+    "有對應 CF slug 的供應商會改走閘道，獲得免費的快取／觀測／告警。"
+   ],
+   [
+    12,
+    "CF 的轉發規律是「純 host 置換」："
+   ],
+   [
+    13,
+    "https://api.anthropic.com/v1/messages"
+   ],
+   [
+    14,
+    "→ {gateway}/anthropic/v1/messages"
+   ],
+   [
+    15,
+    "路徑原封不動，所以呼叫端只需要換 base URL，其餘零更動。"
+   ],
+   [
+    17,
+    "未設定（現況）＝所有供應商照舊直連，行為完全不變。"
+   ],
+   [
+    18,
+    "等 Bruce 開好 CF 帳號把變數貼進 Railway 即生效，不用改碼。"
+   ],
+   [
+    20,
+    "環境變數（皆選填；lazy 讀 process.env，測試可隨時覆寫）："
+   ],
+   [
+    21,
+    "CF_AI_GATEWAY_BASE_URL   閘道底址（不含供應商 slug）"
+   ],
+   [
+    22,
+    "CF_AI_GATEWAY_TOKEN      已驗證閘道的 token（CF 後台開「Authenticated"
+   ],
+   [
+    23,
+    "Gateway」時必填；會以 cf-aig-authorization 標頭送出）"
+   ],
+   [
+    24,
+    "CF_AI_GATEWAY_PROVIDERS  逗號分隔白名單（值＝本檔的 FacadeProvider 鍵；"
+   ],
+   [
+    25,
+    "留空＝所有支援的供應商都走閘道）。單一供應商"
+   ],
+   [
+    26,
+    "走閘道出問題時，用這個把它踢回直連。"
+   ],
+   [
+    40,
+    "直連 base URL（scheme + host［+ 路徑前綴］，結尾不帶斜線）。"
+   ],
+   [
+    43,
+    "Cloudflare AI Gateway 的供應商 slug；null＝CF 不支援，永遠直連。"
+   ],
+   [
+    44,
+    "slug 對照 CF 文件的 provider endpoints（google-ai-studio、elevenlabs、"
+   ],
+   [
+    45,
+    "anthropic、openrouter、perplexity-ai…）。fal 與 suno（第三方代理"
+   ],
+   [
+    46,
+    "sunoapi.org）目前都不在 CF 支援清單。"
+   ],
+   [
+    78,
+    "fal 的兩個底址沒有 CF slug、永遠直連，提供成常數方便 studio routers"
+   ],
+   [
+    79,
+    "dispatcher 以單一來源取用（之前 6 個檔案各自硬編了一份）。"
+   ],
+   [
+    99,
+    "這個供應商目前是否會經由 CF AI Gateway 轉送。"
+   ],
+   [
+    110,
+    "解析供應商目前生效的 base URL（結尾不帶斜線）。"
+   ],
+   [
+    112,
+    "@param explicitBase 呼叫端已有的自訂 base（例如 OPENROUTER_BASE_URL）。"
+   ],
+   [
+    113,
+    "若與預設直連底址不同，視為操作者的明確覆寫，優先於閘道。"
+   ],
+   [
+    127,
+    "走閘道時需要附加的標頭（已驗證閘道的 cf-aig-authorization）。"
+   ],
+   [
+    128,
+    "直連或未設 token 時回空物件——呼叫端可以無腦 spread。"
+   ],
+   [
+    140,
+    "LLM 引擎名 → 門面供應商鍵的對照（llm.ts／llmRouter.ts 用）。"
+   ],
+   [
+    141,
+    "vertex／nvidia／forge 沒有 CF slug 或 URL 結構特殊，維持直連回 null。"
+   ]
+  ]
+ },
+ "server/_core/redisGenerationLockStore.ts": {
+  "loc": 115,
+  "comments": [
+   [
+    2,
+    "redisGenerationLockStore.ts — Redis-backed GenerationLockStore"
+   ],
+   [
+    4,
+    "Implements the `GenerationLockStore` seam from generationLock.ts over the"
+   ],
+   [
+    5,
+    "shared ioredis client. The two primitives map 1:1 onto Redis:"
+   ],
+   [
+    7,
+    "setNxPx → `SET key token NX PX ttl`   (atomic acquire-if-free with expiry)"
+   ],
+   [
+    8,
+    "casDel  → Lua `if get(key)==token then del(key) end`  (compare-and-delete)"
+   ],
+   [
+    10,
+    "This is what makes the dedup lock **cross-instance**: with REDIS_URL set, two"
+   ],
+   [
+    11,
+    "identical submits that land on different Railway replicas contend on the same"
+   ],
+   [
+    12,
+    "Redis key, so only one acquires. Without it the lock is per-process (see the"
+   ],
+   [
+    13,
+    "doc block in generationLock.ts)."
+   ],
+   [
+    15,
+    "Fail-open is preserved by the layer above: `GenerationLockService` wraps every"
+   ],
+   [
+    16,
+    "store op in a short timeout + try/catch and proceeds (fail-open) on any"
+   ],
+   [
+    17,
+    "rejection. This store therefore just lets errors propagate — it must NOT"
+   ],
+   [
+    18,
+    "swallow them into a \"lock held\" result, or a Redis blip could wedge a user."
+   ],
+   [
+    20,
+    "Key namespacing: keys are prefixed with `REDIS_KEY_PREFIX` (default"
+   ],
+   [
+    21,
+    "\"healing-studio:\") so the lock shares the project's Redis namespace and can"
+   ],
+   [
+    22,
+    "coexist with future cache / rate-limiter keys on the same instance. The prefix"
+   ],
+   [
+    23,
+    "is applied identically to the SET key and the Lua KEYS[1], so acquire and"
+   ],
+   [
+    24,
+    "release always target the same physical key."
+   ],
+   [
+    34,
+    "Compare-and-delete in one atomic round-trip. Returns 1 if the key existed and"
+   ],
+   [
+    35,
+    "its value matched the token (and was deleted), 0 otherwise. This guarantees we"
+   ],
+   [
+    36,
+    "never delete a lock that a *later* legitimate attempt acquired after our TTL"
+   ],
+   [
+    37,
+    "lapsed (the value would no longer be our token)."
+   ],
+   [
+    60,
+    "`SET key token NX PX ttl` → true if taken, false if already held."
+   ],
+   [
+    62,
+    "ioredis: set(key, value, \"PX\", ttlMs, \"NX\") → \"OK\" on success, null on NX miss."
+   ],
+   [
+    67,
+    "Lua compare-and-delete → true if a matching entry was removed."
+   ],
+   [
+    75,
+    "Wire the generation lock onto Redis when REDIS_URL is configured. Idempotent"
+   ],
+   [
+    76,
+    "and safe to call at boot before the HTTP server accepts requests."
+   ],
+   [
+    78,
+    "- REDIS_URL unset → returns false, lock keeps its in-memory backend"
+   ],
+   [
+    79,
+    "(correct single-instance / demo behaviour, zero change)."
+   ],
+   [
+    80,
+    "- REDIS_URL set   → swaps in the Redis-backed store. Call sites are"
+   ],
+   [
+    81,
+    "unchanged — they use the `generationLock` singleton, whose store we swap."
+   ],
+   [
+    83,
+    "Never throws: any failure here leaves the in-memory store in place (fail-open"
+   ],
+   [
+    84,
+    "at the infrastructure level too), so a Redis problem can't block boot."
+   ],
+   [
+    106,
+    "Tear down the lock backend on shutdown: stop self-heal/sweep timers + close Redis."
+   ]
+  ]
+ },
+ "shared/orb-cost-governor.ts": {
+  "loc": 276,
+  "comments": [
+   [
+    2,
+    "shared/orb-cost-governor.ts"
+   ],
+   [
+    4,
+    "Pre-flight cost estimate + budget gate for workflows. Lets the"
+   ],
+   [
+    5,
+    "orchestrator answer \"is this workflow about to spend more than the user"
+   ],
+   [
+    6,
+    "is comfortable with?\" BEFORE any tool fires. Real per-call pricing"
+   ],
+   [
+    7,
+    "lives in `videoModelCatalog` / `engineModelIds` / `falModelCapabilities`"
+   ],
+   [
+    8,
+    "and is highly model-specific — this module deliberately uses coarse"
+   ],
+   [
+    9,
+    "tier-based estimates so the planner can decide gating WITHOUT pulling"
+   ],
+   [
+    10,
+    "in those large catalogs (and without leaking pricing into the client)."
+   ],
+   [
+    12,
+    "Two integration points:"
+   ],
+   [
+    13,
+    "1. `estimateWorkflowCost(steps, table)` — pure: rough credits +"
+   ],
+   [
+    14,
+    "duration + max-risk tier for an `AgentWorkflowStep[]`."
+   ],
+   [
+    15,
+    "2. `shouldRequireBudgetConfirm(estimate, budget)` — pure: returns"
+   ],
+   [
+    16,
+    "`{ required, reason }`. The orchestrator can convert this into a"
+   ],
+   [
+    17,
+    "step-by-step confirmation OR a single up-front confirmation card."
+   ],
+   [
+    19,
+    "Pure / sync / no I/O. Caller supplies the cost table; tests use a"
+   ],
+   [
+    20,
+    "deterministic table, production wires the prod table at startup."
+   ],
+   [
+    28,
+    "Estimated credits the call will spend."
+   ],
+   [
+    30,
+    "Estimated wall-clock duration in ms (used for \"this will take ~5 min\")."
+   ],
+   [
+    32,
+    "Coarse risk tier — drives confirmation thresholds."
+   ],
+   [
+    36,
+    "Cost lookup. Caller passes a Map for production; tests can pass a small one."
+   ],
+   [
+    39,
+    "Per-tool defaults — intentionally conservative (slight over-estimate)."
+   ],
+   [
+    76,
+    "Numeric ranking so we can compute the max tier in a list."
+   ],
+   [
+    93,
+    "Whether this step counts as a tool call; UI dispatches use the base."
+   ],
+   [
+    103,
+    "True when at least one step is a `submit` or a registered tool."
+   ],
+   [
+    108,
+    "Build a cost estimate for a workflow. UI-only steps are charged at"
+   ],
+   [
+    109,
+    "their base (free for fillPrompt / setModel / …, ~5 credits for submit"
+   ],
+   [
+    110,
+    "since it kicks off async generation). Tool calls are looked up in the"
+   ],
+   [
+    111,
+    "provided cost table; unknown tools are charged at \"medium\" tier with a"
+   ],
+   [
+    112,
+    "conservative 10-credit / 30-second placeholder so the gate behaves"
+   ],
+   [
+    113,
+    "predictably even when the registry grows new tools faster than the"
+   ],
+   [
+    114,
+    "cost table."
+   ],
+   [
+    135,
+    "Unknown but registered tools assume medium risk; truly unknown"
+   ],
+   [
+    136,
+    "tools (not in registry) assume expensive — they're more"
+   ],
+   [
+    137,
+    "suspicious and gating should err on the side of confirming."
+   ],
+   [
+    173,
+    "Remaining credits in this session / day. The governor is unaware of"
+   ],
+   [
+    174,
+    "the unit (credits vs. dollars vs. tokens) — you pass numbers, it"
+   ],
+   [
+    175,
+    "compares numbers. Caller's job to keep the unit consistent."
+   ],
+   [
+    178,
+    "Per-workflow ceiling. Above this → require confirmation."
+   ],
+   [
+    181,
+    "When set, any workflow whose `maxTier` is `>=` this requires"
+   ],
+   [
+    182,
+    "confirmation regardless of credit math. Lets cautious users ask for"
+   ],
+   [
+    183,
+    "\"always confirm anything expensive even if I have credits\"."
+   ],
+   [
+    186,
+    "Estimate is informational only; never gate."
+   ],
+   [
+    191,
+    "True when the orchestrator should pause for user confirmation."
+   ],
+   [
+    193,
+    "Human-readable explanation for the confirmation card."
+   ],
+   [
+    195,
+    "The estimate that drove the decision (echoed for telemetry)."
+   ],
+   [
+    200,
+    "Decide whether the orchestrator must pause before running this workflow."
+   ],
+   [
+    201,
+    "Three conditions trip the gate:"
+   ],
+   [
+    202,
+    "- Tier-floor: the workflow's `maxTier` >= `confirmAtTierOrAbove`."
+   ],
+   [
+    203,
+    "- Cap: total credits exceed `perWorkflowCap`."
+   ],
+   [
+    204,
+    "- Insufficient: total credits exceed `remainingCredits`."
+   ],
+   [
+    206,
+    "`alwaysAllow=true` short-circuits to no-confirm (informational mode)."
+   ],
+   [
+    207,
+    "No budget at all = pass through (caller chose not to gate)."
+   ],
+   [
+    258,
+    "Human-readable summary for the confirmation card."
+   ]
+  ]
+ },
+ "shared/agent-plan-safety.ts": {
+  "loc": 616,
+  "comments": [
+   [
+    219,
+    "Auto-fix: silently coerce requiresApproval=true on high-risk steps and"
+   ],
+   [
+    220,
+    "emit a warning instead of blocking. Runtime gates (orbTaskOrchestrator"
+   ],
+   [
+    221,
+    "+ WorkflowConfirmationCard + user agent preferences) still enforce"
+   ],
+   [
+    222,
+    "approval at execution time, so the policy is preserved — but the"
+   ],
+   [
+    223,
+    "planner forgetting one boolean no longer kills an otherwise-valid"
+   ],
+   [
+    224,
+    "multi-step workflow (regression caught by the cat-war video case)."
+   ],
+   [
+    329,
+    "- unknown action  → blocked"
+   ],
+   [
+    330,
+    "- unknown tool    → blocked"
+   ],
+   [
+    331,
+    "- submit / reset / applyPreset → high + requiresHuman"
+   ],
+   [
+    332,
+    "- cross-page multi-step       → tasked"
+   ],
+   [
+    333,
+    "- code / github / deploy      → tasked + claudeCode"
+   ],
+   [
+    334,
+    "- multimodal generation       → medium 起跳"
+   ],
+   [
+    335,
+    "- fillPrompt only (single)    → low / direct OK"
+   ],
+   [
+    346,
+    "Tool namespaces that run server-side via the orb tool executor and never"
+   ],
+   [
+    347,
+    "require a Claude Code handoff. When every non-empty step toolName falls in"
+   ],
+   [
+    348,
+    "this set, the planner's \"code\" capability hint is metadata noise and must"
+   ],
+   [
+    349,
+    "not override the actual work — see the 全站光球代理 misroute that blocked"
+   ],
+   [
+    350,
+    "the Pu'er-tea video plan with \"claude code handoff required\" even though"
+   ],
+   [
+    351,
+    "every step was a studio.* media call."
+   ],
+   [
+    402,
+    "1) Unknown actions block immediately."
+   ],
+   [
+    448,
+    "2) Destructive UI actions force high + human approval."
+   ],
+   [
+    454,
+    "Auto-fix instead of block: the planner forgetting this boolean was"
+   ],
+   [
+    455,
+    "a frequent reason multi-step plans (e.g., the cat-war video flow)"
+   ],
+   [
+    456,
+    "got rejected with \"must set requiresApproval=true\" and the user"
+   ],
+   [
+    457,
+    "could not proceed. Runtime gates (orbTaskOrchestrator policy +"
+   ],
+   [
+    458,
+    "user agent preferences + workflow confirmation card) still enforce"
+   ],
+   [
+    459,
+    "human approval at execution time, so security is preserved while"
+   ],
+   [
+    460,
+    "the plan can actually reach the UI."
+   ],
+   [
+    487,
+    "3) Multimodal → at least medium risk."
+   ],
+   [
+    500,
+    "4) Cross-page multi-step → tasked."
+   ],
+   [
+    512,
+    "5) Code / GitHub / Deploy capability → tasked + ClaudeCode."
+   ],
+   [
+    530,
+    "The planner LLM sometimes hallucinates routing.capabilities=[\"code\"] for"
+   ],
+   [
+    531,
+    "a multi-step media plan (e.g., \"為使用者製作普洱茶療癒影片\"). When that"
+   ],
+   [
+    532,
+    "happens but every actual tool call is a server-side media tool, demote"
+   ],
+   [
+    533,
+    "the claudeCode routing — there is no code to hand off, and blocking the"
+   ],
+   [
+    534,
+    "task with \"claude code handoff required\" stalls every studio.* step."
+   ],
+   [
+    553,
+    "6) Decide effective decision mode."
+   ],
+   [
+    567,
+    "7) Preferred engine routing."
+   ]
+  ]
+ },
+ "server/routers/creativeProject.ts": {
+  "loc": 288,
+  "comments": [
+   [
+    2,
+    "Creative Project Router — 創作專案整合層"
+   ],
+   [
+    4,
+    "把 Director session（存在 project_notes_calendar）+ Worldbuilding"
+   ],
+   [
+    5,
+    "framework + World Storyboard 三者綁定成一個有意義的創作單位。全站光球"
+   ],
+   [
+    6,
+    "與各 Studio 頁面透過 WorldContextContext 讀取目前選定的 project，"
+   ],
+   [
+    7,
+    "從而獲得跨頁面共享的世界觀上下文。"
+   ],
+   [
+    73,
+    "列出當前使用者的所有創作專案"
+   ],
+   [
+    79,
+    "取得單一創作專案（含關聯的世界觀摘要，方便前端一次取齊）"
+   ],
+   [
+    88,
+    "旗標 OFF（預設）= 完全保持現狀：只有 owner 看得到（非 owner→NOT_FOUND）。"
+   ],
+   [
+    89,
+    "旗標 ON = owner 仍可，且額外允許「被顯式共享給此 user/team 的」viewer/"
+   ],
+   [
+    90,
+    "editor 看到（A 看得到 B 顯式共享給 A 的專案）。OFF 路徑位元相同。"
+   ],
+   [
+    107,
+    "同時取得世界觀摘要（前端 WorldContext 可直接使用，少一次往返）"
+   ],
+   [
+    120,
+    "M1-A Active Project Context：取得 `/create` 顯示的專案上下文摘要。"
+   ],
+   [
+    121,
+    "彙整專案核心欄位、連結世界觀框架與最近素材；權限檢查在 service 內完成。"
+   ],
+   [
+    139,
+    "建立新創作專案"
+   ],
+   [
+    181,
+    "更新創作專案"
+   ],
+   [
+    223,
+    "刪除創作專案"
+   ],
+   [
+    232,
+    "AIDV-121：清掉此資源的孤兒共享記錄（resource_shares 無 FK，刪資源不會"
+   ],
+   [
+    233,
+    "cascade）。best-effort，不阻塞刪除主流程（與 audit 同模式）。"
+   ],
+   [
+    252,
+    "綁定（或解綁）三大資源到專案。傳 null 代表解綁。"
+   ],
+   [
+    253,
+    "同時呼叫多個 link 可以一次設定多項；省略則維持原值。"
+   ]
+  ]
+ }
+}

@@ -1,0 +1,93 @@
+[
+ {
+  "item": "資料表 tables",
+  "claimed": 82,
+  "measured": 87,
+  "diff": "+5",
+  "note": "簡報 82＝舊快照；現 main 已增至 87（含 cost/orb/連接器等新表）"
+ },
+ {
+  "item": "資料欄位 columns",
+  "claimed": "—",
+  "measured": 1161,
+  "diff": "",
+  "note": "本報告修正解析器漏抓帶 /** */ 註解欄位後之真實全量（曾誤為 908）"
+ },
+ {
+  "item": "索引/約束 indexes",
+  "claimed": "—",
+  "measured": 265,
+  "diff": "",
+  "note": ""
+ },
+ {
+  "item": "Migration 檔",
+  "claimed": "—",
+  "measured": 82,
+  "diff": "",
+  "note": ""
+ },
+ {
+  "item": "前端路由 routes (App.tsx <Route>)",
+  "claimed": 54,
+  "measured": 55,
+  "diff": "+1",
+  "note": "簡報 54；現 55（含新增頁）"
+ },
+ {
+  "item": "前端頁面 pages",
+  "claimed": 50,
+  "measured": 50,
+  "diff": "一致",
+  "note": ""
+ },
+ {
+  "item": "tRPC router 檔 (routers/)",
+  "claimed": 34,
+  "measured": 37,
+  "diff": "+3",
+  "note": "簡報 34＝早期；現 routers/ 37 檔"
+ },
+ {
+  "item": "tRPC procedure（routers/ 內）",
+  "claimed": "—",
+  "measured": 284,
+  "diff": "",
+  "note": ""
+ },
+ {
+  "item": "tRPC procedure（全 server 實測）",
+  "claimed": 565,
+  "measured": 424,
+  "diff": "-141",
+  "note": "簡報 ~565 為估算；本報告實測 name:xProcedure 全 server＝下方數值（含 routers.ts appRouter inline 122）"
+ },
+ {
+  "item": "Feature flag token",
+  "claimed": "—",
+  "measured": 50,
+  "diff": "",
+  "note": ""
+ },
+ {
+  "item": "原始碼檔數",
+  "claimed": "—",
+  "measured": 1738,
+  "diff": "",
+  "note": ""
+ },
+ {
+  "item": "原始碼行數",
+  "claimed": "—",
+  "measured": 587080,
+  "diff": "",
+  "note": ""
+ },
+ {
+  "item": "Jira 任務卡（live AIDV 全量）",
+  "claimed": 315,
+  "measured": 323,
+  "diff": "+8",
+  "note": "Bruce 口述 315；live Jira JQL 實拉全量＝下方數值"
+ }
+]

@@ -1,0 +1,626 @@
+{
+ "done_by_epic": {
+  "(無父卡)": [
+   {
+    "key": "AIDV-30",
+    "summary": "Wave 0 前端骨架/導演台",
+    "prs": [
+     "852",
+     "862"
+    ],
+    "tables": []
+   },
+   {
+    "key": "AIDV-105",
+    "summary": "🚫[重複作廢→見 AIDV-74 Wave U] 設計系統與四殼地基",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-106",
+    "summary": "🚫[重複作廢→見 AIDV-30 Wave 0] Wave 0 純前端先贏",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-107",
+    "summary": "🚫[重複作廢→見 AIDV-31 Wave 1] Wave 1 面板＋Adapter 接線",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-108",
+    "summary": "🚫[重複作廢→見 AIDV-32 Wave 2] Wave 2 需後端表",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-109",
+    "summary": "🚫[重複作廢→見 AIDV-33 Wave 3] Wave 3 重後端＋基礎設施",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-152",
+    "summary": "Worldview→Director 自動載入 worldFramework（補半通接縫）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-153",
+    "summary": "成本帳本升級為 append-only 雙分錄（idempotency＋對帳 job）",
+    "prs": [],
+    "tables": [
+     "cost_aggregations"
+    ]
+   },
+   {
+    "key": "AIDV-156",
+    "summary": "本機開發環境一鍵 bootstrap 納入 repo（docker-compose／.env 範本／setup）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-157",
+    "summary": "[QA探查] 導演對話送出訊息回 500「Conversation not found」——核心創作動作壞掉（專案「2」）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-158",
+    "summary": "[資安巡檢C1] FAL webhook 缺 per-job token＋密鑰未設時 fail-open（/api/webhook/fal）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-159",
+    "summary": "[資安巡檢C1] Stripe webhook 從未計算 HMAC＋先回200再驗（接金流前必修）",
+    "prs": [],
+    "tables": [
+     "user_subscriptions"
+    ]
+   },
+   {
+    "key": "AIDV-161",
+    "summary": "[opt] loadProject 跨專案資料混入：worldStoryboard.list 不吃輸入回該使用者全部分鏡",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-162",
+    "summary": "[opt] spine projectGateway 以 as any 餵未遷移方法 → 形狀錯誤造成靜默失敗（寫入沒寫進／讀取永遠 null）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-163",
+    "summary": "[opt] spine/前端健壯性：先報成功競態＋空 catch 吞錯＋N+1 寫入＋死碼按鈕",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-165",
+    "summary": "[QA探查] 整個 AI 文字生成層壞掉：LLM 模型設成失效的 Perplexity「sonar-reasoning-pro」(400 invalid_model) → 生成腳本＋導演對話雙雙 500",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-181",
+    "summary": "[QA探查R6] 全站文字 AI 仍給不出實質內容：AIDV-165 修好後 ai.chat 已回 200，但 AI 只回 fallback 錯誤、零分鏡/旁白（疑供應商餘額 402，待決策＋缺優雅降級）",
+    "prs": [],
+    "tables": [
+     "orb_conversations"
+    ]
+   },
+   {
+    "key": "AIDV-184",
+    "summary": "[opt] promptLibrary 可見性/IDOR 一致性：incrementUseCount 無 ownership（可灌他人 useCount）＋getById RBAC-ON 忽略 isPublic",
+    "prs": [],
+    "tables": [
+     "prompt_library"
+    ]
+   }
+  ],
+  "AIDV-31": [
+   {
+    "key": "AIDV-5",
+    "summary": "Project SSOT：MOCK→真 creative_projects",
+    "prs": [
+     "862",
+     "863"
+    ],
+    "tables": [
+     "creative_projects"
+    ]
+   },
+   {
+    "key": "AIDV-6",
+    "summary": "prompt_assets junction 表",
+    "prs": [
+     "864"
+    ],
+    "tables": [
+     "prompt_assets",
+     "prompt_library"
+    ]
+   },
+   {
+    "key": "AIDV-7",
+    "summary": "合流 feat/4-shell-restructure → main",
+    "prs": [
+     "862",
+     "863"
+    ],
+    "tables": []
+   },
+   {
+    "key": "AIDV-10",
+    "summary": "prompt_library content 去重策略",
+    "prs": [],
+    "tables": [
+     "prompt_library"
+    ]
+   },
+   {
+    "key": "AIDV-11",
+    "summary": "統一供應商門面＋Cloudflare AI Gateway",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-12",
+    "summary": "其餘可接子系統接真實 procedure",
+    "prs": [
+     "862"
+    ],
+    "tables": []
+   },
+   {
+    "key": "AIDV-26",
+    "summary": "決策紀錄：prompt↔asset=junction",
+    "prs": [
+     "864"
+    ],
+    "tables": []
+   },
+   {
+    "key": "AIDV-36",
+    "summary": "W1-3 promptVault 第 6 條接縫（adapters/promptVault.trpc.ts）",
+    "prs": [],
+    "tables": [
+     "prompt_library",
+     "prompt_assets"
+    ]
+   },
+   {
+    "key": "AIDV-37",
+    "summary": "W1-4 Flow TV 放映皮",
+    "prs": [],
+    "tables": [
+     "prompt_library"
+    ]
+   },
+   {
+    "key": "AIDV-38",
+    "summary": "W1-5 單模型遊樂場統一目錄頁",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-39",
+    "summary": "W1-6 per-引擎設定面板＋個人化面板完善",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-40",
+    "summary": "W1-7 工程衛生",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-41",
+    "summary": "W1-8 從零引導表單細修＋四態文案抽核",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-42",
+    "summary": "W1-9 手機版導演台（⑧-H7）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-76",
+    "summary": "P0：生產 migration 卡死——0067 之後全沒套用，影片專案功能 500",
+    "prs": [
+     "869",
+     "870",
+     "871",
+     "872"
+    ],
+    "tables": [
+     "creative_projects",
+     "orchestration_runs",
+     "prompt_assets"
+    ]
+   }
+  ],
+  "AIDV-55": [
+   {
+    "key": "AIDV-56",
+    "summary": "H1 CI 自動把關（GitHub Actions PR gate）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-57",
+    "summary": "H2 資料庫備份＋還原演練",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-58",
+    "summary": "H3 監控鎖門＋錯誤追蹤",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-59",
+    "summary": "H4 JWT 硬化",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-60",
+    "summary": "H5 AI 閘道鎖門",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-61",
+    "summary": "H6 部署回滾 SOP＋migration 失敗行為",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-64",
+    "summary": "M1 上傳檔案驗證（magic-byte＋移除 SVG）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-65",
+    "summary": "M2 內容審核 fail-closed＋供應商安檢開啟",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-69",
+    "summary": "M6 RAG/教材庫注入側門安檢",
+    "prs": [],
+    "tables": [
+     "context_packets"
+    ]
+   },
+   {
+    "key": "AIDV-123",
+    "summary": "全站操作稽核軌跡（audit log：actor／動作／目標／時間）",
+    "prs": [],
+    "tables": []
+   }
+  ],
+  "AIDV-78": [
+   {
+    "key": "AIDV-79",
+    "summary": "I-1 導演台光球接既有 orb/spirit 編排系統（最高 CP 值）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-80",
+    "summary": "I-2 世界觀自動風格注入生成管線",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-81",
+    "summary": "I-3 劇本→分鏡自動骨架",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-82",
+    "summary": "I-4 教材庫 RAG → 劇本接地",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-83",
+    "summary": "I-5 真實地球研究面板（功能已建但完全沒有前端）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-84",
+    "summary": "I-6 Creative Projects 成為影片工作流主入口",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-86",
+    "summary": "I-8 Prompt 庫＋收藏跨庫，生成時建議",
+    "prs": [],
+    "tables": [
+     "prompt_library",
+     "prompt_assets",
+     "prompt_collection"
+    ]
+   },
+   {
+    "key": "AIDV-87",
+    "summary": "I-9 Sense 意圖引擎 → 個人化 onboarding",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-100",
+    "summary": "I-6 Phase 2b 世界自動連結（嚮導世界步可選並連結世界）",
+    "prs": [
+     "882"
+    ],
+    "tables": []
+   }
+  ],
+  "AIDV-74": [
+   {
+    "key": "AIDV-91",
+    "summary": "U-1 設計系統落地：亮色暖光 tokens 全站套用（登入除外）",
+    "prs": [
+     "883"
+    ],
+    "tables": []
+   },
+   {
+    "key": "AIDV-93",
+    "summary": "U-3 決議：登入畫面保留原 cosmic 場景，不套新設計系統",
+    "prs": [
+     "883"
+    ],
+    "tables": []
+   },
+   {
+    "key": "AIDV-94",
+    "summary": "U-4 殼層 chrome 視覺實裝（脊椎：Rail/TopBar/⌘K/Toast/MobileNav…）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-97",
+    "summary": "U-7 /learn 學習中心視覺實裝（模型瀏覽/研究代理/API 金鑰）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-98",
+    "summary": "U-8 /settings 設定視覺實裝（一般/Provider/代理/觀測/Admin RBAC）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-101",
+    "summary": "U-10 設計系統 51 元件庫補齊（chrome/cockpit/shell-specific/state）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-115",
+    "summary": "U-12 連接器／個人資料庫 5 類治理面板視覺實裝（/settings/connections＋ACL＋BYOMCP）",
+    "prs": [],
+    "tables": [
+     "data_source_connections",
+     "project_data_access_rules"
+    ]
+   },
+   {
+    "key": "AIDV-139",
+    "summary": "U-4f 脊椎 chrome：StateInspector（四態演示切換，可上線隱藏）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-142",
+    "summary": "U-SOP-3 atom 元件庫（綁變數）｜btn/tag/pill/dot/meter/kbd",
+    "prs": [],
+    "tables": []
+   }
+  ],
+  "AIDV-30": [
+   {
+    "key": "AIDV-1",
+    "summary": "4-shell 重構（flag-gated）",
+    "prs": [
+     "852",
+     "861"
+    ],
+    "tables": []
+   },
+   {
+    "key": "AIDV-2",
+    "summary": "Wave 0 三欄導演台正式碼",
+    "prs": [
+     "862"
+    ],
+    "tables": []
+   },
+   {
+    "key": "AIDV-3",
+    "summary": "互動原型（三欄導演台）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-4",
+    "summary": "技術簡報（落地路線圖）",
+    "prs": [],
+    "tables": []
+   }
+  ],
+  "AIDV-32": [
+   {
+    "key": "AIDV-14",
+    "summary": "內部成本歸屬可視（依專案／成員／工作流落帳）",
+    "prs": [],
+    "tables": [
+     "cost_aggregations"
+    ]
+   },
+   {
+    "key": "AIDV-15",
+    "summary": "上傳改 signed URL/tus（廢 base64）",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-17",
+    "summary": "migration 治理：孤兒 0071–0074 處置",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-27",
+    "summary": "決策紀錄：LoRA 改走 fal.ai",
+    "prs": [],
+    "tables": []
+   }
+  ],
+  "AIDV-105": [
+   {
+    "key": "AIDV-110",
+    "summary": "🚫[重複作廢→見 AIDV-91 U-1] Token/Theme drop-in",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-111",
+    "summary": "🚫[重複作廢→見 AIDV-95 U-5] 三欄 cockpit 殼",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-112",
+    "summary": "🚫[重複作廢→見 AIDV-95 U-5] 六個 DatabaseColumn 分頁骨架",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-113",
+    "summary": "🚫[重複作廢→見 AIDV-94 U-4] 共用三態/四態元件",
+    "prs": [],
+    "tables": []
+   }
+  ],
+  "AIDV-33": [
+   {
+    "key": "AIDV-20",
+    "summary": "presence＋Redis SET NX 生成鎖",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-28",
+    "summary": "決策紀錄：halfvec(3072)+HNSW／自建 JWT／Supabase 排後",
+    "prs": [],
+    "tables": []
+   },
+   {
+    "key": "AIDV-121",
+    "summary": "團隊資料可見性／權限邊界 SSOT（資料層 RBAC，非僅 UI）",
+    "prs": [],
+    "tables": []
+   }
+  ]
+ },
+ "epics": {
+  "AIDV-30": "Wave 0 前端骨架/導演台",
+  "AIDV-31": "Wave 1 SSOT+接線",
+  "AIDV-32": "Wave 2 耐久任務/成本/血統",
+  "AIDV-33": "Wave 3 重後端/基建/協作",
+  "AIDV-34": "Wave 4 代理建置區/BYOMCP",
+  "AIDV-55": "Wave H 營運與安全硬化",
+  "AIDV-74": "Wave U：UIUX 視覺實裝（⑦ UIUX 設計 46 頁落地）",
+  "AIDV-78": "Wave I 現有功能整合（既有 orb/spirit/世界觀/教材庫 → 導演台脊椎接線）",
+  "AIDV-89": "📥 AIDISC 討論區（Jira 暫代 · Confluence 不可達期間）",
+  "AIDV-102": "🔄 AIDV 開放工作流程（看板作業 SOP · 單一作業面）",
+  "AIDV-105": "🚫[重複作廢→見 AIDV-74 Wave U] 設計系統與四殼地基",
+  "AIDV-106": "🚫[重複作廢→見 AIDV-30 Wave 0] Wave 0 純前端先贏",
+  "AIDV-107": "🚫[重複作廢→見 AIDV-31 Wave 1] Wave 1 面板＋Adapter 接線",
+  "AIDV-108": "🚫[重複作廢→見 AIDV-32 Wave 2] Wave 2 需後端表",
+  "AIDV-109": "🚫[重複作廢→見 AIDV-33 Wave 3] Wave 3 重後端＋基礎設施",
+  "AIDV-125": "Wave S：AI Skill 工作層（自訂＋外部 Skill，導演腦編排）",
+  "AIDV-284": "Wave G：目標導向定位 · 自有素材 AI 專案管理系統（產品北極星）",
+  "AIDV-296": "Wave T：團隊運作與管理（組別型 · 把治理零件整合成可實際運作的團隊）",
+  "AIDV-301": "Wave D：專案資料模型與運作（資料骨幹 · 上下文組裝 · 跨組重用與提示詞共享）"
+ },
+ "pages": [
+  "AIModelsHub",
+  "AccountSettingsPage",
+  "AdminApiUsagePage",
+  "AdminPage",
+  "AgentChat",
+  "AgentCodexPage",
+  "AiBrainPipelinePage",
+  "AiBrainSettings",
+  "AnimationStudio",
+  "AssetsLibrary",
+  "BackgroundTasksPage",
+  "CalendarPage",
+  "ComponentShowcase",
+  "CreationHub",
+  "CreativeProjectPage",
+  "CreditsInfoPage",
+  "DashboardPage",
+  "DirectorAI",
+  "FeedbackPage",
+  "FocusFlowPage",
+  "ForgotPasswordPage",
+  "HistoryPage",
+  "Home",
+  "ImageStudio",
+  "LangSmithPage",
+  "LearnHub",
+  "LightOrbCreationStudio",
+  "LoraTrainer",
+  "ModelWishlistPage",
+  "ModelsPage",
+  "MyBrainPage",
+  "NotFound",
+  "NotesPage",
+  "Playground",
+  "ProStudio",
+  "ProcessViewerPage",
+  "ProjectDetailPage",
+  "ProjectsListPage",
+  "PromptCollectionPage",
+  "PromptLibraryPage",
+  "ResetPasswordPage",
+  "SettingsPage",
+  "SharedSpace",
+  "Studio",
+  "TeachingArchive",
+  "TeamsPage",
+  "TutorialOverviewPage",
+  "UnorganizedArea",
+  "VaultPage",
+  "VideoStudio"
+ ],
+ "shells": [
+  "AidvOrbMount",
+  "AidvShellChrome",
+  "LearnShell",
+  "SettingsShell",
+  "ShellFrame",
+  "SocialShell",
+  "VideoShell"
+ ]
+}

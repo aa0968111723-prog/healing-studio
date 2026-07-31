@@ -1,0 +1,587 @@
+{
+ "files": {
+  "railway.toml": "[build]\n# Use DOCKERFILE builder so Railway uses our Dockerfile instead of Nixpacks\n# This prevents the auto-injected `npm ci` that causes build failures\nbuilder = \"DOCKERFILE\"\ndockerfilePath = \"Dockerfile\"\n\n[deploy]\nstartCommand = \"node dist/index.js\"\n# Use the plain HTTP /api/health endpoint (not tRPC — tRPC requires query params)\nhealthcheckPath = \"/api/health\"\nhealthcheckTimeout = 120\nrestartPolicyType = \"ON_FAILURE\"\nrestartPolicyMaxRetries = 3\n",
+  ".nixpacks.toml": "# This file is kept as a fallback.\n# Railway will prefer the Dockerfile in the root directory.\n# If Nixpacks is used instead, these settings apply:\n\n[phases.setup]\nnixPkgs = [\"nodejs_20\", \"nodePackages.npm\"]\n\n[phases.install]\ncmds = [\n  \"npm install --legacy-peer-deps\"\n]\n\n[phases.build]\ncmds = [\"npm run build\"]\n\n[start]\ncmd = \"node dist/index.js\"\n",
+  "Dockerfile": "# ─── Stage 1: Builder ────────────────────────────────────────────────────────\nFROM node:20-alpine AS builder\n\nWORKDIR /app\n\n# Alpine build tools needed for any native addons (mysql2, etc.)\nRUN apk add --no-cache python3 make g++\n\n# Copy package files first for better layer caching\nCOPY package.json package-lock.json ./\n\n# Use deterministic dependency install in CI/Cloud Build.\n# Increase Node heap for large Vite production builds to avoid OOM in small builders.\nENV NODE_OPTIONS=--max-old-space-size=4096\nRUN npm ci --legacy-peer-deps\n\n# Copy all source code\nCOPY . .\n\n# Build frontend (Vite) + backend (esbuild/tsc)\nRUN npm run build\n\n# ─── Stage 2: Production Runner ──────────────────────────────────────────────\nFROM node:20-alpine AS runner\n\nWORKDIR /app\n\n# Set production mode so Express serves static files and skips Vite dev server\nENV NODE_ENV=production\n\n# AIDV-57：每日 DB 備份 cron（server/jobs/dbSnapshotJob.ts）在 runtime 透過\n# spawn(\"mysqldump\") 對正式庫做一致性快照（--single-transaction，唯讀、不鎖表）。\n# mariadb-client 提供 Alpine 上的 mysqldump binary，約 +3MB。\n#   ⚠️ mariadb-connector-c 一定要一起裝：MySQL 8 server 預設用 caching_sha2_password\n#   認證，而 Alpine mariadb-client 自身不含該 auth plugin——少了 connector-c 會在\n#   連線階段就以 error 1045 \"Plugin caching_sha2_password could not be loaded\"\n#   （載不到 /usr/lib/mariadb/plugin/caching_sha2_password.so）而失敗，\n#   dump 直接 0-byte（備份等於壞掉）。connector-c 補上該 plugin，讓 MariaDB client\n#   能正常認證到 MySQL 8。約再 +1MB。\n# 注意：apk 套件不會從 builder 階段繼承到 runner，必須在「runner」階段安裝。\nRUN apk add --no-cache mariadb-client mariadb-connector-c\n\n# Copy node_modules from builder (already compiled, avoids re-compilation issues)\nCOPY --from=builder /app/node_modules ./node_modules\n\n# Copy built artifacts\nCOPY --from=builder /app/dist ./dist\n\n# Copy package.json for runtime metadata (optional but good practice)\nCOPY package.json ./\nCOPY --from=builder /app/drizzle ./drizzle\nCOPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts\n\n# AI 全站研究系統需要在 runtime 讀取 TypeScript 原始碼以執行靜態程式碼掃描。\n# 體積成本約 +10MB，但啟用了 siteCodeScanner 真正掃描檔案的能力（否則\n# 掃描器只能在 dist/ 上執行，回傳 0 findings）。\nCOPY --from=builder /app/server ./server\nCOPY --from=builder /app/client/src ./client/src\nCOPY --from=builder /app/shared ./shared\n\n# Railway dynamically assigns $PORT — expose the default\nEXPOSE 3000\n\n# Start the server\nCMD [\"node\", \"dist/index.js\"]\n",
+  ".dockerignore": "node_modules\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*\npnpm-debug.log*\n.git\n.gitignore\ndist\ncoverage\nplaywright-report\ntest-results\n.vscode\n.DS_Store\n",
+  "_env_count": 96
+ },
+ "env": [
+  {
+   "name": "NODE_ENV",
+   "section": "── 核心平台 ────────────────────────────────────────────────",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "PORT",
+   "section": "── 核心平台 ────────────────────────────────────────────────",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_SITE_URL",
+   "section": "網站公開 URL（用於 og:url、canonical 等 SEO 標籤）",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "JWT_SECRET",
+   "section": "缺失／太弱會在開機時 fail-fast（throw），不會靜默使用弱／空密鑰。",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "JWT_ACCESS_TOKEN_EXPIRES_IN",
+   "section": "JWT Access Token 壽命（秒，預設 2592000 = 30 天；AIDV-59 由 365 天縮短）",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "CREDENTIAL_ENCRYPTION_KEY",
+   "section": "建議獨立設定並用 openssl rand -base64 32 生成（>=16 字元）。",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "PASSWORD_HASH_ALGORITHM",
+   "section": "密碼雜湊演算法（scrypt / bcrypt / argon2；預設 scrypt）",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "CACHE_TTL_SECONDS",
+   "section": "MAX_CONCURRENT_LLM_CALLS：同時並行 invokeLLM 上限，超過排隊（_core/llmConcurrency.ts），預設 5",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "LLM_TIMEOUT_SECONDS",
+   "section": "MAX_CONCURRENT_LLM_CALLS：同時並行 invokeLLM 上限，超過排隊（_core/llmConcurrency.ts），預設 5",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "MAX_CONCURRENT_LLM_CALLS",
+   "section": "MAX_CONCURRENT_LLM_CALLS：同時並行 invokeLLM 上限，超過排隊（_core/llmConcurrency.ts），預設 5",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "SENSE_INTENT_TIMEOUT_SECONDS",
+   "section": "MAX_CONCURRENT_LLM_CALLS：同時並行 invokeLLM 上限，超過排隊（_core/llmConcurrency.ts），預設 5",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "REDIS_URL",
+   "section": "aidv-redis（redis://127.0.0.1:6379）。鍵會再前綴 REDIS_KEY_PREFIX。",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "REDIS_KEY_PREFIX",
+   "section": "aidv-redis（redis://127.0.0.1:6379）。鍵會再前綴 REDIS_KEY_PREFIX。",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "GOOGLE_CLIENT_ID",
+   "section": "前往 https://console.cloud.google.com/apis/credentials 建立",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "GOOGLE_CLIENT_SECRET",
+   "section": "前往 https://console.cloud.google.com/apis/credentials 建立",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "GOOGLE_REDIRECT_URI",
+   "section": "前往 https://console.cloud.google.com/apis/credentials 建立",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "DATABASE_URL",
+   "section": "格式：mysql://user:password@host:3306/database",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "ENABLE_DB_BACKUP",
+   "section": "失敗只記 log + Sentry（若啟用），絕不 crash app（fail-safe）。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "ADMIN_EMAILS",
+   "section": "── 管理員信箱（逗號分隔，登入時自動設為 admin）──────────────",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "OPENROUTER_API_KEY",
+   "section": "設定後仍可用 LLM_ENGINE=anthropic / gemini / nvidia 等強制走直連",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "ANTHROPIC_API_KEY",
+   "section": "auto 路由優先序：openrouter > anthropic > gemini > nvidia > vertex > forge",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "GEMINI_API_KEY",
+   "section": "支援模型：Gemini 2.5 Pro/Flash、Imagen 3/4、Veo 2/3、Lyria 2/3、TTS",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+   "section": "將 JSON 內容壓縮成單行字串貼入",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "GOOGLE_CLOUD_PROJECT_ID",
+   "section": "Google Cloud 專案 ID",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "GOOGLE_CLOUD_LOCATION",
+   "section": "可選值：us-central1, us-east4, europe-west1, asia-northeast1 等",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "GCS_BUCKET_NAME",
+   "section": "Google Cloud Storage Bucket 名稱（替換 Manus Storage）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "BUILT_IN_FORGE_API_URL",
+   "section": "Manus 內建 API（遷移到 Vertex AI 後不再需要）",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "BUILT_IN_FORGE_API_KEY",
+   "section": "Manus 內建 API（遷移到 Vertex AI 後不再需要）",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "OAUTH_SERVER_URL",
+   "section": "Manus 內建 API（遷移到 Vertex AI 後不再需要）",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "OWNER_OPEN_ID",
+   "section": "Manus 內建 API（遷移到 Vertex AI 後不再需要）",
+   "secret": false,
+   "example_present": "no"
+  },
+  {
+   "name": "VITE_APP_ID",
+   "section": "Manus 內建 API（遷移到 Vertex AI 後不再需要）",
+   "secret": false,
+   "example_present": "no"
+  },
+  {
+   "name": "FRONTEND_FORGE_API_URL",
+   "section": "── 地圖代理（由後端注入 Key，避免前端暴露）────────────────",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "FRONTEND_FORGE_API_KEY",
+   "section": "── 地圖代理（由後端注入 Key，避免前端暴露）────────────────",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "FAL_API_KEY",
+   "section": "Fal.ai — https://fal.ai/dashboard/keys",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "FAL_WEBHOOK_SECRET",
+   "section": "⚠️ 必須與 FAL_API_KEY 不同；建議用 `openssl rand -hex 32` 生成",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "REPLICATE_API_TOKEN",
+   "section": "Replicate — https://replicate.com/account/api-tokens",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "ELEVENLABS_API_KEY",
+   "section": "ElevenLabs — https://elevenlabs.io/app/settings/api-keys",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "SUNO_API_KEY",
+   "section": "Suno — AI 音樂生成",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "PINECONE_API_KEY",
+   "section": "Pinecone — https://app.pinecone.io",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "PINECONE_ENVIRONMENT",
+   "section": "Pinecone — https://app.pinecone.io",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "PINECONE_INDEX_NAME",
+   "section": "Pinecone — https://app.pinecone.io",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "NEWS_API_KEY",
+   "section": "NewsAPI.org — https://newsapi.org/account",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "NEWSDATA_API_KEY",
+   "section": "NewsData.io — https://newsdata.io/search-dashboard",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "LANGSMITH_API_KEY",
+   "section": "LangSmith — https://smith.langchain.com",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "LANGSMITH_PROJECT",
+   "section": "LangSmith — https://smith.langchain.com",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "LANGCHAIN_TRACING_V2",
+   "section": "LangSmith — https://smith.langchain.com",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "LANGCHAIN_ENDPOINT",
+   "section": "LangSmith — https://smith.langchain.com",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "BRAVE_SEARCH_API_KEY",
+   "section": "會自動爬網並把結果引用到回覆中。",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "ENABLE_ORB_WEB_RESEARCH",
+   "section": "將此關掉可在不移除程式碼的情況下停用光球的爬網研究階段",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "FEATURE_ADVANCED_SEARCH",
+   "section": "設成 false / 0 即關閉；其他值（包含空值）視為 enabled。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "FEATURE_RAG_MEMORY",
+   "section": "設成 false / 0 即關閉；其他值（包含空值）視為 enabled。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "FEATURE_RESEARCH_MODE",
+   "section": "設成 false / 0 即關閉；其他值（包含空值）視為 enabled。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "ENABLE_DIRECTOR_WORLD_CONTEXT",
+   "section": "1 / true / on / yes 視為開啟；空值或未設＝OFF（與上方 FEATURE_* 語意不同）。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "PERPLEXITY_API_KEY",
+   "section": "時自動走 OpenRouter perplexity/sonar 模型。如仍想用直連 API 可填入此值。",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "GITHUB_TOKEN",
+   "section": "Repo：格式 owner/repo，例如 your-org/healing-studio",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "GITHUB_REPO",
+   "section": "Repo：格式 owner/repo，例如 your-org/healing-studio",
+   "secret": false,
+   "example_present": "no"
+  },
+  {
+   "name": "VITE_POSTHOG_KEY",
+   "section": "── PostHog 前端分析 ─────────────────────────────────────────",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_POSTHOG_HOST",
+   "section": "── PostHog 前端分析 ─────────────────────────────────────────",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "OPENPOSE_API_KEY",
+   "section": "此變數保留為佔位（向後相容），不會被任何服務讀取，可留空。",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "ORB_TOOL_ALLOWED_ORIGINS",
+   "section": "必填：正式環境請務必設定，否則所有工具呼叫都會被阻擋（PRECONDITION_FAILED）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "ORB_TOOL_REGISTRY_JSON",
+   "section": "範例（複製到 .env 後請替換為自己的網域）：",
+   "secret": false,
+   "example_present": "no"
+  },
+  {
+   "name": "ORB_SCHEDULER_SEED_JSON",
+   "section": "預設為空陣列（不啟用任何排程）。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "ORB_WEBHOOK_SECRET",
+   "section": "外部系統呼叫 POST /api/webhooks/orb 時要帶的共享密鑰。",
+   "secret": true,
+   "example_present": "yes"
+  },
+  {
+   "name": "GEMINI_LIVE_API_KEY",
+   "section": "Gemini Live Voice",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "ORB_VOICE_MAX_SESSION_MS",
+   "section": "Gemini Live Voice",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "ORB_VOICE_MAX_CONCURRENT",
+   "section": "Gemini Live Voice",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "ALERT_SLACK_WEBHOOK",
+   "section": "Slack Incoming Webhook URL — 每 15 分鐘 cron（apiUsageAlertJob.ts）會 POST 告警訊息",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "ALERT_EMAIL_RECIPIENTS",
+   "section": "Email recipients for alerts (comma-separated) — 目前 cron 未實作 email 寄送，預留欄位",
+   "secret": false,
+   "example_present": "no"
+  },
+  {
+   "name": "AI_MONTHLY_BUDGET_USD",
+   "section": "Monthly AI budget cap in USD (default: 500) — 用於 budget alert 比較",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "USD_TO_TWD_RATE",
+   "section": "合法範圍 1–1000，超出 / 非數字會自動退回 default。日常微調匯率不用改程式碼。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "TWD_PER_USD",
+   "section": "default 31.5。成本歸屬落帳/彙總/查詢以 TWD 呈現，落帳當下凍結此匯率寫稽核欄位。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "ENABLE_COST_ATTRIBUTION",
+   "section": "demo/無 DB 自動跳過）。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "ENABLE_COST_LEDGER",
+   "section": "AIDV-153：成本帳本旗標（預設 OFF）。先跑 migration 後開旗標是安全順序。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "POSTHOG_API_KEY",
+   "section": "PostHog server-side API key (for AI proxy event dual-write)",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "POSTHOG_HOST",
+   "section": "PostHog server-side API key (for AI proxy event dual-write)",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "STRIPE_SECRET_KEY",
+   "section": "dev/test 放行骨架。可用 STRIPE_WEBHOOK_FAIL_CLOSED 覆寫（true=一律拒絕、false=一律放行）。",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "STRIPE_WEBHOOK_SECRET",
+   "section": "dev/test 放行骨架。可用 STRIPE_WEBHOOK_FAIL_CLOSED 覆寫（true=一律拒絕、false=一律放行）。",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "STRIPE_WEBHOOK_FAIL_CLOSED",
+   "section": "dev/test 放行骨架。可用 STRIPE_WEBHOOK_FAIL_CLOSED 覆寫（true=一律拒絕、false=一律放行）。",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "VITE_POSTHOG_KEY",
+   "section": "若不設定，前端 PostHog SDK 會 no-op（不發送 capture）",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "VITE_POSTHOG_HOST",
+   "section": "若不設定，前端 PostHog SDK 會 no-op（不發送 capture）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_ENABLE_4SHELL",
+   "section": "4-shell 路由總開關：ON 才注入 /video|/social|/learn|/settings shell + 舊路徑相容導向。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_SHELL_SOCIAL",
+   "section": "/social shell（社群系統②；P5 前維持 OFF → 顯示「已關閉」佔位）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_SHELL_LEARN",
+   "section": "/learn shell 顯示（既有 /learn 已上線；預設 ON）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_DATA_STORE",
+   "section": "五接縫資料來源（預設 trpc＝打既有後端＝零行為改變；改 mock 走模擬/離線）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_GENERATION_PROVIDER",
+   "section": "五接縫資料來源（預設 trpc＝打既有後端＝零行為改變；改 mock 走模擬/離線）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_COMMANDER_ADAPTER",
+   "section": "五接縫資料來源（預設 trpc＝打既有後端＝零行為改變；改 mock 走模擬/離線）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_CONTEXT_PACKET_MODE",
+   "section": "五接縫資料來源（預設 trpc＝打既有後端＝零行為改變；改 mock 走模擬/離線）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_STORAGE_PROVIDER",
+   "section": "五接縫資料來源（預設 trpc＝打既有後端＝零行為改變；改 mock 走模擬/離線）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_POSTING_PROVIDER",
+   "section": "接真實時翻 postiz（需 Postiz token 與 PostizPostingAdapter）。其餘五接縫沿用 P0。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_SHELL_LEARN_RICH",
+   "section": "/learn 富 UI 開關：1（預設）用 P6 富 shell；0 退回 P0 ShellFrame（純 re-home，零行為改變）。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_RESEARCH_PROVIDER",
+   "section": "研究接縫 provider：mock（預設，零金鑰罐頭引用）｜trpc（走 orbProxy.unifiedSearch＝Sonar+Brave）",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "VITE_SHELL_SETTINGS_RICH",
+   "section": "/settings 富 UI 開關：1（預設）用 P6 富 shell；0 退回 P0 ShellFrame（純 re-home，零行為改變）。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "SENTRY_DSN",
+   "section": "注意：@sentry/node 為選用相依，未安裝時自動 no-op（不報錯）。要啟用請 `npm i @sentry/node`。",
+   "secret": true,
+   "example_present": "no"
+  },
+  {
+   "name": "SENTRY_ENVIRONMENT",
+   "section": "注意：@sentry/node 為選用相依，未安裝時自動 no-op（不報錯）。要啟用請 `npm i @sentry/node`。",
+   "secret": false,
+   "example_present": "no"
+  },
+  {
+   "name": "SENTRY_TRACES_SAMPLE_RATE",
+   "section": "注意：@sentry/node 為選用相依，未安裝時自動 no-op（不報錯）。要啟用請 `npm i @sentry/node`。",
+   "secret": false,
+   "example_present": "yes"
+  },
+  {
+   "name": "SSE_OWNERSHIP_LOCKDOWN",
+   "section": "僅在鎖門意外擋到合法擁有者、需緊急回退時設為 false（仍要求登入，只略過擁有權比對）。",
+   "secret": false,
+   "example_present": "yes"
+  }
+ ]
+}

@@ -1,0 +1,366 @@
+{
+ "users": {
+  "twoFactorSecret": "Base32-encoded TOTP secret (RFC 6238). Null when 2FA is not configured.",
+  "twoFactorEnabled": "Whether 2FA verification is required at login.",
+  "quotaJson": "Per-modality quota JSON",
+  "avatarUrl": "User-controlled avatar (preset id, AI-generated URL, or data URL ≤ 64 KB). Null = use initials.",
+  "icsFeedToken": "Opaque token for the public ICS feed at /api/ics/<token>.ics. Rotating revokes existing subscriptions.",
+  "orbMemorySummary": "Global orb condensed conversation memory (latest summary)."
+ },
+ "agent_preferences": {
+  "orbAgentEnabled": "null = follow env flag; true/false = explicit user override.",
+  "mutedSpirits": "Spirits the user has muted (skipped during selectRoleForIntent routing) and the ones they've starred. Both are AgentRole id arrays (e.g. [\"accountant\", \"inspector\"]). Empty defaults — feature is additive, existing rows keep working without "
+ },
+ "orb_scheduled_jobs": {},
+ "password_reset_tokens": {},
+ "email_verification_tokens": {},
+ "login_history": {},
+ "background_jobs": {},
+ "digital_asset_library": {
+  "tags": "0045: notes-curator (記記) tagging / category — both nullable to keep existing rows valid; populated through notesCurator.tagAssets and notesCurator.categorizeAsset.",
+  "sourceStudio": "0047: AI 生成來源追蹤 — sourceStudio / modelId 標註資產來自哪個工作室 與哪個 AI 模型，讓「我的資產」可依工作室分類；backgroundJobId 連回原 始任務記錄。皆為 nullable 以相容手動上傳與舊資料。",
+  "sourceUrl": "0058: archival / source provenance tracking — sourceUrl 保留原始外部 URL（從第三方匯入時用）、provider 標註資產實際儲存供應商（s3 / r2 / gcs 等），archivedAt / expiresAt 支援冷儲存與保留期管理， archivalChecksum 存歸檔當下的 sha256 hash，回溯校驗用。"
+ },
+ "fine_tuned_models": {
+  "fileKey": "訓練資料 ZIP 或原始資料集 URL",
+  "trainedLoraUrl": "訓練完成後由 Replicate / Fal.ai 回傳的 LoRA weights URL (.safetensors / .tar)",
+  "replicatePredictionId": "Replicate prediction ID 或 Fal.ai request ID，用於狀態追蹤",
+  "trainingEngine": "訓練引擎：replicate 或 fal（新增以區分不同 API 來源）",
+  "usageCount": "使用計數（被引用生成幾次）",
+  "teamId": "team_shared 模型所屬團隊；個人模型為 null。M（訓練 track）。"
+ },
+ "project_notes_calendar": {
+  "category": "0045: 記記 categorisation — orthogonal to noteType (生活 / 工作 / 創作 etc.). Nullable so legacy rows remain valid."
+ },
+ "user_google_oauth_tokens": {},
+ "drive_asset_libraries": {},
+ "user_feedback_reports": {},
+ "api_usage_logs": {},
+ "consistency_vault": {},
+ "subscription_plans": {},
+ "ai_director_preferences": {},
+ "specialized_agent_memory": {},
+ "specialized_agent_interactions": {},
+ "agent_model_picks": {
+  "modality": "image / video / audio / voice / sfx / text — kept loose because the studio surfaces add new modalities (e.g. \"music\") faster than schema migrations can ship. Read-side defensively normalizes.",
+  "source": "Where the pick happened so the distiller can weight by surface (director picks usually carry more intent than a one-click history re-run).",
+  "accepted": "Tracks whether the pick led to an accepted generation. Updated post-hoc when the studio records success/failure so we can demote models with high reject ratios."
+ },
+ "generation_history": {
+  "sourceUrl": "0058: archival / source provenance tracking — 同 digital_asset_library 的設計：sourceUrl 紀錄原始外部來源、provider 為實際儲存供應商、 archivedAt / expiresAt 支援冷儲存與保留期、archivalChecksum 為歸檔 當下的 sha256 hash。"
+ },
+ "custom_blocks": {},
+ "block_combos": {},
+ "system_settings": {},
+ "news_articles": {
+  "title": "文章標題",
+  "oarsSummary": "OARS 柔化摘要 (TL;DR) — 以溫暖、低焦慮語氣撰寫的精簡摘要",
+  "bodyMarkdown": "完整內容（Markdown 格式，可選）",
+  "sourceName": "來源名稱（如「AI Director 官方」、「社群精選」）",
+  "sourceUrl": "來源 URL（外部連結，可選）",
+  "coverImageUrl": "封面圖片 CDN URL",
+  "category": "文章分類",
+  "tags": "標籤（用於篩選與推薦）",
+  "isPinned": "是否置頂",
+  "isPublished": "是否已發布（草稿 vs 公開）",
+  "publishedAt": "發布時間（可排程未來發布）",
+  "authorUserId": "作者 userId（可選，null 表示系統發布）",
+  "viewCount": "閱讀次數"
+ },
+ "featured_showcase": {
+  "generatedItemId": "關聯的生成歷史紀錄 ID（可選，null 表示手動上傳的展示作品）",
+  "title": "展示標題",
+  "description": "展示描述（OARS 柔化語氣）",
+  "imageUrl": "作品圖片 CDN 網址",
+  "thumbnailUrl": "縮圖 CDN 網址（用於網格預覽）",
+  "vibeParameters": "情緒矩陣 — 多維度情緒向量，用於推薦與篩選",
+  "completelyDeconstructedBlocks": "完全解構積木 JSON 組合 — 記錄生成此作品時使用的所有積木選擇， 讓使用者可以「一鍵複製配方」重現 or 微調此風格",
+  "originalPrompt": "原始提示詞（方便搜尋）",
+  "modality": "作品模態",
+  "curatorUserId": "提交者 userId",
+  "sortWeight": "展示排序權重（越大越靠前）",
+  "isActive": "是否啟用（管理員控制）",
+  "likeCount": "按讚數",
+  "forkCount": "被複製配方次數",
+  "commentCount": "評論數（denormalised from featured_showcase_comments）"
+ },
+ "featured_showcase_comments": {},
+ "user_ai_brain": {
+  "directorModel": "導演大腦 — 統籌創作流程、分鏡、敘事結構",
+  "analystModel": "分析師大腦 — 數據分析、趨勢洞察、品質評估",
+  "storytellerModel": "說書人大腦 — 文案撰寫、故事展開、情感渲染",
+  "technicianModel": "技師大腦 — 提示詞工程、參數優化、技術翻譯",
+  "curatorModel": "策展人大腦 — 風格推薦、美學判斷、靈感策展",
+  "imageEngine": "圖像生成引擎",
+  "videoEngine": "影片生成引擎 — 對齊 DEFAULT_GENERATION_ENGINES.videoEngine (Kling t2v 上游壞掉，middleware 改用 fal-ai/wan-t2v)",
+  "audioEngine": "音樂/音效生成引擎 — 對齊 DEFAULT_GENERATION_ENGINES.audioEngine",
+  "voiceEngine": "語音合成引擎 — 對齊 DEFAULT_GENERATION_ENGINES.voiceEngine",
+  "falImageTo3dEngine": "2-1 影像轉3D",
+  "falImageToImageEngine": "2-2 影像到影像",
+  "falImageToJsonEngine": "2-3 圖像轉JSON",
+  "falImageToVideoEngine": "2-4 圖片轉視頻",
+  "falJsonEngine": "2-5 JSON 結構化輸出",
+  "falLlmEngine": "2-6 大型語言模型",
+  "falTextTo3dEngine": "2-7 文字轉3D",
+  "falTextToAudioEngine": "2-8 文字轉音頻",
+  "falTextToImageEngine": "2-9 文字轉圖像",
+  "falTextToJsonEngine": "2-10 文字轉JSON",
+  "falTextToSpeechEngine": "2-11 文字轉語音 — 對齊 DEFAULT_FAL_ENGINES.textToSpeech",
+  "falTextToVideoEngine": "2-12 文字轉視頻",
+  "falTrainingEngine": "2-13 訓練",
+  "falVideoToAudioEngine": "2-14 視訊轉音訊",
+  "falVideoToTextEngine": "2-15 影片轉文字",
+  "falVideoToVideoEngine": "2-16 影片對影片",
+  "globalPreferences": "全局偏好 JSON（擴展用）"
+ },
+ "user_model_switch_logs": {
+  "brainSlot": "切換的腦/引擎插槽名稱",
+  "fromModel": "切換前的模型 ID",
+  "toModel": "切換後的模型 ID",
+  "fromParams": "切換前的參數快照",
+  "toParams": "切換後的參數快照",
+  "reason": "切換原因（使用者自述或系統推薦）",
+  "switchSource": "切換來源",
+  "switchedAt": "切換時間"
+ },
+ "custom_blocks_combo": {
+  "name": "組合名稱",
+  "description": "組合描述",
+  "modality": "適用模態",
+  "subjectBlock": "Subject 積木 JSON",
+  "styleBlock": "Style 積木 JSON",
+  "lightingBlock": "Lighting 積木 JSON",
+  "cameraBlock": "Camera 積木 JSON",
+  "moodBlock": "Mood 積木 JSON",
+  "extraBlocks": "額外積木（不在 S-S-L-C-M 五大類的補充積木）",
+  "vibeCardIds": "關聯的 Vibe Card IDs",
+  "freeformPrompt": "自由輸入提示詞",
+  "negativePrompt": "排除描述",
+  "compiledPrompt": "編譯後的完整提示詞（快照）",
+  "parameterSnapshot": "技術參數快照",
+  "brainConfigSnapshot": "使用的 AI 大腦組態快照（記錄當時的大腦設定）",
+  "previewImageUrl": "預覽圖 URL（用此組合生成的代表作品）",
+  "isCurated": "是否為精選（管理員策展）",
+  "isPublic": "是否公開分享",
+  "forkCount": "被 fork 次數",
+  "likeCount": "按讚數",
+  "useCount": "使用次數",
+  "tags": "標籤"
+ },
+ "prompt_library": {
+  "category": "完整提示詞內容",
+  "tags": "image/video/audio/voice/general",
+  "language": "建議使用的模型 ID",
+  "createdAt": "\"lightning\" | \"deep_precision\" | null"
+ },
+ "prompt_assets": {
+  "assetId": "→ prompt_library.id",
+  "relation": "→ digital_asset_library.id"
+ },
+ "prompt_collection": {
+  "notes": "使用者收集時加註的「為何想保留 / 想怎麼用」。",
+  "sourceType": "來源類型 — 決定收藏條目要怎麼回連到站內： • agent_role        — 25 位精靈的 system prompt slice • proactive_trigger — 18 條精靈主動觸發 default prompt • model_template    — modelPromptTemplates.ts 內的 prompt 樣板 • image_studio      — ImageStudio (t2i / sd) 內建模板 • site_pro",
+  "sourceRef": "來源唯一識別（AgentRole / event id / model prefix / template id）。",
+  "sourceLabel": "顯示用標籤（例「圖圖 image-specialist」、「FLUX Pro 樣板」）。",
+  "teamId": "若 visibility=team_shared，必須指向一個 team；該 team 的成員可讀。 private 時為 NULL。"
+ },
+ "external_service_subscriptions": {},
+ "r2_storage_snapshots": {},
+ "user_subscriptions": {},
+ "orb_feedback_events": {
+  "pageId": "來自哪一頁（ImageStudio / VideoStudio /…）；空代表全站情境",
+  "actionType": "動作類型（setModel / applyPreset / submit …）",
+  "status": "accepted / edited / cancelled / completed / failed",
+  "note": "使用者的一句話（若有從聊天擷取）或 LLM 的意圖摘要",
+  "actionSummary": "動作本身的 payload 摘要（modelId、presetId 之類的）"
+ },
+ "ai_usage_events": {},
+ "provider_snapshots": {},
+ "cost_aggregations": {
+  "totalCostTwd": "totalCostTwd = totalCostUsd × exchangeRate（聚合 job 換算時凍結匯率以利回溯）。"
+ },
+ "cost_ledger": {
+  "amount": "amount：保留為「原始幣別」金額（預設 USD，真實呼叫價）。AIDV-14 不改其語義 與既有 #940 寫法，故 sourceCurrency 預設 USD、amount 仍是 USD（向後相容）。",
+  "projectId": "歸屬維度（拿不到的誠實留 null）：member 由 accountKey 承載；project/workflow 額外存欄位以利彙總查詢與多維歸屬。",
+  "sourceCurrency": "稽核回溯（不可只存換完數字而丟來源）：原始幣別 + 所用匯率 + 換算後 TWD。 amount=原始幣別金額（預設 USD 真實價）；sourceCurrency 標示其幣別； exchangeRate=所用 TWD/USD 匯率；amountTwd=amount×exchangeRate（落帳當下凍結）。",
+  "provider": "provider / model（誰花的成本來自哪個供應商/模型，供成本拆解）。",
+  "costSource": "costSource：成本數字的來源標記，供稽核區分。 \"provider\"＝上游回應實際計費（usage.cost，最準）； \"catalog\" ＝modelPricing 目錄真實單位價後援（次準，線上四家供應商無 usage.cost 時用以讓成本可視）。null＝舊資料/未標。"
+ },
+ "cost_attribution_outbox": {
+  "idempotencyKey": "冪等基準鍵（通常 = aue:<usageEventId>）；UNIQUE 擋同一事件重複入 outbox。",
+  "payloadJson": "postAttributedCost 所需參數快照（JSON）。drain 時據此重放落帳。"
+ },
+ "rate_limit_rules": {},
+ "alert_configs": {},
+ "model_training_consents": {
+  "userId": "上傳訓練資料、發起此同意書的使用者",
+  "subjectType": "主體類型：本人 / 真實他人 / 第三方版權素材",
+  "consentType": "同意書類型：肖像權 / 照片使用 / 兩者皆有",
+  "subjectName": "主體 (被拍攝者 / 著作權人) 姓名",
+  "subjectEmail": "主體聯絡 Email（可選，用於通知與撤回驗證）",
+  "subjectIdLast4": "主體身分證件後 4 碼 / 護照尾碼 / 統編後 4 碼（不存全碼）",
+  "signerRelation": "簽署人與主體的關係：本人 / 法定代理人 / 著作權持有人 / 授權代表",
+  "usageScope": "授權使用範圍：僅內部訓練 / 內部 + 個人輸出 / 公開展示 / 商業使用",
+  "allowDerivative": "是否允許衍生作品再分享",
+  "validFrom": "有效期間起始",
+  "validUntil": "有效期間截止 (NULL = 無限期)",
+  "termsVersion": "條款版本編號 (e.g. \"v1.0-2026-05\")",
+  "termsSnapshot": "完整條款 plain text 快照（供日後爭議比對）",
+  "signatureDataUrl": "數位簽名圖檔 (Base64 PNG, data URL)",
+  "signedIp": "簽署當下的 IP（可選，用於驗證）",
+  "signedUserAgent": "簽署當下的 User-Agent（可選）",
+  "proofFileUrl": "主體身分證明檔案 URL（如有上傳，e.g. ID 卡照片）",
+  "coveredAssets": "此同意書授權的照片 / 影片 URL 清單（與訓練資料對應）"
+ },
+ "fine_tuned_model_consents": {},
+ "agent_collaboration_sessions": {},
+ "agent_collaboration_steps": {},
+ "agent_collaboration_messages": {},
+ "agent_collaboration_handoffs": {},
+ "agent_performance_metrics": {},
+ "orb_conversations": {},
+ "orb_conversation_messages": {
+  "at": "Client-side message timestamp (ms since epoch) — used for ordering."
+ },
+ "studio_recipes": {
+  "payload": "Full SavedRecipe payload — blocks / thoughtIslands / advancedPrompt / references / promptStrength / generationParams. We keep it as JSON rather than splitting into columns because the shape is owned by client/src/stores/workspaceStore.ts an"
+ },
+ "studio_versions": {
+  "versionKey": "Client-supplied stable id (matches VersionEntry.id) so the frontend's pinnedVersionId / restore flow keeps working without a server round-trip."
+ },
+ "orb_long_term_memories": {},
+ "orb_memory_associations": {},
+ "orb_intent_logs": {},
+ "orb_clarification_history": {},
+ "orb_user_answer_patterns": {},
+ "orb_feature_usage_stats": {},
+ "orb_feature_discovery_paths": {},
+ "orb_feature_recommendations": {},
+ "orb_workflow_templates": {},
+ "orb_workflow_executions": {},
+ "orb_workflow_step_executions": {},
+ "orb_workflow_template_ratings": {
+  "comment": "1-5 stars"
+ },
+ "orb_spirit_collaboration_metrics": {},
+ "orb_system_health_metrics": {},
+ "orb_cost_attribution": {},
+ "orb_system_alerts": {},
+ "worldbuilding_frameworks": {
+  "genre": "整體世界觀基調（例如：賽博龐克、奇幻、療癒小品）",
+  "era": "時代背景（例如：中世紀、近代、未來、架空） — 與 genre 正交",
+  "charactersJson": "角色卡陣列 — 結構見 shared/worldbuilding-types WorldCharacter",
+  "scenesJson": "場景卡陣列 — 結構見 shared/worldbuilding-types WorldScene",
+  "objectsJson": "全域物件清單（可被多個場景引用）",
+  "linkedModelIds": "連結到模型訓練中心的 fine_tuned_models.id 陣列",
+  "styleProfilesJson": "動畫擴充：畫面風格設定陣列 — 結構見 WorldStyleProfile",
+  "musicThemesJson": "動畫擴充：配樂主題陣列 — 結構見 WorldMusicTheme",
+  "defaultStyleProfileId": "動畫擴充：預設使用的 styleProfile id",
+  "globalNegativePrompt": "動畫擴充：全域 negative prompt",
+  "productionTargetsJson": "動畫擴充：製作目標（格式、目標時長、受眾、平台）",
+  "researchEntriesJson": "v4：世界研究資料庫條目陣列",
+  "soundLibraryJson": "v4：世界共用音效 / 環境音庫",
+  "uploadedAssetsJson": "v4：世界共用上傳資產引用清單"
+ },
+ "world_storyboards": {
+  "worldId": "關聯 worldbuilding_frameworks.id",
+  "scenesJson": "整個 storyboard.scenes 陣列 — 結構見 WorldStoryboard.scenes",
+  "sourceScriptId": "與原始長腳本的關聯（如有）",
+  "pipelinePlanJson": "動畫管線執行計畫快照（最近一次 planAnimationPipeline 的輸出）",
+  "jobsJson": "各 step 的執行狀態（stepId → { status, output, error, ... }）"
+ },
+ "creative_projects": {
+  "directorSessionId": "連結 project_notes_calendar.id（導演對話 session）",
+  "worldviewId": "Phase 1 alias: 連結世界觀主資料（nullable）",
+  "scriptId": "Phase 1 alias: 連結腳本資料（nullable）",
+  "worldFrameworkId": "連結 worldbuilding_frameworks.id",
+  "worldStoryboardId": "連結 world_storyboards.id",
+  "metadata": "預留擴充欄位（例如未來的設計案連結、品牌設定 id 等）"
+ },
+ "orchestration_runs": {
+  "projectId": "可為 null：未選專案時仍可建立 run（標記為無 project context）。",
+  "commander": "指揮層（fallback / perplexity / subq / orb / codex / claude）；第一版為 null。",
+  "estimatedCostUsd": "預估成本（USD）；第一版為 null，欄位先保留。"
+ },
+ "context_packets": {
+  "createdByModel": "產生摘要的模型；deterministic 拼接時為 null。",
+  "expiresAt": "TTL：過期後 reuseOrRefreshPacket 會重算。"
+ },
+ "project_data_access_rules": {
+  "projectId": "null = team-wide 預設；有值 = project 專屬覆寫。",
+  "materialId": "單筆 teaching_materials。",
+  "connectionId": "外部來源連接（cloud / notes / mcp）。",
+  "collectionId": "未來：material 的集合分組。",
+  "allowedModesJson": "可用 mode 陣列；null = 全部 mode。"
+ },
+ "data_source_connections": {
+  "provider": "供應商：google_drive / notion / ...",
+  "encryptedCredentialRef": "後端加密後的憑證；OAuth（如 Drive）為 null（憑證另存 userGoogleOauthTokens）。",
+  "configJson": "非敏感設定：Notion database/page ids、Drive folder ids 等。"
+ },
+ "model_wishes": {
+  "voteCount": "去正規化的票數計數（同步自 modelWishVotes，避免每次列表 COUNT）"
+ },
+ "model_wish_votes": {},
+ "teaching_materials": {
+  "teamId": "若不為 null：素材歸屬於某個團隊；visibility=team_shared 時，該 team 的 memberships 全員可讀寫。為 null 時表示是上傳者個人的素材（即使設成 team_shared 也只有自己看得到 — UI 會在切到 team_shared 時強制要求選 team）。",
+  "mediaType": "媒體類型 — 決定前端如何渲染（播放器/縮圖/閱讀器）",
+  "durationSeconds": "音檔/影片時長（秒）",
+  "pageCount": "PDF / PPT 頁數",
+  "textContent": "OCR / 語音轉文字 / PDF 抽文的結果，給未來的向量檢索使用。 用 MEDIUMTEXT（~16 MB）而不是 TEXT（64 KB）— 一個小時的逐字稿就會 超過 64 KB；TEXT 會在 MySQL strict mode 下噴 Data too long。",
+  "lineage": "自由分類字串（之前的 lineage 欄位 — 名稱保留避免動 schema）",
+  "sourceType": "來源類型",
+  "sourceDate": "日期",
+  "sourceLocation": "地點",
+  "topic": "主題",
+  "speaker": "講者",
+  "realEarthRefs": "關聯的真實地球資訊條目 ID（用於深度連結）"
+ },
+ "teams": {
+  "ownerId": "團隊建立者；轉移擁有權需另開 mutation，目前 hardcoded 建立者擁有。"
+ },
+ "team_memberships": {
+  "role": "owner — 建立者；唯一能轉移擁有權 / 解散團隊 admin — 可邀請 / 移除其他 member、可編輯團隊所有素材（含 public_disciples） member — 可讀寫團隊的 team_shared 素材；對 public_disciples 素材唯讀"
+ },
+ "teaching_material_access_log": {
+  "metadata": "附加 context：search query、IP（之後加）、原本 visibility 等"
+ },
+ "real_earth_entries": {
+  "title": "條目標題",
+  "category": "資料類別",
+  "summary": "簡短描述（1-2 句話）",
+  "content": "詳細內容（支援 markdown）",
+  "locationJson": "地理位置資訊（JSON）",
+  "historicalPeriod": "歷史時期",
+  "yearRangeJson": "年份範圍（JSON）",
+  "imageUrls": "參考圖片 URL 列表（JSON）",
+  "externalLinksJson": "外部連結（JSON）",
+  "citationsJson": "學術引用（JSON）",
+  "tags": "標籤",
+  "relatedEntryIds": "相關條目 ID（JSON）",
+  "qualityJson": "資料品質標記（JSON）",
+  "isTaiwanFocused": "是否為台灣重點資料",
+  "language": "資料語言",
+  "metadata": "額外後設資料（JSON）",
+  "createdBy": "建立者 ID（null = 系統預設資料）"
+ },
+ "global_audit_log": {
+  "actorUserId": "操作者（actor）user id；系統/匿名操作可為 null",
+  "actorRole": "操作者角色快照（admin/leader/user…），方便事後查驗權限脈絡",
+  "action": "動作語意。用 varchar 而非 enum：稽核動作會隨功能不斷新增， varchar 讓「接新寫入點」是純加法、不需動 migration 改 enum。 命名慣例：<domain>.<verb>，如 project.create / asset.share / auth.login。",
+  "targetType": "目標物型別（project / asset / prompt / material / consent / user…）",
+  "targetId": "目標物 id（字串以相容 int / uuid / 複合 key）",
+  "result": "結果",
+  "ipAddress": "來源 IP（IPv6-safe 長度）",
+  "userAgent": "來源裝置 / User-Agent",
+  "metadata": "附加 context（變更前後值、失敗原因、查詢字串等）"
+ },
+ "resource_shares": {
+  "resourceType": "資源型別：project / asset / prompt / material",
+  "resourceId": "資源 id（對應各資源表 int 主鍵）",
+  "sharedWithType": "共享對象型別：分享給單一 user 或整個 team",
+  "sharedWithId": "共享對象 id（user id 或 team id）",
+  "role": "授予的角色：viewer（唯讀）/ editor（可讀寫）。owner/delete/transfer 永遠只屬資源擁有者。",
+  "sharedByUserId": "建立此共享關係的人（稽核用，通常是資源 owner）"
+ }
+}

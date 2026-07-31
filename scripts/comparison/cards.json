@@ -1,0 +1,955 @@
+[
+ {
+  "num": "AIDV-1",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "869"
+  ],
+  "note": "- migration 由 boot 時 `server/db.ts applyMigrations → drizzle migrate()` 依 `drizzle/meta/_journal.json` 套用；**未登記 journal 的 .sql 永遠不會跑**（boot 警告 orphan）。0071–0074 已補登記（#869，2026-06-13）；剩餘孤兒 0033_add_plan_status_to_sessions、0039–0044（orb 系列 16 表）、0067_repair_worldbuilding_v4_columns 已於 **AIDV-17 第二批補登記",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-7",
+  "title": "**合流 `feat/4-shell-restructure` → main**（聚合 #862+#863）",
+  "status": "Done",
+  "prs": [
+   "862",
+   "863",
+   "866"
+  ],
+  "note": "[#866](https://github.com/aa0968111723-prog/healing-studio/pull/866)",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-8",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "- 📋 **Confluence 待補（追蹤卡 AIDV-88 · Owner: Bruce）**：本 session 連不上 Confluence，兩個獨立阻擋——(1) Atlassian Rovo MCP 僅 Jira scopes（Confluence 回「app 未安裝」）；(2) **本 cloud agent 容器**（非共享基建、非生產）的 network egress 政策擋掉所有 atlassian.net/.com 主機（github 可達）。解法（見 AIDV-88，皆 Bruce 動手）：①站台加 Confluence 產品＋重連連接器（含 Confluence sc",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-10",
+  "title": "junction follow-up C：prompt_library content 去重策略（每次生成新插一列）",
+  "status": "Done",
+  "prs": [],
+  "note": "生成鏈 `findOrCreatePromptByContent` query-before-insert（非破壞性、不動 migration）",
+  "code_refs": [
+   "server/services/postGenActions.ts:52",
+   "server/services/postGenActions.ts:316"
+  ]
+ },
+ {
+  "num": "AIDV-11",
+  "title": "",
+  "status": "Done",
+  "prs": [
+   "870"
+  ],
+  "note": "[#870](https://github.com/aa0968111723-prog/healing-studio/pull/870)",
+  "code_refs": [
+   "server/_core/providerFacade.ts:2",
+   "server/provider-facade.test.ts:2"
+  ]
+ },
+ {
+  "num": "AIDV-13",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "- **優先順序分級上線**：先前 101 卡優先序全 Medium（看板「優先順序細分」圖無意義）。已依 §2.5c 表分級：Highest=AIDV-90；High=AIDV-8/9/12/17/56/75/85/88/92/94；Low=AIDV-13/16/19（needs-key）；Lowest=AIDV-18/20/21/22/23/24/25/48–54（Wave3/4＋strangler）；其餘 Medium。**完成卡維持 Medium 不動**。詳見 `AIDV-dev-workflow.md` §4.1。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-14",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "- **提案**：新增平行軌「Wave H 營運與安全硬化」＋未來軌「Wave 5 商業化」；H7→Wave 1、H10→AIDV-14；不動既有定錨。風險登記簿含「token 已在對話暴露→撤銷換新」。Jira 卡待 Bruce 審後才灌。",
+  "code_refs": [
+   "server/jobs/costAttributionOutboxJob.test.ts:2",
+   "server/jobs/costAttributionOutboxJob.ts:2",
+   "server/jobs/providerSnapshotJob.ts:157",
+   "server/jobs/providerSnapshotJob.ts:175",
+   "server/jobs/costLedgerReconcileJob.ts:6",
+   "server/services/usageCost.ts:2",
+   "server/services/cost/costAttribution.ts:2",
+   "server/services/cost/costAttribution.ts:95",
+   "server/services/cost/costAttribution.ts:212",
+   "server/services/cost/costAttribution.ts:274",
+   "server/services/cost/costAttribution.ts:418",
+   "server/services/cost/catalogCostFallback.ts:2",
+   "server/services/cost/catalogCostFallback.test.ts:2",
+   "server/services/cost/ledger.ts:138",
+   "server/services/cost/ledger.ts:166",
+   "server/services/cost/ledger.ts:275",
+   "server/services/cost/ledger.ts:325",
+   "server/services/cost/costAttribution.test.ts:2",
+   "server/routers/brainPipeline.ts:1242",
+   "server/routers/apiUsage.ts:591",
+   "server/routers/apiUsage.ts:607",
+   "server/_core/env.validated.ts:628",
+   "server/currency-conversion.test.ts:13",
+   "server/routes/aiProxy.ts:344",
+   "server/routes/aiProxy.ts:348"
+  ]
+ },
+ {
+  "num": "AIDV-17",
+  "title": "",
+  "status": "Done",
+  "prs": [
+   "869"
+  ],
+  "note": "0071–0074 已補（#869）；第二批 0033/0039–0044=漏建已補、0067=0062 之 no-op；八支全冪等＋Docker fail-closed 重跑驗證",
+  "code_refs": [
+   "server/migration-prod-pending-block.test.ts:40",
+   "server/orphan-migrations-journal.test.ts:2",
+   "server/orphan-migrations-journal.test.ts:11",
+   "server/orphan-migrations-journal.test.ts:82"
+  ]
+ },
+ {
+  "num": "AIDV-18",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "- **優先順序分級上線**：先前 101 卡優先序全 Medium（看板「優先順序細分」圖無意義）。已依 §2.5c 表分級：Highest=AIDV-90；High=AIDV-8/9/12/17/56/75/85/88/92/94；Low=AIDV-13/16/19（needs-key）；Lowest=AIDV-18/20/21/22/23/24/25/48–54（Wave3/4＋strangler）；其餘 Medium。**完成卡維持 Medium 不動**。詳見 `AIDV-dev-workflow.md` §4.1。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-19",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| 向量遷移 | AIDV-19 | pgvector halfvec(3072)+HNSW（decision-gated）；Supabase parity 亦歸此。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-22",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| Director 狀態機 | AIDV-22 | multi-step chain 改 xstate。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-26",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "> - 三個決策頁＋四個 Wave/正式碼頁＝Notion 空白頁（內容只在 DB 備註）→ 已併入 ②-C 與 Jira AIDV-26/27/28 留言，不另建頁。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-28",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| Auth 維持自建 JWT | **已決策**：AIDV-28 decision-resolved，無新可交付。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-29",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "> 基準避雷：jsdom29+vitest2 的 localStorage/環境問題使 main baseline 有 13 failed/6 檔＝既有，**勿當新回歸**（AIDV-29）。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-30",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "> 專案 `AIDV`（kanban）＋5 大型工作 AIDV-30～34（Wave 0–4）＋29 Story AIDV-1～29（parent 已掛、Done/In Progress 已轉、labels 齊）。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-35",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "- **Bruce 六點指示（live doc 66245）已落地**：定錨規則＋白話導讀寫入 AIDIR 首頁；AIDV-35「瀏覽器模擬創作者實測」已建（含 Google Drive 雲端專案資料夾參照）；live doc 已留言回覆。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-36",
+  "title": "",
+  "status": "Done",
+  "prs": [
+   "864",
+   "867"
+  ],
+  "note": "[#867](https://github.com/aa0968111723-prog/healing-studio/pull/867)",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-37",
+  "title": "",
+  "status": "Done",
+  "prs": [
+   "873"
+  ],
+  "note": "[#873](https://github.com/aa0968111723-prog/healing-studio/pull/873)",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-38",
+  "title": "",
+  "status": "Done",
+  "prs": [
+   "875"
+  ],
+  "note": "[#875](https://github.com/aa0968111723-prog/healing-studio/pull/875)",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-39",
+  "title": "",
+  "status": "Done",
+  "prs": [
+   "876"
+  ],
+  "note": "[#876](https://github.com/aa0968111723-prog/healing-studio/pull/876)",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-40",
+  "title": "",
+  "status": "Done",
+  "prs": [
+   "868"
+  ],
+  "note": "[#868](https://github.com/aa0968111723-prog/healing-studio/pull/868)",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-41",
+  "title": "",
+  "status": "Done",
+  "prs": [
+   "871"
+  ],
+  "note": "[#871](https://github.com/aa0968111723-prog/healing-studio/pull/871)",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-42",
+  "title": "",
+  "status": "Done",
+  "prs": [
+   "876"
+  ],
+  "note": "[#876](https://github.com/aa0968111723-prog/healing-studio/pull/876)",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-53",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "883"
+  ],
+  "note": "- **Wave U UIUX 視覺實裝**（Epic AIDV-74＋盤點卡 AIDV-75，06-13 依 Bruce 指示新增）：⑦ UIUX 設計 46 頁逐頁落地；「可以放比較後面但不可以沒有開發」；亮色系定盤為視覺基準。**06-15 盤點完成（U-0/AIDV-75 三欄對照表已貼、轉 In Progress）＋全站換膚開工**，依 Bruce「設計套件接上工作表」指示把 ⑦ 設計 6 大區/37 畫面排成卡：U-1 設計系統落地(AIDV-91，亮色暖光 tokens 全站套用、登入除外，✅ #883 已合併)／U-2 元件採用 umbrella(AIDV-92)／U-3 登入",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-55",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "870"
+  ],
+  "note": "- **Wave H 營運與安全硬化**（Epic AIDV-55＋AIDV-56~73，06-13 全啟動）：H5 鎖門已隨 #870 完成；H6 的活案例＝AIDV-76 P0。Railway MCP 接入＝AIDV-77（官方遠端版已寫入本機設定，待 Bruce OAuth）。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-56",
+  "title": "H1 CI 自動把關（PR gate）",
+  "status": "Done",
+  "prs": [
+   "892"
+  ],
+  "note": "✅ workflow 已併 main（`.github/workflows/pr-gate.yml`）。⚠️ 本 repo 未指派 hosted runner（runner_id 0／2 秒即敗／無 log）＝**Actions 用量未啟用**環境問題，待 Bruce 於 Settings→Actions／Billing 啟用後才真正執行",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-57",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "<!-- AIDV-57 Database Backup & Restore SOP -->",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-58",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "- **🔴 高嚴重 10**：H1 無 CI/CD（零 GitHub Actions、push 直達 prod）／H2 無 DB 備份計畫／H3 /api/metrics 與 SSE 無 auth＋無 Sentry（**H3 拆三件**：(a) SSE IDOR ＝ ✅ DONE via AIDV-58〔SSE 端點補登入＋擁有權＋demo 短路＋pre-stream try/catch〕；(b) ⬜ 待辦：/api/metrics 仍零 auth〔server/_core/index.ts:576 `_req`，註解誤稱 internal/admin-only〕；(c) ⬜ 待辦：無 Sen",
+  "code_refs": [
+   "server/_core/errorTracking.ts:2",
+   "server/_core/index.ts:289",
+   "server/_core/index.ts:629",
+   "server/_core/index.ts:641",
+   "server/_core/index.ts:661",
+   "server/_core/env.validated.ts:350",
+   "server/_core/env.validated.ts:361",
+   "server/_core/metricsRoute.ts:2",
+   "server/_core/metricsRoute.ts:80",
+   "server/_core/metricsRoute.test.ts:2",
+   "server/_core/errorTracking.test.ts:2",
+   "server/sseRoute.ts:20",
+   "server/sseRoute.ts:57",
+   "server/sseRoute.ts:172",
+   "server/sseRoute.test.ts:2",
+   "shared/const.test.ts:2",
+   "shared/const.ts:28"
+  ]
+ },
+ {
+  "num": "AIDV-59",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "> 🔒 **AIDV-59（H4 JWT 硬化）**：正式環境（`NODE_ENV=production`）必填且至少 16 字元。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-61",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "<!-- AIDV-61 H6 Migration Failure & Rollback SOP -->",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-71",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| 大型重構 | AIDV-71 | 抽 useGenerationTask hook（四 studio ~19.6K LOC 複製）。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-74",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "883"
+  ],
+  "note": "- **Wave U UIUX 視覺實裝**（Epic AIDV-74＋盤點卡 AIDV-75，06-13 依 Bruce 指示新增）：⑦ UIUX 設計 46 頁逐頁落地；「可以放比較後面但不可以沒有開發」；亮色系定盤為視覺基準。**06-15 盤點完成（U-0/AIDV-75 三欄對照表已貼、轉 In Progress）＋全站換膚開工**，依 Bruce「設計套件接上工作表」指示把 ⑦ 設計 6 大區/37 畫面排成卡：U-1 設計系統落地(AIDV-91，亮色暖光 tokens 全站套用、登入除外，✅ #883 已合併)／U-2 元件採用 umbrella(AIDV-92)／U-3 登入",
+  "code_refs": [
+   "client/src/components/design-kit/index.ts:3",
+   "client/src/components/design-kit/README.md:6",
+   "client/src/index.css:90",
+   "client/src/index.css:219"
+  ]
+ },
+ {
+  "num": "AIDV-75",
+  "title": "U-0 盤點（46 頁↔卡 對照）",
+  "status": "In Progress",
+  "prs": [],
+  "note": "🔄 進行中",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-76",
+  "title": "",
+  "status": "P0/urgent",
+  "prs": [
+   "872"
+  ],
+  "note": "[#872](https://github.com/aa0968111723-prog/healing-studio/pull/872)",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-77",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "870"
+  ],
+  "note": "- **Wave H 營運與安全硬化**（Epic AIDV-55＋AIDV-56~73，06-13 全啟動）：H5 鎖門已隨 #870 完成；H6 的活案例＝AIDV-76 P0。Railway MCP 接入＝AIDV-77（官方遠端版已寫入本機設定，待 Bruce OAuth）。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-78",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-79",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/shells/video/drawers/AgentCatalog.test.tsx:3",
+   "client/src/shells/video/drawers/AgentCatalog.test.tsx:56",
+   "client/src/shells/video/drawers/AgentCatalog.tsx:2",
+   "client/src/shells/video/DirectorConsoleProvider.tsx:42"
+  ]
+ },
+ {
+  "num": "AIDV-80",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/config/videoFlags.ts:62",
+   "client/src/spine/worldStyle.test.ts:2",
+   "client/src/spine/worldStyle.ts:2",
+   "client/src/spine/ProjectSpineProvider.tsx:189",
+   "client/src/spine/projectGateway.ts:438",
+   "client/src/spine/types.ts:104"
+  ]
+ },
+ {
+  "num": "AIDV-81",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/shells/video/canvas/ScriptCanvas.test.tsx:3",
+   "client/src/shells/video/canvas/ScriptCanvas.test.tsx:68",
+   "client/src/shells/video/canvas/ScriptCanvas.tsx:11",
+   "client/src/spine/projectGateway.ts:440",
+   "client/src/spine/types.ts:106"
+  ]
+ },
+ {
+  "num": "AIDV-82",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/shells/video/drawers/TeachingArchiveGrounding.tsx:2",
+   "client/src/shells/video/drawers/TeachingArchiveGrounding.test.tsx:3",
+   "client/src/shells/video/drawers/TeachingArchiveGrounding.test.tsx:79",
+   "client/src/shells/video/DirectorConsoleProvider.tsx:43"
+  ]
+ },
+ {
+  "num": "AIDV-83",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/shells/video/drawers/RealEarthResearch.tsx:2",
+   "client/src/shells/video/drawers/RealEarthResearch.test.tsx:3",
+   "client/src/shells/video/drawers/RealEarthResearch.test.tsx:83",
+   "client/src/shells/video/DirectorConsoleProvider.tsx:40"
+  ]
+ },
+ {
+  "num": "AIDV-84",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/shells/video/console/ProjectFlowGuide.test.tsx:3",
+   "client/src/shells/video/console/ProjectFlowGuide.test.tsx:55",
+   "client/src/shells/video/console/ProjectFlowGuide.tsx:2",
+   "client/src/shells/video/console/StorySpineColumn.tsx:64",
+   "client/src/config/videoFlags.ts:70"
+  ]
+ },
+ {
+  "num": "AIDV-85",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/shells/video/drawers/LoraCharacters.tsx:2",
+   "client/src/shells/video/drawers/LoraCharacters.test.tsx:3",
+   "client/src/shells/video/drawers/LoraCharacters.test.tsx:44",
+   "client/src/shells/video/DirectorConsoleProvider.tsx:44"
+  ]
+ },
+ {
+  "num": "AIDV-86",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/shells/video/drawers/PromptWorkbench.test.tsx:3",
+   "client/src/shells/video/drawers/PromptWorkbench.test.tsx:70",
+   "client/src/shells/video/drawers/PromptWorkbench.tsx:2",
+   "client/src/shells/video/DirectorConsoleProvider.tsx:41"
+  ]
+ },
+ {
+  "num": "AIDV-87",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/components/home/IntentOnboardingNudge.tsx:2",
+   "client/src/components/home/IntentOnboardingNudge.test.tsx:3",
+   "client/src/components/home/IntentOnboardingNudge.test.tsx:41",
+   "client/src/pages/Home.tsx:116",
+   "client/src/pages/Home.tsx:1570"
+  ]
+ },
+ {
+  "num": "AIDV-88",
+  "title": "",
+  "status": "Blocked",
+  "prs": [],
+  "note": "getConfluenceSpaces 能列空間；鐵律⑨補跑；舊 token 撤銷",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-89",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "- **AIDV-89**（Epic「📥 AIDISC 討論區（Jira 暫代）」）＝hub，描述內含白話 SOP 與標籤對照。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-90",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "- **優先順序分級上線**：先前 101 卡優先序全 Medium（看板「優先順序細分」圖無意義）。已依 §2.5c 表分級：Highest=AIDV-90；High=AIDV-8/9/12/17/56/75/85/88/92/94；Low=AIDV-13/16/19（needs-key）；Lowest=AIDV-18/20/21/22/23/24/25/48–54（Wave3/4＋strangler）；其餘 Medium。**完成卡維持 Medium 不動**。詳見 `AIDV-dev-workflow.md` §4.1。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-91",
+  "title": "U-1 設計系統落地（亮色暖光 tokens）",
+  "status": "Done",
+  "prs": [
+   "883"
+  ],
+  "note": "✅ Done",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-92",
+  "title": "U-2 元件採用（umbrella）＋逐殼採用片",
+  "status": "In Progress",
+  "prs": [
+   "889",
+   "890"
+  ],
+  "note": "🔄 進行中（逐殼採用片：①PanelState ②/video ReadinessChip ③/settings 設定列 ④/learn 積分小統計＝#889 已併；⑤/learn 情報新聞 IntelItem ⑥/learn 研究來源 SourceCite＝#890。旗標 OFF＝零變化）",
+  "code_refs": [
+   "client/src/components/social/BrandKitPanel.test.tsx:3",
+   "client/src/components/social/SocialNewsList.tsx:6",
+   "client/src/components/social/SocialJourneyStepper.tsx:8",
+   "client/src/components/social/SocialNewsList.test.tsx:3",
+   "client/src/components/social/SocialNav.tsx:7",
+   "client/src/components/social/SocialNav.test.tsx:3",
+   "client/src/components/social/SizeExportGrid.test.tsx:3",
+   "client/src/components/social/BrandLockBadge.tsx:6",
+   "client/src/components/social/BrandLockBadge.test.tsx:3",
+   "client/src/components/social/BrandKitPanel.tsx:16",
+   "client/src/components/social/SizeExportGrid.tsx:15",
+   "client/src/shells/settings/StatusPill.tsx:2",
+   "client/src/shells/settings/admin/FeatureFlagsTab.tsx:22",
+   "client/src/shells/settings/admin/DataRepairTab.tsx:18",
+   "client/src/shells/settings/admin/FeatureFlagsTab.test.tsx:3",
+   "client/src/shells/settings/admin/FeatureFlagsTab.test.tsx:24",
+   "client/src/shells/settings/admin/ContentTab.tsx:19",
+   "client/src/shells/settings/admin/ContentTab.test.tsx:3",
+   "client/src/shells/settings/admin/ContentTab.test.tsx:21",
+   "client/src/shells/settings/admin/UsersCreditsTab.tsx:20",
+   "client/src/shells/settings/admin/UsersCreditsTab.test.tsx:3",
+   "client/src/shells/settings/admin/UsersCreditsTab.test.tsx:22",
+   "client/src/shells/settings/panels/ProviderPanel.test.tsx:3",
+   "client/src/shells/settings/panels/ProviderPanel.test.tsx:22",
+   "client/src/shells/settings/panels/ProviderPanel.tsx:19"
+  ]
+ },
+ {
+  "num": "AIDV-93",
+  "title": "U-3 登入保留 cosmic（決議）",
+  "status": "Done",
+  "prs": [
+   "883"
+  ],
+  "note": "✅ Done",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-94",
+  "title": "U-4 殼層 chrome 視覺實裝（flag-gated strangler）",
+  "status": "In Progress",
+  "prs": [
+   "886",
+   "887",
+   "888",
+   "889"
+  ],
+  "note": "🔄 進行中（結構＋接資料＋ProjectSwitcher＋⌘K＋走查開關 5 片皆合併；Bruce 走查通過；旗標 `ENABLE_AIDV_CHROME` OFF。剩 ProviderChip/Toast 為選配 polish）",
+  "code_refs": [
+   "client/src/components/DashboardLayout.tsx:874",
+   "client/src/shells/AidvShellChrome.tsx:2",
+   "client/src/shells/AidvShellChrome.test.tsx:3",
+   "client/src/shells/AidvShellChrome.test.tsx:33",
+   "client/src/config/featureFlags.ts:113"
+  ]
+ },
+ {
+  "num": "AIDV-95",
+  "title": "U-5 /video 視覺實裝",
+  "status": "Done",
+  "prs": [
+   "891",
+   "897"
+  ],
+  "note": "✅ 已併 main（NotesPanel→Card・PromptsPanel→PromptBlock・ShotPanel；旗標 OFF＝零變化）",
+  "code_refs": [
+   "client/src/shells/video/StageBar.test.tsx:3",
+   "client/src/shells/video/StageBar.test.tsx:33",
+   "client/src/shells/video/panels/NotesPanel.tsx:11",
+   "client/src/shells/video/panels/NotesPanel.tsx:16",
+   "client/src/shells/video/panels/AssetsPanel.tsx:14",
+   "client/src/shells/video/panels/AssetsPanel.test.tsx:3",
+   "client/src/shells/video/panels/AssetsPanel.test.tsx:27",
+   "client/src/shells/video/panels/PromptsPanel.tsx:12",
+   "client/src/shells/video/panels/PromptsPanel.test.tsx:3",
+   "client/src/shells/video/panels/PromptsPanel.test.tsx:20",
+   "client/src/shells/video/panels/NotesPanel.test.tsx:3",
+   "client/src/shells/video/panels/NotesPanel.test.tsx:25",
+   "client/src/shells/video/panels/NotesPanel.test.tsx:56",
+   "client/src/shells/video/StageBar.tsx:14",
+   "client/src/shells/video/canvas/RoughCutCanvas.test.tsx:3",
+   "client/src/shells/video/canvas/RoughCutCanvas.test.tsx:36",
+   "client/src/shells/video/canvas/AssetGenCanvas.tsx:29",
+   "client/src/shells/video/canvas/RoughCutCanvas.tsx:16",
+   "client/src/shells/video/canvas/AssetGenCanvas.test.tsx:3",
+   "client/src/shells/video/canvas/AssetGenCanvas.test.tsx:48",
+   "client/src/config/videoFlags.ts:78"
+  ]
+ },
+ {
+  "num": "AIDV-96",
+  "title": "U-6 /social 視覺實裝",
+  "status": "Done",
+  "prs": [
+   "894"
+  ],
+  "note": "✅ 已併 main（P5 社群殼 greenfield＋SocialNav 接 design-kit；範圍校正為 `components/social/`，原 `shells/social/` 不存在）",
+  "code_refs": [
+   "client/src/components/social/BrandKitPanel.test.tsx:3",
+   "client/src/components/social/BrandKitPanel.test.tsx:20",
+   "client/src/components/social/SocialJourneyStepper.test.tsx:3",
+   "client/src/components/social/SocialJourneyStepper.test.tsx:16",
+   "client/src/components/social/SocialNewsList.tsx:6",
+   "client/src/components/social/SocialJourneyStepper.tsx:8",
+   "client/src/components/social/SocialNewsList.test.tsx:3",
+   "client/src/components/social/SocialNewsList.test.tsx:26",
+   "client/src/components/social/SocialNav.tsx:7",
+   "client/src/components/social/SocialNav.test.tsx:3",
+   "client/src/components/social/SocialNav.test.tsx:27",
+   "client/src/components/social/SizeExportGrid.test.tsx:3",
+   "client/src/components/social/SizeExportGrid.test.tsx:23",
+   "client/src/components/social/BrandLockBadge.tsx:6",
+   "client/src/components/social/BrandLockBadge.test.tsx:3",
+   "client/src/components/social/BrandLockBadge.test.tsx:19",
+   "client/src/components/social/BrandKitPanel.tsx:16",
+   "client/src/components/social/BrandKitPanel.tsx:33",
+   "client/src/components/social/SizeExportGrid.tsx:15",
+   "client/src/components/social/SizeExportGrid.tsx:50",
+   "client/src/social/socialFlags.ts:4",
+   "client/src/pages/social/SocialCockpitPage.tsx:88"
+  ]
+ },
+ {
+  "num": "AIDV-97",
+  "title": "U-7 /learn 視覺實裝",
+  "status": "In Progress",
+  "prs": [
+   "890"
+  ],
+  "note": "🔄 進行中（隨 U-2 /learn 片推進：IntelItem＋SourceCite）",
+  "code_refs": [
+   "client/src/shells/learn/LearnHome.test.tsx:3",
+   "client/src/shells/learn/LearnHome.test.tsx:26",
+   "client/src/shells/learn/panels/ApiKeysPanel.tsx:18",
+   "client/src/shells/learn/panels/ApiKeysPanel.test.tsx:3",
+   "client/src/shells/learn/panels/ApiKeysPanel.test.tsx:18",
+   "client/src/shells/learn/LearnHome.tsx:12"
+  ]
+ },
+ {
+  "num": "AIDV-98",
+  "title": "U-8 /settings 視覺實裝",
+  "status": "Done",
+  "prs": [
+   "896"
+  ],
+  "note": "✅ 已併 main（ObservabilityPanel 系統概覽 StatCard；旗標 OFF＝零變化）",
+  "code_refs": [
+   "client/src/shells/settings/panels/ObservabilityPanel.test.tsx:3",
+   "client/src/shells/settings/panels/ObservabilityPanel.test.tsx:22",
+   "client/src/shells/settings/panels/ObservabilityPanel.tsx:18"
+  ]
+ },
+ {
+  "num": "AIDV-99",
+  "title": "U-9 共用 PromptVault 採用",
+  "status": "To Do/Backlog",
+  "prs": [],
+  "note": "📋 Backlog",
+  "code_refs": [
+   "client/src/shells/video/panels/VaultBrowserPanel.tsx:2",
+   "client/src/shells/video/panels/VaultBrowserPanel.test.tsx:3",
+   "client/src/shells/video/panels/VaultBrowserPanel.test.tsx:43",
+   "client/src/shells/video/panels/PromptsPanel.tsx:18"
+  ]
+ },
+ {
+  "num": "AIDV-100",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [
+   "880",
+   "881"
+  ],
+  "note": "- **Wave I 現有功能整合**（Epic AIDV-78，I-1~I-9＝AIDV-79~87，06-14 啟動）：把 LIVE 但無前端的後端接上導演台脊椎。**5 張已合併 main（#880，✅ Done）**：I-5 真實地球研究(AIDV-83)／I-8 提示詞跨庫組合(AIDV-86)／I-1 精靈能力·成本(AIDV-79)／I-4 教材庫接地(AIDV-82)＝零後端唯讀抽屜；I-2 世界風格注入(AIDV-80)＝接生成管線、旗標 `ENABLE_WORLD_STYLE_INJECTION` 預設 OFF。**✅ #881 已合併 main（2026-06-14）**",
+  "code_refs": [
+   "client/src/shells/video/console/WorldLinkPicker.tsx:2",
+   "client/src/shells/video/console/ProjectFlowGuide.tsx:144",
+   "client/src/shells/video/console/WorldLinkPicker.test.tsx:3",
+   "client/src/shells/video/console/WorldLinkPicker.test.tsx:30",
+   "client/src/spine/ProjectSpineProvider.tsx:73",
+   "client/src/spine/ProjectSpineProvider.tsx:445",
+   "client/src/spine/projectGateway.ts:102",
+   "client/src/spine/projectGateway.ts:311"
+  ]
+ },
+ {
+  "num": "AIDV-101",
+  "title": "U-10 設計系統元件庫補齊（34 元件）",
+  "status": "Done",
+  "prs": [
+   "885"
+  ],
+  "note": "✅ Done",
+  "code_refs": [
+   "client/src/components/design-kit/shellkit.test.tsx:3",
+   "client/src/components/design-kit/shellkit.test.tsx:12",
+   "client/src/components/design-kit/shellkit.tsx:1",
+   "client/src/components/design-kit/states.test.tsx:3",
+   "client/src/components/design-kit/states.test.tsx:12",
+   "client/src/components/design-kit/states.tsx:2",
+   "client/src/components/design-kit/cockpit.tsx:1",
+   "client/src/components/design-kit/chrome.tsx:1",
+   "client/src/components/design-kit/cockpit.test.tsx:3",
+   "client/src/components/design-kit/cockpit.test.tsx:13",
+   "client/src/components/design-kit/chrome.test.tsx:3",
+   "client/src/components/design-kit/chrome.test.tsx:23"
+  ]
+ },
+ {
+  "num": "AIDV-102",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "- **開放工作流程 hub**：新增 Epic **AIDV-102**「🔄 AIDV 開放工作流程（看板作業 SOP·單一作業面）」＝把九階／三門映射到既有四欄（Backlog／Selected for Development＝就緒／進行中／完成）＋label，並附「想要真正自訂狀態欄」給 Bruce 的後台步驟（MCP 無法代建狀態，需 Bruce 管理員權限）。已轉 In Progress。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-103",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "**Jira 連動**：UI 卡的工作表必填「UI/UX 一致性」欄（設計門查詢摘要＋交付前檢查 N 項過）；看板↔九階對照見 Epic **AIDV-102**；本接入工作項目＝**AIDV-103**（label `workflow`＋`ui-ux`）。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-104",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| 大腦/模型 SSOT | **AIDV-104**（已留言）| FALLBACK_CHAINS 無 compile-time 檢查、brain upsert 缺 enum 白名單、缺一致性測試、fallback 鏈分散兩處。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-114",
+  "title": "U-11 OrbAssistant 光球助手視覺實裝",
+  "status": "In Progress",
+  "prs": [
+   "905",
+   "906",
+   "912",
+   "916"
+  ],
+  "note": "#905／#906／#912／#916",
+  "code_refs": [
+   "client/src/components/design-kit/orb.test.tsx:3",
+   "client/src/components/design-kit/orb.test.tsx:20",
+   "client/src/components/design-kit/orb.tsx:1",
+   "client/src/components/DashboardLayout.tsx:952",
+   "client/src/shells/AidvOrbMount.tsx:3",
+   "client/src/shells/AidvOrbMount.test.tsx:3",
+   "client/src/shells/AidvOrbMount.test.tsx:25",
+   "client/src/shells/AidvOrbMount.test.tsx:69"
+  ]
+ },
+ {
+  "num": "AIDV-118",
+  "title": "U-15 全站四態／RWD／a11y 一致性驗收",
+  "status": "In Progress",
+  "prs": [],
+  "note": "本 PR",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-119",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "`components/home/ScrollProgressBar.tsx`（`useScroll`＋`useSpring` 捲動進度條）無 `useReducedMotion`；spring 抖動對前庭敏感者不友善。修：`useReducedMotion()` 為真時改 `useScroll` 直給（不過 spring）或隱藏。**→ 路由 AIDV-119（U-10 首頁／home 軌）**",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-120",
+  "title": "U-11 OrbAssistant 光球助手視覺實裝",
+  "status": "In Progress",
+  "prs": [
+   "905",
+   "906",
+   "912",
+   "916"
+  ],
+  "note": "#905／#906／#912／#916",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-121",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "# AIDV-121 團隊資料可見性／權限邊界 SSOT（資料層 RBAC 基礎版）",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-122",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| provenance | AIDV-122 | AI 輸出來源標示拆獨立子卡。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-123",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "# AIDV-123 全站操作稽核軌跡（audit log）— 基礎版",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-133",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| 孤兒頁清理 | AIDV-133 | 8 個未掛路由頁，確認無深連結/analytics 後刪。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-157",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| UX 子卡 | AIDV-157 | 錯誤訊息白話化＋送出後捲到最新訊息。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-158",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| 資安續跑 | AIDV-158 | C2 六維（auth/idor/sql/ssrf/secrets/dos）續跑。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-160",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| 預扣款/回退 | AIDV-160 | chargeForFalTask 先扣後送→改 hold/pending；mock 在 prod 回退鎖 provider 決策。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-161",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "**最有價值的發現是「`spine/projectGateway.ts` 的 `as any` 造成一整串 tsc 抓不到的靜默失敗」**（含一個同帳號跨專案資料混入），已開成 [AIDV-161]/[AIDV-162] 兩張 High 卡；其餘前端健壯性與後端派發碎片化各開一卡，UI a11y／大腦模型 SSOT 兩群路由回擁有卡；報告中宣稱已修者（0075 junction、Director temperature）經 HEAD 實證確認已修，未重複產卡。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-162",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "**最有價值的發現是「`spine/projectGateway.ts` 的 `as any` 造成一整串 tsc 抓不到的靜默失敗」**（含一個同帳號跨專案資料混入），已開成 [AIDV-161]/[AIDV-162] 兩張 High 卡；其餘前端健壯性與後端派發碎片化各開一卡，UI a11y／大腦模型 SSOT 兩群路由回擁有卡；報告中宣稱已修者（0075 junction、Director temperature）經 HEAD 實證確認已修，未重複產卡。",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-163",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| **AIDV-163** | Medium | opt-card, frontend | 健壯性 4 連：先 toast.success 再 await 的競態＋無 isPending 去重、空 catch 吞錯、`director.createPlanningMilestones` N+1 逐筆 await、`ProductionPackagePreview` 死碼 onClick。 |",
+  "code_refs": []
+ },
+ {
+  "num": "AIDV-164",
+  "title": "(見備註)",
+  "status": "",
+  "prs": [],
+  "note": "| **AIDV-164** | Medium | opt-card, backend, 待議 | Fal 派發碎片化：image/audio/video router 各包 `falQueueSubmit`（盤點 A.8 #1 🔴），統一走 `falDispatcher`；附 background_jobs/generation_history 無 FK／無 TTL。碰生成關鍵路徑→待 Bruce。 |",
+  "code_refs": []
+ }
+]
