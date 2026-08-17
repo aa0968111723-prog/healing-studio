@@ -86,6 +86,7 @@ export default function CreativeProjectPage() {
   // user is editing — null means the dialog is closed.
   const [bindProjectId, setBindProjectId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
 
   const listQuery = trpc.creativeProject.list.useQuery(undefined, {
     staleTime: 5_000,
@@ -181,11 +182,23 @@ export default function CreativeProjectPage() {
   );
   const filteredProjects = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase();
-    if (!normalized) return projects;
-    return projects.filter(project =>
-      [project.title, project.description ?? ""].join(" ").toLocaleLowerCase().includes(normalized),
-    );
-  }, [projects, search]);
+    return projects.filter(project => {
+      const matchesSearch = !normalized ||
+        [project.title, project.description ?? ""]
+          .join(" ")
+          .toLocaleLowerCase()
+          .includes(normalized);
+      const matchesStatus = statusFilter === "all" || project.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [projects, search, statusFilter]);
+  const statusCounts = useMemo(
+    () => STATUS_OPTIONS.reduce<Record<ProjectStatus, number>>((counts, option) => {
+      counts[option.value] = projects.filter(project => project.status === option.value).length;
+      return counts;
+    }, { concept: 0, production: 0, review: 0, complete: 0 }),
+    [projects],
+  );
   const boundCount = activeProject
     ? [activeProject.worldFrameworkId, activeProject.worldStoryboardId, activeProject.directorSessionId].filter(
         value => value !== null,
@@ -219,7 +232,43 @@ export default function CreativeProjectPage() {
 
       <div className="grid gap-3 md:grid-cols-2">
         <SectionCard title="目前專案" description={activeProject ? `當前：${activeProject.title}` : "尚未啟用專案"} />
-        <SectionCard title="綁定狀態" description={activeProject ? `世界觀：${activeProject.worldFrameworkId ? "已綁定" : "未綁定"}｜分鏡：${activeProject.worldStoryboardId ? "已綁定" : "未綁定"}` : "先啟用專案後檢查綁定"} />
+        <SectionCard
+          title="綁定狀態"
+          description={
+            activeProject
+              ? `完成度 ${boundCount}/3｜世界觀：${activeProject.worldFrameworkId ? "已綁定" : "未綁定"}｜分鏡：${activeProject.worldStoryboardId ? "已綁定" : "未綁定"}`
+              : "先啟用專案後檢查綁定"
+          }
+        />
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border bg-card/70 p-3 shadow-sm lg:flex-row lg:items-center">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={event => setSearch(event.target.value)}
+            placeholder="搜尋專案名稱或簡介…"
+            aria-label="搜尋創作專案"
+            className="pl-9"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={value => setStatusFilter(value as ProjectStatus | "all")}>
+          <SelectTrigger className="w-full lg:w-[190px]" aria-label="依狀態篩選專案">
+            <SelectValue placeholder="全部狀態" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">全部狀態（{projects.length}）</SelectItem>
+            {STATUS_OPTIONS.map(option => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}（{statusCounts[option.value]}）
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="shrink-0 text-xs text-muted-foreground lg:min-w-[116px] lg:text-right">
+          顯示 {filteredProjects.length} / {projects.length} 個專案
+        </div>
       </div>
 
       {listQuery.isLoading ? (
@@ -232,9 +281,25 @@ export default function CreativeProjectPage() {
           <FolderOpen className="w-10 h-10 mx-auto mb-3 opacity-40" />
           <p>還沒有任何創作專案。建立一個來開始多模態創作。</p>
         </div>
+      ) : filteredProjects.length === 0 ? (
+        <div className="rounded-xl border border-dashed py-16 text-center text-muted-foreground">
+          <Search className="mx-auto mb-3 size-9 opacity-40" />
+          <p>找不到符合條件的專案。</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              setSearch("");
+              setStatusFilter("all");
+            }}
+          >
+            清除篩選
+          </Button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map(p => {
+          {filteredProjects.map(p => {
             const isActive = world.currentProjectId === p.id;
             return (
               <div

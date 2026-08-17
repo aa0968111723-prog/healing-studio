@@ -36,6 +36,7 @@ import {
   FileText,
   Download,
   CheckCircle2,
+  AlertCircle,
   MessageSquare,
   Zap,
   Heart,
@@ -167,6 +168,14 @@ import type {
 
 // ─── Script Import Panel ───────────────────────────────────────────────────
 
+const SCRIPT_IMPORT_DRAFT_KEY = "director-script-import-draft-v2";
+
+type ScriptImportDraft = {
+  content: string;
+  title: string;
+  format: string;
+};
+
 const ScriptImportPanel = memo(function ScriptImportPanel({
   onImport,
   isImporting,
@@ -179,7 +188,51 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
   const [scriptContent, setScriptContent] = useState("");
   const [scriptTitle, setScriptTitle] = useState("");
   const [sourceFormat, setSourceFormat] = useState("plaintext");
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 匯入前先在本機保存原稿，避免解析卡住、重整或網路錯誤造成不可逆遺失。
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SCRIPT_IMPORT_DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw) as Partial<ScriptImportDraft>;
+        if (typeof draft.content === "string") setScriptContent(draft.content);
+        if (typeof draft.title === "string") setScriptTitle(draft.title);
+        if (typeof draft.format === "string") setSourceFormat(draft.format);
+      }
+    } catch {
+      // localStorage 受限時仍可正常使用匯入流程，不阻擋使用者。
+    } finally {
+      setDraftRestored(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!draftRestored) return;
+    if (!scriptContent.trim() && !scriptTitle.trim()) {
+      window.localStorage.removeItem(SCRIPT_IMPORT_DRAFT_KEY);
+      setDraftSavedAt(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          SCRIPT_IMPORT_DRAFT_KEY,
+          JSON.stringify({
+            content: scriptContent,
+            title: scriptTitle,
+            format: sourceFormat,
+          } satisfies ScriptImportDraft)
+        );
+        setDraftSavedAt(Date.now());
+      } catch {
+        // 儲存空間不足或瀏覽器限制時，保留目前表單狀態即可。
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [draftRestored, scriptContent, scriptTitle, sourceFormat]);
 
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,19 +276,54 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
       toast.error("請輸入腳本標題");
       return;
     }
+    if (scriptContent.trim().length < 40) {
+      toast.warning("目前腳本很短，AI 可能只能產生 1–2 個分鏡", {
+        description: "仍可繼續分析；若要測試完整流程，建議補上動作、場景或聲音描述。",
+      });
+    }
     onImport(scriptContent, scriptTitle, sourceFormat);
   }, [scriptContent, scriptTitle, sourceFormat, onImport]);
 
+  const handleClearDraft = useCallback(() => {
+    setScriptContent("");
+    setScriptTitle("");
+    setSourceFormat("plaintext");
+    window.localStorage.removeItem(SCRIPT_IMPORT_DRAFT_KEY);
+    setDraftSavedAt(null);
+    toast.success("已清除本機腳本草稿");
+  }, []);
+
   return (
     <GlassCard hover={false} className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="hs-h3 !mb-0 flex items-center gap-2">
-          <Upload className="w-4 h-4" />
-          匯入腳本
-        </h3>
-        <span className="text-2xs text-muted-foreground">
-          支援純文字、劇本、字幕、Final Draft 等格式
-        </span>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="hs-h3 !mb-0 flex items-center gap-2">
+            <Upload className="w-4 h-4" />
+            匯入腳本
+          </h3>
+          <p className="mt-1 text-2xs text-muted-foreground">
+            送出後會先保留原稿；若解析逾時或失敗，可以直接修正後重試。
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1 text-2xs text-muted-foreground">
+          <span>支援純文字、劇本、字幕、Final Draft 等格式</span>
+          {draftSavedAt ? (
+            <span className="text-emerald-600" aria-live="polite">
+              草稿已自動保存
+            </span>
+          ) : (
+            <span>輸入內容會自動保存到本機</span>
+          )}
+          {(scriptContent || scriptTitle) && (
+            <button
+              type="button"
+              onClick={handleClearDraft}
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              清除草稿
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Title */}
@@ -304,7 +392,11 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
           onChange={e => setScriptContent(e.target.value)}
           placeholder="貼上你的腳本內容... 可以是任何格式的長腳本文字"
           className="min-h-[200px] text-xs leading-relaxed resize-y bg-card/50"
+          aria-describedby="script-import-guidance"
         />
+        <p id="script-import-guidance" className="text-2xs text-muted-foreground">
+          建議包含角色、場景、動作、鏡頭與聲音；解析期間請勿關閉頁面，草稿會持續保存在本機。
+        </p>
       </div>
 
       <Button
@@ -539,6 +631,35 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
     ? quickActions
     : quickActions.slice(0, 6);
   const statusCfg = STATUS_CONFIG[segment.status];
+  const generationChecks = useMemo(
+    () => [
+      {
+        label: "場景",
+        ok: Boolean(segment.storyboard.sceneHeading?.trim()),
+      },
+      {
+        label: "畫面",
+        ok: Boolean(segment.storyboard.visualDescription?.trim()),
+      },
+      {
+        label: "鏡頭",
+        ok: Boolean(segment.storyboard.cameraDirection?.trim()),
+      },
+      {
+        label: "聲音",
+        ok: Boolean(segment.storyboard.soundDesign?.trim()),
+      },
+      {
+        label: "角色／地點引用",
+        ok: (segment.characters?.length ?? 0) + (segment.locations?.length ?? 0) > 0,
+      },
+    ],
+    [segment]
+  );
+  const generationReadyCount = generationChecks.filter(check => check.ok).length;
+  const missingGenerationChecks = generationChecks
+    .filter(check => !check.ok)
+    .map(check => check.label);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -607,10 +728,21 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           ))}
           {onRegenerate && (
             <button
-              onClick={onRegenerate}
+              onClick={() => {
+                if (missingGenerationChecks.length > 0) {
+                  toast.warning("這格仍有生成前風險", {
+                    description: `尚缺 ${missingGenerationChecks.join("、")}；仍會繼續嘗試生成。`,
+                  });
+                }
+                onRegenerate();
+              }}
               disabled={isRegenerating}
               className="ml-1 flex items-center gap-1 text-2xs px-2 py-0.5 rounded-md border border-primary/30 text-primary hover:bg-primary/5 disabled:opacity-50 transition-all"
-              title="重生成此鏡 (AIDV-279)"
+              title={
+                missingGenerationChecks.length > 0
+                  ? `仍可生成；建議先補齊 ${missingGenerationChecks.join("、")}`
+                  : "重生成此鏡 (AIDV-279)"
+              }
             >
               <RefreshCw className={cn("w-3 h-3", isRegenerating && "animate-spin")} />
               {isRegenerating ? "生成中…" : "重生成"}
@@ -643,6 +775,51 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           ))}
         </div>
       )}
+
+      {/* Generation preflight — 先把不可見的生成依賴變成可修正的 UI */}
+      <div
+        className={cn(
+          "rounded-lg border px-3 py-2.5 text-[11px]",
+          generationReadyCount === generationChecks.length
+            ? "border-emerald-200 bg-emerald-50/70"
+            : "border-amber-200 bg-amber-50/70"
+        )}
+        data-testid="generation-preflight"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            {generationReadyCount === generationChecks.length ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+            ) : (
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+            )}
+            <span className="font-semibold text-foreground">生成前檢查</span>
+            <span className="text-muted-foreground">
+              {generationReadyCount}/{generationChecks.length} 項已具備
+            </span>
+          </div>
+          <div className="flex flex-wrap justify-end gap-1">
+            {generationChecks.map(check => (
+              <span
+                key={check.label}
+                className={cn(
+                  "rounded-full border px-1.5 py-0.5 text-[10px]",
+                  check.ok
+                    ? "border-emerald-200 bg-white/70 text-emerald-700"
+                    : "border-amber-200 bg-white/70 text-amber-700"
+                )}
+              >
+                {check.ok ? "✓" : "!"} {check.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        {missingGenerationChecks.length > 0 && (
+          <p className="mt-1.5 text-amber-800/80">
+            尚缺：{missingGenerationChecks.join("、")}。仍可嘗試生成，但若要降低「素材找不到」或構圖失焦，建議先在下方討論中補上具體角色、地點與鏡頭動作。
+          </p>
+        )}
+      </div>
 
       {/* Storyboard info — 選取文字後可浮動引用至討論 */}
       <div
