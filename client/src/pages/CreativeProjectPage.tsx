@@ -50,9 +50,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Plus,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
   FolderOpen,
   Globe2,
   Film,
+  Layers3,
+  Search,
   Trash2,
   Sparkles,
   Loader2,
@@ -80,6 +85,7 @@ export default function CreativeProjectPage() {
   // Phase 2a: post-creation 綁定 / 解綁。Tracks the project whose binding the
   // user is editing — null means the dialog is closed.
   const [bindProjectId, setBindProjectId] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
 
   const listQuery = trpc.creativeProject.list.useQuery(undefined, {
     staleTime: 5_000,
@@ -173,6 +179,18 @@ export default function CreativeProjectPage() {
     () => projects.find(p => p.id === bindProjectId) ?? null,
     [projects, bindProjectId],
   );
+  const filteredProjects = useMemo(() => {
+    const normalized = search.trim().toLocaleLowerCase();
+    if (!normalized) return projects;
+    return projects.filter(project =>
+      [project.title, project.description ?? ""].join(" ").toLocaleLowerCase().includes(normalized),
+    );
+  }, [projects, search]);
+  const boundCount = activeProject
+    ? [activeProject.worldFrameworkId, activeProject.worldStoryboardId, activeProject.directorSessionId].filter(
+        value => value !== null,
+      ).length
+    : 0;
 
   return (
     <div className="page-shell space-y-6">

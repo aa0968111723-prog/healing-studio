@@ -2372,6 +2372,35 @@ const ScriptCard = memo(function ScriptCard({
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
+const PLANNING_PASTE_DRAFT_KEY = "aios-director-planning-paste-v1";
+
+type PlanningPasteDraft = {
+  content: string;
+  title: string;
+  format: string;
+};
+
+function readPlanningPasteDraft(): PlanningPasteDraft {
+  const empty: PlanningPasteDraft = {
+    content: "",
+    title: "",
+    format: "plaintext",
+  };
+  if (typeof window === "undefined") return empty;
+  try {
+    const raw = window.localStorage.getItem(PLANNING_PASTE_DRAFT_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw) as Partial<PlanningPasteDraft>;
+    return {
+      content: typeof parsed.content === "string" ? parsed.content : "",
+      title: typeof parsed.title === "string" ? parsed.title : "",
+      format: typeof parsed.format === "string" ? parsed.format : "plaintext",
+    };
+  } catch {
+    return empty;
+  }
+}
+
 export default function DirectorAI() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
@@ -2679,11 +2708,40 @@ export default function DirectorAI() {
   } | null>(null);
   // 規劃模式內的「貼上腳本」面板開關 + 草稿內容
   const [showPlanningPaste, setShowPlanningPaste] = useState(false);
-  const [planningPasteContent, setPlanningPasteContent] = useState("");
-  const [planningPasteTitle, setPlanningPasteTitle] = useState("");
-  const [planningPasteFormat, setPlanningPasteFormat] = useState("plaintext");
+  const [planningPasteContent, setPlanningPasteContent] = useState(
+    () => readPlanningPasteDraft().content
+  );
+  const [planningPasteTitle, setPlanningPasteTitle] = useState(
+    () => readPlanningPasteDraft().title
+  );
+  const [planningPasteFormat, setPlanningPasteFormat] = useState(
+    () => readPlanningPasteDraft().format
+  );
+  const [planningImportStartedAt, setPlanningImportStartedAt] = useState<number | null>(null);
+  const [planningImportElapsed, setPlanningImportElapsed] = useState(0);
   // 確保 localStorage 草稿只在掛載時還原一次
   const planningDraftRestoredRef = useRef(false);
+
+  // 貼上腳本本身先寫入瀏覽器，避免 AI 解析卡住或重整時把原稿一併清掉。
+  useEffect(() => {
+    try {
+      if (!planningPasteContent.trim() && !planningPasteTitle.trim()) {
+        localStorage.removeItem(PLANNING_PASTE_DRAFT_KEY);
+        return;
+      }
+      localStorage.setItem(
+        PLANNING_PASTE_DRAFT_KEY,
+        JSON.stringify({
+          content: planningPasteContent,
+          title: planningPasteTitle,
+          format: planningPasteFormat,
+          savedAt: new Date().toISOString(),
+        })
+      );
+    } catch {
+      // 私密瀏覽或儲存空間不足時，仍不阻斷腳本編輯。
+    }
+  }, [planningPasteContent, planningPasteTitle, planningPasteFormat]);
 
   // ─── Batch Generation State ─────────────────────────────────────────────
   const [showBatchGeneration, setShowBatchGeneration] = useState(false);
@@ -2877,6 +2935,8 @@ export default function DirectorAI() {
   });
   const importScriptMut = trpc.director.importScript.useMutation({
     onSuccess: data => {
+      setPlanningImportStartedAt(null);
+      setPlanningImportElapsed(0);
       pushUndoSnapshot("匯入新腳本前");
       setImportedSegments(data.segments);
       setImportedTitle(data.title);
@@ -2887,8 +2947,27 @@ export default function DirectorAI() {
         `已匯入「${data.title}」— 分析出 ${data.segments.length} 個分鏡段落`
       );
     },
-    onError: e => toast.error("匯入失敗：" + e.message),
+    onError: e => {
+      setPlanningImportStartedAt(null);
+      setPlanningImportElapsed(0);
+      toast.error("匯入失敗：" + e.message, {
+        description: "原始腳本已保留在本機草稿，可修正後重新嘗試。",
+        duration: 8000,
+      });
+    },
   });
+
+  useEffect(() => {
+    if (!planningImportStartedAt || !importScriptMut.isPending) return;
+    const updateElapsed = () => {
+      setPlanningImportElapsed(
+        Math.max(0, Math.floor((Date.now() - planningImportStartedAt) / 1000))
+      );
+    };
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timer);
+  }, [planningImportStartedAt, importScriptMut.isPending]);
 
   // CO-STAR generation for individual segments
   const generateCostarMut = trpc.director.generateSegmentCostar.useMutation({
@@ -3584,6 +3663,8 @@ export default function DirectorAI() {
     const title =
       planningPasteTitle.trim() ||
       `腳本 ${new Date().toLocaleDateString("zh-TW")}`;
+    setPlanningImportStartedAt(Date.now());
+    setPlanningImportElapsed(0);
     try {
       const data = await importScriptMut.mutateAsync({
         rawContent: content,
@@ -3639,6 +3720,8 @@ export default function DirectorAI() {
         `已將「${title}」載入規劃，可在『腳本分析』分頁逐段微調 🎬`
       );
     } catch {
+      setPlanningImportStartedAt(null);
+      setPlanningImportElapsed(0);
       // importScriptMut.onError 已經顯示 toast
     }
   }, [
@@ -5502,6 +5585,22 @@ export default function DirectorAI() {
                   {selectedSegmentIdx !== null &&
                   importedSegments[selectedSegmentIdx] ? (
                     <GlassCard hover={false}>
+                      <div
+                        className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/15 bg-primary/5 px-3 py-2"
+                        data-testid="selected-shot-context"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-primary/70">
+                            目前編輯目標
+                          </p>
+                          <p className="truncate text-xs font-medium text-foreground">
+                            Shot {selectedSegmentIdx + 1} · {importedSegments[selectedSegmentIdx].storyboard.sceneHeading}
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">
+                          左側切換鏡頭後，右側工作區會同步重置
+                        </span>
+                      </div>
                       <SegmentDiscussionPanel
                         key={importedSegments[selectedSegmentIdx].id}
                         segment={importedSegments[selectedSegmentIdx]}
@@ -5653,17 +5752,32 @@ export default function DirectorAI() {
                           placeholder="貼上你的腳本內容…可以是任何格式的長腳本文字"
                           className="rounded-xl text-xs min-h-[160px] resize-y"
                         />
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                          <span>草稿會自動保留在這台裝置，解析中也可以安心離開此面板。</span>
+                          <span>{planningPasteContent.trim().length.toLocaleString()} 字</span>
+                        </div>
+                        {planningImportStartedAt && (
+                          <div
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-primary"
+                            role="status"
+                            aria-live="polite"
+                          >
+                            <span>
+                              {planningImportElapsed >= 15
+                                ? "解析時間較長，請先保留此頁；若失敗，原稿仍可重新嘗試。"
+                                : "AI 正在拆解腳本，完成後會自動建立分鏡段落。"}
+                            </span>
+                            <span>{planningImportElapsed} 秒</span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-end gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
                             className="rounded-xl text-xs"
-                            onClick={() => {
-                              setShowPlanningPaste(false);
-                              setPlanningPasteContent("");
-                            }}
+                            onClick={() => setShowPlanningPaste(false)}
                           >
-                            取消
+                            關閉並保留草稿
                           </Button>
                           <Button
                             size="sm"
@@ -5882,6 +5996,24 @@ export default function DirectorAI() {
                         placeholder="貼上你的腳本內容…可以是任何格式的長腳本文字"
                         className="rounded-xl text-xs min-h-[140px] resize-y"
                       />
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <span>草稿會自動保留在這台裝置，解析中也可以安心離開此面板。</span>
+                        <span>{planningPasteContent.trim().length.toLocaleString()} 字</span>
+                      </div>
+                      {planningImportStartedAt && (
+                        <div
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] text-primary"
+                          role="status"
+                          aria-live="polite"
+                        >
+                          <span>
+                            {planningImportElapsed >= 15
+                              ? "解析時間較長，請先保留此頁；若失敗，原稿仍可重新嘗試。"
+                              : "AI 正在拆解腳本，完成後會自動建立分鏡段落。"}
+                          </span>
+                          <span>{planningImportElapsed} 秒</span>
+                        </div>
+                      )}
                       {planningSession.scenes.length > 0 && (
                         <p className="text-[11px] text-amber-600">
                           這次規劃已經有 {planningSession.scenes.length}{" "}
@@ -5894,12 +6026,9 @@ export default function DirectorAI() {
                           variant="ghost"
                           size="sm"
                           className="rounded-xl text-xs"
-                          onClick={() => {
-                            setShowPlanningPaste(false);
-                            setPlanningPasteContent("");
-                          }}
+                          onClick={() => setShowPlanningPaste(false)}
                         >
-                          取消
+                          關閉並保留草稿
                         </Button>
                         <Button
                           size="sm"
@@ -6026,6 +6155,10 @@ export default function DirectorAI() {
                     <p className="hs-small !mb-0 text-muted-foreground">
                       {PLANNING_PHASES.find(p => p.id === planningPhase)?.description}
                     </p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+                      <span>這裡是規劃對話：用來整理故事與製作決策，不會直接發布留言或自動扣除生成點數。</span>
+                      <span>Ctrl / ⌘ + Enter 送出</span>
+                    </div>
 
                     {/* Discussion messages */}
                     <ScrollArea className="h-[calc(100vh-520px)] min-h-[300px]">
