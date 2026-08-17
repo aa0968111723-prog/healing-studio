@@ -84,7 +84,11 @@ import {
 import VisualSoul from "@/components/VisualSoul";
 import { BatchGenerationDialog } from "@/components/director/BatchGenerationDialog";
 import WorldbuildingPanel from "@/components/director/WorldbuildingPanel";
-import { WorkflowStepper } from "@/components/director/WorkflowStepper";
+import {
+  WorkflowStepper,
+  type WorkflowStageId,
+  type WorkflowStageState,
+} from "@/components/director/WorkflowStepper";
 import {
   PLANNING_DRAFT_KEY,
   PERSONALITIES,
@@ -189,10 +193,12 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
   onImport,
   isImporting,
   personality,
+  onDraftChange,
 }: {
   onImport: (content: string, title: string, format: string) => void;
   isImporting: boolean;
   personality: Personality;
+  onDraftChange?: (hasDraft: boolean) => void;
 }) {
   const [scriptContent, setScriptContent] = useState("");
   const [scriptTitle, setScriptTitle] = useState("");
@@ -217,6 +223,11 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
       setDraftRestored(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!draftRestored) return;
+    onDraftChange?.(Boolean(scriptContent.trim() || scriptTitle.trim()));
+  }, [draftRestored, scriptContent, scriptTitle, onDraftChange]);
 
   useEffect(() => {
     if (!draftRestored) return;
@@ -2825,6 +2836,8 @@ export default function DirectorAI() {
     number | null
   >(null);
   const [importedSegments, setImportedSegments] = useState<ScriptSegment[]>([]);
+  const [scriptDraftReady, setScriptDraftReady] = useState(false);
+  const [storyboardCreated, setStoryboardCreated] = useState(false);
   // AIDV-227: 版本歷程 — 最多保留 10 個分鏡快照，供「復原」使用
   const [segmentUndoStack, setSegmentUndoStack] = useState<Array<{
     segments: ScriptSegment[];
@@ -3078,6 +3091,7 @@ export default function DirectorAI() {
   const createStoryboardMut =
     trpc.worldStoryboard.createFromSegments.useMutation({
       onSuccess: data => {
+        setStoryboardCreated(true);
         toast.success(
           `分鏡板已建立 — ${data.sceneCount} 個場景，共 ${data.totalDurationSec} 秒`
         );
@@ -4246,6 +4260,7 @@ export default function DirectorAI() {
 
   const handleImportScript = useCallback(
     (content: string, title: string, format: string) => {
+      setStoryboardCreated(false);
       importScriptMut.mutate({
         rawContent: content,
         title,
@@ -4725,8 +4740,7 @@ export default function DirectorAI() {
       worlds: worldsList.length,
       characters: focusedWorld?.characters?.length ?? 0,
       scenes: focusedWorld?.scenes?.length ?? 0,
-      // storyboards 數量需個別 query；先省略，由 WorldbuildingPanel 內顯示
-      storyboards: 0,
+      storyboards: storyboardCreated ? 1 : 0,
       generation: generationTasks.length,
     };
   }, [
@@ -4735,6 +4749,166 @@ export default function DirectorAI() {
     scripts.length,
     importedSegments.length,
     generationTasks.length,
+    storyboardCreated,
+  ]);
+
+  const hasImportedScript = importedSegments.length > 0;
+  const hasApprovedScript = Boolean(
+    hasImportedScript &&
+      scriptStats &&
+      scriptStats.approved === scriptStats.total
+  );
+  const hasWorldContext = Boolean(
+    worldbuildingSelectedId ?? worldCtx.worldFrameworkId
+  );
+
+  const currentWorkflowStage = useMemo<WorkflowStageId>(() => {
+    if (importScriptMut.isPending) return "parse";
+    if (createStoryboardMut.isPending) return "storyboard";
+    if (!hasImportedScript) return "input";
+    if (!hasApprovedScript) return "review";
+    if (!hasWorldContext || !storyboardCreated) return "storyboard";
+    return "generation";
+  }, [
+    createStoryboardMut.isPending,
+    hasApprovedScript,
+    hasImportedScript,
+    hasWorldContext,
+    importScriptMut.isPending,
+    storyboardCreated,
+  ]);
+
+  const workflowStageStates = useMemo<
+    Partial<Record<WorkflowStageId, WorkflowStageState>>
+  >(
+    () => ({
+      input: hasImportedScript
+        ? "complete"
+        : scriptDraftReady
+          ? "ready"
+          : "idle",
+      parse: importScriptMut.isPending
+        ? "in-progress"
+        : hasImportedScript
+          ? "complete"
+          : scriptDraftReady
+            ? "ready"
+            : "idle",
+      review: hasImportedScript
+        ? hasApprovedScript
+          ? "complete"
+          : "active"
+        : "idle",
+      storyboard: createStoryboardMut.isPending
+        ? "in-progress"
+        : storyboardCreated
+          ? "complete"
+          : hasImportedScript && hasApprovedScript
+            ? hasWorldContext
+              ? "ready"
+              : "blocked"
+            : "idle",
+      generation: generationTasks.length > 0
+        ? "complete"
+        : storyboardCreated
+          ? "ready"
+          : "idle",
+    }),
+    [
+      createStoryboardMut.isPending,
+      generationTasks.length,
+      hasApprovedScript,
+      hasImportedScript,
+      hasWorldContext,
+      importScriptMut.isPending,
+      scriptDraftReady,
+      storyboardCreated,
+    ]
+  );
+
+  const workflowStageDetails: Partial<Record<WorkflowStageId, string>> = {
+    input: hasImportedScript
+      ? `${importedSegments.length} 段已載入`
+      : scriptDraftReady
+        ? "草稿已保存"
+        : "等待輸入",
+    parse: importScriptMut.isPending
+      ? "AI 解析中…"
+      : hasImportedScript
+        ? `${importedSegments.length} 段已解析`
+        : "等待開始",
+    review: hasImportedScript
+      ? `${scriptStats?.approved ?? 0}/${importedSegments.length} 已確認`
+      : "等待解析",
+    storyboard: createStoryboardMut.isPending
+      ? "建立中…"
+      : storyboardCreated
+        ? "已建立"
+        : !hasWorldContext
+          ? "需要世界觀"
+          : "可以建立",
+    generation: generationTasks.length > 0
+      ? `${generationTasks.length} 個任務`
+      : storyboardCreated
+        ? "可以開始"
+        : "等待分鏡板",
+  };
+
+  const workflowPrimaryAction = useMemo(() => {
+    if (importScriptMut.isPending) {
+      return { label: "AI 解析中…", disabled: true };
+    }
+    if (createStoryboardMut.isPending) {
+      return { label: "建立分鏡板中…", disabled: true };
+    }
+    switch (currentWorkflowStage) {
+      case "input":
+        return {
+          label: scriptDraftReady ? "繼續輸入腳本" : "輸入腳本",
+          disabled: false,
+        };
+      case "parse":
+        return { label: "開啟腳本分析", disabled: false };
+      case "review":
+        return { label: "確認分鏡內容", disabled: false };
+      case "storyboard":
+        return {
+          label: hasWorldContext ? "建立分鏡板" : "先設定世界觀",
+          disabled: false,
+        };
+      case "generation":
+        return { label: "查看生成工作區", disabled: false };
+    }
+  }, [
+    createStoryboardMut.isPending,
+    currentWorkflowStage,
+    hasWorldContext,
+    importScriptMut.isPending,
+    scriptDraftReady,
+  ]);
+
+  const handleWorkflowPrimaryAction = useCallback(() => {
+    switch (currentWorkflowStage) {
+      case "input":
+      case "parse":
+      case "review":
+        setActiveTab("script");
+        return;
+      case "storyboard":
+        if (!hasWorldContext) {
+          setActiveTab("worldbuilding");
+          return;
+        }
+        handleCreateStoryboardFromScript();
+        return;
+      case "generation":
+        setActiveTab("worldbuilding");
+        return;
+    }
+  }, [
+    currentWorkflowStage,
+    handleCreateStoryboardFromScript,
+    hasWorldContext,
   ]);
 
   return (
@@ -4765,6 +4939,11 @@ export default function DirectorAI() {
       <WorkflowStepper
         activeTab={activeTab}
         onSwitch={setActiveTab}
+        currentStage={currentWorkflowStage}
+        stageStates={workflowStageStates}
+        stageDetails={workflowStageDetails}
+        primaryAction={workflowPrimaryAction}
+        onPrimaryAction={handleWorkflowPrimaryAction}
         counts={stepperCounts}
       />
 
@@ -5357,6 +5536,7 @@ export default function DirectorAI() {
                 personality={personality}
                 onGenerated={data => {
                   pushUndoSnapshot("腳本生成前");
+                  setStoryboardCreated(false);
                   setImportedSegments(data.segments as ScriptSegment[]);
                   setImportedTitle(data.title);
                   if (data.segments.length > 0) {
@@ -5368,6 +5548,7 @@ export default function DirectorAI() {
                 onImport={handleImportScript}
                 isImporting={importScriptMut.isPending}
                 personality={personality}
+                onDraftChange={setScriptDraftReady}
               />
             </div>
           ) : (
