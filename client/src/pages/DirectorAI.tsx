@@ -72,6 +72,7 @@ import {
   RefreshCw,
   Undo2,
   History,
+  PenLine,
 } from "lucide-react";
 import { GlassCard } from "@/components/ZenCoPilot";
 import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
@@ -167,6 +168,14 @@ import type {
 
 
 // ─── Script Import Panel ───────────────────────────────────────────────────
+
+/** 生成前檢查標籤 → 可直接補齊的 storyboard 欄位 */
+const FIELD_SUGGESTIONS: Record<string, keyof ScriptSegment["storyboard"]> = {
+  場景: "sceneHeading",
+  畫面: "visualDescription",
+  鏡頭: "cameraDirection",
+  聲音: "soundDesign",
+};
 
 const SCRIPT_IMPORT_DRAFT_KEY = "director-script-import-draft-v2";
 
@@ -434,6 +443,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
   isGeneratingCostar,
   onRegenerate,
   isRegenerating,
+  onFixField,
 }: {
   segment: ScriptSegment;
   personality: Personality;
@@ -446,6 +456,11 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
   isGeneratingCostar?: boolean;
   onRegenerate?: () => void;
   isRegenerating?: boolean;
+  /** 直接補齊缺少的 storyboard 欄位，不經過 AI 討論 */
+  onFixField?: (
+    field: keyof ScriptSegment["storyboard"],
+    value: string
+  ) => void;
 }) {
   const [inputMessage, setInputMessage] = useState("");
   const [selectedAction, setSelectedAction] = useState<QuickAction | null>(
@@ -815,9 +830,37 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           </div>
         </div>
         {missingGenerationChecks.length > 0 && (
-          <p className="mt-1.5 text-amber-800/80">
-            尚缺：{missingGenerationChecks.join("、")}。仍可嘗試生成，但若要降低「素材找不到」或構圖失焦，建議先在下方討論中補上具體角色、地點與鏡頭動作。
-          </p>
+          <div className="mt-1.5 space-y-1.5">
+            <p className="text-amber-800/80">
+              尚缺：{missingGenerationChecks.join("、")}。可直接補齊，或留到下方討論。補齊後再送出，能明顯降低「素材找不到」與構圖失焦。
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {generationChecks
+                .filter(check => !check.ok)
+                .map(check => (
+                  <button
+                    key={check.label}
+                    onClick={() => {
+                      const field = FIELD_SUGGESTIONS[check.label];
+                      if (field && onFixField) {
+                        const draft =
+                          window.prompt(
+                            `為「${segment.storyboard.sceneHeading || `第 ${segment.index + 1} 鏡`}」補上${check.label}：`
+                          )?.trim();
+                        if (draft) onFixField(field, draft);
+                      } else if (field) {
+                        toast.warning("直接補齊尚未開放給此鏡", {
+                          description: "建議先在討論中請 AI 幫你補上。",
+                        });
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-amber-800 hover:bg-amber-50 transition-colors"
+                  >
+                    <PenLine className="w-2.5 h-2.5" /> 補{check.label}
+                  </button>
+                ))}
+            </div>
+          </div>
         )}
       </div>
 
@@ -5813,6 +5856,26 @@ export default function DirectorAI() {
                           )
                         }
                         isRegenerating={regenerateSegMut.isPending}
+                        onFixField={(field, value) => {
+                          const seg =
+                            importedSegments[selectedSegmentIdx];
+                          if (!seg) return;
+                          handleUpdateSegment({
+                            ...seg,
+                            storyboard: {
+                              ...seg.storyboard,
+                              [field]: value,
+                            },
+                            status:
+                              seg.status === "pending"
+                                ? "draft"
+                                : seg.status,
+                          });
+                          toast.success(`已補上「${value.slice(0, 12)}${value.length > 12 ? "…" : ""}」`, {
+                            description:
+                              "這格現已具備該欄位，可再確認後生成。",
+                          });
+                        }}
                       />
                     </GlassCard>
                   ) : (
