@@ -632,6 +632,28 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportedActions: ["navigate"],
   },
   {
+    id: "creator-dashboard",
+    label: "創作者儀表板",
+    path: "/creator/dashboard",
+    group: "project",
+    description: "用量配額透明度與影片表現數據（收斂 AIDV-272/273）",
+    aliases: ["creator dashboard", "配額", "用量", "影片表現", "完播率"],
+    showInSidebar: false,
+    showInAgentHome: false,
+    agentEntryPriority: 25,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-creator-dashboard",
+        label: "查看用量配額",
+        description: "檢視本月配額用量與影片表現",
+        path: "/creator/dashboard",
+      },
+    ],
+    orbHints: ["我這個月還剩多少配額", "我的影片表現如何"],
+    supportedActions: ["navigate"],
+  },
+  {
     id: "history",
     label: "生成歷史",
     path: "/assets?section=history",

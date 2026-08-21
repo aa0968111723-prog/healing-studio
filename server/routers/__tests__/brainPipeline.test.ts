@@ -337,6 +337,7 @@ describe("brainPipeline graph builder", () => {
       "agentWorkflow", // AIDV-339：驗證門失敗路由 — 純 in-memory 狀態追蹤，不觸發 AI provider
       "videoAnalytics", // AIDV-272：影片播放事件追蹤 CRUD — 純資料持久化，不觸發 AI provider
       "skillRegistry", // AIDV-848: skill registry read-only queries — pure DB, no AI provider
+      "creatorDashboard", // AIDV-277：創作者配額/表現唯讀 tRPC — 純資料彙總查詢，不觸發 AI provider
     ]);
 
     const inGraph = new Set(
